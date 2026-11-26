@@ -99,6 +99,14 @@ function fixture(options: { endpoint?: string | null; dataDir?: string; sections
 }
 
 describe("a message that tags @devs", () => {
+  it("does not send a second report when held context is copied", async () => {
+    const fx = fixture();
+    fx.person("scout-main", "@devs HELD_FIXTURE", { workBotReviewHold: true, workBotHandoffSource: { threadId: "old", messageId: "m1" } });
+    fx.advance(NO_ANSWER_MS);
+    await fx.settle();
+    expect(fx.sent).toHaveLength(0);
+    fx.stop();
+  });
   it("keeps an existing queue private when reporting is disabled or the recipient changes", async () => {
     const original = fixture();
     original.person("scout-main", "@devs original recipient only");

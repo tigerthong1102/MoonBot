@@ -10,6 +10,15 @@ import { closeMessageDb,
   indexMemoryFile,
   indexedMemoryFiles,
   insertMessage,
+  appendMessageBatch,
+  workBotLinksForThread,
+  recoverLegacyWorkBotLinks,
+  transferQueuedWorkBotMessages,
+  saveChatFollowup,
+  chatFollowups,
+  settleChatFollowups,
+  transferredChatFollowup,
+  verifiedWorkBotFollowup,
   insertNotificationLog,
   lastRowAt,
   liveAppRows,
@@ -18,6 +27,8 @@ import { closeMessageDb,
   optionCardsForTools,
   logNotification,
   openRescueMessages,
+  pendingWorkBotRoutes,
+  pendingWorkBotTargets,
   latestSaidByBot,
   markNotificationLogRead,
   readMessageText,
@@ -35,6 +46,8 @@ import type { NotificationLogEntry } from "../shared/notification.ts";
 import { withPeerProvenance } from "./peer-provenance.ts";
 import { Store, type Message } from "./store.ts";
 import type { ModelSelection } from "./contracts.ts";
+import { workBotReceiptFingerprint } from "./work-bot-receipt.ts";
+import { unambiguousWorkBotRequest } from "./host/work-bot-host.ts";
 
 const selection = (): ModelSelection => ({ instanceId: "claude", model: "claude-sonnet-5" });
 const legacy = (threadId: string) => join(DATA_DIR, `messages-${threadId}.json`);
@@ -66,6 +79,133 @@ describe("message-db", () => {
     expect(thread.activeLeafId).toBe("m2");
   });
 
+  it("rolls back all copied messages and the active leaf if a batch insert fails", () => {
+    insertMessage("target", msg("original", "original"));
+    setActiveLeaf("target", "original");
+    const db = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    db.exec("CREATE TRIGGER fail_work_bot_fixture BEFORE INSERT ON messages WHEN NEW.id = 'fail' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+    expect(() => appendMessageBatch("target", [msg("first", "first"), msg("fail", "second")])).toThrow("fixture failure");
+    db.close();
+    closeMessageDb();
+    const after = readThread("target", legacy("target"));
+    expect(after.messages.map(row => row.id)).toEqual(["original"]);
+    expect(after.activeLeafId).toBe("original");
+  });
+
+  it("keeps opaque handoff links across message clearing and rolls them back with failed staging", () => {
+    const link = { sourceBotId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target" };
+    insertMessage("target", msg("existing", "existing"));
+    const db = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    db.exec("CREATE TRIGGER fail_linked_fixture BEFORE INSERT ON messages WHEN NEW.id = 'fail' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+    expect(() => appendMessageBatch("target", [msg("fail", "private text")], link)).toThrow("fixture failure");
+    expect(workBotLinksForThread("source")).toEqual([]);
+    db.exec("DROP TRIGGER fail_linked_fixture"); db.close();
+    appendMessageBatch("target", [msg("copied", "private text")], link);
+    clearThreadMessages("source", () => {}); clearThreadMessages("target", () => {});
+    closeMessageDb();
+    expect(workBotLinksForThread("source")).toEqual([link]);
+    expect(workBotLinksForThread("target")).toEqual([link]);
+    expect(workBotLinksForThread("other")).toEqual([]);
+    expect(JSON.stringify(workBotLinksForThread("source"))).not.toContain("private text");
+  });
+
+  it("backfills verified legacy handoffs once before history is cleared", () => {
+    insertMessage("source", msg("offer", "private source", { workBotRouting: { state: "dispatched", sourceBotId: "source-bot", targetBotId: "target-bot", targetThreadId: "target" } as Message["workBotRouting"] }));
+    insertMessage("other-source", msg("other-offer", "private source", { workBotRouting: { state: "dispatched", sourceBotId: "source-bot", targetBotId: "target-bot", targetThreadId: "empty-target" } as Message["workBotRouting"] }));
+    insertMessage("target", msg("copied", "private copy", { workBotHandoffSource: { threadId: "source", messageId: "offer" } }));
+    closeMessageDb();
+    const raw = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    raw.exec("DELETE FROM command_receipts WHERE kind = 'migration' AND key = 'work_bot_links_v1'; DROP TABLE work_bot_links");
+    raw.close();
+    expect(workBotLinksForThread("source")).toMatchObject([{ sourceBotId: "source-bot", sourceMessageId: "offer", targetBotId: "target-bot" }]);
+    expect(workBotLinksForThread("empty-target")).toHaveLength(1);
+    clearThreadMessages("source", () => {}); clearThreadMessages("target", () => {});
+    closeMessageDb();
+    expect(workBotLinksForThread("target")).toHaveLength(1);
+  });
+
+  it("recovers a legacy target-only handoff using existing bot ownership", () => {
+    insertMessage("target", msg("copy", "private copy", { sendId: "workbot-offer", workBotHandoffSource: { threadId: "source", messageId: "offer" } }));
+    insertMessage("target", msg("forged", "private copy", { sendId: "other", workBotHandoffSource: { threadId: "source", messageId: "forged" } }));
+    const owners: Record<string, string> = { source: "source-bot", target: "target-bot" };
+    recoverLegacyWorkBotLinks(() => undefined);
+    expect(workBotLinksForThread("source")).toEqual([]);
+    recoverLegacyWorkBotLinks(threadId => owners[threadId]);
+    clearThreadMessages("target", () => {}); closeMessageDb();
+    expect(workBotLinksForThread("source")).toEqual([{ sourceBotId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target" }]);
+  });
+
+  it("persists a complete copied context batch with its active leaf", () => {
+    appendMessageBatch("target", [msg("first", "first", { parentId: null }), msg("second", "second", { parentId: "first", replyToId: "first" })]);
+    closeMessageDb();
+    const after = readThread("target", legacy("target"));
+    expect(after.messages.map(row => [row.id, row.parentId, row.replyToId])).toEqual([["first", null, undefined], ["second", "first", "first"]]);
+    expect(after.activeLeafId).toBe("second");
+  });
+
+  it("atomically claims queued follow-ups and persists their destination, rolling back if any claim is stale", () => {
+    const claim = { botId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", queueIds: ["q1", "q2"] };
+    for (const id of claim.queueIds) saveChatFollowup({ id, kind: "bot", ownerId: claim.botId, threadId: claim.sourceThreadId, payload: { text: id, sendId: id, workBotOfferSource: claim.sourceMessageId } });
+    const origin = { workBotHandoffSource: { threadId: "source", messageId: "offer" }, workBotRecoveryPending: true as const };
+    const messages = [msg("source-copy", "source", origin), msg("copy", "q1", { ...origin, parentId: "source-copy", queueId: "q1", sendId: "q1" }), msg("copy2", "q2", { ...origin, parentId: "copy", queueId: "q2", sendId: "q2" })];
+    expect(() => transferQueuedWorkBotMessages("target", [...messages.slice(0, 2), msg("missing", "missing", { ...origin, parentId: "copy", queueId: "missing" })], { ...claim, queueIds: ["q1", "missing"] })).toThrow("Queued work changed");
+    expect(chatFollowups().map(row => row.status)).toEqual(["pending", "pending"]);
+    expect(readThread("target", legacy("target")).messages).toEqual([]);
+    expect(() => transferQueuedWorkBotMessages("target", [messages[0], messages[1], { ...messages[2], text: "different" }], claim)).toThrow("does not match");
+    insertMessage("target", msg("copy", "existing"));
+    expect(() => transferQueuedWorkBotMessages("target", messages, claim)).toThrow("destination message already exists");
+    expect(readThread("target", legacy("target")).messages[0].text).toBe("existing");
+    clearThreadMessages("target", () => {});
+    const db = new DatabaseSync(join(DATA_DIR, "messages.db"));
+    db.exec("CREATE TRIGGER fail_queued_handoff BEFORE INSERT ON messages WHEN NEW.id = 'copy2' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+    expect(() => transferQueuedWorkBotMessages("target", messages, claim)).toThrow("fixture failure");
+    expect(chatFollowups().map(row => row.status)).toEqual(["pending", "pending"]);
+    expect(readThread("target", legacy("target")).messages).toEqual([]);
+    db.exec("DROP TRIGGER fail_queued_handoff");
+    db.close();
+    const link = { sourceBotId: "source-bot", sourceThreadId: "source", sourceMessageId: "offer", targetBotId: "target-bot", targetThreadId: "target" };
+    transferQueuedWorkBotMessages("target", messages, claim, link);
+    expect(workBotLinksForThread("source")).toEqual([link]);
+    closeMessageDb();
+    expect(chatFollowups().map(row => row.status)).toEqual(["transferred", "transferred"]);
+    expect(readThread("target", legacy("target")).messages.map(row => row.text)).toEqual(["source", "q1", "q2"]);
+    expect(pendingWorkBotTargets().map(row => row.message.id)).toEqual(["source-copy", "copy", "copy2"]);
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(true);
+    expect(verifiedWorkBotFollowup("q1", "source", "forged", "target", "copy")).toBe(false);
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "other", "copy")).toBe(false);
+    const verified = (row: Message) => Boolean(row.queueId && row.workBotHandoffSource && verifiedWorkBotFollowup(row.queueId, row.workBotHandoffSource.threadId, row.workBotHandoffSource.messageId, "target", row.id));
+    expect(unambiguousWorkBotRequest(messages, "source-copy", verified)).toBe(true);
+    expect(unambiguousWorkBotRequest([...messages, msg("forged", "other", { ...origin, queueId: "q1" })], "source-copy", verified)).toBe(false);
+    expect(() => transferQueuedWorkBotMessages("target", messages, claim)).toThrow("destination changed");
+    const receipt = transferredChatFollowup("source-bot", "source", "q1")!;
+    expect(receipt.fingerprint).toBe(workBotReceiptFingerprint(receipt.salt, "q1", undefined, undefined));
+    updateMessage("target", { ...messages[1], text: "edited" });
+    expect(transferredChatFollowup("source-bot", "source", "q1")).toEqual(receipt);
+    clearThreadMessages("source", () => {});
+    expect(transferredChatFollowup("source-bot", "source", "q1")).toEqual({ id: "q1", salt: "", fingerprint: "" });
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(true);
+    deleteThread("source");
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(true);
+    clearThreadMessages("target", () => {});
+    expect(transferredChatFollowup("source-bot", "source", "q1")).toEqual({ id: "q1", salt: "", fingerprint: "" });
+    expect(verifiedWorkBotFollowup("q1", "source", "offer", "target", "copy")).toBe(false);
+    expect(JSON.stringify(chatFollowups())).not.toContain(receipt.fingerprint);
+  });
+
+  it("does not transfer follow-ups with an already steered row or hidden prompt context", () => {
+    const claim = { botId: "bot", sourceThreadId: "source", sourceMessageId: "offer", queueIds: ["q"] };
+    const source = msg("source-copy", "source", { workBotHandoffSource: { threadId: "source", messageId: "offer" }, workBotRecoveryPending: true });
+    const copy = msg("copy", "follow-up", { parentId: "source-copy", queueId: "q", workBotHandoffSource: { threadId: "source", messageId: "offer" }, workBotRecoveryPending: true });
+    saveChatFollowup({ id: "q", kind: "bot", ownerId: "bot", threadId: "source", payload: { text: "follow-up", rowId: "already-steered", workBotOfferSource: "offer" } });
+    expect(() => transferQueuedWorkBotMessages("target", [source, copy], claim)).toThrow("cannot be transferred safely");
+    expect(chatFollowups()[0].status).toBe("pending");
+    expect(readThread("target", legacy("target")).messages).toEqual([]);
+    settleChatFollowups(["q"], null);
+    saveChatFollowup({ id: "q", kind: "bot", ownerId: "bot", threadId: "source", payload: { text: "follow-up", prompt: "hidden context\nfollow-up", workBotOfferSource: "offer" } });
+    expect(() => transferQueuedWorkBotMessages("target", [source, copy], claim)).toThrow("cannot be transferred safely");
+    expect(chatFollowups()[0].status).toBe("pending");
+  });
+
   it("clears search and every branch while retaining page files until the thread itself is deleted", () => {
     insertMessage("target", msg("secret", "fixtureoldwords"));
     insertMessage("target", msg("side", "alternatebranch /api/attachments/fixture-A.png", { parentId: null }));
@@ -94,6 +234,15 @@ describe("message-db", () => {
     insertMessage("t2", msg("m1", "{\"app\":{\"live\":true}}"));
     expect(liveAppRows()).toEqual([{ threadId: "t2", messageId: "a3" }, { threadId: "t1", messageId: "a1" }]);
     expect(liveAppRows(1)).toEqual([{ threadId: "t2", messageId: "a3" }]);
+  });
+
+  it("finds unfinished work bot routing after reopening the database", () => {
+    insertMessage("t1", msg("classifying", "work", { role: "user", kind: "text", workBotRouting: { state: "classifying" } }));
+    insertMessage("t1", msg("waiting", "work", { role: "user", kind: "text", workBotRouting: { state: "waiting_choice", requestId: "request" } }));
+    insertMessage("t2", msg("dispatching", "work", { role: "user", kind: "text", workBotRouting: { state: "dispatching", targetBotId: "bot", targetThreadId: "target" } }));
+    insertMessage("t2", msg("dispatched", "work", { role: "user", kind: "text", workBotRouting: { state: "dispatched" } }));
+    closeMessageDb();
+    expect(pendingWorkBotRoutes().map(row => [row.threadId, row.message.id])).toEqual([["t1", "classifying"], ["t1", "waiting"], ["t2", "dispatching"]]);
   });
 
   it("finds the first-reply rescue rows that never settled or ended", () => {

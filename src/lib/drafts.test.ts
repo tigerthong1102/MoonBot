@@ -25,6 +25,7 @@ import {
   replaceDraftAttachment,
   restoredSendId,
   restoredRequestText,
+  restoredSendData,
   setDraft,
   setDraftAttachments,
   setDraftChannelMode,
@@ -81,16 +82,18 @@ describe("channel draft delivery mode", () => {
     Object.defineProperty(globalThis, "localStorage", { configurable: true, value: store });
     const draftId = "bot:data-retry:task";
     const requestText = 'Fix this\n<attached-file path="/tmp/orders.csv" name="orders.csv" />';
-    const sent = { draftId, revision: draftRevision(draftId), sendId: "data-retry-send", threadId: "task", text: "Fix this", requestText, attachments: [] };
+    const dataContext = { cardId: "c_1", draftSql: "SELECT 42 AS amount" };
+    const sent = { draftId, dataContext, revision: draftRevision(draftId), sendId: "data-retry-send", threadId: "task", text: "Fix this", requestText, attachments: [] };
     expect(recoverFailedComposerSend(sent)).toBe("restored");
     expect(restoredSendId(draftId)).toBe(sent.sendId);
     expect(restoredRequestText(draftId)).toBe(requestText);
     const changedView = 'Fix this\n<attached-file path="/tmp/people.csv" name="people.csv" />';
     expect(restoredRequestText(draftId) ?? changedView).toBe(requestText);
     const persisted = JSON.parse(store.getItem("omb-draft-send-ids")!)[draftId];
-    expect(persisted).toEqual({ sendId: sent.sendId, requestText });
+    expect(persisted).toEqual({ sendId: sent.sendId, requestText, dataContext });
     store.setItem("omb-draft-send-ids", JSON.stringify({ "bot:restarted:task": persisted, "bot:legacy:task": "legacy-id" }));
     expect(restoredRequestText("bot:restarted:task")).toBe(requestText);
+    expect(restoredSendData("bot:restarted:task")).toEqual(dataContext);
     expect(restoredSendId("bot:legacy:task")).toBe("legacy-id");
     expect(restoredRequestText("bot:legacy:task")).toBeUndefined();
     markDraftEdited(draftId);
@@ -103,8 +106,8 @@ describe("channel draft delivery mode", () => {
     const revision = draftRevision(draftId);
     const requestText = 'Fix this\n<attached-file path="/tmp/orders.csv" name="orders.csv" />';
     markDraftEdited(draftId);
-    expect(recoverFailedComposerSend({ draftId, revision, sendId: "data-outbox-send", threadId: "task", text: "Fix this", requestText, attachments: [] })).toBe("outbox");
-    expect(failedComposerSends(draftId)[0]?.requestText).toBe(requestText);
+    expect(recoverFailedComposerSend({ draftId, revision, sendId: "data-outbox-send", dataContext: { cardId: "c_2" }, workBotUploadReceipts: ["fixture-receipt"], threadId: "task", text: "Fix this", requestText, attachments: [] })).toBe("outbox");
+    expect(failedComposerSends(draftId)[0]).toMatchObject({ requestText, dataContext: { cardId: "c_2" }, workBotUploadReceipts: ["fixture-receipt"] });
   });
 
   it("keeps a failed outbox send's choice of how it meets the running turn", () => {

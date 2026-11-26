@@ -18,6 +18,12 @@ export function workBotName(topic: string, bots: ReadonlyArray<{ name: string }>
   return name;
 }
 
+export function workBotTopicForRequest(topic: string, request: string, fallback: string): string {
+  const comparable = (value: string) => value.normalize("NFKC").toLocaleLowerCase("und").replace(/[^\p{L}\p{M}\p{N}]+/gu, "");
+  if (comparable(topic) !== comparable(request)) return topic;
+  return comparable(fallback) === comparable(request) ? `${fallback} 1` : fallback;
+}
+
 const shapes: Record<WorkBotIcon, string> = {
   ledger: '<rect x="22" y="13" width="40" height="54" rx="4"/><path d="M32 13v54m8-38h13m-13 9h13m-13 9h13"/>',
   chart: '<path d="M16 16v48h50m-40-12V41m13 11V33m13 19V22"/>',

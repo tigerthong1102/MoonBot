@@ -33,7 +33,7 @@ export interface MeetingsHostDeps {
     used(owner: string): void;
   };
   computerOwner(bot: BotRecord): string;
-  routines(): Pick<RoutineManager, "create" | "listRoutines"> | null;
+  routines(): Pick<RoutineManager, "create" | "listRoutines" | "assertHandoffRoutineSafe"> | null;
   log(line: string): void;
 }
 
@@ -127,6 +127,7 @@ export function createMeetingsHost(deps: MeetingsHostDeps, routeDeps: () => Meet
       if (!manager) return "Routines are not available here right now.";
       const existing = manager.listRoutines().find((routine) => routine.botId === botId && routine.name === MEETING_ROUTINE.name);
       if (existing) return `The routine "${MEETING_ROUTINE.name}" is already set up${existing.enabled ? "" : " (paused; turn it on in Routines)"}.`;
+      manager.assertHandoffRoutineSafe({ botId, threadId, messageId: "" });
       manager.create({
         name: MEETING_ROUTINE.name, prompt: MEETING_ROUTINE.prompt, botId, enabled: true, timeoutMinutes: 10, overlap: "skip", resultsThreadId: threadId,
         schedule: { type: "interval", everyMinutes: MEETING_ROUTINE.everyMinutes, anchorAt: Date.now() + 60_000, weekdays: [1, 2, 3, 4, 5],

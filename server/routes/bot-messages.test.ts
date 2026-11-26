@@ -162,8 +162,20 @@ async function fixture(over: Partial<Record<keyof BotMessageRouteDeps, unknown>>
   };
   const row = (id: string, thread = threadId): Message => store.messagesFor(thread).find((message) => message.id === id)!;
   const sent = (thread = threadId): Message[] => store.messagesFor(thread).filter((message) => message.role === "user");
-  return { store, bot, threadId, state, post, edit, cancelQueued, show, row, sent, patches: vi.spyOn(store, "patchMessage") };
+  return { base, store, bot, threadId, state, post, edit, cancelQueued, show, row, sent, patches: vi.spyOn(store, "patchMessage") };
 }
+
+it("refuses a handed-off stop before changing state when the assigned bot must be opened", async () => {
+  const stop = vi.fn();
+  const { base, bot, threadId, store } = await fixture({ liveTurn: () => undefined, handoffStopRefusal: () => "Open the assigned bot", stopThreadForPerson: stop });
+  const before = store.activeLeaf(threadId);
+  const response = await fetch(`${base}/api/bots/${bot.id}/interrupt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ threadId }) });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ code: "stop_in_assigned_bot" });
+  expect(stop).not.toHaveBeenCalled();
+  expect(store.activeLeaf(threadId)).toBe(before);
+});
+
 
 describe("editing a message with no AI", () => {
   it("says what a Send says on a team, and starts no turn", async () => {

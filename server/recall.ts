@@ -120,6 +120,7 @@ export interface RecallInput {
   threadIds: readonly string[];
   label: (threadId: string) => string;
   author: (hit: RecallHit) => string;
+  includeConversation?: (hit: RecallHit) => boolean;
 }
 
 const TOPIC_PASSAGE_CHARS = 600;
@@ -174,7 +175,7 @@ export function conversationPassages(input: RecallInput, query: string): RecallP
     return [];
   }
   return hits
-    .filter((hit) => enoughMatches(query, hit.snippet))
+    .filter((hit) => (!input.includeConversation || input.includeConversation(hit)) && enoughMatches(query, hit.snippet))
     .slice(0, CONVERSATION_HITS)
     .map((hit) => ({
       source: "conversation" as const,

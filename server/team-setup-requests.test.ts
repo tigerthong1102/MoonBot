@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { TeamSetupError, TeamSetupRequestService } from "./team-setup-requests.ts";
+import { workBotCreationMode, workBotCreationPermissions, workBotGrantsMatch } from "./work-bot-permissions.ts";
 import { closedByStop, resumableCards } from "./host/resumable-cards.ts";
 import { botFolder } from "./bot-folder.ts";
 import { flushProfileHistory, readHistory } from "./profile-versions.ts";
@@ -83,6 +84,80 @@ describe("reviewed Chief team setup", () => {
     expect(h.apply).not.toHaveBeenCalled();
   });
 
+  it("releases the classifier queue after cancellation even when the provider ignores abort", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    h.messages.push({ id: "one", role: "user", text: "First work" }, { id: "two", role: "user", text: "Second work" });
+    let finish!: (answer: string) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>(resolve => { markStarted = resolve; });
+    const stalled = new Promise<string>(resolve => { finish = resolve; });
+    const abort = new AbortController();
+    const first = h.service.offerFromChat(h.chief.id, h.chief.threadId, "First work", "", "one", () => ({ via: "engine", generateText: () => { markStarted(); return stalled; } }), abort.signal);
+    await started;
+    abort.abort();
+    await first;
+    await h.service.offerFromChat(h.chief.id, h.chief.threadId, "Second work", "", "two", () => ({ via: "engine", generateText: async () => '{"name":"Second work","icon":"tasks"}' }));
+    finish('{"name":"First work","icon":"tasks"}');
+    await Promise.resolve();
+    expect(h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer?.topic ?? [])).toEqual(["Second work"]);
+  });
+
+  it("previews a short request without turning it into standing instructions or a bot name", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    const text = "Track inventory weekly";
+    h.messages.push({ id: "short", role: "user", text });
+    await h.service.offerFromChat(h.chief.id, h.chief.threadId, text, "", "short", () => ({ via: "engine", generateText: async () => JSON.stringify({ name: text, icon: "box" }) }));
+    const card = h.messages.find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
+    expect(card?.subtitle).toBe(text);
+    const fields = card!.teamSetupRequest!.operations[0]!.fields;
+    expect(fields.name).not.toBe(text);
+    expect(fields.title).not.toBe(text);
+    expect(fields.description).not.toBe(text);
+    expect(fields.soul).not.toContain(text);
+    expect(fields.soul).toBeTruthy();
+    expect(card!.teamSetupRequest!.workBotOffer?.topic).toBe(text);
+  });
+
+  it.each([false, true])("keeps distinct short topics and reserves pending names (reverse: %s)", async reverse => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    const first = "Track inventory weekly", second = "Review returns daily";
+    h.messages.push({ id: "a", role: "user", text: first }, { id: "b", role: "user", text: second }, { id: "c", role: "user", text: first });
+    const prompts: string[] = [];
+    const ask = (id: string, text: string) => h.service.offerFromChat(h.chief.id, h.chief.threadId, text, "", id, () => ({ via: "engine", generateText: async prompt => { prompts.push(prompt); return JSON.stringify({ name: text, icon: "tasks" }); } }));
+    await ask("a", first);
+    await ask("b", second);
+    await ask("c", first);
+    const offers = h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer ? [row.card.teamSetupRequest.workBotOffer] : []);
+    expect(offers).toHaveLength(2);
+    expect(offers.map(offer => offer.topic)).toEqual([first, second]);
+    const names = h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer ? [row.card.teamSetupRequest.operations[0]!.fields.name] : []);
+    expect(new Set(names).size).toBe(2);
+    expect(prompts[1]).toContain(first);
+    const cards = h.messages.flatMap(row => row.card?.teamSetupRequest?.workBotOffer ? [row.card] : []);
+    for (const card of reverse ? cards.reverse() : cards) expect((await h.resolve(card.requestId!))?.result.state).toBe("applied");
+  });
+
+  it("does not publish an offer when eligibility changes while the provider is responding", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    h.messages.push({ id: "source", role: "user", text: "Follow the fixture report" });
+    let finish!: (answer: string) => void;
+    let markStarted!: () => void;
+    const started = new Promise<void>(resolve => { markStarted = resolve; });
+    const pendingAnswer = new Promise<string>(resolve => { finish = resolve; });
+    let allowed = true;
+    const pending = h.service.offerFromChat(h.chief.id, h.chief.threadId, "Follow the fixture report", "", "source", () => allowed ? { via: "engine", generateText: () => { markStarted(); return pendingAnswer; } } : null);
+    await started;
+    allowed = false;
+    finish('{"name":"Fixture report","icon":"tasks"}');
+    await pending;
+    expect(h.messages.some(row => row.card?.teamSetupRequest?.workBotOffer)).toBe(false);
+    expect(h.apply).not.toHaveBeenCalled();
+  });
+
   it("redacts input and drops a delayed result after its source is cleared", async () => {
     const h = harness();
     h.chief.defaultBot = {};
@@ -103,6 +178,17 @@ describe("reviewed Chief team setup", () => {
     finish('{"name":"每日审核","icon":"tasks"}');
     await pending;
     expect(h.messages).toHaveLength(0);
+  });
+
+  it("redacts secrets in a work offer preview", async () => {
+    const h = harness();
+    h.chief.defaultBot = {};
+    const secret = "sk-test-" + "a".repeat(32), text = `Monitor inventory ${secret}`;
+    h.messages.push({ id: "source", role: "user", text });
+    await h.service.offerFromChat(h.chief.id, h.chief.threadId, text, "", "source", () => ({ via: "engine", generateText: async () => '{"name":"Inventory","icon":"box"}' }));
+    const card = h.messages.find(row => row.card?.teamSetupRequest?.workBotOffer)?.card;
+    expect(card?.subtitle).toBeTruthy();
+    expect(card?.subtitle).not.toContain(secret);
   });
 
   it.each(["allow", "deny"])("keeps a suggested work bot pending on Full access until %s", async behavior => {
@@ -779,4 +865,31 @@ describe("a Chief making bots, whatever the plan", () => {
     const app = full(97);
     expect(() => app.propose([specialist("Scout"), specialist("Writer")])).toThrow(expect.objectContaining({ status: 409, message: "This setup exceeds the workspace bot limit" }));
   });
+});
+
+it("caps new hosted work bots at Ask without changing desktop selections or custom refusal", () => {
+  for (const mode of ["ask", "edits", "auto", "full"] as const) {
+    expect(workBotCreationMode(mode, true)).toBe("ask");
+    const request = { workBotOffer: {} } as TeamSetupRequest;
+    expect(workBotCreationPermissions(request, true, workBotCreationMode(mode, true))).toEqual({ bot: { approvalMode: "ask", autoApprove: false }, task: { approvalMode: "ask", autoApprove: false } });
+    expect(workBotCreationMode(mode, false)).toBe(mode);
+  }
+  expect(workBotCreationMode("custom", true)).toBe("custom");
+  expect(workBotCreationMode("custom", false)).toBe("custom");
+});
+
+it("retains the source tool scope and refuses changed connector grants at handoff", () => {
+  const request = { workBotOffer: {} } as TeamSetupRequest;
+  const scope = { allow: ["native:read"], deny: ["mcp:notes:write"] };
+  const permission = workBotCreationPermissions(request, true, "full", scope);
+  expect(permission.bot.toolScope).toEqual(scope);
+  expect(permission.bot.toolScope).not.toBe(scope);
+  const source = { id: "source", threadId: "source", name: "source" } as BotRecord;
+  const target = { id: "target", threadId: "target", name: "target" } as BotRecord;
+  expect(workBotGrantsMatch(source, target)).toBe(true);
+  for (const patch of [
+    { composio: false }, { connectorTools: {} }, { connectorScopes: { apps: {} } }, { mcpServers: [] },
+    { connectorTools: { gmail: { tools: ["GMAIL_FETCH_EMAILS"] } } },
+    { connectorScopes: { apps: { gmail: "read" } } }, { mcpServers: ["notes"] },
+  ]) expect(workBotGrantsMatch({ ...source, ...patch } as BotRecord, target)).toBe(false);
 });

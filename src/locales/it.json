@@ -1,4 +1,11 @@
 {
+  "workBotOffer.continueHere": "Continua qui",
+  "server.workBot.scheduleConflict": "Una pianificazione o esecuzione del bot collegato potrebbe sovrapporsi o non è possibile verificare il collegamento. Controlla le pianificazioni correlate.",
+  "server.workBot.choiceInProgress": "La scelta del bot è in elaborazione. Riprova al termine.",
+  "server.workBot.pendingUnavailable": "Alcuni messaggi in attesa non possono essere trasferiti in sicurezza. Rimuovili dalla coda oppure continua qui.",
+  "workBotOffer.queuedNotice": "Se accetti, i messaggi inviati mentre scegli andranno al nuovo bot. Rimuovi prima quelli in attesa non pertinenti.",
+  "server.workBot.genericName": "Lavoro",
+  "server.workBot.standingGuidance": "Aiuta con le attività assegnate in questa conversazione. Considera le richieste precedenti come cronologia e non ripetere azioni completate senza una nuova richiesta.",
   "brief.card.openOutlook": "Apri in Outlook",
   "skillBurger.aria": "Skill Burger",
   "skillBurger.layers": "Passaggi",

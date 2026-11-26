@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { WIDGET_SAMPLES } from "../shared/widget-samples.ts";
 import { parseWidgetInput, widgetActions, widgetToText, type WidgetAction, type WidgetRoot } from "../shared/widget.ts";
 import { cardRecords, SETUP_RECORDS_SOURCE } from "./records-block.ts";
-import { promptWithReply, replyExcerpt, replyTargetIn, transcriptText, type ReplyTarget } from "./replies.ts";
+import { promptWithReply, refreshRoutedReply, replyExcerpt, replyTargetIn, transcriptText, type ReplyTarget } from "./replies.ts";
 import type { Message } from "./store.ts";
 
 const message = (patch: Partial<Message> = {}): Message => ({
@@ -13,6 +13,21 @@ const message = (patch: Partial<Message> = {}): Message => ({
   kind: "text",
   text: "Original answer",
   ...patch,
+});
+it("does not replay or quote a request handed to another bot", () => {
+  const original = message({ role: "user", text: "Create the synthetic weekly schedule", workBotRouting: { state: "waiting_choice", sourceBotId: "main", targetBotId: "worker" } });
+  const queuedPrompt = promptWithReply("Thanks", original);
+  expect(queuedPrompt).toContain(original.text);
+  const handed = { ...original, workBotRouting: { ...original.workBotRouting!, state: "dispatched" as const } };
+  for (const text of [transcriptText(handed, new Map()), promptWithReply("Thanks", handed), refreshRoutedReply(queuedPrompt, "Thanks", handed)]) {
+    expect(text).not.toContain(original.text);
+    expect(text).toContain("another bot");
+  }
+  expect(refreshRoutedReply("unexpected prebuilt prompt", "Thanks", handed)).toBe("Thanks");
+  const uncertain = { ...handed, workBotRouting: { ...handed.workBotRouting, state: "interrupted" as const } };
+  expect(transcriptText(uncertain, new Map())).toContain("uncertain");
+  const keptHere = { ...handed, workBotRouting: { ...handed.workBotRouting, targetBotId: "main" } };
+  expect(transcriptText(keptHere, new Map())).toContain(original.text);
 });
 describe("a card the server built", () => {
   it("replays into a turn only as records, never as the bot's own words, and so does a reply or reaction to it", () => {

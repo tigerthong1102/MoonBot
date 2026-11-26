@@ -2,6 +2,7 @@
 import { CLOUD_HOME_PLACE } from "./system-prompt.ts";
 import type { LiveProvider } from "../shared/wire.ts";
 import type { Message } from "./store.ts";
+import { routedWorkMarker } from "./delta-context.ts";
 
 export const LIVE_MODEL = "gpt-live-1";
 const OPENAI_BASE = "https://api.openai.com";
@@ -155,10 +156,10 @@ export interface LiveHistoryMessage {
   text: string;
 }
 
-export function liveHistoryFrom(messages: ReadonlyArray<Pick<Message, "role" | "kind" | "text">>): LiveHistoryMessage[] {
+export function liveHistoryFrom(messages: ReadonlyArray<Pick<Message, "role" | "kind" | "text" | "workBotReviewHold" | "workBotRouting">>): LiveHistoryMessage[] {
   return messages
     .filter((message) => message.kind === "text" && typeof message.text === "string" && (message.role === "user" || message.role === "bot"))
-    .map((message) => ({ role: message.role === "user" ? "user" as const : "assistant" as const, text: message.text ?? "" }));
+    .map((message) => ({ role: message.role === "user" ? "user" as const : "assistant" as const, text: (message.workBotReviewHold || message.workBotRouting?.state === "held_for_review" ? routedWorkMarker(message) : undefined) ?? message.text ?? "" }));
 }
 
 export class LiveSessionError extends Error {

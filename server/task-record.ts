@@ -1,8 +1,16 @@
 import { approvalModeFor } from "../shared/approval-mode.ts";
 import { sameModelSelection } from "../shared/thread-model.ts";
-import type { TaskOpenedBy } from "../shared/wire.ts";
+import type { TaskOpenedBy, WireTask } from "../shared/wire.ts";
 import { newId, type ModelSelection } from "./contracts.ts";
 import type { BotRecord, TaskRecord } from "./store.ts";
+
+export function toWireTask(task: TaskRecord, botModel: ModelSelection): WireTask {
+  const { resumeCursors: _resumeCursors, lastInstanceId: _lastInstanceId, handedMessages: _handedMessages,
+    appliedCompactionId: _appliedCompactionId, contextFloor: _contextFloor, lastContextModel: _lastContextModel,
+    surfaceSource, askedAt: _askedAt, ...stored } = task;
+  const wire: WireTask = { ...stored, modelSelection: structuredClone(task.modelSelection ?? botModel), followsBotModel: task.modelSelection === undefined };
+  return surfaceSource === "auto" && wire.surface !== undefined ? { ...wire, surfaceAuto: true } : wire;
+}
 
 export const UNTITLED_THREAD = "New thread";
 const TASK_TITLE_MAX = 80;

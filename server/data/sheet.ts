@@ -13,7 +13,7 @@ export function sheetFile(botId: string): string {
 }
 
 /** Card ids and result tables draw from one counter: an old id can never answer with another card. */
-type StoredSheet = DataSheet & { seq: number };
+type StoredSheet = DataSheet & { seq: number; handoff?: { op: string; backing: Record<string, string> } };
 
 export interface SheetDeps {
   botId: string;
@@ -76,6 +76,7 @@ export class DataSheetStore {
       cards,
       sources: sheet.sources.filter((source): source is DataSource => !!source && typeof source === "object" && typeof source.name === "string"),
       updatedAt: typeof sheet.updatedAt === "string" ? sheet.updatedAt : now,
+      ...(sheet.handoff && typeof sheet.handoff.op === "string" && sheet.handoff.backing && typeof sheet.handoff.backing === "object" ? { handoff: sheet.handoff } : {}),
       seq: Math.max(Number.isSafeInteger(sheet.seq) ? (sheet.seq as number) : 0, highest),
     };
     return this.stored;
@@ -117,6 +118,27 @@ export class DataSheetStore {
     // Reserve its name on disk before the query can replace an older result.
     this.persist();
     return `${prefix}_${stored.seq}`;
+  }
+
+  publishedWorkBotData(op: string): boolean {
+    return this.load().handoff?.op === op;
+  }
+
+  publishWorkBotCards(op: string, cards: DataCard[], backing: Record<string, string>): void {
+    const stored = this.load();
+    if (stored.handoff?.op === op) return;
+    if (stored.handoff || cards.some(card => this.card(card.id)) || stored.cards.length + cards.length > (this.deps.cardsMax ?? DATA_LIMITS.sheetCardsMax)) throw new Error("Destination Data sheet changed during handoff");
+    const priorCards = stored.cards, priorUpdated = stored.updatedAt;
+    stored.cards = [...priorCards, ...cards];
+    stored.handoff = { op, backing };
+    stored.updatedAt = this.now();
+    try { this.persist(); } catch (error) {
+      stored.cards = priorCards;
+      stored.updatedAt = priorUpdated;
+      delete stored.handoff;
+      throw error;
+    }
+    this.deps.broadcast?.({ kind: "data", botId: this.botId, sheet: this.sheet() });
   }
 
   async addCard(input: NewCard): Promise<DataCard> {
@@ -176,11 +198,17 @@ export class DataSheetStore {
   }
 
   private async dropResultOf(card: DataCard): Promise<void> {
-    if (!card.result || !this.deps.dropResult) return;
-    try {
-      await this.deps.dropResult(card.result);
-    } catch (error) {
-      console.warn(`data sheet for ${this.botId}: could not drop ${card.result} (${String(error)})`);
+    const handoff = this.load().handoff;
+    const backing = handoff?.backing[card.id];
+    const names = [card.result];
+    if (handoff && backing && /^snapshot_[0-9a-f]{32}_\d{1,3}$/.test(backing)) {
+      names.push(backing);
+      delete handoff.backing[card.id];
+    }
+    for (const name of names) {
+      if (!name || !this.deps.dropResult) continue;
+      try { await this.deps.dropResult(name); }
+      catch (error) { console.warn(`data sheet for ${this.botId}: could not drop ${name} (${String(error)})`); }
     }
   }
 }

@@ -1,11 +1,12 @@
 import { lstatSync, realpathSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 
-import { fromMarkdown } from "mdast-util-from-markdown";
+import { contextText, routedWorkMarker } from "./delta-context.ts";
+import type { Message } from "./store.ts";
+import { attachmentTagCandidates, type TagCandidate } from "./attachment-tags.ts";
 
 import { ATTACHMENTS_DIR, FILE_MAX_BYTES, IMAGE_MAX_BYTES } from "./attachments.ts";
 import type { TurnImageInput, TurnVideoInput } from "./contracts.ts";
-import { decodeAttachmentAttribute } from "./message-file.ts";
 import { videoFrameImages } from "./turn-video.ts";
 
 export const TURN_IMAGE_MAX_COUNT = 10;
@@ -14,33 +15,18 @@ export const TURN_IMAGE_MAX_BYTES = 4 * IMAGE_MAX_BYTES;
 // A video is sampled into several frames before it reaches a model, so only the first one in a message is sampled.
 export const TURN_VIDEO_MAX_COUNT = 1;
 
-type MarkdownNode = {
-  type: string;
-  children?: MarkdownNode[];
-  value?: string;
-  position?: {
-    start: { offset?: number };
-    end: { offset?: number };
-  };
-};
-
-type TagCandidate = { start: number; end: number; kind: "image" | "file"; path: string };
-
 const OWNED_IMAGE_NAME =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(png|jpg|gif|webp)$/;
 const OWNED_VIDEO_NAME =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(mp4|webm|mov)$/;
-// Composer video attachments use the generic <attached-file> tag (the same one documents and audio use); only its
-// path decides whether it resolves to a video, so every other file kind keeps going through unexamined.
-const ATTACHMENT_TAG =
-  /^<attached-(image|file)[\t ]+path="([^"\r\n]*)"(?:[\t ]+name="([^"\r\n]*)")?[\t ]*\/>$/;
-
 const MIME_BY_EXTENSION: Readonly<Record<string, TurnImageInput["mime"]>> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
 };
+// Composer video attachments use the generic <attached-file> tag (the same one documents and audio use); only its
+// path decides whether it resolves to a video, so every other file kind keeps going through unexamined.
 const VIDEO_MIME_BY_EXTENSION: Readonly<Record<string, TurnVideoInput["mime"]>> = {
   ".mp4": "video/mp4",
   ".webm": "video/webm",
@@ -49,35 +35,6 @@ const VIDEO_MIME_BY_EXTENSION: Readonly<Record<string, TurnVideoInput["mime"]>> 
 
 function statusError(status: number, message: string): Error & { status: number } {
   return Object.assign(new Error(message), { status });
-}
-
-function walk(node: MarkdownNode, visit: (node: MarkdownNode) => void): void {
-  const pending = [node];
-  while (pending.length > 0) {
-    const current = pending.pop()!;
-    visit(current);
-    const children = current.children ?? [];
-    for (let index = children.length - 1; index >= 0; index -= 1) pending.push(children[index]!);
-  }
-}
-
-/** Standalone tags only: prose that contains a tag literal must not become an attachment capability. */
-function attachmentTagCandidates(text: string): TagCandidate[] {
-  const candidates: TagCandidate[] = [];
-  walk(fromMarkdown(text) as MarkdownNode, (node) => {
-    if (node.type !== "html" || !node.value || !node.position) return;
-    const start = node.position.start.offset;
-    const end = node.position.end.offset;
-    if (start === undefined || end === undefined) return;
-    const lineStart = text.lastIndexOf("\n", start - 1) + 1;
-    const nextLine = text.indexOf("\n", end);
-    const lineEnd = nextLine < 0 ? text.length : nextLine;
-    if (text.slice(lineStart, start).trim() || text.slice(end, lineEnd).trim()) return;
-    const match = ATTACHMENT_TAG.exec(node.value);
-    if (!match) return;
-    candidates.push({ start, end, kind: match[1] === "file" ? "file" : "image", path: decodeAttachmentAttribute(match[2]!) });
-  });
-  return candidates;
 }
 
 function ownedAttachment<Mime extends string>(
@@ -173,6 +130,22 @@ export function extractTurnImages(
   return { text: providerText, images: admittedImages.map((item) => item.image), videos };
 }
 
+export function extractHandoffMedia(text: string, followups: readonly string[], options: ExtractTurnImagesOptions = {}) {
+  const first = extractTurnImages(text, options);
+  const images = [...first.images], videos = [...first.videos], followupTexts: string[] = [];
+  let bytes = images.reduce((sum, image) => sum + image.bytes, 0);
+  for (const note of followups) {
+    const media = extractTurnImages(note, options);
+    bytes += media.images.reduce((sum, image) => sum + image.bytes, 0);
+    if (images.length + media.images.length > (options.maxCount ?? TURN_IMAGE_MAX_COUNT)) throw statusError(413, "Too many images across this handoff");
+    if (bytes > (options.maxBytes ?? TURN_IMAGE_MAX_BYTES)) throw statusError(413, "Attached images exceed the total byte limit for one turn");
+    images.push(...media.images);
+    videos.push(...media.videos.slice(0, Math.max(0, (options.maxVideoCount ?? TURN_VIDEO_MAX_COUNT) - videos.length)));
+    followupTexts.push(media.text);
+  }
+  return { text: first.text, images, videos, followupTexts };
+}
+
 /** Stills sampled from a message's video, never taking a turn that already carries `earlier` images past its image count. */
 export function videoFramesWithin(earlier: number, videos: readonly TurnVideoInput[]): Promise<TurnImageInput[]> {
   return videoFrameImages(videos, TURN_IMAGE_MAX_COUNT - earlier);
@@ -200,20 +173,31 @@ export function extractSteerImages(
   return { texts: resolved, images };
 }
 
-export function extractReplayImages<T extends { role: "user" | "assistant"; text: string }>(
+function replayEntryImages(text: string, copy: Message | undefined, options: ExtractTurnImagesOptions) {
+  if (!copy) return extractTurnImages(text, options);
+  if (copy.role !== "user" || !copy.text?.includes("<attached-image") || routedWorkMarker(copy)) return;
+  const quoted = JSON.stringify(contextText(copy));
+  if (!text.includes(quoted)) return;
+  const media = extractTurnImages(copy.text, options);
+  const marked = JSON.stringify(contextText({ ...copy, text: media.text }));
+  return { images: media.images, text: text.replace(quoted, () => marked) };
+}
+
+export function extractReplayImages<T extends { id?: string; role: "user" | "assistant"; text: string }>(
   transcript: readonly T[],
   current: readonly TurnImageInput[],
-  options: ExtractTurnImagesOptions = {},
+  options: ExtractTurnImagesOptions & { history?: readonly Message[] } = {},
 ): { transcript: T[]; images: TurnImageInput[] } {
   let maxCount = (options.maxCount ?? TURN_IMAGE_MAX_COUNT) - current.length;
   let maxBytes = (options.maxBytes ?? TURN_IMAGE_MAX_BYTES) - current.reduce((total, image) => total + image.bytes, 0);
+  const copies = new Map(options.history?.filter(message => message.workBotCopy).map(message => [message.id, message]));
   const replayed = [...transcript];
   const images: TurnImageInput[] = [];
   for (let index = replayed.length - 1; index >= 0 && maxCount > 0; index -= 1) {
     const entry = replayed[index]!;
     if (entry.role !== "user") continue;
-    const item = extractTurnImages(entry.text, { ...options, maxCount: Infinity, maxBytes: Infinity, imageNote: REPLAYED_IMAGE_NOTE });
-    if (!item.images.length) continue;
+    const item = replayEntryImages(entry.text, entry.id ? copies.get(entry.id) : undefined, { ...options, maxCount: Infinity, maxBytes: Infinity, imageNote: REPLAYED_IMAGE_NOTE });
+    if (!item?.images.length) continue;
     const bytes = item.images.reduce((total, image) => total + image.bytes, 0);
     if (item.images.length > maxCount || bytes > maxBytes) break;
     replayed[index] = { ...entry, text: item.text };

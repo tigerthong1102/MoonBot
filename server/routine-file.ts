@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 
 import type { RoutineHoldCause } from "../shared/routines.ts";
 import { attachmentsMalformed } from "./routine-attachments.ts";
-import { loadEventReceipts, type EventRunReceipt } from "./routine-event-receipts.ts";
+import { loadEventReceipts, malformedEventReceipts, type EventRunReceipt } from "./routine-event-receipts.ts";
 import { holdCauses } from "./routine-holds.ts";
 import { loadRequestReceipts, loadRoutine, loadRun } from "./routine-load.ts";
 import { loadOwnerNotices, type RoutineOwnerNotice } from "./routine-recovery.ts";
@@ -13,6 +13,19 @@ import type { Routine, RoutineRequestReceipt, RoutineRun } from "./routines.ts";
 
 /** While routines.json cannot be read, the read is tried again this often. */
 export const UNREADABLE_RETRY_MS = 60_000;
+export interface RoutineFile {
+  version: 1;
+  frozenResultsCleared?: true;
+  routines: Routine[];
+  runs: RoutineRun[];
+  routineRequestReceipts?: RoutineRequestReceipt[];
+  webhookRunReceipts?: unknown[];
+  startupLaunchId?: string;
+  noStartOffsChecked?: true;
+  ownerNotices?: RoutineOwnerNotice[];
+  holds?: RoutineHoldCause[];
+}
+
 export interface RoutineFileContents {
   text: string;
   routines: Routine[];
@@ -22,6 +35,7 @@ export interface RoutineFileContents {
   malformedAttachments: boolean;
   routineRequestReceipts: RoutineRequestReceipt[];
   webhookRunReceipts: EventRunReceipt[];
+  malformedEventReceipts: unknown[];
   frozenPending: boolean;
   ownerNotices: RoutineOwnerNotice[];
   holds: RoutineHoldCause[];
@@ -54,6 +68,7 @@ export function readRoutineFile(file: string, now: number): RoutineFileRead {
       malformedAttachments: attachmentsMalformed([...saved, ...((disk.runs ?? []) as RoutineRun[])]),
       routineRequestReceipts: loadRequestReceipts(disk.routineRequestReceipts),
       webhookRunReceipts: loadEventReceipts(disk.webhookRunReceipts, runs, now),
+      malformedEventReceipts: malformedEventReceipts(disk.webhookRunReceipts),
       frozenPending: disk.frozenResultsCleared !== true,
       ownerNotices: loadOwnerNotices(disk.ownerNotices),
       holds: holdCauses(disk.holds),

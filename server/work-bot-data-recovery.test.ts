@@ -1,0 +1,93 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { expect, it } from "vitest";
+import { createDataEngine } from "./data/engine.ts";
+import { DataSheetRegistry } from "./data/sheet.ts";
+import { createWorkBotDataJournal } from "./work-bot-data-journal.ts";
+import { createWorkBotData } from "./work-bot-data.ts";
+import { WORK_BOT_LINK_SCHEMA } from "./work-bot-message-db.ts";
+
+it("recovers from both sides of the SQLite commit without touching existing destination cards", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "startupbot-data-recovery-fixture-"));
+  const folder = (id: string) => join(dir, id);
+  const db = new DatabaseSync(join(dir, "messages.db"));
+  db.exec(`CREATE TABLE command_receipts (kind TEXT,key TEXT,at INTEGER,result TEXT,PRIMARY KEY(kind,key));
+    CREATE TABLE messages (thread_id TEXT, role TEXT, json TEXT); ${WORK_BOT_LINK_SCHEMA}`);
+  const engine = createDataEngine({ dataDir: dir, botFolder: folder });
+  const registry = () => new DataSheetRegistry({ dir: folder, broadcast: () => {}, dropResult: async (id, name) => (await engine.forBot(id)).dropResult(name) });
+  const journal = createWorkBotDataJournal(() => db, write => write(db));
+  const options = { connection: "panel" as const };
+  try {
+    const sheets = registry();
+    const source = sheets.for("source");
+    const sourceDb = await engine.forBot("source");
+    const result = await sourceDb.materialise("SELECT 42::INTEGER AS stock", "fixture_count", options);
+    const card = await source.addCard({ kind: "table", title: "Stock", by: "person", status: "ready", result: "fixture_count", sql: "SELECT 42::INTEGER AS stock", columns: result.columns, rowCount: result.rowCount });
+    const old = await sheets.for("target").addCard({ kind: "text", title: "Keep me", text: "target private", status: "ready", by: "person" });
+    expect(old.id).toBe(card.id);
+    const link = { sourceBotId: "source", sourceThreadId: "st", sourceMessageId: "sm", targetBotId: "target", targetThreadId: "tt" };
+    const service = createWorkBotData(engine, sheets, () => true, journal);
+    expect(await service.preflight("source", [card.id])).toBe(true);
+    await sourceDb.dropResult("fixture_count");
+    expect(await service.preflight("source", [card.id])).toBe(false);
+    await sourceDb.materialise("SELECT 42::INTEGER AS renamed", "fixture_count", options);
+    expect(await service.preflight("source", [card.id])).toBe(false);
+    await sourceDb.materialise("SELECT 42::INTEGER AS stock FROM range(2)", "fixture_count", options);
+    expect(await service.preflight("source", [card.id])).toBe(false);
+    await sourceDb.materialise("SELECT 42::INTEGER AS stock", "fixture_count", options);
+    const first = await service.copy(link, [card.id], () => {});
+    expect(sheets.for("target").cards().map(c => c.id)).toEqual([old.id]);
+    expect(() => first.publish()).toThrow("Cannot publish an unconfirmed Data handoff");
+    expect(registry().for("target").cards()).toEqual([old]);
+    const targetDb = await engine.forBot("target");
+    const tables = async () => (await targetDb.run("SELECT table_name FROM information_schema.tables WHERE table_schema='omb_results' ORDER BY table_name", options)).rows;
+    expect(await tables()).toHaveLength(2);
+    await createWorkBotData(engine, registry(), () => true, journal).recover();
+    expect(await tables()).toEqual([]);
+    expect(journal.pending()).toHaveLength(0);
+
+    const stage = await service.copy(link, [card.id], () => {});
+    const id = stage.context({ cardId: card.id }).cardId;
+    expect(id).not.toBe(old.id);
+    db.prepare("INSERT INTO work_bot_links VALUES (?, ?, ?, ?, ?)").run("source", "st", "sm", "target", "tt");
+    expect(() => stage.publish()).toThrow("Data handoff commit is uncertain");
+    expect(registry().for("target").cards()).toEqual([old]);
+    await expect(stage.settle()).rejects.toThrow("uncertain");
+    const incomplete = createWorkBotData(engine, registry(), () => true, journal);
+    expect(await incomplete.recover()).toBe(false);
+    expect(incomplete.available("source", card.id)).toBeUndefined();
+    expect(journal.pending()).toHaveLength(1);
+    expect(await tables()).toHaveLength(2);
+    db.prepare("INSERT INTO messages VALUES (?, ?, ?)").run("tt", "user", JSON.stringify({ sendId: "workbot-sm", workBotHandoffSource: { threadId: "st", messageId: "sm", botId: "source" } }));
+    const recovered = registry();
+    let allowed = false;
+    const replay = createWorkBotData(engine, recovered, () => allowed, journal);
+    expect(await replay.recover()).toBe(false);
+    expect(recovered.for("target").cards().map(c => c.id)).toEqual([old.id]);
+    allowed = true;
+    const display = journal.pending()[0]!.cards[0]!.result!;
+    await targetDb.dropResult(display);
+    expect(await replay.recover()).toBe(false);
+    expect(recovered.for("target").card(id)).toBeUndefined();
+    await targetDb.materialise("SELECT 42::INTEGER AS stock FROM range(2)", display, options);
+    expect(await replay.recover()).toBe(false);
+    expect(recovered.for("target").card(id)).toBeUndefined();
+    await targetDb.materialise("SELECT 42::INTEGER AS stock", display, options);
+    expect(await replay.recover()).toBe(true);
+    const target = recovered.for("target");
+    expect(target.card(old.id)?.text).toBe("target private");
+    expect((await targetDb.run(target.card(id)!.sql!, options)).rows).toEqual([[42]]);
+    expect(target.updateCard(id, { title: "User edited" })?.title).toBe("User edited");
+    await replay.recover();
+    expect(target.card(id)?.title).toBe("User edited");
+    await target.removeCard(id);
+    expect(await tables()).toEqual([]);
+    expect((await sourceDb.run('SELECT * FROM omb_results.fixture_count', options)).rows).toEqual([[42]]);
+  } finally {
+    db.close();
+    // The Windows native binding holds its files until the worker exits.
+    if (process.platform !== "win32") { await engine.closeAll(); rmSync(dir, { recursive: true, force: true }); }
+  }
+});

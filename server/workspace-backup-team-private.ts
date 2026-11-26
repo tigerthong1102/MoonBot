@@ -1,9 +1,10 @@
 // Security: every member reads "only you, not Acme's admins", and a Team Cloud's export is its Owner's. So the export leaves
 // out what is one member's alone, decided from the records of who opened each conversation, never from a line's text.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { parseHeldEvents, type HeldEvent } from "./app-trigger-file.ts";
 import { isLayerId, layerAudience } from "./audience.ts";
 import { CLOUD_NOBODY_KEY, CLOUD_OUTSIDE_KEY } from "./cloud-sharing.ts";
 import { routineHome } from "./routine-home.ts";
@@ -59,6 +60,7 @@ const memberLayer = (id: string): boolean => isLayerId(id) && layerAudience(id).
 export function omittedAsTeamPrivate(path: string, privacy: TeamPrivacy): boolean {
   if (/^(?:people(?:\/|$)|person-inbox\.json)/.test(path)) return true;
   const attachment = /^attachments\/([^/]+)$/.exec(path)?.[1];
+  if (attachment && /^\.openmaus-upload-.*\.partial$/i.test(attachment)) return true;
   if (attachment && privacy.attachments.has(attachment)) return true;
   return path.split("/").some((part) => {
     const name = part.replace(/\.[^-]*$/, "");
@@ -146,26 +148,52 @@ function uploadedByMembers(root: string): string[] {
 export function teamPrivateAttachments(root: string, messages: string, privacy: TeamPrivacy): ReadonlySet<string> {
   const candidates = new Set(uploadedByMembers(root));
   const kept = new Set<string>();
+  const evidenceFiles = new Set<string>();
   for (const file of ["bots.json", "groups.json"]) {
     try { for (const name of attachmentsIn(readFileSync(join(root, file), "utf8"))) kept.add(name); } catch { /* none yet */ }
   }
   if (existsSync(messages)) {
     const db = new DatabaseSync(messages, { readOnly: true });
     try {
+      if (hasTable(db, "work_bot_upload_owners")) {
+        const ids = db.prepare("SELECT upload_id FROM work_bot_upload_owners").all().map(row => String(row.upload_id).toLowerCase());
+        if (ids.some(id => !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id))) throw new Error("Cannot determine private upload ownership");
+        const uploadIds = new Set(ids), directory = join(root, "attachments");
+        if (existsSync(directory)) for (const name of readdirSync(directory)) {
+          const normalized = name.toLowerCase();
+          const id = normalized.startsWith(".openmaus-upload-") ? normalized.slice(17, 53) : normalized.slice(0, 36);
+          if (uploadIds.has(id) && (normalized.startsWith(`${id}.`) || normalized.startsWith(`.openmaus-upload-${id}-`))) { candidates.add(name); evidenceFiles.add(name); }
+        }
+      }
       for (const row of db.prepare("SELECT thread_id AS thread, json FROM messages").all()) {
         const names = attachmentsIn(String(row.json));
         for (const name of names) (privacy.threads.has(String(row.thread)) ? candidates : kept).add(name);
       }
     } finally { db.close(); }
   }
-  return new Set([...candidates].filter((name) => !kept.has(name)));
+  return new Set([...candidates].filter((name) => evidenceFiles.has(name) || !kept.has(name)));
 }
 
 /** The snapshot copies of the message and runtime databases, without the private conversations. */
 export function stripTeamPrivate(snapshot: { messages: string; runtime: string }, privacy: TeamPrivacy): void {
   const threads = [...privacy.threads];
   strip(snapshot.messages, (db) => {
+    for (const table of ["work_bot_upload_receipts", "work_bot_upload_reservations", "work_bot_upload_owners", "work_bot_message_upload_sets"]) if (hasTable(db, table)) db.exec(`DELETE FROM ${table}`);
     for (const table of ["messages", "thread_state", "chat_followups", "notification_log"]) deleteWhereIn(db, table, "thread_id", threads);
+    if (hasTable(db, "messages")) {
+      for (const [field, ids] of [["threadId", threads], ["botId", [...privacy.bots]]] as const) {
+        for (const chunk of chunks(ids)) {
+          const slots = chunk.map(() => "?").join(", ");
+          const paths = field === "threadId" ? ["$.workBotRouting.targetThreadId", "$.workBotHandoffSource.threadId"] : ["$.workBotRouting.sourceBotId", "$.workBotRouting.targetBotId", "$.workBotHandoffSource.botId"];
+          for (const path of paths) {
+            const property = path.startsWith("$.workBotRouting") ? "$.workBotRouting" : "$.workBotHandoffSource";
+            db.prepare(`UPDATE messages SET json = json_remove(json, '${property}') WHERE json_extract(json, '${path}') IN (${slots})`).run(...chunk);
+          }
+        }
+      }
+    }
+    for (const column of ["source_thread_id", "target_thread_id"]) deleteWhereIn(db, "work_bot_links", column, threads);
+    for (const column of ["source_bot_id", "target_bot_id"]) deleteWhereIn(db, "work_bot_links", column, [...privacy.bots]);
     // A tool's saved answer, kept only so a retried call repeats it: nothing says whose chat it came from.
     if (hasTable(db, "command_receipts")) db.exec("DELETE FROM command_receipts");
     if (!hasTable(db, "memory_files")) return;
@@ -185,3 +213,59 @@ export function stripTeamPrivate(snapshot: { messages: string; runtime: string }
 }
 
 export const TEAM_PRIVATE_NOTE = "Members' private chats are theirs alone and are not in this export: their conversations, what bots remember from them, their own StartupBot and their About you stay out.";
+
+export function teamAppEventLedger(main: unknown, sidecar: unknown, privacy: Pick<TeamPrivacy, "bots" | "threads">): unknown {
+  const blocked = "Workspace backup cannot safely include held app events or format 2 receipts. Keep a protected copy of the closed data folder instead.";
+  if (main === undefined && sidecar === undefined) return undefined;
+  if (!record(main)) throw new Error(blocked);
+  const ledger = main;
+  const ids = Object.hasOwn(ledger, "heldEvents") ? ledger.heldEvents : [];
+  if (!Array.isArray(ids) || ids.some(id => typeof id !== "string")) throw new Error(blocked);
+  const held = new Map<string, HeldEvent>();
+  if (sidecar !== undefined) {
+    try { parseHeldEvents(sidecar, held); } catch { throw new Error(blocked); }
+  }
+  if (held.size !== ids.length || new Set(ids).size !== ids.length || ids.some(id => !held.has(id))) throw new Error(blocked);
+  if (held.size || ledger.version === 2) throw new Error(blocked);
+  if (privacy.bots.size || privacy.threads.size) {
+    for (const field of ["triggers", "deleted", "bindingOwners", "attempts"]) {
+      const value = ledger[field];
+      if (value !== undefined && (!Array.isArray(value) || rows(value).length !== value.length)) throw new Error("Team backup cannot safely identify app automation owners.");
+    }
+    if (rows(ledger.deleted).some(entry => !record(entry.trigger))) throw new Error("Team backup cannot safely identify app automation owners.");
+    const definitions = [...rows(ledger.triggers), ...rows(ledger.deleted).map(entry => entry.trigger).filter(record)];
+    if (definitions.some(trigger => typeof trigger.botId !== "string" || privacy.bots.has(trigger.botId) || (trigger.sourceThreadId !== undefined && (typeof trigger.sourceThreadId !== "string" || privacy.threads.has(trigger.sourceThreadId)))) ||
+        rows(ledger.bindingOwners).some(owner => typeof owner.botId !== "string" || privacy.bots.has(owner.botId))) throw new Error("Team backup cannot safely include private app automation definitions.");
+    const known = new Set(definitions.map(trigger => trigger.id).filter((id): id is string => typeof id === "string"));
+    if (rows(ledger.attempts).some(attempt => typeof attempt.triggerId !== "string" || !known.has(attempt.triggerId))) throw new Error("Team backup cannot safely identify app event attempt owners.");
+  }
+  return ledger;
+}
+
+export function teamAttachmentInventory(root: string): Map<string, string> {
+  const directory = join(root, "attachments");
+  if (!existsSync(directory)) return new Map();
+  const parent = lstatSync(directory, { bigint: true });
+  if (!parent.isDirectory()) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
+  const inventory = new Map<string, string>();
+  inventory.set("", `${parent.dev}:${parent.ino}`);
+  const collect = (path: string, prefix = "") => {
+    for (const name of readdirSync(path)) {
+      const relativeName = prefix ? `${prefix}/${name}` : name, child = join(path, name);
+      const info = lstatSync(child, { bigint: true });
+      inventory.set(relativeName, `${info.dev}:${info.ino}:${info.mode}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`);
+      if (info.isDirectory()) collect(child, relativeName);
+    }
+  };
+  collect(directory);
+  return inventory;
+}
+
+export function assertTeamAttachmentInventory(root: string, expected: ReadonlyMap<string, string>): void {
+  const current = teamAttachmentInventory(root);
+  if (current.size !== expected.size || [...expected].some(([name, value]) => current.get(name) !== value)) throw new Error("The attachment folder changed during backup. Stop its writers and retry.");
+}
+
+export function readPrivateTeamAppEvents(root: string, privacy: TeamPrivacy, read: (path: string) => unknown) {
+  return teamAppEventLedger(read(join(root, "app-triggers.json")), read(join(root, "app-triggers.json.held")), privacy);
+}

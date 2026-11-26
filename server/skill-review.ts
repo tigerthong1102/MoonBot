@@ -35,7 +35,7 @@ const FULL_LINE_MAX = 2_500;
 export const SKILL_BODIES_MAX_CHARS = 30_000;
 const SKILL_BODY_MAX_CHARS = 12_000;
 
-export type ReviewMessage = Pick<WireMessage, "role" | "kind" | "text" | "tool" | "from" | "turnId" | "card">;
+export type ReviewMessage = Pick<WireMessage, "role" | "kind" | "text" | "tool" | "from" | "turnId" | "card" | "workBotReviewHold" | "workBotRouting">;
 
 export interface ReviewSkill {
   name: string;
@@ -82,6 +82,7 @@ interface Entry {
 function entriesFor(messages: readonly ReviewMessage[], bot: { id: string; name: string }, room: boolean): Entry[] {
   const entries: Entry[] = [];
   for (const message of messages) {
+    if (message.workBotReviewHold || message.workBotRouting?.state === "held_for_review") continue;
     const mine = room ? message.from?.botId === bot.id : !message.from || message.from.botId === bot.id;
     if (message.kind === "text" && message.text?.trim()) {
       if (message.role === "user") entries.push({ role: "person", speaker: "Person", text: message.text });

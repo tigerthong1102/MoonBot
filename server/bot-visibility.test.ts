@@ -197,6 +197,13 @@ describe("live frames for a member", () => {
   });
   const seen = (): StreamSeen => ({ bots: new Set(["pub", "corp"]), groups: new Set(["room-pub"]) });
 
+  it("hides app event review status from members while retaining it for administrators", () => {
+    const frame = { kind: "app-trigger.service", service: { available: true, eventsToday: 1, cursorReview: "unverified" } };
+    expect(frameForMember(frame, context(new VisibleSet(bots, groups, BOB)), seen()))
+      .toEqual({ kind: "app-trigger.service", service: { available: true, eventsToday: 1 } });
+    expect(frameForMember(frame, context(new VisibleSet(bots, groups, BEN_ADMIN)), seen())).toBe(frame);
+  });
+
   it("drops every frame about a hidden bot, thread or room", () => {
     const bob = new VisibleSet(bots, groups, BOB);
     const ctx = context(bob);

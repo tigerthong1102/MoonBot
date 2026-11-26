@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { workBotName, readWorkBotTopic, workBotPrompt } from "./work-bot-offer.ts";
+import { workBotName, readWorkBotTopic, workBotPrompt, workBotTopicForRequest } from "./work-bot-offer.ts";
 
 describe("main chat work suggestions", () => {
+  it.each(["Track inventory weekly", "Theo dõi kiểm kho", "متابعة المخزون"])("does not use an entire short request as standing persona: %s", request => {
+    expect(workBotTopicForRequest(request, `${request}!`, "Work")).toBe("Work");
+    expect(workBotTopicForRequest("Inventory", request, "Work")).toBe("Inventory");
+  });
   it.each(["Tin tức AI", "مراجعات العملاء", "注文追跡", "Suivi des retours", "கையிருப்பு"])("accepts a topic in the person's language: %s", name => {
     expect(readWorkBotTopic(JSON.stringify({ name, icon: "tasks" }))).toEqual({ name, icon: "tasks" });
   });

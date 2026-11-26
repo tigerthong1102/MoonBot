@@ -144,7 +144,9 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts, voiceFileBytes });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
-  if (env.SIGNALS && result.ok && req.method === "POST") {
+  const silent = result.headers.get("x-inbox-internal-silent") === "1";
+  result.headers.delete("x-inbox-internal-silent");
+  if (!silent && env.SIGNALS && result.ok && req.method === "POST") {
     const match = /^\/api\/rooms\/([a-f0-9-]{36})\/(posts|moderate|accept|remove|leave|invite|bots)$/.exec(url.pathname);
     const creates = url.pathname === "/api/rooms" || url.pathname === "/api/join";
     const room = match?.[1] ?? (creates ? (await result.clone().json<{id:string}>()).id : null);
@@ -184,6 +186,7 @@ export default {
   async scheduled(_event, env) {
     await env.DB.batch([
       env.DB.prepare("DELETE FROM inbox_bot_rounds WHERE expires<=?").bind(Date.now()),
+      env.DB.prepare("DELETE FROM inbox_bot_claims WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_uploads WHERE ready=0 AND created<?").bind(Date.now() - 3600_000),
       env.DB.prepare("DELETE FROM inbox_posts WHERE created<?").bind(Date.now() - inboxRetention),
       env.DB.prepare("DELETE FROM inbox_guest_invites WHERE created<?").bind(Date.now() - 7 * 86400_000),

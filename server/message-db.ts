@@ -3,12 +3,19 @@ import { randomUUID } from "node:crypto";
 import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync, type StatementSync } from "node:sqlite";
+import { bindWorkBotMessageUploads, moveQueuedUploads, portableUpload, queuedUploadMessage, workBotUploadGuard } from "./work-bot-upload-context.ts";
+import { WORK_BOT_UPLOAD_RECEIPTS_SCHEMA } from "./work-bot-upload-receipts.ts";
+import { createWorkBotDataJournal } from "./work-bot-data-journal.ts";
+import { workBotsLinked } from "./work-bot-linked-bots.ts";
+import { createWorkBotMessageDb, migrateWorkBotLinks, WORK_BOT_LINK_SCHEMA } from "./work-bot-message-db.ts";
+import { CARD_KINDS, FAILED_CALL, ORDERING_AT, ORDERING_ROW, WORK_KINDS } from "./message-db-ordering.ts";
 
 import { DATA_DIR } from "./config.ts";
-import { peerProvenanceAuthor, type WorkOrigin } from "./peer-provenance.ts";
-import type { ResolvedSender, SteerQueueReason } from "../shared/wire.ts";
+import { peerProvenanceAuthor } from "./peer-provenance.ts";
+import { createChatFollowupDb, type FollowupPayload } from "./chat-followup-db.ts";
+export type { FollowupPayload, FollowupStatus, ChatFollowup } from "./chat-followup-db.ts";
 import type { Message } from "./store.ts";
-import type { UsageTrigger } from "./usage-ledger.ts";
+
 import { BOT_TEXT_MESSAGE_INDEXES_SQL } from "./message-db-bot-text-indexes.ts";
 import { ensureMemoryIndex } from "./message-db-memory-index.ts";
 import { cjkSearchText, cjkTokenParts, ensureSearchIndex, ftsPhrase, hasCjk, withoutSearchMarks } from "./cjk-search.ts";
@@ -19,16 +26,6 @@ import type { Notification, NotificationLogEntry } from "../shared/notification.
 export type { SearchHit } from "./message-search-query.ts";
 
 const DB_FILE = () => join(DATA_DIR, "messages.db");
-/** The rows the Today page reads, and among them the failed tool calls. JSON.stringify escapes every quote inside a
- * string value, so a stored row holds the bare text "ok":false only as a real key. */
-const WORK_KINDS = "kind IN ('activity', 'digest', 'options')";
-const CARD_KINDS = "kind IN ('secret', 'signin', 'connector')";
-const FAILED_CALL = "kind = 'activity' AND instr(json, '\"ok\":false') > 0";
-/** The rows that order the thread list and the time each one counts at. SQLite uses messages_thread_order only for a
- * statement whose WHERE and MAX repeat these texts exactly. */
-const ORDERING_ROW = "((role = 'user' AND json_extract(json, '$.peerAsk') IS NULL) OR (role = 'bot' AND kind = 'text' AND (json_extract(json, '$.turnTerminal') = 1 OR json_extract(json, '$.turnId') IS NULL)))";
-const ORDERING_AT = "COALESCE(json_extract(json, '$.turnCompletedAt'), at)";
-
 let handle: DatabaseSync | null = null;
 let handlePath: string | null = null;
 let handleCheckedAt = 0;
@@ -88,6 +85,8 @@ function open(): DatabaseSync {
       payload TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS chat_followups_receipt ON chat_followups(kind, owner_id, thread_id, send_id);
+    ${WORK_BOT_UPLOAD_RECEIPTS_SCHEMA}
+    ${WORK_BOT_LINK_SCHEMA}
     CREATE TABLE IF NOT EXISTS command_receipts (
       kind TEXT NOT NULL,
       key TEXT NOT NULL,
@@ -112,6 +111,7 @@ function open(): DatabaseSync {
   `);
   const notificationColumns = db.prepare("PRAGMA table_info(notification_log)").all() as Array<{ name: string }>;
   for (const added of ["for_person", "read_by"]) if (!notificationColumns.some((column) => column.name === added)) db.exec(`ALTER TABLE notification_log ADD COLUMN ${added} TEXT`);
+  migrateWorkBotLinks(db);
   ensureRecallIndex(db);
   ensureMemoryIndex(db);
   return db;
@@ -141,6 +141,8 @@ const UPSERT_MESSAGE =
   "text = excluded.text, json = excluded.json, search_text = excluded.search_text";
 const messageRow = (threadId: string, message: Message) =>
   [threadId, message.id, message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text)] as const;
+
+export const workBotDataJournal = createWorkBotDataJournal(db, writeFollowups);
 
 const ACTIVE_LEAF = "SELECT active_leaf_id FROM thread_state WHERE thread_id = ?";
 function db(): DatabaseSync {
@@ -197,35 +199,6 @@ function transaction<T>(fn: (database: DatabaseSync) => T): T {
   } finally {
     transactionDepth = 0;
   }
-}
-
-export interface FollowupPayload {
-  text: string;
-  prompt?: string;
-  replyToId?: string;
-  sendId?: string;
-  dataContext?: Message["dataContext"];
-  reason?: SteerQueueReason;
-  unattended?: boolean;
-  peerAsk?: Message["peerAsk"];
-  mode?: "chat" | "goal";
-  via?: "api" | "call";
-  callId?: string;
-  fromApp?: Message["fromApp"];
-  sender?: ResolvedSender;
-  trigger?: UsageTrigger;
-  origin?: WorkOrigin;
-  queuedAt?: number;
-  rowId?: string; mentions?: string[]; workBotOfferOwner?: string;
-}
-export type FollowupStatus = "pending" | "dispatching" | "interrupted" | "cancelled";
-export interface ChatFollowup {
-  id: string;
-  kind: "bot" | "channel" | "aside";
-  ownerId: string;
-  threadId: string;
-  status: FollowupStatus;
-  payload: FollowupPayload;
 }
 
 /** A 202/cancel/dispatch claim must reach disk (FULL sync) before its result is published. */
@@ -327,43 +300,7 @@ export function markNotificationLogRead(ids: readonly string[], reader?: string)
 }
 export function forgetNotificationReader(person: string): void { db().prepare("UPDATE notification_log SET read_by = (SELECT json_group_array(value) FROM json_each(read_by) WHERE value <> ?1) WHERE EXISTS (SELECT 1 FROM json_each(coalesce(read_by, '[]')) WHERE value = ?1)").run(person); }
 
-export function saveChatFollowup(followup: Omit<ChatFollowup, "status">): void {
-  writeFollowups((connection) => connection.prepare(
-    "INSERT INTO chat_followups(id, kind, owner_id, thread_id, send_id, status, payload) VALUES (?, ?, ?, ?, ?, 'pending', ?)",
-  ).run(followup.id, followup.kind, followup.ownerId, followup.threadId, followup.payload.sendId ?? null, JSON.stringify(followup.payload)));
-}
-
-/** Cancellation tombstones remain so a retried sendId cannot resurrect a dispatch. */
-export function settleChatFollowups(ids: string[], status: FollowupStatus | null): void {
-  if (!ids.length) return;
-  writeFollowups((connection) => {
-    const statement = connection.prepare(status === null
-      ? "DELETE FROM chat_followups WHERE id = ?"
-      : status === "cancelled"
-        ? "UPDATE chat_followups SET status = ?, payload = '{\"text\":\"\"}' WHERE id = ?"
-        : "UPDATE chat_followups SET status = ? WHERE id = ?");
-    for (const id of ids) {
-      if (status === null) statement.run(id);
-      else statement.run(status, id);
-    }
-  });
-}
-
-export function chatFollowups(kind?: ChatFollowup["kind"]): ChatFollowup[] {
-  const rows = (kind
-    ? db().prepare("SELECT * FROM chat_followups WHERE kind = ? ORDER BY rowid").all(kind)
-    : db().prepare("SELECT * FROM chat_followups ORDER BY rowid").all()) as Array<{
-      id: string; kind: ChatFollowup["kind"]; owner_id: string; thread_id: string; status: FollowupStatus; payload: string;
-    }>;
-  return rows.map((row) => ({ id: row.id, kind: row.kind, ownerId: row.owner_id, threadId: row.thread_id,
-    status: row.status, payload: JSON.parse(row.payload) as FollowupPayload }));
-}
-
-export function cancelledChatFollowup(kind: ChatFollowup["kind"], ownerId: string, threadId: string, sendId: string): boolean {
-  return Boolean(db().prepare(
-    "SELECT 1 FROM chat_followups WHERE kind = ? AND owner_id = ? AND thread_id = ? AND send_id = ? AND status = 'cancelled'",
-  ).get(kind, ownerId, threadId, sendId));
-}
+export const { saveChatFollowup, settleChatFollowups, chatFollowups, cancelledChatFollowup } = createChatFollowupDb(db, writeFollowups);
 
 const rowToMessage = (row: { json: string }): Message => JSON.parse(row.json) as Message;
 
@@ -436,6 +373,9 @@ function importLegacy(threadId: string, legacyFile: string): ThreadRows {
   return { messages, activeLeafId };
 }
 
+export const uploadGuardForWorkBot = (...args: Parameters<typeof workBotUploadGuard> extends [unknown, ...infer A] ? A : never) => workBotUploadGuard(db, ...args);
+export const portableWorkBotUpload = (threadId: string, message: Message) => message.workBotUploadNonce ? portableUpload(db(), threadId, message) : null;
+
 export function insertMessage(threadId: string, message: Message): void {
   prepared(UPSERT_MESSAGE).run(...messageRow(threadId, message));
 }
@@ -460,9 +400,20 @@ export function importThread(threadId: string, messages: Message[], activeLeafId
 
 export function appendMessage(threadId: string, message: Message): void {
   transaction(() => {
+    if (message.queueId && message.role === "user" && message.kind === "text") {
+      const row = db().prepare("SELECT payload FROM chat_followups WHERE id = ? AND thread_id = ? AND kind = 'bot' AND status = 'dispatching' AND json_extract(payload, '$.workBotUploadNonce') IS NOT NULL").get(message.queueId, threadId) as { payload: string } | undefined;
+      if (row) moveQueuedUploads(db(), threadId, queuedUploadMessage(message.queueId, JSON.parse(row.payload) as FollowupPayload), threadId, message);
+    } else {
+      bindWorkBotMessageUploads(db(), threadId, message);
+    }
     insertMessage(threadId, message);
     setActiveLeaf(threadId, message.id);
   });
+}
+
+export const { recoverLegacyWorkBotLinks, workBotLinksForThread, appendMessageBatch, appendHeldWorkBotContext, transferQueuedWorkBotMessages, transferredChatFollowup, verifiedWorkBotFollowup, pendingWorkBotRoutes, pendingWorkBotTargets } = createWorkBotMessageDb({ db, transaction, durableTransaction: writeFollowups, insertMessage, setActiveLeaf });
+export function workBotLinkBetween(first: string, second: string): boolean {
+  return workBotsLinked(first, second, botId => workBotLinksForThread("", botId));
 }
 
 export function updateMessage(threadId: string, message: Message): void {
@@ -646,6 +597,11 @@ function newestAts(threadIds: readonly string[], where: string, at = "at", index
   return out;
 }
 
+function revokeTranscriptUploadEvidence(connection: DatabaseSync, threadId: string): void {
+  connection.prepare("DELETE FROM work_bot_upload_receipts WHERE thread_id = ?").run(threadId);
+  connection.prepare("DELETE FROM work_bot_message_upload_sets WHERE thread_id = ?").run(threadId);
+}
+
 export const deleteThread = (threadId: string): void => deleteThreads([threadId]);
 
 /** One transaction: every listed thread goes, or none does; `beforeCommit` throwing keeps them all. */
@@ -653,6 +609,7 @@ export function deleteThreads(threadIds: readonly string[], beforeCommit?: () =>
   if (threadIds.length === 0 && !beforeCommit) return;
   writeFollowups((connection) => {
     deleteTranscriptRows(connection, threadIds);
+    for (const threadId of threadIds) revokeTranscriptUploadEvidence(connection, threadId);
     beforeCommit?.();
   });
 }
@@ -669,6 +626,7 @@ export function optionCardsForTools(tools: readonly string[]): Array<{ threadId:
 export function clearThreadMessages(threadId: string, beforeCommit: () => void): void {
   writeFollowups((connection) => {
     clearTranscriptRows(connection, threadId);
+    revokeTranscriptUploadEvidence(connection, threadId);
     setActiveLeaf(threadId, null);
     beforeCommit();
   });

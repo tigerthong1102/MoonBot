@@ -1,4 +1,11 @@
 {
+  "workBotOffer.continueHere": "Kontynuuj tutaj",
+  "server.workBot.scheduleConflict": "Harmonogram lub zadanie powiązanego bota może się pokrywać albo nie można sprawdzić powiązania. Sprawdź harmonogramy.",
+  "server.workBot.choiceInProgress": "Trwa przetwarzanie wyboru bota. Spróbuj ponownie po jego zakończeniu.",
+  "server.workBot.pendingUnavailable": "Niektórych wiadomości z kolejki nie można bezpiecznie przenieść. Usuń je z kolejki lub kontynuuj tutaj.",
+  "workBotOffer.queuedNotice": "Po wyrażeniu zgody wiadomości wysłane podczas oczekiwania trafią do nowego bota. Przed wyborem usuń niezwiązane wiadomości z kolejki.",
+  "server.workBot.genericName": "Zadanie",
+  "server.workBot.standingGuidance": "Pomagaj w zadaniach przydzielonych w tej rozmowie. Traktuj wcześniejsze prośby jako historię; nie powtarzaj ukończonych działań bez nowej prośby.",
   "skillBurger.aria": "Skill Burger",
   "skillBurger.layers": "Kroki",
   "skillBurger.layersOne": "1 krok",

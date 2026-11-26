@@ -562,11 +562,12 @@ describe("what the harness puts in a bot's folders, and what a bot writes there 
     const folder = opened("t1");
     for (const name of many.keys()) symlinkSync(skill, join(folder, ".claude", "skills", name));
     const read = () => botMemoryFiles(bot, { workspace: () => dir, taskWorkspaces: join(dir, "task-workspaces"), skillLinks: () => all });
-    expect(Object.keys(read()).filter((name) => name.includes("t1"))).toEqual([]);
+    const inFolder = () => Object.keys(read()).filter((name) => name.startsWith(`${folder}${sep}`)).map((name) => relative(folder, name));
+    expect(inFolder()).toEqual([]);
     const before = fingerprintOf(read());
     plant(join(folder, ".claude", "skills", "evil", "SKILL.md"));
     expect(fingerprintOf(read())).not.toBe(before);
-    expect(Object.keys(read()).filter((name) => name.includes("t1"))).toContain(join(folder, ".claude", "skills", "evil", "SKILL.md"));
+    expect(inFolder()).toContain(join(".claude", "skills", "evil", "SKILL.md"));
   });
   it("the harness taking back a link it no longer wants flags nothing; a link it never made still counts when it goes away and comes back different", () => {
     const { skill, links, opened, memory } = harness();

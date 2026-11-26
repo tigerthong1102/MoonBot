@@ -31,9 +31,9 @@ class MemoryStore implements RoutineRequestStore {
 
   appendMessage(
     threadId: string,
-    message: { role: "bot"; kind: "options"; card: RoutineRequestOptionCard },
+    message: { role: "bot"; kind: "options"; requestMessageId?: string; card: RoutineRequestOptionCard },
   ): RoutineRequestMessage {
-    const stored = { id: `message-${++this.sequence}`, card: message.card };
+    const stored = { id: `message-${++this.sequence}`, card: message.card, requestMessageId: message.requestMessageId };
     const messages = this.threads.get(threadId) ?? [];
     messages.push(stored);
     this.threads.set(threadId, messages);
@@ -115,6 +115,25 @@ function cardFingerprint(card: RoutineRequestOptionCard, messageId: string): str
 }
 
 describe("RoutineRequestService", () => {
+  it("does not attach ambiguous request metadata after a delayed readiness check", async () => {
+    let finish!: (value: { ready: boolean }) => void;
+    const readiness = new Promise<{ ready: boolean }>(resolve => { finish = resolve; });
+    const { service, store } = harness(undefined, () => readiness);
+    let source: string | undefined = "source-message";
+    const pending = service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal({ runOn: "cloud" }), requestMessageId: () => source });
+    source = undefined;
+    finish({ ready: true });
+    await pending;
+    expect(store.messagesFor("thread-a")).toHaveLength(1);
+    expect(store.messagesFor("thread-a")[0]?.requestMessageId).toBeUndefined();
+  });
+
+  it("keeps the originating message id on the schedule card", async () => {
+    const { service, store } = harness();
+    await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: createProposal(), requestMessageId: () => "source-message" });
+    expect(store.messagesFor("thread-a")[0]).toMatchObject({ requestMessageId: "source-message" });
+  });
+
   it("refuses instruction replacement after redaction without saving a card or changing other fields", async () => {
     const { routines, service, store } = harness();
     const prompt = "Review the queue.\n".repeat(180) + "Use sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123456789.";
@@ -2081,6 +2100,35 @@ describe("a bot's own routine changes", () => {
     expect(undo(service, second.requestId)).toMatchObject({ state: "undone" });
     expect(routines.listRoutines().some((routine) => routine.id === second.result!.resultId)).toBe(false);
     expect(store.messagesFor("ask-thread").find((message) => message.card?.requestId === second.requestId)?.card).toMatchObject({ undone: true });
+  });
+
+  it("checks the actual schedule owner when creating for another bot", async () => {
+    const { service, routines } = own();
+    const guard = vi.spyOn(routines, "assertHandoffRoutineSafe").mockImplementation(({ botId }) => {
+      if (botId === "bot-b") throw new Error("linked schedule may overlap");
+    });
+    const proposal = createProposal();
+    if (proposal.action !== "create") throw new Error("Expected create");
+    await expect(service.submit({ botId: "bot-a", threadId: "ask-thread", proposal: { ...proposal, forBot: { botId: "bot-b", name: "Peer" } } })).rejects.toThrow("linked schedule may overlap");
+    expect(guard).toHaveBeenCalledWith(expect.objectContaining({ botId: "bot-b", threadId: "ask-thread" }));
+    expect(routines.listRoutines()).toHaveLength(0);
+  });
+
+  it("does not restore an active schedule on undo when the linked bot conflicts", async () => {
+    const { service, routines } = own();
+    const submit = (proposal: RoutineProposalInput) => service.submit({ botId: "bot-a", threadId: "ask-thread", proposal });
+    const created = await submit(createProposal());
+    const routineId = created.result!.resultId;
+    const paused = await submit({ action: "pause", routineId });
+    const guard = vi.spyOn(routines, "assertHandoffRoutineSafe").mockImplementation(() => { throw new Error("linked schedule may overlap"); });
+    expect(undo(service, paused.requestId)).toMatchObject({ state: "invalid", error: "linked schedule may overlap" });
+    expect(routines.listRoutines()[0]?.enabled).toBe(false);
+    guard.mockRestore();
+    await submit({ action: "resume", routineId });
+    const deleted = await submit({ action: "delete", routineId });
+    vi.spyOn(routines, "assertHandoffRoutineSafe").mockImplementation(() => { throw new Error("linked schedule may overlap"); });
+    expect(undo(service, deleted.requestId)).toMatchObject({ state: "invalid", error: "linked schedule may overlap" });
+    expect(routines.listRoutines()).toHaveLength(0);
   });
 
   it("counts a room goal the bot leads as its own", async () => {

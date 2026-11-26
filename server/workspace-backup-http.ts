@@ -22,7 +22,7 @@ const EXPIRES_MS = 60 * 60_000;
 const passwordSchema = z.string().min(12, "Use a password of at least 12 characters.").max(1024);
 const failure = (message: string, status = 400) => Object.assign(new Error(message), { status });
 type Artifact = { owner: string; kind: "download" | "upload" | "staged"; path?: string; expires: number; summary?: WorkspaceBackupSummary };
-type RestoreResult = { id?: string; restored?: boolean; safetyCopyPath?: string; clientState?: Record<string, string> };
+type RestoreResult = { id?: string; restored?: boolean; blockedReason?: string; safetyCopyPath?: string; clientState?: Record<string, string> };
 
 export function isWorkspaceBackupSessionControl(method: string, path: string): boolean {
   return (method === "GET" && path === "/api/auth/sessions") ||
@@ -110,6 +110,7 @@ export function createWorkspaceBackupRoutes(options: {
           ...options.status(),
           ...(options.restart ? { restarts: true } : {}),
           lastRestoreId: options.restored.restored ? options.restored.id : null,
+          ...(options.restored.blockedReason ? { restoreBlockedId: options.restored.id, restoreBlockedReason: options.restored.blockedReason } : {}),
           safetyCopyPath: options.restored.safetyCopyPath ?? null,
         });
         return true;

@@ -22,6 +22,7 @@ export interface BotHolds {
   held(botId: string): boolean;
   /** Every paused bot, by itself, with its department or with all. */
   heldBots(): string[];
+  heldInScope(kind: PauseKind, id: string): string[];
   state(): PausedState;
   /** The words a paused bot's turn is refused with, in this language; null when it is not paused. */
   text(botId: string, language?: string): string | null;
@@ -70,6 +71,7 @@ export function createBotHolds(deps: {
   return {
     held,
     heldBots: () => deps.bots().filter((candidate) => held(candidate.id)).map((candidate) => candidate.id),
+    heldInScope: (kind, id) => deps.bots().filter(candidate => held(candidate.id) && (kind === "all" || (kind === "bot" ? candidate.id === id : sectionKey(candidate.section) === sectionKey(id)))).map(candidate => candidate.id),
     state: () => ({ bots: [...state.bots], departments: [...state.departments], ...(state.all ? { all: true as const } : {}) }),
     text(botId, language) {
       const found = bot(botId);

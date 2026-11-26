@@ -1,3 +1,4 @@
+import { readReportLink } from "./lib/report-link";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -33,7 +34,7 @@ const pageLanguage = loadPageLanguage();
 // read, instead of after it. A failed fetch renders as a throw, so PageBoundary offers a reload.
 const PAGES_WITHOUT_THE_APP = new Set(["/home", "/pair", "/desktop-viewer"]);
 const loadApp = () => import("./App").catch((error: unknown) => ({ default: (): never => { throw error; } }));
-const reportLink = new URLSearchParams(location.search).get("report")?.match(/^([\w-]{1,200})\/([\w-]{1,200})$/);
+const reportLink = readReportLink(new URLSearchParams(location.search));
 const appPage = PAGES_WITHOUT_THE_APP.has(location.pathname) || reportLink ? null : loadApp();
 
 /** A team's name as its server describes itself to anyone (the descriptor's label), null when it can't say. */
@@ -67,7 +68,7 @@ async function chooseRoot(): Promise<React.ReactNode> {
   }
   if (reportLink) {
     const { default: InternalReport } = await import("./components/app/InternalReport");
-    return <InternalReport threadId={reportLink[1]!} messageId={reportLink[2]!} />;
+    return <InternalReport threadId={reportLink.threadId} messageId={reportLink.messageId} />;
   }
   if (location.pathname === "/desktop-viewer") {
     const { DesktopViewer } = await import("./components/DesktopViewer");

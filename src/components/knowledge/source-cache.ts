@@ -2,15 +2,16 @@ import { browserRecord } from "@/lib/browser-records";
 import { readSessionState } from "@/lib/session";
 import type { Index } from "./source-index";
 
-export async function libraryOwner(fetchImpl?: typeof fetch) {
+export async function libraryOwner(fetchImpl?: typeof fetch, reportOffline = false) {
   const session = await readSessionState(fetchImpl);
+  if (reportOffline && session.kind === "unreachable") throw new TypeError("Source server unreachable");
   if (session.kind === "session") return session.id;
   if (session.kind === "loopback" && session.trust !== "service") return "local";
   return null;
 }
 
-export async function libraryKey(threadId: string) {
-  const owner = await libraryOwner();
+export async function libraryKey(threadId: string, options?: { reportOffline?: boolean }) {
+  const owner = await libraryOwner(undefined, options?.reportOffline);
   return owner ? JSON.stringify([owner, threadId]) : null;
 }
 

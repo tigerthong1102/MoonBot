@@ -65,7 +65,9 @@ it.each(["unavailable", "stale"])("answers from manually picked bytes while stor
   await act(async () => { window.dispatchEvent(new CustomEvent("startupbot-document-sync", { detail: "reader/a" })); });
   owner = "another reader"; await ask();
   expect(api).not.toHaveBeenCalled();
-  owner = "reader"; await ask();
+  expect(host.textContent).not.toContain("Manual ledger reference.");
+  expect(host.textContent).toContain(t("knowledge.answerAccess"));
+  owner = "reader"; await click(t("reconcile.close")); await open(); await ask();
   expect(api).toHaveBeenCalledTimes(1);
   expect(JSON.parse(String(vi.mocked(api).mock.calls[0]![1]?.body))).toMatchObject({
     threadId: "a", question: "ledger", evidence: [{ path: "Guide.txt", text: "Manual ledger reference." }],
@@ -85,8 +87,8 @@ it("requires a new read for a picked folder whose watch could not be saved", asy
   await click(t("knowledge.folder")); await indexed(); await search("ledger");
   await ask();
   await act(async () => { await vi.waitFor(() => expect(api).toHaveBeenCalledTimes(1)); });
-  await open();
-  permitted = false; await ask();
+  permitted = false; await open();
+  expect(host.textContent).not.toContain("Manual ledger reference.");
   expect(api).toHaveBeenCalledTimes(1);
   expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
 });
@@ -106,4 +108,23 @@ it("unmounts the old library on a same-bot thread switch and discards an unfinis
   expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
   expect(vi.mocked(setSource).mock.calls.map(([scope]) => scope)).toEqual(["reader/a"]);
   expect(api).not.toHaveBeenCalled();
+});
+
+it("hides the previous excerpt throughout revalidation on reopening, including when access has expired", async () => {
+  const path = "Policy.txt", text = "Private ledger threshold.";
+  const stored = { docs: new Map([[path, { path, file: new File([text], path), digest: "a".repeat(64),
+    passages: [{ page: 1, paragraph: 1, start: 0, text }] }]]), changes: [] };
+  await click(t("reconcile.close"));
+  vi.mocked(currentLibrary).mockResolvedValue(stored);
+  await open(); await search("ledger");
+  expect(host.textContent).toContain(text);
+  await click(t("reconcile.close"));
+  const next = Promise.withResolvers<typeof stored>();
+  vi.mocked(currentLibrary).mockReturnValue(next.promise);
+  await open();
+  expect(host.textContent).not.toContain(text);
+  expect(host.textContent).not.toContain(path);
+  await act(async () => next.reject(new Error("access expired")));
+  expect(host.textContent).not.toContain(text);
+  expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
 });

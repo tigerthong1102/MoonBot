@@ -4,6 +4,7 @@ import { countsAsActivity } from "../../../server/cloud-power";
 import { cloudAsleep, markCloudAsleep, resetCloudPowerForTests } from "@/lib/cloud-power";
 import { sessionCheck } from "@/lib/session-ended";
 import { browserRecord } from "@/lib/browser-records";
+import { libraryKey } from "./source-cache";
 import { currentLibrary, watchDocumentSources } from "./source-sync";
 import type { Index } from "./source-index";
 
@@ -16,7 +17,7 @@ let stop: (() => void) | undefined, tick: (() => void) | undefined;
 const text = "Policy";
 const sleep = () => Response.json({ error: "asleep" }, { status: 503, headers: { "x-omb-cloud-power": "asleep" } });
 const calls: { path: string; background: string | null; activity: boolean }[] = [];
-let answer: (path: string) => Response;
+let answer: (path: string) => Response | Promise<Response>;
 
 beforeEach(() => {
   calls.length = 0; records.clear(); stop = undefined; tick = undefined;
@@ -83,4 +84,53 @@ it("never contacts a sleeping Cloud and keeps the session recheck after a genuin
   await vi.waitFor(() => expect((records.get(key) as Index)?.changes.at(-1)?.issue).toBe("signedOut"));
   await sessionCheck();
   expect(calls).toEqual([auth, list, auth].map(path => ({ path, background: "1", activity: false })));
+});
+
+it("retains a later scan's deletion even if an older scan of the same watch finishes last", async () => {
+  await currentLibrary(key);
+  const previous = answer, bytes = Promise.withResolvers<Response>(), waiting = Promise.withResolvers<void>();
+  answer = path => { if (path !== file) return previous(path); waiting.resolve(); return bytes.promise; };
+  const older = currentLibrary(key);
+  await waiting.promise;
+  answer = () => Response.json({ files: [] });
+  const newer = await currentLibrary(key);
+  expect(newer?.docs.size).toBe(0);
+  bytes.resolve(await previous(file)); await older;
+  expect((records.get(key) as Index).docs.size).toBe(0);
+  expect((records.get(key) as Index).changes.at(-1)?.state).toBe("removed");
+});
+
+it("withholds the previous cache from a superseded scan while a newer scan still verifies access", async () => {
+  await currentLibrary(key);
+  const previous = answer, bytes = Promise.withResolvers<Response>(), waiting = Promise.withResolvers<void>();
+  answer = path => { if (path !== file) return previous(path); waiting.resolve(); return bytes.promise; };
+  const older = currentLibrary(key); await waiting.promise;
+  const manifest = Promise.withResolvers<Response>(), requested = Promise.withResolvers<void>();
+  answer = () => { requested.resolve(); return manifest.promise; };
+  const newer = currentLibrary(key); await requested.promise;
+  bytes.resolve(await previous(file));
+  expect((await older)?.docs.size ?? 0).toBe(0);
+  manifest.resolve(Response.json({ files: [] })); await newer;
+});
+
+it("returns the newer verified edition to a superseded scan after that edition commits", async () => {
+  const previous = answer, bytes = Promise.withResolvers<Response>(), started = Promise.withResolvers<void>();
+  answer = path => { if (path !== file) return previous(path); started.resolve(); return bytes.promise; };
+  const older = currentLibrary(key); await started.promise;
+  const revised = "Updated edition";
+  answer = path => path === list ? Response.json({ files: [{ path: "policy.txt", size: revised.length, sha256: "new" }] })
+    : new Response(revised, { headers: { "content-length": String(revised.length) } });
+  const newer = await currentLibrary(key);
+  bytes.resolve(await previous(file));
+  const restored = await older;
+  expect(restored?.docs.get("Drive/policy.txt")?.passages[0]?.text).toBe(revised);
+  expect(restored?.changes).toEqual(newer?.changes);
+});
+
+it("distinguishes an unreachable session check from a signed-out document reader", async () => {
+  answer = () => { throw new TypeError("offline"); };
+  await expect(libraryKey("thread", { reportOffline: true })).rejects.toThrow(TypeError);
+  expect(await libraryKey("thread")).toBeNull();
+  answer = () => Response.json({ error: "signed out" }, { status: 401 });
+  expect(await libraryKey("thread", { reportOffline: true })).toBeNull();
 });

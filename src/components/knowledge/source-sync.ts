@@ -6,7 +6,7 @@ import { libraryOwner, readLibrary } from "./source-cache";
 import { accepts, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
 
 export type FolderSource = { kind: "directory"; name: string; handle: Directory } | { kind: "cloud"; name: string; id: string };
-type Watch = { id: string; key: string; source: FolderSource };
+type Watch = { id: string; key: string; source: FolderSource; scanId?: string };
 const syncEvent = "startupbot-document-sync";
 export function onSourceSync(key: string, listener: () => void) {
   const changed = (event: Event) => { if ((event as CustomEvent).detail === key) listener(); };
@@ -75,22 +75,45 @@ export async function scanSource(source: FolderSource, old: Index, read: SourceR
 }
 
 export async function syncSource(watch: Watch, read: SourceRead = {}) {
+  const slot = "watch:" + watch.key, scanId = randomUuid();
+  const claimed = await browserRecord<Watch | undefined>("readwrite", store => {
+    const request = store.get(slot);
+    request.onsuccess = () => {
+      if (request.result?.id === watch.id) store.put({ ...request.result, scanId }, slot);
+    };
+    return request;
+  });
+  if (claimed?.id !== watch.id) return;
   const old = await readLibrary(watch.key) ?? { docs: new Map(), changes: [] };
   const index = await scanSource(watch.source, old, read);
   read.signal?.throwIfAborted();
-  await browserRecord("readwrite", store => {
-    const request = store.get("watch:" + watch.key);
-    request.onsuccess = () => { if (request.result?.id === watch.id) store.put(index, watch.key); };
+  let committed: IDBRequest<Index | undefined> | undefined;
+  const latest = await browserRecord<Watch | undefined>("readwrite", store => {
+    const request = store.get(slot);
+    request.onsuccess = () => {
+      const record: Watch | undefined = request.result;
+      if (record?.id !== watch.id) return;
+      if (record.scanId === scanId) {
+        store.put(index, watch.key);
+        store.put({ ...record, scanId: undefined }, slot);
+      } else if (!record.scanId) committed = store.get(watch.key);
+    };
     return request;
   });
+  if (latest?.id !== watch.id || latest.scanId !== scanId) return committed?.result;
   window.dispatchEvent(new CustomEvent(syncEvent, { detail: watch.key }));
+  return index;
 }
 
 /** A previously authorized folder may no longer be readable. Recheck it before revealing a saved snapshot. */
 export async function currentLibrary(key: string) {
-  const watch = await readWatch(key);
-  if (watch) await syncSource(watch);
-  return readLibrary(key);
+  let manual: IDBRequest<Index | undefined> | undefined;
+  const watch = await browserRecord<Watch | undefined>("readonly", store => {
+    const request = store.get("watch:" + key);
+    request.onsuccess = () => { if (!request.result) manual = store.get(key); };
+    return request;
+  });
+  return watch ? syncSource(watch) : manual?.result;
 }
 
 export function watchDocumentSources() {

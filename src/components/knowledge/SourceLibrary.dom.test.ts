@@ -4,12 +4,12 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import type { Bot } from "@/state/store";
 import { t } from "@/lib/i18n";
-import { api } from "@/state/api";
+import { api, ApiError } from "@/state/api";
 import SourceLibrary from "./SourceLibrary";
 import { currentLibrary } from "./source-sync";
 import type { Index } from "./source-index";
 
-vi.mock("@/state/api", () => ({ api: vi.fn() }));
+vi.mock("@/state/api", async load => ({ ...await load<typeof import("@/state/api")>(), api: vi.fn() }));
 vi.mock("./source-cache", () => ({ libraryKey: async () => "viewer-thread", readLibrary: vi.fn() }));
 vi.mock("./source-sync", () => ({ currentLibrary: vi.fn(), readWatch: async () => null, onSourceSync: () => () => {} }));
 
@@ -49,8 +49,44 @@ it("posts only explicitly displayed evidence, keeps a stable retry on older host
     await act(async () => ask().click());
     expect(api).toHaveBeenCalledTimes(3);
     expect(ask()).toBeUndefined();
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t("knowledge.answerChanged"));
   } finally {
     await act(async () => root.unmount());
     host.remove(); vi.unstubAllGlobals();
+  }
+});
+
+it("shows the appropriate recovery for each source answer refusal without exposing raw server messages", async () => {
+  vi.resetAllMocks();
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host), close = vi.fn();
+  const path = "Policy.md", text = "Company policy";
+  vi.mocked(currentLibrary).mockResolvedValue({ docs: new Map([[path, { path, file: new File([text], path), digest: "a".repeat(64),
+    passages: [{ page: 1, paragraph: 1, start: 0, text }] }]]), changes: [] });
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({})));
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close })));
+    const input = host.querySelector<HTMLInputElement>("input[type=search]")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "policy");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const ask = [...host.querySelectorAll("button")].find(b => b.textContent === t("knowledge.ask", { count: 1 }))!;
+    for (const [error, key] of [
+      [new ApiError("sensitive", 409), "knowledge.answerBusy"], [new ApiError("sensitive", 429), "knowledge.answerBusy"],
+      [new ApiError("sensitive", 422), "knowledge.answerModel"], [new ApiError("sensitive", 403), "knowledge.answerAccess"],
+      [new ApiError("sensitive", 409, { code: "spend_cap" }), "knowledge.answerLimit"],
+      [new ApiError("sensitive", 409, { code: "moved" }), "knowledge.answerMoved"],
+      [new TypeError("sensitive"), "knowledge.answerNetwork"], [new DOMException("sensitive", "TimeoutError"), "knowledge.answerNetwork"],
+    ] as const) {
+      vi.mocked(api).mockRejectedValueOnce(error);
+      await act(async () => ask.click());
+      expect(host.querySelector('[role="alert"]')?.textContent).toBe(t(key));
+      expect(input.value).toBe("policy");
+      expect(close).not.toHaveBeenCalled();
+    }
+  } finally {
+    await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals();
   }
 });

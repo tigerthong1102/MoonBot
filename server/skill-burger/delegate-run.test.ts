@@ -57,6 +57,13 @@ function harness(exec: StepExecutors) {
 }
 
 describe("a saved delegation", () => {
+  it("delegates the fresh output of the preceding step", async () => {
+    const t = team();
+    t.exec.shell = async () => ({ ok: true, output: "Fresh task from the current email" });
+    const workflow = wf([{ id: "s1", kind: "shell", label: "Read task", run: "cat task.txt" }, { id: "s2", kind: "delegate", label: "Ask Kiwi", tasks: [{ bot: { id: "kiwi", name: "Kiwi" }, message: [{ $step: "s1" }] }] }]);
+    await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow }, harness(t.exec).deps);
+    expect(t.sent[0]?.message).toBe("Fresh task from the current email");
+  });
   it("uses changed input in both delegation criteria and review", async () => {
     const t = team();
     const h = harness(t.exec);

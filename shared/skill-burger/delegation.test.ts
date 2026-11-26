@@ -19,6 +19,13 @@ const bash = (command: string, extra: Partial<NonNullable<RunMessage["tool"]>> =
 });
 
 describe("a delegation run", () => {
+  it("references earlier tool output when it is delegated verbatim", () => {
+    const output = "Please process the latest task email carefully.";
+    const call = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
+    const modified = { ...call, tool: { ...call.tool!, input: JSON.stringify({ ...JSON.parse(call.tool!.input!), message: output }) } };
+    const workflow = draftFromLayers(burgerLayers([ask("Fetch the latest task and delegate it"), bash("curl -sS https://example.com/task", { output }), modified]), "Fetch the latest task and delegate it", "Delegate", { teammate });
+    expect(workflow.steps[1]).toMatchObject({ kind: "delegate", tasks: [{ message: [{ $step: "s1" }] }] });
+  });
   it("captures input references in delegated completion criteria", () => {
     const call = run.find((message) => message.tool?.name?.endsWith("coordinate_bots"))!;
     const modified = { ...call, tool: { ...call.tool!, input: JSON.stringify({ ...JSON.parse(call.tool!.input!), message: "Inspect https://old.example", done_when: "Report findings for https://old.example" }) } };

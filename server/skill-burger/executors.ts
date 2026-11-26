@@ -33,7 +33,6 @@ const rpcId = () => Math.floor(Math.random() * 1e9);
 const record = (value: unknown): Record<string, unknown> | undefined => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined);
 const errorText = (error: unknown, fallback: string) => typeof error === "string" ? error : typeof record(error)?.message === "string" ? String(record(error)!.message) : fallback;
 
-/** The text of an MCP tools/call answer, or its error. */
 function callText(frame: Record<string, unknown>): ExecResult {
   const error = record(frame.error)?.message;
   if (typeof error === "string") return { ok: false, error };
@@ -57,7 +56,6 @@ function defaultShell(): NonNullable<ExecutorContext["shell"]> {
     : { command: "/bin/sh", args: (script) => ["-c", script] };
 }
 
-/** Runs `script` as the bot, in its box where the box is on, and collects up to `maxBytes` of each stream. */
 function runInBox(context: ExecutorContext, input: Parameters<StepExecutors["shell"]>[0]): Promise<ExecResult> {
   const shell = context.shell ?? (input.shell === "bash" ? { command: "bash", args: (script: string) => ["-c", script] } : defaultShell());
   return new Promise((done) => {

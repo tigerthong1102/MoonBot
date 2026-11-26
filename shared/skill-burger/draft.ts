@@ -189,7 +189,9 @@ class Drafter {
     return textLine(this.text(this.askText.replace(/\s+/g, " ").slice(0, max) || this.summary));
   }
 
-  private text(message: string): WorkflowText {
+  private text(message: string, useOutput = false): WorkflowText {
+    const piped = useOutput ? this.pipe(message) : null;
+    if (piped) return [piped];
     const parts: Array<string | WorkflowRef> = [message];
     for (const { value } of this.typed) {
       for (let i = 0; i < parts.length; i += 1) {
@@ -268,7 +270,7 @@ class Drafter {
 
   private delegate(id: string, layer: BurgerLayer, label: string): WorkflowStep {
     const [first = [], ...later] = layer.delegation!.rounds;
-    const tasks = first.flatMap((call) => call.bots.map((bot) => ({ bot: this.teammate(bot), message: this.text(call.message), ...(call.doneWhen ? { doneWhen: this.text(call.doneWhen.slice(0, 1_000)) } : {}) })));
+    const tasks = first.flatMap((call) => call.bots.map((bot) => ({ bot: this.teammate(bot), message: this.text(call.message, true), ...(call.doneWhen ? { doneWhen: this.text(call.doneWhen.slice(0, 1_000), true) } : {}) })));
     const unique = tasks.filter((task, index) => tasks.findIndex((other) => other.bot.name === task.bot.name) === index).slice(0, 8);
     const example = later.flat().map((call) => `${namesLine(call.bots.map((bot) => this.teammate(bot).name))}: ${textLine(this.text(call.message))}`).join("\n").slice(0, EXAMPLE_MAX);
     const rounds = Math.min(DELEGATE_MAX_ROUNDS, Math.max(later.length, unique.some((task) => task.doneWhen) ? 1 : 0));

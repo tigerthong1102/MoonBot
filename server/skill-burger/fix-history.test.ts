@@ -74,6 +74,15 @@ describe("keeping a fix", () => {
 });
 
 describe("a burger's run history", () => {
+  it.each(["constructor", "toString", "__proto__"])("records workflow history for the name %s", (name) => {
+    const history = createRunHistory(mkdtempSync(join(tmpdir(), "burger-history-names-")));
+    const context = { name, botId: "bot", threadId: "thread" };
+    expect(history.list(name)).toEqual([]);
+    history.record(context, { protocolVersion: 1, ok: true, run: "r1", steps: [] });
+    expect(history.list(name)).toMatchObject([{ name, run: "r1" }]);
+    history.record(context, { protocolVersion: 1, ok: true, run: "r2", steps: [] });
+    expect(history.list(name).map((entry) => entry.run)).toEqual(["r2", "r1"]);
+  });
   const envelope = (run: string, extra: Partial<RunEnvelope>): RunEnvelope => ({ protocolVersion: 1, ok: true, run, steps: [{ id: "s1", label: "Convert", state: "done" }], ...extra });
 
   it("keeps each run once, newest first, with where a failed one stopped and the saved inputs it reused", () => {

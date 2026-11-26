@@ -32,9 +32,9 @@ export function createRunHistory(dir: string, now: () => number = Date.now) {
   const read = (): Ledger => {
     try {
       const parsed = JSON.parse(readFileSync(file, "utf8")) as unknown;
-      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Ledger : {};
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? Object.assign(Object.create(null) as Ledger, parsed) : Object.create(null) as Ledger;
     } catch {
-      return {};
+      return Object.create(null) as Ledger;
     }
   };
   const write = (ledger: Ledger) => {

@@ -7,13 +7,13 @@ import { commitOf, publishFile, run } from "./command.ts";
 type Issue = { code: number; line: number; column: number; message: string };
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
 
-function analyze(ts: typeof import("@typescript/typescript6"), file: string, content: string, options: ts.CompilerOptions, root: string, files: string[]): Issue[] {
+export function analyzeTypeScriptSource(ts: typeof import("@typescript/typescript6"), file: string, content: string, options: ts.CompilerOptions, root: string, files: string[]): Issue[] {
   const host: ts.LanguageServiceHost = {
     getCompilationSettings: () => options,
     getScriptFileNames: () => files,
     getScriptVersion: () => "1",
     getScriptSnapshot: name => {
-      const data = name === file ? content : ts.sys.readFile(name);
+      const data = relative(file, name) === "" ? content : ts.sys.readFile(name);
       return data === undefined ? undefined : ts.ScriptSnapshot.fromString(data);
     },
     getCurrentDirectory: () => root,
@@ -59,13 +59,14 @@ export async function diagnoseAttempt(repo: string, attempt: number, host: strin
     const invalid = settings.errors.filter(error => error.code !== 18003);
     if (invalid.length) throw new Error("Invalid TypeScript options: " + ts.flattenDiagnosticMessageText(invalid[0]!.messageText, "\n"));
     Object.assign(options, settings.options);
-    files = [...new Set([...settings.fileNames, file])];
+    files = settings.fileNames;
+    if (!files.some(name => relative(file, name) === "")) files = [...files, file];
   }
-  const previous = analyze(ts, file, before, options, root, files);
+  const previous = analyzeTypeScriptSource(ts, file, before, options, root, files);
   const key = (issue: Issue) => JSON.stringify([issue.code, issue.message]);
   const counts = new Map<string, number>();
   for (const issue of previous) counts.set(key(issue), (counts.get(key(issue)) ?? 0) + 1);
-  const diagnostics = analyze(ts, file, source, options, root, files).map(issue => {
+  const diagnostics = analyzeTypeScriptSource(ts, file, source, options, root, files).map(issue => {
     const remaining = counts.get(key(issue)) ?? 0;
     if (remaining) counts.set(key(issue), remaining - 1);
     return { ...issue, status: remaining ? "existing" : "new" };

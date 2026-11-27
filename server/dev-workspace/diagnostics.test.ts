@@ -1,10 +1,10 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { expect, it } from "vitest";
 import { run } from "./command.ts";
 import { recordAttempt } from "./attempts.ts";
-import { diagnoseAttempt } from "./diagnostics.ts";
+import { analyzeTypeScriptSource, diagnoseAttempt } from "./diagnostics.ts";
 
 it("attaches new and preexisting TypeScript diagnostics to an active revision", async () => {
   const root = mkdtempSync(join(tmpdir(), "attempt-diagnostics-"));
@@ -23,5 +23,17 @@ it("attaches new and preexisting TypeScript diagnostics to an active revision", 
     expect(recordAttempt(root, "show", {})).toMatchObject({ attempts: [{ diagnostics: [result] }] });
     recordAttempt(root, "finish", { host: "one", attempt: 1, exit: 0 });
     await expect(diagnoseAttempt(root, 1, "one", "demo.ts")).rejects.toThrow("attempt");
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+it("uses the supplied revision when the language service normalizes the source path", async () => {
+  const { default: ts } = await import("@typescript/typescript6");
+  const root = mkdtempSync(join(tmpdir(), "diagnostic-overlay-"));
+  try {
+    const file = join(root, "demo.ts");
+    writeFileSync(file, "export const changed: number = 'new';");
+    const sourcePath = [root, ".", "demo.ts"].join(sep);
+    const previous = analyzeTypeScriptSource(ts, sourcePath, "export const changed: number = 1;", {}, root, [file]);
+    expect(previous).toEqual([]);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

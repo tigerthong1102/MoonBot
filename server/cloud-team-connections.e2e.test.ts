@@ -434,7 +434,7 @@ it("skips automatic personal MCP probes after setup and restart while still prob
     expect((await team.as(owner, "PATCH", "/api/mcp/servers/personal_probe", { enabled: true })).status).toBe(200);
 
     expect((await team.as(owner, "POST", "/api/mcp/servers", {
-      name: "team_probe", type: "http", url: shared.url, headers: { Authorization: teamAuthorization },
+      name: "team_probe", type: "http", url: shared.url, headers: { Authorization: teamAuthorization }, enabled: false,
     })).status).toBe(201);
     expect((await team.as(owner, "PATCH", "/api/mcp/servers/team_probe", { enabled: true })).status).toBe(200);
     const teamHasApps = async () => {

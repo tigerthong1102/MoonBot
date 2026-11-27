@@ -415,12 +415,10 @@ export class RoutineManager {
   nextDueAt(): number | null { return nextDueOf(this.planned(this.routines.filter((routine) => routine.target === "room-goal" || !this.options.pausedText?.(routine.botId))), this.runs, this.now()); }
 
   listRuns(from?: number, to?: number): RoutineRun[] {
-    return this.runs
-      .filter((r) => (from == null || r.scheduledFor >= from) && (to == null || r.scheduledFor <= to))
+    return this.runs.filter((r) => (from == null || r.scheduledFor >= from) && (to == null || r.scheduledFor <= to))
       .sort((a, b) => b.scheduledFor - a.scheduledFor)
       .map(cloneRun);
   }
-
   activeRunForBot(botId: string): RoutineRun | null {
     return activeRunFor(this.runs, botId);
   }
@@ -475,6 +473,10 @@ export class RoutineManager {
     return removed;
   }
 
+  waitState(id: string, source: Pick<RoutineRun, "botId" | "threadId">): "active" | "settled" | undefined {
+    const run = this.runs.find(r => r.id === id && r.botId === source.botId && !!source.threadId && [r.threadId, r.sourceThreadId, r.resultsThreadId].includes(source.threadId));
+    return run && (["queued", "running", "waiting"].includes(run.status) ? "active" : "settled");
+  }
   isActiveThread(threadId: string): boolean {
     return this.runs.some(run => run.threadId === threadId && ["running", "waiting"].includes(run.status));
   }

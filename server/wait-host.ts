@@ -92,7 +92,7 @@ export function createWaitHost(deps: WaitHostDeps): Pick<WaitManagerOptions, "so
         kind: "options",
         card: {
           title: `Waiting: ${wait.label}`,
-          subtitle: `Then ${bot.name} will: ${wait.followUp}`,
+          subtitle: wait.followUp ? `Then ${bot.name} will: ${wait.followUp}` : wait.label,
           options: [],
           answered: "allow",
           dismissed: true,

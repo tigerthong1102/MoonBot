@@ -75,6 +75,7 @@ function harness(options: Partial<WaitManagerOptions> = {}) {
         },
         async processes() { h.processCalls++; return h.processes; },
       },
+      runState: options.runState,
       sourceAlive: () => h.alive,
       botBusy: (id) => h.busy.get(id),
       post: h.post,
@@ -379,6 +380,22 @@ describe("WaitManager", () => {
     h.pageGate = null; h.manager.start();
     await vi.waitFor(() => expect(h.posts).toEqual([{ status: "fired", text: "the page: done. https://x.test/ now says “shipped”." }]), { interval: 1 });
     h.manager.stop();
+  });
+
+  it("restores a run watcher, stops if access disappears, and notifies once at completion", async () => {
+    let state: "active" | "settled" | undefined = "active";
+    const h = harness({ runState: (id, source) => id === "run-a" && source.threadId === "t-1" ? state : undefined });
+    const condition = { kind: "run_finished" as const, runId: "run-a" };
+    expect(await h.create(condition, { threadId: "other" })).toMatchObject({ state: "refused" });
+    expect(await h.create(condition)).toMatchObject({ state: "created" });
+    expect(h.showCard).toHaveBeenCalledOnce();
+    h.reload(); h.advance(5000); await h.manager.tick();
+    expect(h.posts).toEqual([]);
+    state = "settled"; h.advance(5000); await h.manager.tick(); await h.manager.tick();
+    expect(h.posts).toMatchObject([{ status: "fired" }]);
+    state = "active"; await h.create(condition);
+    state = undefined; h.advance(5000); await h.manager.tick();
+    expect(h.posts.at(-1)?.status).toBe("stopped");
   });
 
   it("waits for another bot to start and then finish, even a turn shorter than a tick", async () => {

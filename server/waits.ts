@@ -31,6 +31,7 @@ export type NewWaitCondition =
   | { kind: "url_contains" | "url_missing"; url: string; text: string }
   | { kind: "file_exists" | "file_missing" | "file_changed"; path: string }
   | { kind: "process_running" | "process_gone"; process: string }
+  | { kind: "run_finished"; runId: string }
   | { kind: "bot_idle"; botId: string; botName: string };
 export type WaitCondition =
   | { kind: "url_contains"; url: string; text: string }
@@ -39,6 +40,7 @@ export type WaitCondition =
   | { kind: "file_exists" | "file_missing"; path: string }
   | { kind: "file_changed"; path: string; before: FileStamp | null }
   | { kind: "process_running" | "process_gone"; process: string }
+  | { kind: "run_finished"; runId: string }
   | { kind: "bot_idle"; botId: string; botName: string; sawBusy: boolean };
 export interface WaitNotice { status: "fired" | "expired" | "stopped"; text: string }
 export interface WaitRecord {
@@ -62,11 +64,12 @@ export interface WaitManagerOptions {
   file?: string; now?: () => number; probes?: Partial<WaitProbes>;
   sourceAlive(botId: string, threadId: string): boolean;
   /** Undefined once that bot no longer exists. */
+  runState?(runId: string, source: { botId: string; threadId: string }): "active" | "settled" | undefined;
   botBusy(botId: string): boolean | undefined;
   /** False while a turn runs in the chat: try again next tick. */
   post(wait: WaitRecord, notice: WaitNotice): boolean;
   followUp(wait: WaitRecord & { followUp: string }): void;
-  showCard(wait: WaitRecord & { followUp: string }): string | undefined;
+  showCard(wait: WaitRecord): string | undefined;
   settleCard(wait: WaitRecord, how: "fired" | "expired" | "cancelled"): void;
 }
 
@@ -77,6 +80,7 @@ const conditionSchema = z.union([
   z.object({ kind: z.enum(["file_exists", "file_missing"]), path: z.string() }),
   z.object({ kind: z.literal("file_changed"), path: z.string(), before: stampSchema.nullable() }),
   z.object({ kind: z.enum(["process_running", "process_gone"]), process: z.string() }),
+  z.object({ kind: z.literal("run_finished"), runId: z.string().regex(/^[\w-]{1,128}$/u) }),
   z.object({ kind: z.literal("bot_idle"), botId: z.string(), botName: z.string(), sawBusy: z.boolean() }),
 ]);
 const recordSchema = z.object({
@@ -105,6 +109,7 @@ export function describeCondition(condition: NewWaitCondition | WaitCondition): 
     case "file_changed": return `${condition.path} changes`;
     case "process_running": return `${condition.process} is running`;
     case "process_gone": return `${condition.process} has stopped`;
+    case "run_finished": return `automation run ${condition.runId} finishes`;
     case "bot_idle": return `${condition.botName} finishes its work`;
   }
 }
@@ -118,6 +123,7 @@ function firedDetail(condition: WaitCondition): string {
     case "file_changed": return `${condition.path} changed.`;
     case "process_running": return `${condition.process} is running.`;
     case "process_gone": return `${condition.process} stopped.`;
+    case "run_finished": return `Automation run ${condition.runId} finished.`;
     case "bot_idle": return `${condition.botName} finished.`;
   }
 }
@@ -188,7 +194,8 @@ export class WaitManager {
     const full = this.limitRefusal(input);
     if (full) return full;
     const condition = await this.startingCondition(input.condition);
-    const verdict = await this.probe(condition, undefined);
+    const verdict = await this.probe(condition, undefined, input);
+    if (verdict.gone && condition.kind === "run_finished") return { state: "refused", status: 400, error: "No automation run with that ID belongs to this conversation." };
     if (verdict.gone) return { state: "refused", status: 400, error: `${(condition as { botName: string }).botName} no longer exists. Use a name or id from list_bots.` };
     if (verdict.unlisted) return { state: "refused", status: 400, error: NO_PROCESS_LIST };
     if (verdict.page && !verdict.page.ok && verdict.page.refused) return { state: "refused", status: 400, error: verdict.page.error };
@@ -212,8 +219,8 @@ export class WaitManager {
       errors: 0,
     };
     this.commit(() => this.waits.push(wait));
-    if (wait.followUp) {
-      const cardMessageId = this.options.showCard(wait as WaitRecord & { followUp: string });
+    if (wait.followUp || wait.condition.kind === "run_finished") {
+      const cardMessageId = this.options.showCard(wait);
       if (cardMessageId) {
         try { this.commit(() => { wait.cardMessageId = cardMessageId; }); } catch (error) { console.error(`wait ${wait.id}: could not store the card id`, error); }
       }
@@ -337,11 +344,11 @@ export class WaitManager {
       const readProcesses = () => (processes ??= this.probes.processes());
       const pages = this.pagesQueued > 0 ? [] : due.filter((w) => isPage(w.condition));
       const chain = async () => {
-        for (const w of pages) verdicts.set(w, await this.probe(w.condition, readProcesses));
+        for (const w of pages) verdicts.set(w, await this.probe(w.condition, readProcesses, w));
       };
       await Promise.all([
         chain(),
-        ...due.filter((w) => !isPage(w.condition)).map(async (w) => { verdicts.set(w, await this.probe(w.condition, readProcesses)); }),
+        ...due.filter((w) => !isPage(w.condition)).map(async (w) => { verdicts.set(w, await this.probe(w.condition, readProcesses, w)); }),
       ]);
       if (!this.stopped) this.settle(now, verdicts);
     } finally {
@@ -365,6 +372,7 @@ export class WaitManager {
           continue;
         }
         if (verdict.met) wait.ending = { status: "fired", text: `${wait.label}: done. ${firedDetail(wait.condition)}` };
+        else if (verdict.gone && wait.condition.kind === "run_finished") wait.ending = { status: "stopped", text: `Stopped waiting for ${wait.label}: the run is no longer available in this conversation.` };
         else if (verdict.gone && wait.condition.kind === "bot_idle") wait.ending = { status: "stopped", text: `Stopped waiting for ${wait.label}: ${wait.condition.botName} no longer exists.` };
         else if (expired) wait.ending = this.expiredNotice(wait);
         else {
@@ -404,7 +412,7 @@ export class WaitManager {
     return run;
   }
 
-  private async probe(condition: WaitCondition, processes: (() => Promise<ProcessEntry[]>) | undefined): Promise<Verdict> {
+  private async probe(condition: WaitCondition, processes: (() => Promise<ProcessEntry[]>) | undefined, source: Pick<NewWait, "botId" | "threadId">): Promise<Verdict> {
     switch (condition.kind) {
       case "url_contains":
       case "url_missing": {
@@ -426,6 +434,10 @@ export class WaitManager {
         } catch {
           return { met: false, unlisted: true };
         }
+      }
+      case "run_finished": {
+        const state = this.options.runState?.(condition.runId, source);
+        return { met: state === "settled", gone: state === undefined };
       }
       case "bot_idle": {
         const busy = this.options.botBusy(condition.botId);

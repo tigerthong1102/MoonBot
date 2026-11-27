@@ -29,7 +29,7 @@ export const WAIT_MESSAGES = {
 } as const;
 
 export interface WaitRequest {
-  label: string; kind: WaitKind; url?: string; text?: string; path?: string; process?: string; bot?: string; followUp?: string; hours: number;
+  label: string; kind: WaitKind; url?: string; text?: string; path?: string; process?: string; bot?: string; runId?: string; followUp?: string; hours: number;
 }
 
 const FIELD_KINDS = {
@@ -38,6 +38,7 @@ const FIELD_KINDS = {
   path: ["file_exists", "file_missing", "file_changed"],
   process: ["process_running", "process_gone"],
   bot: ["bot_idle"],
+  run_id: ["run_finished"],
 } as const satisfies Record<string, readonly WaitKind[]>;
 type WaitField = keyof typeof FIELD_KINDS;
 const FIELDS = Object.keys(FIELD_KINDS) as WaitField[];
@@ -103,6 +104,11 @@ export function parseWaitRequest(body: unknown, home: string): { ok: true; reque
     const process = size("process", 256);
     if (process === null) return lengthError("process", 256);
     request.process = process;
+  }
+  if (needed.includes("run_id")) {
+    const runId = size("run_id", 128, true);
+    if (!runId || !/^[\w-]+$/u.test(runId)) return fail("Choose a valid automation run_id.");
+    request.runId = runId;
   }
   if (needed.includes("bot")) {
     const bot = size("bot", 128, true);
@@ -220,7 +226,9 @@ export function createWaitRoutes(deps: { waits: Pick<WaitManager, "create" | "li
     }
 
     let condition: NewWaitCondition;
-    if (request.kind === "bot_idle") {
+    if (request.kind === "run_finished") {
+      condition = { kind: "run_finished", runId: request.runId! };
+    } else if (request.kind === "bot_idle") {
       const peer = ctx.peer(request.bot!);
       if (peer === "self") return void json(res, 400, { error: WAIT_MESSAGES.self });
       if (!peer) {

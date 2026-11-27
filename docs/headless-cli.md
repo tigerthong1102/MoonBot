@@ -516,3 +516,5 @@ opens a new Codex branch of that conversation. For a StartupBot conversation,
 `terminal fork-chat NAME FILE THREAD [INSTANCE]` also checks the selected
 StartupBot thread's recorded engine cursor. The source must be in the active
 Codex home's sessions directory. Both actions start a separate conversation.
+
+Use `openmausbot terminal start NAME cursor` to run the installed Cursor CLI in a persistent terminal. `openmausbot terminal models cursor` prints model IDs from that installation.

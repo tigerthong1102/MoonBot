@@ -16,7 +16,7 @@ import { routineRequestOwnerKey, type RoutineRequestReceipt, type RoutineRequest
 export type { RoutineRequestReceipt, RoutineRequestCommit, RoutineRequestOwner } from "./routine-request-receipt.ts";
 import type { ModelSelection } from "../shared/wire.ts";
 import { intervalAllowsOccurrence, intervalHasRestrictions, isSameLocalDay, latestIntervalOccurrence } from "./routine-intervals.ts";
-import { limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
+import { limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule } from "./routine-schedules.ts";
 import { runsOnce } from "../shared/limit-reset.ts"; import { limitResetRunOwed } from "./limit-reset-owed.ts";
 import {
   ROUTINE_HANDOFF_WAIT, isRoutineProblemRun, type RoutineAccess, type RoutineCheck, type RoutineContextAttachment, type RoutineDelivery, type RoutineIntervalWindow, type RoutineRetryCause,
@@ -43,7 +43,8 @@ import { loadInstalledPackage, matchingRequestReceipt, rememberRequest } from ".
 import { applyHolds, holdCauses, type AppliedHolds } from "./routine-holds.ts";
 import { cancelUnfinishedRuns, interruptRunTurns } from "./routine-stops.ts";
 import { RECONCILIATION_DELIVERY_PROMPT } from "./routine-deliverables.ts";
-import { sanitizeInput } from "./routine-input.ts";
+export type { RoutineInput } from "./routine-input.ts";
+import { sanitizeInput, type RoutineInput } from "./routine-input.ts";
 import { applyCheckResult, clipRunOutput, codedLine, routineLine, runLineFields, type RoutineLine, type RoutineLineCodes, type RoutineTroubleCode } from "./routine-lines.ts";
 import { checkHold, CHECK_BOOT_HOLD_MS, type CheckHold } from "./routine-check-pacing.ts";
 import { resolveRoutineResultsThread, routineRunDefinition, type ResultsThreadAllocation } from "./routine-run-definition.ts";
@@ -164,29 +165,6 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   seenAt?: number;
   incidentReminderAt?: number;
   emailDeliveries?: ReportDelivery[];
-}
-
-export interface RoutineInput {
-  name: string;
-  prompt: string;
-  target?: RoutineTarget;
-  botId: string;
-  groupId?: string | null;
-  runOn?: RoutineRunOn;
-  enabled?: boolean;
-  schedule: RoutineScheduleInput;
-  durationMinutes?: number;
-  timeoutMinutes?: number | null;
-  attachments?: RoutineContextAttachment[];
-  continuity?: boolean; sameConversation?: boolean;
-  modelSelection?: ModelSelection | null;
-  overlap?: "skip" | "queue";
-  runOnStartup?: boolean;
-  checks?: RoutineCheck[] | null;
-  deliverables?: "reconciliation" | null;
-  access?: RoutineAccess | null;
-  deliver?: RoutineDelivery | null;
-  resultsThreadId?: string | null;
 }
 
 /** What a routine's checks found: items for one AI run, a sentence while an app cannot be read, and the next time they

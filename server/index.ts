@@ -255,7 +255,6 @@ import { parseSince, parseUntil, recentWork, recentWorkPrompt, turnOutcomeLine }
 import { createChiefNotices } from "./host/chief-notices.ts"; import { sessionHolds } from "./routine-recovery.ts"; import { dismissLeftoverPeerCards } from "./host/leftover-peer-cards.ts";
 import { createHandoffTicks } from "./handoff-ticks.ts"; import { IDLE_HTTP_SERVER } from "./due-timer.ts";
 
-const SESSION_READ_MAX_CHARS = 8_000;
 import { personOf, promptWithReply, refreshRoutedReply, replyTargetIn, speakerOf, transcriptText, type PersonName, type ReplyTarget } from "./replies.ts";
 import type { DataContext } from "./data-context.ts";
 import { promptWithDataContext } from "../shared/data-context.ts";
@@ -347,7 +346,7 @@ import { createTtsRoutes } from "./routes/tts.ts";
 import { turnStartLogLine } from "./turn-log.ts";
 import { TurnStops, outwardActions, stoppedTurnOutcome, turnEvidence } from "./turn-outcome.ts";
 import { buildRecoveryText, buildTurnContext, engineIsFresh, replaysNatively } from "./turn-context.ts";
-import { externalContextMarker, isExternalContextMarker, Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
+import { externalContextMarker, isExternalContextMarker, Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionReadView, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
 import { extractHandoffMedia, extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
 import { callTitleExcerpt } from "./thread-title.ts";
 import { createThreadTitleGate, generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
@@ -13538,16 +13537,10 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const own = recall.ownThreads.includes(threadId);
         const message = own ? readMessageText(threadId, messageId) ?? (threadId === fromThreadId && !store.groupByThread(threadId) && toolRecallEnabled(cfg.context, from.memoryEnabled) ? readCompactedToolOutput(threadId, messageId, sinceFreshStart(store.activePath(threadId))) : null) : null;
         if (!message) return json(res, 404, { error: "no such message in your conversations" });
-        const contextTextForAgent = routedWorkMarker(store.messagesFor(threadId).find(line => line.id === messageId) ?? {}) ?? message.text;
         const readInRoom = Boolean(store.groupByThread(fromThreadId));
         const readCrossed = readInRoom && threadId !== fromThreadId && !recall.roomByThread.has(threadId);
         if (readCrossed) discloseRecall(from, fromThreadId, [threadId]);
-        return json(res, 200, {
-          ...message,
-          crossed: readCrossed,
-          text: contextTextForAgent.length > SESSION_READ_MAX_CHARS ? `${contextTextForAgent.slice(0, SESSION_READ_MAX_CHARS)}…` : contextTextForAgent,
-          task: store.taskByThread(from.id, threadId)?.title,
-        });
+        return json(res, 200, sessionReadView(message, store.messagesFor(threadId).find(line => line.id === messageId), readCrossed, store.taskByThread(from.id, threadId)?.title));
       }
       if (method === "GET" && path === "/api/internal/skills") {
         if (!skillAuthoringEnabled(cfg)) return json(res, 403, { error: "skill authoring is not enabled in Settings" });

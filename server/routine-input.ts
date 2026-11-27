@@ -1,13 +1,36 @@
 // A routine as a person, a bot or an import asked for it, checked and cleaned before RoutineManager keeps it.
 import { approvalModeFor, type ApprovalMode } from "../shared/approval-mode.ts";
-import { isRoutineAccess } from "../shared/routines.ts";
+import { isRoutineAccess, type RoutineAccess, type RoutineCheck, type RoutineDelivery, type RoutineContextAttachment } from "../shared/routines.ts";
 import { runsOnce } from "../shared/limit-reset.ts";
 import { cleanAttachments, cleanTimeoutMinutes } from "./routine-attachments.ts";
 import { loadChecks, loadModelSelection } from "./routine-load.ts";
-import { cleanSchedule } from "./routine-schedules.ts";
+import { cleanSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
 import type { ModelSelection } from "../shared/wire.ts";
-import type { Routine, RoutineInput } from "./routines.ts";
+import type { Routine, RoutineTarget, RoutineRunOn } from "./routines.ts";
 import { userErrorThrown } from "./user-errors.ts";
+
+export interface RoutineInput {
+  name: string;
+  prompt: string;
+  target?: RoutineTarget;
+  botId: string;
+  groupId?: string | null;
+  runOn?: RoutineRunOn;
+  enabled?: boolean;
+  schedule: RoutineScheduleInput;
+  durationMinutes?: number;
+  timeoutMinutes?: number | null;
+  attachments?: RoutineContextAttachment[];
+  continuity?: boolean; sameConversation?: boolean;
+  modelSelection?: ModelSelection | null;
+  overlap?: "skip" | "queue";
+  runOnStartup?: boolean;
+  checks?: RoutineCheck[] | null;
+  deliverables?: "reconciliation" | null;
+  access?: RoutineAccess | null;
+  deliver?: RoutineDelivery | null;
+  resultsThreadId?: string | null;
+}
 
 type Refusal = { status: number; error: string };
 

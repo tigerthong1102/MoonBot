@@ -17,11 +17,10 @@ import { pasteMenuItem } from "./paste-menu-item.mjs";
 import { attachUpdaterWindow, startUpdater, registerUpdaterIpc, sendUpdaterState, reopenedOutOfSight, quietSignals } from "./updater.mjs";
 import {
   appendDesktopCrashRecord,
-  buildDiagnosticsReport,
+  gatherDesktopDiagnostics,
   diagnosticsFileName,
   formatDesktopCrashRecord,
   installDesktopCrashListeners,
-  readSafeLogTail,
 } from "./diagnostics.mjs";
 import { migrateWorkspaceConfigFile, workspaceCredentialEnv } from "./workspace-credentials.mjs";
 import { evictStartupCacheOnce } from "./startup-cache-eviction.mjs";
@@ -745,36 +744,6 @@ function ensureCompanionAccountService() {
     log: (line) => slog(line),
   });
   return companionAccountService;
-}
-
-// Everything the bug-report bundle needs: config is booleans only and the log is redacted, since it is pasted into public issues.
-async function gatherDiagnostics() {
-  const { packageComponents } = await import("./package-components.mjs");
-  const serverStatus = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/config`, {
-    signal: AbortSignal.timeout(3_000),
-  })
-    .then((res) => (res.ok ? res.json() : null))
-    .catch(() => null);
-  const performance = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/diagnostics/performance`, { signal: AbortSignal.timeout(3_000) }).then((res) => (res.ok ? res.json() : null)).then((body) => (typeof body?.text === "string" ? body.text : "")).catch(() => "");
-  const log = readSafeLogTail(path.join(LOG_DIR, "server.log"));
-  const desktopLog = readSafeLogTail(DESKTOP_CRASH_LOG);
-  const updaterLog = readSafeLogTail(path.join(LOG_DIR, "updater.log"));
-  return buildDiagnosticsReport({
-    appInfo: {
-      version: app.getVersion(),
-      platform: process.platform,
-      arch: process.arch,
-      electron: process.versions.electron,
-      node: process.versions.node,
-      packaged: app.isPackaged,
-      uptimeSeconds: Math.round(process.uptime()),
-    },
-    components: app.isPackaged ? packageComponents(process.resourcesPath, process.platform) : [],
-    configSummary: serverStatus ?? {}, performance,
-    desktopLogTail: desktopLog?.tail ?? "",
-    updaterLogTail: updaterLog?.tail ?? "",
-    logTail: log?.tail ?? "",
-  });
 }
 
 let serverStartConflictOnly = false;
@@ -2230,7 +2199,7 @@ ipcMain.handle("desktop:pick-folder", localOnly("desktop:pick-folder", async (ev
 // Secrets are never read, and the report is redacted again on the way out.
 ipcMain.handle("desktop:export-diagnostics", localOrHome("desktop:export-diagnostics", async (event) => {
   const owner = BrowserWindow.fromWebContents(event.sender) ?? undefined;
-  const report = await gatherDiagnostics();
+  const report = await gatherDesktopDiagnostics({ app, port: SERVER_PORT, logDir: LOG_DIR, crashLog: DESKTOP_CRASH_LOG });
   const result = await dialog.showSaveDialog(owner, {
     title: nativeT("native.picker.diagnostics"),
     defaultPath: diagnosticsFileName(),

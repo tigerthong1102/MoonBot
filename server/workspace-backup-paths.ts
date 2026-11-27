@@ -1,3 +1,4 @@
+import { chmodSync, lstatSync, mkdirSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { escapeAttribute, splitTranscriptAttachments } from "../src/lib/composer-attachments.ts";
@@ -114,4 +115,11 @@ export function restorePaths(source: string, destination: string) {
     message,
     leftBehind: (): WorkspaceLeftBehind | null => left.size || bots.size ? { bots: bots.size, paths: [...left.values()] } : null,
   };
+}
+
+export function ensurePrivateBackupFolder(path: string): void {
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  const stat = lstatSync(path);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("The backup directory must be a real directory, not a symbolic link.");
+  chmodSync(path, 0o700);
 }

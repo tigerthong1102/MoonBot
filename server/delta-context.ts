@@ -377,3 +377,9 @@ export class Handoffs {
     this.store.write(pending.botId, threadId, pending.instanceId, recordHanded(existing, this.store.order(threadId), received));
   }
 }
+
+/** A caller receives the same routing marker as the replayed transcript. */
+export function sessionReadView<T extends { text: string }>(message: T, source: Message | undefined, crossed: boolean, task?: string) {
+  const text = routedWorkMarker(source ?? {}) ?? message.text;
+  return { ...message, crossed, text: text.length > 8_000 ? text.slice(0, 8_000) + "…" : text, task };
+}

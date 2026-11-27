@@ -23,6 +23,7 @@ export interface TodayLine {
   ok: boolean;
   /** The failure's own words, when the work failed. */
   error?: string;
+  incident?: { count: number; firstAt: number; seen: boolean; resolved: boolean };
   startedBy?: TodayStarter;
   outcomes: OutcomeCounts;
 }

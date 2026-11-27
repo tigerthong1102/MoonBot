@@ -67,6 +67,7 @@ export function Today({ view, now, onOpen }: { view: InboxView | null; now: numb
     return <div key={line.id}><button type="button" disabled={!line.threadId && !state.routines.some((routine) => routine.id === line.routineId)} onClick={() => jump(line)}
     className="block w-full rounded-md px-2 py-1.5 text-start enabled:hover:bg-raised">
     <span className="block break-words text-[13px] text-ink">{line.title || state.bots.find((bot) => bot.id === line.botId)?.name || t("needsYou.aBot")}</span>
+    {line.incident && <span className="block text-[12px] text-ink-secondary">{t(line.incident.resolved ? "today.incidentResolved" : line.incident.seen ? "today.incidentSeen" : "today.incidentOpen", { count: line.incident.count, time: new Date(line.at).toLocaleTimeString() })}</span>}
     {line.error && <span className="block break-words text-[12px] text-ink-secondary">{line.error}</span>}
   </button>{task && <TodayTaskDetails key={task.threadId} task={task} botId={line.botId} />}</div>;
   });

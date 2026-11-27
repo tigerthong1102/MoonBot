@@ -184,3 +184,7 @@ See public/licenses/orca.txt.
 The PDF page coverage range logic is adapted from NousResearch/hermes-agent
 tools/read_extract.py at ab7e19a761e0ef52ef0d1c5f0417c5784c653446.
 Copyright (c) 2025 Nous Research. MIT license: public/licenses/hermes-agent.txt.
+
+Duration normalization in server/routine-incidents.ts adapts cron/incidents.py
+from NousResearch/hermes-agent at ab7e19a761e0ef52ef0d1c5f0417c5784c653446.
+Copyright (c) 2025 Nous Research, MIT License (public/licenses/hermes-agent.txt).

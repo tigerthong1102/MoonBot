@@ -1,3 +1,4 @@
+import { routineIncidents } from "./routine-incidents.ts";
 import { noticeLine } from "./chat-notices.ts";
 // What a person's bots finished in a window, what only the person can fix,
 // and the time it saved, computed on each read from the transcript rows and
@@ -65,7 +66,6 @@ const OWNER_PLACES: ReadonlySet<PlaceState> = new Set([
 /** A connected app refusing for want of a working sign-in, as Composio and the apps behind it word it. */
 const BROKEN_CONNECTION = /\b(?:401|unauthori[sz]ed|invalid[_ ]grant|(?:token|credentials?) (?:has |have )?(?:expired|been revoked)|expired (?:token|credentials?)|re-?authori[sz]e|re-?authenticate|reconnect|no (?:active )?connected account|connected ?account (?:not found|is (?:inactive|expired|disabled))|connection (?:is )?(?:inactive|expired|revoked|not found)|insufficient[_ ](?:scopes?|permissions?)|ACCESS_TOKEN_SCOPE_INSUFFICIENT|not connected)\b/i;
 const KIND_ORDER: Record<NeedsYouItem["kind"], number> = { "signed-out": 0, "out-of-credit": 1, "usage-limit": 2, connection: 3, place: 4, question: 5, message: 6 };
-const DAY_MS = 24 * 60 * 60_000;
 const TITLE_CHARS = 160;
 /** A failed row and the summary its turn ends with are written this close together. */
 const FAILURE_SETTLES_MS = 30_000;
@@ -174,9 +174,11 @@ export function todayReport(sources: TodaySources, viewer: TodayViewer, requeste
   const lines: TodayLine[] = [];
   const routines = { ok: 0, failed: 0 };
   const runWindows = new Map<string, Array<{ start: number; end: number }>>();
-  for (const run of sources.routines?.listRuns(since - 2 * DAY_MS) ?? []) {
+  const visibleRuns = (sources.routines?.listRuns() ?? []).filter(run => (viewer.run ?? viewer.routine)(run) && (run.finishedAt ?? run.scheduledFor) <= now);
+  const incidents = routineIncidents(visibleRuns);
+  for (const run of visibleRuns) {
     const end = runEnd(run, now);
-    if (end === null || !(viewer.run ?? viewer.routine)(run)) continue;
+    if (end === null) continue;
     if (run.threadId && run.startedAt !== undefined) {
       const windows = runWindows.get(run.threadId) ?? [];
       windows.push({ start: run.startedAt, end: (run.finishedAt ?? now) + RUN_SETTLES_MS });
@@ -196,7 +198,10 @@ export function todayReport(sources: TodaySources, viewer: TodayViewer, requeste
       add(counts, "report");
       add(outcomes, "report");
     }
+    const incident = incidents.get(run.id);
+    if (incident && incident.runs.at(-1) !== run.id) continue;
     lines.push({
+      ...(incident ? { incident: { count: incident.runs.length, firstAt: incident.firstAt, seen: incident.seen, resolved: incident.resolved } } : {}),
       id: run.id, at: end, botId: run.botId, ...(reported ?? seen(run.threadId) ? { threadId: reported ?? run.threadId } : {}), routineId: run.routineId,
       title: plainTitle(run.routineName), ok, ...(!ok && run.error ? { error: plainTitle(run.error) } : {}),
       startedBy: run.triggerSource ?? (run.manual ? "manual" : "schedule"), outcomes,

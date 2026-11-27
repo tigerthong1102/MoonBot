@@ -119,10 +119,19 @@ describe("today's report", () => {
       { at: at(11, 5), botId: w.pepper.id, threadId: w.sweep.threadId, title: "Posted the lead list to #sales.", ok: true, outcomes: { message: 1, lead: 1 }, startedBy: "bot" },
       { at: at(10, 2), botId: w.atlas.id, threadId: w.atlas.threadId, title: "Sent the refund reply to Sam. It went out at 10:01.", ok: true, outcomes: { emailSent: 1 }, startedBy: "person" },
       { at: at(9, 2, 30), botId: w.atlas.id, threadId: w.briefing.threadId, routineId: "r-brief", title: "Morning briefing", ok: true, startedBy: "schedule", outcomes: { emailRead: 2, draft: 1, report: 1 } },
-      { at: at(8), botId: w.pepper.id, routineId: "r-leads", title: "Lead sweep", ok: false, error: "Could not create a task for this run", startedBy: "webhook", outcomes: {} },
+      { at: at(8), botId: w.pepper.id, routineId: "r-leads", incident: { count: 1, firstAt: at(8), seen: false, resolved: false }, title: "Lead sweep", ok: false, error: "Could not create a task for this run", startedBy: "webhook", outcomes: {} },
       { at: at(6), botId: w.atlas.id, routineId: "r-kpi", title: "Weekly KPI report", ok: false, error: "StartupBot was not running at 06:00", startedBy: "schedule", outcomes: {} },
     ]);
     expect(moreLines).toBe(0);
+  });
+
+  it("groups the viewer's failed runs by cause and excludes a private success from recovery", () => {
+    const w = seededDay();
+    const failed = w.runs.find(r => r.id === "run-leads")!;
+    w.runs.push({ ...failed, id: "repeat", finishedAt: at(8, 30) }, { ...failed, id: "private", status: "completed", finishedAt: at(9) });
+    const report = todayReport(w.sources(), { ...ADMIN, run: r => r.id !== "private" }, MIDNIGHT, NOW);
+    expect(report.lines.filter(r => r.routineId === failed.routineId)).toMatchObject([{ id: "repeat", incident: { count: 2, resolved: false } }]);
+    expect(report.routines.failed).toBe(3);
   });
 
   it("opens a run where it reported, and lists no run that found nothing new", () => {

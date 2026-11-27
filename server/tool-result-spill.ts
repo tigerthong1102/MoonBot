@@ -29,7 +29,6 @@ export function spillToolResult(dir: string, key: string, text: string, max: num
   return text.length <= max;
 }
 
-/** Retained hook evidence belongs to the new fork as well, including after its source is removed. */
 export function copyForkToolResults(root: string, sourceId: string, targetId: string, history: Message[]) {
   const sourceDir = threadSpillDir(root, sourceId);
   const targetDir = threadSpillDir(root, targetId);

@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { writeFileAtomic } from "./atomic.ts";
 import { freePortBlock } from "./testing/ports.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -43,8 +44,8 @@ describe("this computer belongs to the desktop app's own server", () => {
     expect(result.status, `${method} ${path}: ${JSON.stringify(result.body)}`).toBeLessThan(400);
     return result.body;
   };
-  async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean): Promise<T> {
-    const end = Date.now() + 20_000;
+  async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean, timeout = 20_000): Promise<T> {
+    const end = Date.now() + timeout;
     for (;;) {
       const value = await read();
       if (accept(value)) return value;
@@ -90,7 +91,7 @@ describe("this computer belongs to the desktop app's own server", () => {
     await until(async () => {
       if (proc.exitCode !== null) throw new Error(`server exited during boot:\n${output}`);
       try { return (await fetch(base + "/api/health")).ok; } catch { return false; }
-    }, Boolean);
+    }, Boolean, hostTimeout(30_000));
   }
   async function stop() {
     if (!child) return;
@@ -138,7 +139,7 @@ describe("this computer belongs to the desktop app's own server", () => {
     expect(JSON.stringify(sent)).not.toContain("/fixture/cua-driver");
     writeFileSync(finishFile, "finish");
     await idle(bot.id, task.threadId);
-  });
+  }, hostTimeout(60_000));
 
   it("a server the app did not launch refuses this computer even when the person picks it, in plain words", async () => {
     await start(false);
@@ -151,7 +152,7 @@ describe("this computer belongs to the desktop app's own server", () => {
     expect(failed.join("\n")).not.toMatch(/CUA|Cua Driver|DevTools|descriptor/);
     expect(existsSync(dumpFile)).toBe(false);
     await idle(bot.id, task.threadId);
-  });
+  }, hostTimeout(60_000));
 
   itHost("the app's own server still uses this computer, from the record the app hands it", async () => {
     await start(true);
@@ -164,5 +165,5 @@ describe("this computer belongs to the desktop app's own server", () => {
     expect(sent.mcpConfig.mcpServers.computer.env.OMB_CUA_COMMAND).toBe("/fixture/cua-driver");
     writeFileSync(finishFile, "finish");
     await idle(bot.id, task.threadId);
-  });
+  }, hostTimeout(60_000));
 });

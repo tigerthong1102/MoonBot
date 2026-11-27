@@ -1,5 +1,9 @@
+// @vitest-environment happy-dom
+import { createElement } from "react";
+import { flushSync } from "react-dom";
+import { createRoot } from "react-dom/client";
 import { expect, it } from "vitest";
-import { runDiagnostics } from "./RunDiagnostics";
+import { RunDiagnostics, runDiagnostics } from "./RunDiagnostics";
 import type { RoutineRun } from "@/lib/routines";
 
 const run: RoutineRun = { id: "run-1", routineId: "routine", botId: "bot", runOn: "maus",
@@ -16,4 +20,24 @@ it("keeps an unconfirmed delivery distinct from a completed calculation", () => 
     emailDeliveries: [{ destination: "private@customer.test", messageId: "private", state: "unconfirmed", at: 21 }] });
   expect(exported).toMatchObject({ status: "completed", layer: "delivery", email: [{ state: "unconfirmed", at: 21 }] });
   expect(JSON.stringify(exported)).not.toContain("private");
+});
+
+it("opens and closes the linked diagnostics panel and its download", () => {
+  const host = document.body.appendChild(document.createElement("div"));
+  const root = createRoot(host);
+  try {
+    flushSync(() => root.render(createElement(RunDiagnostics, { run })));
+    const toggle = host.querySelector<HTMLButtonElement>("button[aria-controls]")!;
+    const panel = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+    expect(panel.querySelector("a[download]")).not.toBeNull();
+    expect(panel.hidden).toBe(true);
+    for (const expanded of [true, false]) {
+      flushSync(() => toggle.click());
+      expect(toggle.getAttribute("aria-expanded")).toBe(String(expanded));
+      expect(panel.hidden).toBe(!expanded);
+    }
+  } finally {
+    flushSync(() => root.unmount());
+    host.remove();
+  }
 });

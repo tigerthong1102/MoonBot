@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n";
+import { WorkflowDisclosure } from "../skill-burger/WorkflowDisclosure";
 import type { RoutineRun } from "@/lib/routines";
 
 export function runDiagnostics(run: RoutineRun) {
@@ -30,10 +31,9 @@ export function runDiagnostics(run: RoutineRun) {
 
 export function RunDiagnostics({ run }: { run: RoutineRun }) {
   const report = JSON.stringify(runDiagnostics(run), null, 2);
-  return <details className="text-xs">
-    <summary>{t("settings.app.diagnostics")}</summary>
+  return <WorkflowDisclosure title={t("settings.app.diagnostics")}>
     <pre className="my-2 overflow-x-auto whitespace-pre-wrap break-all">{report}</pre>
     <a className="text-accent-text underline" download="startupbot-run-diagnostics.json"
       href={"data:application/json;charset=utf-8," + encodeURIComponent(report)}>{t("attach.download")}</a>
-  </details>;
+  </WorkflowDisclosure>;
 }

@@ -17,6 +17,9 @@ it("indexes only local metadata and forks the selected StartupBot cursor under t
     writeFileSync(join(year, "rollout-broken.jsonl"), "bad json");
     writeFileSync(join(root, "bots.json"), JSON.stringify([{ threadId: "old", tasks: [{ threadId: "current", resumeCursors: { localCodex: id } }] }]));
     expect(searchRollouts(sessions, "LEDGER")).toEqual({ results: [{ id, file, cwd, branch: "ledger" }], truncated: false });
+    writeFileSync(join(year, "rollout-2000.jsonl"), JSON.stringify({ type: "session_meta", payload: { id, cwd, git: { branch: "old-copy" } } }));
+    expect(searchRollouts(sessions).results.map(row => row.file)).toEqual([file]);
+    expect(searchRollouts(sessions, "old-copy").results).toEqual([]);
     expect(searchRollouts(sessions, "private prompt").results).toEqual([]);
     expect(localFork(file, root, root, "current", "localCodex").id).toBe(id);
     expect(() => localFork(file, root, root, "current", "someoneElse")).toThrow(/do not own/);

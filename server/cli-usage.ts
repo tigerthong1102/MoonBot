@@ -1,7 +1,10 @@
 export { HEADLESS_VERBS as HEADLESS_VERB_NAMES } from "./headless/args.ts";
 
 export const HEADLESS_USAGE = `Drive a running workspace (scripts, CI, other agents):
-  openmausbot dev review                review Git changes and GitHub checks
+  openmausbot dev review|worktree|issues|stack|draft    review and organize Git tasks
+  openmausbot dev host|sandbox|attempt|source|ci-event  inspect hosts, source and CI runs
+  openmausbot mcp-catalog [--bot ID]    inspect configured servers and bot access
+  openmausbot team import-openclaw DIR --out NEW_DIR    stage a local bot for review
   openmausbot doctor                    check the server answers and an engine is ready
   openmausbot doctor --host             check this Linux machine can run a server (exit 7 if not)
   openmausbot bots | channels | models  your bots, your rooms, the engines and their models
@@ -60,7 +63,8 @@ serve   starts the server without prompts; in a terminal it prints a pairing
 pair    a new pairing code for the running server, with its link and QR
         (--phone: chat and approvals only; --ttl keeps it open up to 24h,
         still single use)
-terminal start|list|attach|output|stop   persistent local Codex sessions (tmux)
+terminal start|list|attach|output|stop   persistent local agent sessions (tmux)
+terminal history|fork|fork-chat|models   local session metadata, forks and model lists
 devices lists paired devices; "devices revoke ID" signs one out
 status  the running server, the address others reach it at, and whether
         that address answers as this server

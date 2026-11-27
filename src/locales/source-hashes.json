@@ -75102,7 +75102,11 @@
       "notify.snooze.hour": "d00ebbc0e60940ba16e4577a046976189246ab496bf3d9ca8a55af2348122b14",
       "notify.snooze.resume": "15c002fa58d1ed9572562cf4b5310958095cd8c7ceb6625122c7c0cf81b03801",
       "notify.snooze.failed": "4b9c29b834887a4161db52cdf5c74af5308122a4264276aab89145f4adf76a82",
-      "share.host": "9e50bc879f262eac5bc95603b9635160d437812386b89c2fc80865ca99e5e0e4"
+      "share.host": "9e50bc879f262eac5bc95603b9635160d437812386b89c2fc80865ca99e5e0e4",
+      "apps.localPanels.title": "fcbfe0184e3c17809ad73d3e922a4f79e60660bef0fd62f8259d976545a39ccf",
+      "apps.localPanels.open": "7703232e73a92eb53b0746429a70d61736cae5b25d1ce7a7ebd47831175f5697",
+      "apps.localPanels.invalid": "537067c5dc8fa7412276b16257b96d738e29f5cb96d66e1dad77a16954faabfa",
+      "apps.localPanels.remove": "097c3b2149c243666eb26f353afe1a19ca20d94775f2aba653bc871e75906e6f"
     },
     "tr": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",

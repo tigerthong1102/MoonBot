@@ -499,6 +499,27 @@ file (`--token-file`).
 same job, and returns the same result, as `wait`.
 
 
+### Keep a local Codex terminal open between connections
+
+On macOS or Linux with tmux and the Codex CLI installed, run
+`openmausbot terminal start research codex` from the project folder. Reconnect
+using `openmausbot terminal attach research`. Press Ctrl-B then D or close the
+terminal window to detach. `openmausbot terminal output research` reads recent
+output, `openmausbot terminal list` lists sessions, and
+`openmausbot terminal stop research` ends that process. A machine restart ends
+local processes. Each OS user and StartupBot data directory has its own sessions.
+On Windows the commands run inside a Linux WSL distribution with tmux and Codex installed there.
+
+Use `terminal history FOLDER [QUERY]` to search explicitly selected, uncompressed
+Codex rollout files. It reads each header and shows the ID, branch, directory
+and file in JSON. In the original project directory, `terminal fork NAME FILE`
+opens a new Codex branch of that conversation. For a StartupBot conversation,
+`terminal fork-chat NAME FILE THREAD [INSTANCE]` also checks the selected
+StartupBot thread's recorded engine cursor. The source must be in the active
+Codex home's sessions directory. Both actions start a separate conversation.
+
+Use `openmausbot terminal start NAME cursor` to run the installed Cursor CLI in a persistent terminal. `openmausbot terminal models cursor` prints model IDs from that installation.
+
 ### Read the active host's MCP catalog
 
 `openmausbot mcp-catalog --json` lists configured MCP servers through the same authenticated workspace connection used by Settings. Add `--bot ID` to see whether each server is available to that bot. The command prints names and status only. In Plugins, ClickUp, Airtable, Todoist, Zapier, Granola and Intercom offer direct provider sign-in. Use the Intercom region matching the workspace.
@@ -511,16 +532,6 @@ disabled skills. The importer validates the preview using StartupBot's normal
 team-file reader. Inspect the generated files and run
 `openmausbot team apply NEW_DIRECTORY/team.json --dry-run` to compare with
 the target workspace. Applying that file is a separate choice.
-
-Use `terminal history FOLDER [QUERY]` to search explicitly selected, uncompressed
-Codex rollout files. It reads each header and shows the ID, branch, directory
-and file in JSON. In the original project directory, `terminal fork NAME FILE`
-opens a new Codex branch of that conversation. For a StartupBot conversation,
-`terminal fork-chat NAME FILE THREAD [INSTANCE]` also checks the selected
-StartupBot thread's recorded engine cursor. The source must be in the active
-Codex home's sessions directory. Both actions start a separate conversation.
-
-Use `openmausbot terminal start NAME cursor` to run the installed Cursor CLI in a persistent terminal. `openmausbot terminal models cursor` prints model IDs from that installation.
 
 ### Review a coding task
 

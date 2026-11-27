@@ -31,20 +31,29 @@ export function readRollout(file: string): Rollout | null {
 /** Scan only the chosen directory and ordinary children; keep no index or prompt bodies. */
 export function searchRollouts(directory: string, query = "") {
   const pending = [realpathSync(directory)];
-  const results: Rollout[] = [];
+  const byId = new Map<string, Rollout>();
+  const needle = query.toLowerCase();
+  const result = (truncated: boolean) => ({
+    results: [...byId.values()].filter(row => [row.id, row.cwd, row.branch].some(value => value.toLowerCase().includes(needle))),
+    truncated,
+  });
   let visited = 0;
   while (pending.length) {
     const folder = pending.pop()!;
     for (const entry of readdirSync(folder, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (++visited > 20_000) return { results, truncated: true };
+      if (++visited > 20_000) return result(true);
       const file = join(folder, entry.name);
       if (entry.isDirectory()) { pending.push(file); continue; }
       if (!entry.isFile()) continue;
       const row = readRollout(file);
-      if (row && [row.id, row.cwd, row.branch].some(value => value.toLowerCase().includes(query.toLowerCase()))) results.push(row);
+      if (row) {
+        const previous = byId.get(row.id);
+        // Native rollout names sort by their timestamp, including rewound copies of the same conversation.
+        if (!previous || basename(row.file) > basename(previous.file)) byId.set(row.id, row);
+      }
     }
   }
-  return { results, truncated: false };
+  return result(false);
 }
 
 export function localFork(file: string, codexHome: string, dataDir: string, threadId?: string, instance = "codex") {

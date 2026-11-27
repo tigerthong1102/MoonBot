@@ -194,6 +194,9 @@ it("applies requested Full Access workflows through MCP without duplicate approv
     const updatedSkills = await api("GET", `/api/bots/${chief.id}/skills`);
     expect(updatedSkills.skills).toEqual([expect.objectContaining({ name: "monthly-fixture-review", enabled: true })]);
     expect(updatedSkills.staged).toHaveLength(0);
+    await run(chief, chief.activeTaskId, "/monthly-fixture-review reconcile these test invoices", []);
+    const listing = await api("GET", `/api/bots/${chief.id}/skills`);
+    expect(listing.skills.find((item: any) => item.name === "monthly-fixture-review").usage).toMatchObject({ calls: 1, failed: 0 });
 
     plans[peer.id] = { turns: [{ reply: "Fixture peer verified the reporting instructions." }] };
     await run(chief, chief.activeTaskId, "Have Ada independently verify the fixture reporting instructions and return the result.", [
@@ -241,7 +244,7 @@ it("applies requested Full Access workflows through MCP without duplicate approv
     expect(inverseTurn.permissionMode).toBe("bypassPermissions");
     expect((await bots()).find(bot => bot.id === inverse.id)).toMatchObject({ title: "Applied from Full task", approvalMode: "ask" });
     expect(await unanswered(chief.activeTaskId)).toHaveLength(0);
-    expect(providerTurns()).toHaveLength(7);
+    expect(providerTurns()).toHaveLength(8);
     const persisted = readRegistry(dataDir).bots;
     expect(persisted.find((bot: any) => bot.id === chief.id)).toMatchObject({ title: "Monthly reporting Chief", approvalMode: "full" });
     expect(persisted.find((bot: any) => bot.id === chief.id).tasks.find((task: any) => task.threadId === ask.threadId).approvalMode).toBe("ask");

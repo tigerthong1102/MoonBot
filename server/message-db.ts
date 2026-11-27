@@ -13,6 +13,7 @@ import { CARD_KINDS, FAILED_CALL, ORDERING_AT, ORDERING_ROW, WORK_KINDS } from "
 import { DATA_DIR } from "./config.ts";
 import { peerProvenanceAuthor } from "./peer-provenance.ts";
 import { createChatFollowupDb, type FollowupPayload } from "./chat-followup-db.ts";
+import { createSkillUsage, SKILL_USAGE_SCHEMA } from "./learned-skill-usage.ts";
 export type { FollowupPayload, FollowupStatus, ChatFollowup } from "./chat-followup-db.ts";
 import type { Message } from "./store.ts";
 
@@ -57,6 +58,7 @@ function open(): DatabaseSync {
       json TEXT NOT NULL,
       PRIMARY KEY (thread_id, id)
     );
+    ${SKILL_USAGE_SCHEMA}
     CREATE INDEX IF NOT EXISTS messages_thread ON messages(thread_id);
     -- SQLite can use a composite index to read messages by thread in timestamp order.
     CREATE INDEX IF NOT EXISTS messages_thread_at ON messages(thread_id, at);
@@ -142,6 +144,7 @@ const UPSERT_MESSAGE =
 const messageRow = (threadId: string, message: Message) =>
   [threadId, message.id, message.at, message.role, message.kind, message.text ?? null, JSON.stringify(message), cjkSearchText(message.text)] as const;
 
+export const learnedSkillUsage = createSkillUsage(prepared);
 export const workBotDataJournal = createWorkBotDataJournal(db, writeFollowups);
 
 const ACTIVE_LEAF = "SELECT active_leaf_id FROM thread_state WHERE thread_id = ?";

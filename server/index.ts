@@ -7,7 +7,7 @@ import { assertWorkBotRoutineSafe, shouldHoldWorkBotHandoff } from "./host/work-
 import { createTeamSetupResponder } from "./host/team-setup-responder.ts";
 import { createRoutineResponder } from "./host/routine-responder.ts";
 import { createProfileModelResponder } from "./host/profile-model-responder.ts";
-import { workBotDataJournal, pendingWorkBotRoutes, verifiedWorkBotFollowup, workBotLinkBetween, workBotLinksForThread, recoverLegacyWorkBotLinks } from "./message-db.ts";
+import { learnedSkillUsage, workBotDataJournal, pendingWorkBotRoutes, verifiedWorkBotFollowup, workBotLinkBetween, workBotLinksForThread, recoverLegacyWorkBotLinks } from "./message-db.ts";
 import { startFailureText } from "./start-failure-text.ts";
 import { reserveGmailDrafts } from "./gmail-draft-policy.ts";
 import { createGmailDrafts } from "./host/gmail-drafts.ts";
@@ -2027,6 +2027,7 @@ function settleDirectCoordination(generation: string | undefined, settled: Direc
   const settler = directCoordinationSettlers.get(generation);
   directCoordinationSettlers.delete(generation);
   const node = coordinator.node(settler?.nodeId ?? generation);
+  learnedSkillUsage.settled(generation, outcome.ok);
   const result = hostTurnResult(node, generation, outcome);
   if (settler) {
     settler.settle(result);
@@ -7930,7 +7931,7 @@ async function beginTurn(
       const plannedConfig = sessionConfig(bot.soul);
       const skillAuthoring = skillAuthoringEnabled(cfg) && agentsMounted;
       const skillCommandText = supportsWorkspaceFiles(instance.driverKind)
-        ? skillsHost.expandSkillCommand(bot, threadId, providerText, instance, personLine ? activeMessages.filter((line) => skipTranscript.has(line.id)) : [], (personLine && !userMessage.relayed && !startedOutside(threadId)) || ["schedule", "manual", "startup"].includes(opts?.automationSource ?? ""), cloudGuestOpened(threadId) || botApiThread(threadId))
+        ? skillsHost.expandSkillCommand(bot, threadId, providerText, instance, personLine ? activeMessages.filter((line) => skipTranscript.has(line.id)) : [], (personLine && !userMessage.relayed && !startedOutside(threadId)) || ["schedule", "manual", "startup"].includes(opts?.automationSource ?? ""), cloudGuestOpened(threadId) || botApiThread(threadId), { generation: dispatchClaimId, message: userMessage.id })
         : providerText;
       const setupText = agentsMounted ? expandBurstTurnText(expandSetupTurnText(skillCommandText)) : skillCommandText;
       const userTurnText = (opts?.app?.context ?? "") + (opts?.cardContinuation ? "" : routineRunNote(threadId, opts?.automationSource)) + labelledLine(personLine && !opts?.excludeMessageIds ? userMessage : {}, withReactionNotes(promptWithReply(
@@ -12136,7 +12137,7 @@ ROUTES.push(createBotLifecycleRoutes({
   store, routines: () => routines, interruptAllDirectThreads, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
   activeGroupTurnForBot, cancelGroupTurnOperations, runningTurnInstance, closeOpenApprovals, deleteBotWithLifecycle, deleteRefusal: (auth, botId) => memberDeleteRefusal(auth, store.bot(botId), Boolean(CLOUD_TEAM)),
 }));
-const skillsRoutes = createBotSkillsRoutes({ store, cfg, visibleBot: (auth, id) => visibleTo(viewerFor(auth)).bot(id), listBotSkills, readBotSkillFile, stagedSkillListing }); ROUTES.push(skillsRoutes);
+const skillsRoutes = createBotSkillsRoutes({ store, cfg, visibleBot: (auth, id) => visibleTo(viewerFor(auth)).bot(id), listBotSkills, readBotSkillFile, stagedSkillListing, routines: () => routines?.listRoutines() ?? [], visibleThread: (auth, id) => visibleTo(viewerFor(auth)).thread(id) }); ROUTES.push(skillsRoutes);
 ROUTES.push(createEmailRoutes({ service: emailService }));
 ROUTES.push(phones.routes, createSkillShareRoutes({ enabled: () => skillsHost.mode() !== "off", botExists: (id) => Boolean(store.bot(id)),
   cardRefusal: (auth, threadId, requestId) => cardAnswerRefusal(auth, threadId, requestId, "allow"), shareFromReceipt: skillsHost.shareFromReceipt, shareFromBot: skillsHost.shareFromBot }), createTeamContextRoutes({ store, teamMemory }));

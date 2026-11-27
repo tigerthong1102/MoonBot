@@ -23,6 +23,7 @@ import {
   applySkillWriteWithReceipt,
   installSkill,
   INDEX_MAX_BYTES,
+  maintainLearnedSkill,
   listSkills,
   listStagedSkillWrites,
   parseSkillMd,
@@ -37,6 +38,7 @@ import {
   syncSkillLinks,
   undoSkillWrite,
 } from "./skills.ts";
+import { similarLearnedSkills, skillDependencies } from "./skill-maintenance.ts";
 import { parseSkillSource } from "./skill-fetch.ts";
 import { ensureTaskWorkspaceWithSkills, syncTaskSkillLinks } from "./skill-task-links.ts";
 import { buildSystemPrompt } from "./system-prompt.ts";
@@ -619,6 +621,27 @@ describe("install → review → enable lifecycle", () => {
 });
 
 describe("staged skill writes", () => {
+  it("compares reviewed copies, keeps pinned and referenced skills, and restores only the archived bytes", () => {
+    for (const name of ["alpha-report", "beta-report"]) {
+      const content = SKILL(name).replace("Do the thing.", "Read each invoice and cite the source of every line in the final report.");
+      const stage = stageSkillWrite(bot, { action: "create", files: [{ path: "SKILL.md", content }] });
+      if ("error" in stage) throw new Error(stage.error);
+      applyStagedSkillWrite(bot, stage.id);
+    }
+    const name = "alpha-report";
+    const revision = listSkills(bot).find(skill => skill.name === name)!.reviewedRevision!;
+    const maintain = (action: "pin" | "unpin" | "archive" | "restore", referenced = false) => maintainLearnedSkill(bot, name, revision, action, referenced);
+    expect(similarLearnedSkills(bot, name)).toEqual(["beta-report"]);
+    expect(skillDependencies(name, bot, [{ botId: bot, name: "Invoices", prompt: "/alpha-report" }], undefined, [])).toContain("routine");
+    expect(maintain("pin")).toHaveProperty("maintenancePinned", true);
+    expect(maintain("archive")).toHaveProperty("error");
+    maintain("unpin");
+    expect(maintain("archive", true)).toHaveProperty("error");
+    expect(maintain("archive")).toMatchObject({ enabled: false, archivedFrom: { revision } });
+    expect(maintainLearnedSkill(bot, name, "stale", "restore", false)).toHaveProperty("error");
+    expect(maintain("restore")).toMatchObject({ enabled: true, reviewedRevision: revision });
+  });
+
   it("lands a create as staged and only enables the reviewed bytes on approval", () => {
     const staged = stageSkillWrite(bot, {
       action: "create",

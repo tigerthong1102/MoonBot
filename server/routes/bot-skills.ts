@@ -12,15 +12,20 @@ import { fetchSkillFromSource } from "../skill-fetch.ts";
 import { skillImportSummary } from "../skill-folder.ts";
 import { installLibrarySkill, librarySkillOptOuts, listLibrarySkills, readLibrarySkillFile, readSkillLibraryIndex, setLibrarySkillEveryBot, setLibrarySkillOptOut, setLibrarySkillReviewState, skillsLibraryEnabled, unassignLibrarySkill } from "../skill-library.ts";
 import {
-  installSkill, listBotSkillsWithOrigin, listSkills, listStagedSkillWrites, parseSkillMd, removeSkill, scanSkillText, setSkillEnabled,
+  maintainLearnedSkill, installSkill, listBotSkillsWithOrigin, listSkills, listStagedSkillWrites, parseSkillMd, removeSkill, scanSkillText, setSkillEnabled,
   type SkillListing, type StagedSkillWrite,
 } from "../skills.ts";
 import type { BotRecord, Store } from "../store.ts";
+import { skillDependencies, similarLearnedSkills } from "../skill-maintenance.ts";
+import type { Routine } from "../routines.ts";
+import { learnedSkillUsage } from "../message-db.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 export interface BotSkillsRouteDeps {
   store: Store;
   cfg: AppConfig;
+  routines?(): Routine[];
+  visibleThread?(auth: RequestAuth, threadId: string): boolean;
   visibleBot(auth: RequestAuth, botId: string): boolean;
   listBotSkills(bot: BotRecord, threadId?: string): SkillListing[];
   readBotSkillFile(bot: BotRecord, name: string): string | null;
@@ -60,18 +65,23 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
       // The thread names a folder on disk: only one of this bot's own threads may pick it.
       const asked = url.searchParams.get("threadId");
       const threadId = asked && store.taskByThread(bot.id, asked) ? asked : bot.threadId;
+      const present = <T extends SkillListing>(skills: T[]) => {
+        const revisions = new Map(skills.flatMap(skill => skill.reviewedRevision ? [[skill.name, skill.reviewedRevision] as const] : []));
+        const usage = revisions.size ? learnedSkillUsage.summaries(bot.id, revisions, thread => Boolean(deps.visibleThread?.(auth, thread) && store.taskByThread(bot.id, thread))) : new Map();
+        return skills.map(skill => ({ ...skillForViewer(skill), ...(usage.has(skill.name) ? { usage: usage.get(skill.name) } : {}) }));
+      };
       if (skillsLibraryEnabled(cfg)) {
         const { skills, library } = listBotSkillsWithOrigin(m[1]!, store.bot(m[1])!.assignedSkills);
         const names = new Set(skills.map((skill) => skill.name));
         return json(res, 200, {
-          skills: [...skills, ...listBotSkills(bot, threadId).filter((skill) => !names.has(skill.name))].map(skillForViewer),
+          skills: present([...skills, ...listBotSkills(bot, threadId).filter((skill) => !names.has(skill.name))]),
           library: library.map(skillForViewer),
           assignedSkills: store.bot(m[1])!.assignedSkills,
           staged: listStagedSkillWrites(m[1]).map(stagedSkillListing),
         });
       }
       return json(res, 200, {
-        skills: listBotSkills(bot, threadId).map(skillForViewer),
+        skills: present(listBotSkills(bot, threadId)),
         staged: listStagedSkillWrites(m[1]).map(stagedSkillListing),
       });
     }
@@ -93,10 +103,27 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
       const bot = store.bot(m[1]);
       const text = bot ? readBotSkillFile(bot, m[2]!) : null;
       if (text === null) return json(res, 404, { error: "no such skill" });
+      if (url.searchParams.has("maintenance") && bot) {
+        const skill = listSkills(bot.id).find(one => one.name === m![2]);
+        if (!skill?.reviewedRevision) return json(res, 404, { error: "No reviewed skill." });
+        return json(res, 200, { text, revision: skill.reviewedRevision,
+          dependencies: [...skillDependencies(skill.name, bot.id, deps.routines?.() ?? [], cfg.newBotDefaults, store.bots)],
+          similar: similarLearnedSkills(bot.id, skill.name) });
+      }
       return json(res, 200, { text });
     }
     if (m && method === "PATCH") {
-      const parsed = z.object({ enabled: z.boolean() }).safeParse(await readBody(req));
+      const body = await readBody(req);
+      if (body && typeof body === "object" && "maintenance" in body) {
+        const input = z.object({ maintenance: z.enum(["pin", "unpin", "archive", "restore"]), revision: z.string().max(129) }).safeParse(body);
+        const bot = store.bot(m[1]!);
+        if (!bot || !input.success) return json(res, 400, { error: "Choose a reviewed skill revision." });
+        const name = m[2]!;
+        const referenced = input.data.maintenance === "archive" && (!deps.routines || skillDependencies(name, bot.id, deps.routines(), cfg.newBotDefaults, store.bots).size > 0);
+        const result = maintainLearnedSkill(bot.id, name, input.data.revision, input.data.maintenance, referenced);
+        return "error" in result ? json(res, 409, result) : json(res, 200, { skill: result });
+      }
+      const parsed = z.object({ enabled: z.boolean() }).safeParse(body);
       if (!parsed.success) return json(res, 400, { error: "enabled must be true or false" });
       const bot = store.bot(m[1]);
       // A skill from this computer that none of the bot's own or library skills shadows: this bot's switch for it.

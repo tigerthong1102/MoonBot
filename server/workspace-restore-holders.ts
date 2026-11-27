@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { lstatSync, readdirSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 function filesAt(root: string, names: readonly string[]) {
@@ -23,7 +23,16 @@ function linuxHolders(files: readonly string[]) {
   };
   const identities = new Set(files.map(inode));
   const holders: number[] = [];
-  for (const pid of readdirSync("/proc").filter(name => /^\d+$/.test(name))) {
+  let pids: string[] = [];
+  let restricted = false;
+  try {
+    const proc = readFileSync("/proc/mounts", "utf8").split("\n").findLast(line => line.split(" ")[1] === "/proc");
+    restricted = !proc || proc.split(" ")[3]!.split(",").some(option => option.startsWith("hidepid=") && !["hidepid=0", "hidepid=off"].includes(option));
+    pids = readdirSync("/proc");
+  } catch {
+    restricted = true;
+  }
+  for (const pid of pids.filter(name => /^\d+$/.test(name))) {
     const folder = join("/proc", pid, "fd");
     try {
       for (const fd of readdirSync(folder)) {
@@ -35,11 +44,38 @@ function linuxHolders(files: readonly string[]) {
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code === "ENOENT" || code === "ESRCH") continue;
-      if (code === "EACCES" && statSync(join("/proc", pid), { throwIfNoEntry: false })?.uid !== process.getuid?.()) continue;
+      if (code === "EACCES" || code === "EPERM") {
+        restricted = true;
+        continue;
+      }
       throw new Error("Cannot inspect SQLite holders before restore.", { cause: error });
     }
   }
+  if (!holders.length && restricted) checkLinuxFileLeases(files);
   return holders;
+}
+
+// Linux F_SETLEASE(F_WRLCK) requires the target to have no other open file descriptions, including in processes hidden by procfs.
+const linuxLeaseProbe = `
+import errno, fcntl, os, stat, sys
+for path in sys.argv[1:]:
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                sys.exit(3)
+            fcntl.fcntl(fd, fcntl.F_SETLEASE, fcntl.F_WRLCK)
+        finally:
+            os.close(fd)
+    except OSError as error:
+        sys.exit(2 if error.errno == errno.EAGAIN else 3)
+`;
+
+function checkLinuxFileLeases(files: readonly string[]) {
+  const probe = spawnSync("python3", ["-I", "-S", "-c", linuxLeaseProbe, ...files], { timeout: 10_000 });
+  if (probe.status === 2) throw new Error("Another process has a workspace SQLite file open. Close it before restoring.");
+  if (probe.status !== 0) throw new Error("Cannot confirm SQLite files are idle: process inspection is restricted and a Linux file lease could not be acquired. Check Python 3, file ownership and filesystem lease support before restoring.");
 }
 
 const windowsProbe = `

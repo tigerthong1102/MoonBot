@@ -4,10 +4,30 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { assertRestoreDatabasesIdle } from "./workspace-restore-holders.ts";
 
-it("refuses a foreign WAL writer and admits its committed data after the writer exits", async () => {
+const procView = vi.hoisted(() => ({ mode: "normal" }));
+vi.mock("node:fs", async importOriginal => {
+  const fs = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...fs,
+    readFileSync: (...args: Parameters<typeof fs.readFileSync>) => {
+      if (procView.mode === "hidden" && args[0] === "/proc/mounts") return "proc /proc proc rw,hidepid=2 0 0\n";
+      return fs.readFileSync(...args);
+    },
+    readdirSync: (...args: Parameters<typeof fs.readdirSync>) => {
+      if (procView.mode === "hidden" && args[0] === "/proc") return [String(process.pid)];
+      if (procView.mode === "denied" && typeof args[0] === "string" && /^\/proc\/\d+\/fd$/.test(args[0])) {
+        throw Object.assign(new Error("Restricted process descriptors"), { code: "EACCES" });
+      }
+      return fs.readdirSync(...args);
+    },
+  };
+});
+
+it.each(process.platform === "linux" ? ["normal", "denied", "hidden"] : ["normal"])("refuses the WAL writer and admits its committed data after exit (procfs: %s)", async mode => {
+  procView.mode = mode;
   const dir = mkdtempSync(join(tmpdir(), "restore db "));
   const filename = join(dir, "runtime.db"), child = join(dir, "writer.cjs");
   writeFileSync(child, `const { DatabaseSync } = require("node:sqlite");
@@ -23,8 +43,18 @@ process.send("ready");`);
     writer.send("quit");
     await stopped;
     assertRestoreDatabasesIdle(dir, ["runtime.db"]);
+    if (mode !== "normal") {
+      vi.stubEnv("PATH", dir);
+      try { expect(() => assertRestoreDatabasesIdle(dir, ["runtime.db"])).toThrow("Cannot confirm SQLite files are idle"); }
+      finally { vi.unstubAllEnvs(); }
+    }
     const db = new DatabaseSync(filename, { readOnly: true });
     try { expect(db.prepare("SELECT value FROM test").get()?.value).toBe(37); }
     finally { db.close(); }
-  } finally { if (writer.exitCode === null) writer.kill(); await stopped; rmSync(dir, { recursive: true, force: true }); }
+  } finally {
+    procView.mode = "normal";
+    if (writer.exitCode === null) writer.kill();
+    await stopped;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

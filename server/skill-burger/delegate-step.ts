@@ -1,3 +1,4 @@
+import { resultContractError, type ResultContract } from "../../shared/skill-burger/result-contract.ts";
 import type { WorkflowRef, WorkflowStep, WorkflowText } from "../../shared/skill-burger/format.ts";
 import { teammateNames } from "../../shared/skill-burger/format.ts";
 
@@ -8,10 +9,11 @@ export type Settled = { status: string; result: string };
 /** Where a delegation is between pauses: who each part went to, the hand-offs out now, and the replies so far. */
 export interface DelegationState {
   round: number;
+  deadline?: number;
   /** A saved teammate's name → who does its part now; null when the bot left that part out. */
   who: Record<string, { id: string; name: string } | null>;
-  requests: Array<{ part: string; botId: string; name: string; requestId: string }>;
-  replies: Record<string, { name: string; ok: boolean; text: string; round: number }>;
+  requests: Array<{ part: string; botId: string; name: string; requestId: string; resultContract?: ResultContract }>;
+  replies: Record<string, { name: string; ok: boolean; text: string; round: number; data?: unknown }>;
   pendingRedo?: Record<string, string>;
 }
 
@@ -86,7 +88,7 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
   for (const task of step.tasks) {
     const to = Object.hasOwn(state.who, task.bot.name) ? state.who[task.bot.name] : undefined;
     if (!to || (fixes && !(task.bot.name in fixes))) continue;
-    const base = textOf(task.message, fill);
+    const base = textOf(task.message, fill) + (task.resultContract ? `\nReturn a JSON object with these scalar fields and a sources array citing one or more listed source references: ${JSON.stringify(task.resultContract)}` : "");
     const message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
     const doneWhen = task.doneWhen ? textOf(task.doneWhen, fill) : undefined;
     if (doneWhen && doneWhen.length > 1_000) return { ok: false, error: "The completed criteria exceed 1,000 characters." };
@@ -109,7 +111,8 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
       }
       for (const [index, botId] of botIds.entries()) {
         const receipt = sent.receipts.find((one) => one.botId === botId);
-        if (receipt?.requestId) requests.push({ part: call.parts[at + index]!, botId, name: receipt.name, requestId: receipt.requestId });
+        const contract = step.tasks.find(task => task.bot.name === call.parts[at + index])?.resultContract;
+        if (receipt?.requestId) requests.push({ ...(contract ? { resultContract: contract } : {}), part: call.parts[at + index]!, botId, name: receipt.name, requestId: receipt.requestId });
       }
     }
   }
@@ -117,12 +120,21 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
 }
 
 /** The replies, once every hand-off of the round has settled; the names still working while some haven't. */
-export async function collect(state: DelegationState, exec: DelegateExecutors, signal: AbortSignal): Promise<{ waiting: string[] } | { replies: DelegationState["replies"] }> {
+export async function collect(state: DelegationState, exec: DelegateExecutors, signal: AbortSignal, now = Date.now): Promise<{ waiting: string[] } | { replies: DelegationState["replies"] }> {
   const replies = { ...state.replies };
   const waiting: string[] = [];
   for (const request of state.requests) {
-    const got = await exec.assignment(request.requestId, signal);
+    const expired = () => state.deadline !== undefined && now() >= state.deadline;
+    const got = expired() ? null : await exec.assignment(request.requestId, signal);
+    if (expired()) { replies[request.part] = { name: request.name, ok: false, text: "The worker result deadline passed.", round: state.round }; continue; }
     if (!got || !SETTLED.has(got.status)) { waiting.push(request.name); continue; }
+    if ((got.status === "completed" || got.status === "done") && request.resultContract) {
+      let data: unknown;
+      if (got.result.length <= REPLY_MAX * 4) { try { data = JSON.parse(got.result); } catch { /* Malformed JSON fails its contract below. */ } }
+      const issue = resultContractError(request.resultContract, data);
+      replies[request.part] = { name: request.name, ok: !issue, text: issue ?? got.result, round: state.round, ...(issue ? {} : { data }) };
+      continue;
+    }
     replies[request.part] = { name: request.name, ok: got.status === "completed" || got.status === "done", text: got.result.slice(0, REPLY_MAX * 4), round: state.round };
   }
   return waiting.length ? { waiting } : { replies };

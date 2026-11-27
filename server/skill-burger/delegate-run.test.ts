@@ -370,3 +370,35 @@ describe("the run_workflow tool", () => {
     expect(result.text).toContain('undo "token-1"');
   });
 });
+
+describe("worker result contracts", () => {
+  const contract = { fields: { amount: "number" }, sources: ["invoice.pdf#page=2"] };
+  const workflow = wf([{ id: "s1", kind: "delegate", label: "Read invoice", tasks: [
+    { bot: { id: "kiwi", name: "Kiwi" }, message: "Read the total.", resultContract: contract },
+  ], timeoutMs: 1000 }]);
+
+  it.each([
+    [JSON.stringify({ amount: 12, sources: ["invoice.pdf#page=2"] }), true],
+    [JSON.stringify({ amount: "12", sources: ["invoice.pdf#page=2"] }), false],
+    [JSON.stringify({ amount: 12, sources: ["another invoice"] }), false],
+    ["not JSON", false],
+  ])("accepts only a typed result with declared evidence", async (text, ok) => {
+    const t = team(), h = harness(t.exec);
+    await startRun({ name: "report", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    expect(t.sent[0]?.message).toContain("invoice.pdf#page=2");
+    t.reply("kiwi", text);
+    const result = await h.resume("returned");
+    expect(result.ok).toBe(ok);
+    if (ok) expect(result.output).toMatchObject({ replies: { Kiwi: JSON.parse(text) } });
+  });
+
+  it("ignores a late result after the saved deadline", async () => {
+    let clock = 1200;
+    const t = team(), h = harness(t.exec);
+    h.deps.now = () => clock;
+    await startRun({ name: "report", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    clock += 1100;
+    t.reply("kiwi", JSON.stringify({ amount: 12, sources: contract.sources }));
+    expect((await h.resume("returned late")).ok).toBe(false);
+  });
+});

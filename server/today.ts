@@ -1,3 +1,4 @@
+import type { ReportDelivery } from "../shared/report-delivery.ts";
 import { routineIncidents } from "./routine-incidents.ts";
 import { noticeLine } from "./chat-notices.ts";
 // What a person's bots finished in a window, what only the person can fix,
@@ -45,6 +46,7 @@ interface RunRecord {
   finishedAt?: number;
   error?: string;
   blockedBy?: RoutineBlock;
+  emailDeliveries?: ReportDelivery[];
   report?: RoutineRunReport;
 }
 
@@ -201,6 +203,7 @@ export function todayReport(sources: TodaySources, viewer: TodayViewer, requeste
     const incident = incidents.get(run.id);
     if (incident && incident.runs.at(-1) !== run.id) continue;
     lines.push({
+      ...(run.emailDeliveries?.length ? { emailDeliveries: run.emailDeliveries } : {}),
       ...(incident ? { incident: { count: incident.runs.length, firstAt: incident.firstAt, seen: incident.seen, resolved: incident.resolved } } : {}),
       id: run.id, at: end, botId: run.botId, ...(reported ?? seen(run.threadId) ? { threadId: reported ?? run.threadId } : {}), routineId: run.routineId,
       title: plainTitle(run.routineName), ok, ...(!ok && run.error ? { error: plainTitle(run.error) } : {}),

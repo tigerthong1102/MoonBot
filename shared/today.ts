@@ -1,3 +1,4 @@
+import type { ReportDelivery } from "./report-delivery.ts";
 // The Today page's wire shape: what a person's bots finished in a window,
 // what only the person can unblock, and an estimate of the time it saved.
 import type { PlaceRow } from "./place-view.ts";
@@ -23,6 +24,7 @@ export interface TodayLine {
   ok: boolean;
   /** The failure's own words, when the work failed. */
   error?: string;
+  emailDeliveries?: ReportDelivery[];
   incident?: { count: number; firstAt: number; seen: boolean; resolved: boolean };
   startedBy?: TodayStarter;
   outcomes: OutcomeCounts;

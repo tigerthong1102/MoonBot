@@ -1,3 +1,5 @@
+import { RoutineEmailDeliveries } from "./routine-email-deliveries.ts";
+import type { ReportDelivery } from "../shared/report-delivery.ts";
 import type { RoutineBlock } from "../shared/routines.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -158,6 +160,7 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   createdAt: number;
   seenAt?: number;
   incidentReminderAt?: number;
+  emailDeliveries?: ReportDelivery[];
 }
 
 export interface RoutineInput {
@@ -473,10 +476,10 @@ export class RoutineManager {
   }
 
   isActiveThread(threadId: string): boolean {
-    return this.runs.some(
-      (run) => run.threadId === threadId && ["running", "waiting"].includes(run.status),
-    );
+    return this.runs.some(run => run.threadId === threadId && ["running", "waiting"].includes(run.status));
   }
+
+  readonly emailDeliveries = new RoutineEmailDeliveries(() => this.runs, write => { this.assertWritable(); this.commitMutation(write); }, () => this.now());
 
   runForThread(threadId: string): RoutineRun | null {
     const run = this.runs.findLast((candidate) => candidate.threadId === threadId && ["running", "waiting"].includes(candidate.status)) ??
@@ -1512,11 +1515,7 @@ export class RoutineManager {
 
   /** Rolls memory back when the write fails, so a retry never mistakes an uncommitted action for a durable one. */
   private commitMutation(mutate: () => void, rollback?: () => void): void {
-    const before = {
-      routines: this.routines.map(cloneRoutine),
-      runs: this.runs.map(cloneRun),
-      receipts: this.routineRequestReceipts.map((receipt) => ({ ...receipt })),
-    };
+    const before = { routines: this.routines.map(cloneRoutine), runs: this.runs.map(cloneRun), receipts: this.routineRequestReceipts.map(receipt => ({ ...receipt })) };
     try {
       mutate();
       this.save();

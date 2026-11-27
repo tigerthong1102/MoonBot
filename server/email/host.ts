@@ -1,6 +1,7 @@
 // What server/index.ts needs from the Email connector, in one object so the host file gains next to nothing: the per-turn
 // mount, the prompt part, the internal MCP handler (per-bot verdict, decision rows, what a read marks) and the Cloud health
 // merge. The tools run here, in the server: the box gets a turn's capability, never the password or a way to a mail server.
+import type { RoutineEmailDeliveries } from "../routine-email-deliveries.ts";
 import { readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
@@ -34,6 +35,7 @@ export interface EmailBot {
 
 export interface EmailHostDeps {
   service: EmailService;
+  reportRun?(threadId: string): { id: string; deliveries: RoutineEmailDeliveries } | null;
   dataDir: string;
   bot(id: string): EmailBot | undefined | null;
   inRoom(threadId: string): boolean;
@@ -96,7 +98,7 @@ export function createEmailHost(deps: EmailHostDeps) {
     return accounts[0]!;
   }
 
-  async function call(name: EmailToolName, args: Record<string, any>, mailbox: EmailAccount, capability: { botId: string; threadId: string }): Promise<EmailToolResult> {
+  async function call(name: EmailToolName, args: Record<string, any>, mailbox: EmailAccount, capability: { botId: string; threadId: string }, assertActive: () => void): Promise<EmailToolResult> {
     const { guard } = service;
     const box = typeof args.mailbox === "string" && args.mailbox ? args.mailbox : "INBOX";
     const limit = Math.min(args.limit ?? 20, LIST_MAX);
@@ -107,6 +109,8 @@ export function createEmailHost(deps: EmailHostDeps) {
       case "EMAIL_SEARCH_MESSAGES": return emailText({ account: from, mailbox: box, ...await run.searchMessages(mailbox, guard, { mailbox: box, limit, ...pick(args, ["text", "from", "to", "subject", "since", "before", "unread"]) }) });
       case "EMAIL_READ_MESSAGE": return emailText({ account: from, mailbox: box, ...await run.readMessage(mailbox, guard, { mailbox: box, uid: args.uid, ...(args.save_attachments === true ? { saveTo: boxUploadsDir(deps.dataDir, capability.botId, capability.threadId) } : {}) }) });
       case "EMAIL_SEND_MESSAGE": {
+        const report = args.report_delivery ? deps.reportRun?.(capability.threadId) : null;
+        if (args.report_delivery && !report) return emailError("A report receipt requires an active automation run.");
         let threading = {};
         if (args.reply_to_uid) {
           const original = await run.readMessage(mailbox, guard, { mailbox: box, uid: args.reply_to_uid });
@@ -115,7 +119,18 @@ export function createEmailHost(deps: EmailHostDeps) {
           const references = [...ancestors, ...(original.messageId ? [original.messageId] : [])];
           threading = { ...(original.messageId ? { inReplyTo: original.messageId } : {}), ...(references.length ? { references: references.join(" ") } : {}) };
         }
-        return emailText({ account: from, ...await run.sendMessage(mailbox, guard, { to: args.to, subject: args.subject, text: args.text, ...pick(args, ["cc", "bcc", "html", "inline_images"]), ...threading }) });
+        assertActive();
+        const send = () => run.sendMessage(mailbox, guard, { to: args.to, subject: args.subject, text: args.text, ...pick(args, ["cc", "bcc", "html", "inline_images"]), ...threading });
+        if (!report) return emailText({ account: from, ...await send() });
+        const result = await report.deliveries.send(report.id, capability, args.to[0], async () => {
+          try { return await send(); }
+          catch (error) {
+            if (error instanceof SendingError && error.fault === "rejected") return { messageId: "", accepted: [], rejected: [args.to[0]] };
+            throw error;
+          }
+        });
+        if (result.receipt.state !== "accepted") return emailError(JSON.stringify({ ...result, instruction: "Reconcile this receipt against the outgoing mailbox before sending anything else." }));
+        return { ...emailText(result), structuredContent: result };
       }
     }
   }
@@ -167,7 +182,7 @@ export function createEmailHost(deps: EmailHostDeps) {
       if (isEmailRead(name)) deps.markOutside(capability.threadId);
       let result: EmailToolResult;
       try {
-        result = await call(name, args, mailbox, capability);
+        result = await call(name, args, mailbox, capability, assertActive);
       } catch (error) {
         if (error instanceof SendingError) {
           if (!LASTING_SENDING_FAULTS.has(error.fault)) return emailError(EMAIL_NOT_SENT_TEXT(error.message));
@@ -182,7 +197,7 @@ export function createEmailHost(deps: EmailHostDeps) {
       }
       assertActive();
       if (mailbox.problem && !result.isError) service.store.markProblem(mailbox.address, mailbox.password, undefined);
-      if (name === "EMAIL_SEND_MESSAGE" && !result.isError) {
+      if (name === "EMAIL_SEND_MESSAGE" && !result.isError && !result.structuredContent?.repeated) {
         deps.appendMessage(capability.threadId, {
           role: "bot", kind: "activity", tool: { name: `mcp__${EMAIL_MCP_SERVER}__${name}`, ok: true, summary: serverLine(conversationLanguage(capability.threadId), "server.email.sent", { address: mailbox.address, count: (args.to as string[]).length }) },
           ...(bot && deps.inRoom(capability.threadId) ? { from: { botId: bot.id, name: bot.name, color: bot.color } } : {}),

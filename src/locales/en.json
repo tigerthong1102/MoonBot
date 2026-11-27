@@ -4030,6 +4030,7 @@
   "engineSetup.serverInstallDesc": "{app} installs the command-line app on the machine it runs on, as its own user, in its own folder. No terminal needed; sign-in may follow.",
   "engineSetup.serverUpdateDesc": "{app} updates the command-line app on the machine it runs on. No terminal needed.",
   "engineSetup.preferTerminal": "Prefer a terminal?",
+  "engines.hermesCompatibility": "Hermes ACP {version} · handshake stage: {stage} · advertised capabilities: {capabilities}",
   "engineSetup.details": "Details",
   "engineSetup.needsNode": "Requires Node.js and {npm}.",
   "engineSetup.viewGuide": "View setup guide",

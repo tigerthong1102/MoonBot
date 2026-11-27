@@ -6,6 +6,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 
+import type { HermesCompatibility } from "../../../shared/hermes-compatibility.ts";
 import type { ModelCatalog } from "../../contracts.ts";
 import { findCliCandidates, harnessHome, resolveCliSpawn, splitCliString, whichWin } from "../../env-path.ts";
 import { killCliTree, resolveCli, spawnCli } from "../../procs.ts";
@@ -272,20 +273,23 @@ function hermesAcpModelsTimeoutMs(env: Record<string, string | undefined>): numb
 /** Hermes advertises its whole catalog on session/new and has no `hermes models` subcommand. Security: while the bot box
  * is on, it runs in the box, as a bot's turn does, since Hermes reads its settings from a HOME a bot can write.
  * `allowEnv`: the keys the instance's own settings put in `env`. */
-export async function fetchHermesAcpModels(
+export async function probeHermesAcp(
   cli: string,
   env: Record<string, string | undefined>,
   allowEnv: readonly string[] = [],
-): Promise<{ id: string; label: string; custom: true }[]> {
-  return await new Promise((resolve) => {
+) {
+  type Model = { id: string; label: string; custom: true };
+  const compatibility: HermesCompatibility = { protocol: null, version: null, loadSession: false, resumeSession: false, images: false, sessionOpened: false, stage: "start" };
+  return await new Promise<{ models: Model[]; compatibility: HermesCompatibility }>((resolve) => {
     let child: ReturnType<typeof spawnCli>;
     try {
       // Resolved on the supplied PATH (Windows npm shims), then spawned by spawnCli, which resolves on the app's.
       const resolved = resolveCli(cli, ["acp"], env as NodeJS.ProcessEnv);
       child = spawnCli(resolved.command, resolved.args, { stdio: ["pipe", "pipe", "ignore"], env: env as NodeJS.ProcessEnv, box: { allowEnv } });
     } catch {
-      return resolve([]);
+      return resolve({ models: [], compatibility });
     }
+    compatibility.stage = "initialize";
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const done = (out: { id: string; label: string; custom: true }[]) => {
@@ -293,7 +297,7 @@ export async function fetchHermesAcpModels(
       settled = true;
       if (timer) clearTimeout(timer);
       void killCliTree(child, 1_000);
-      resolve(out);
+      resolve({ models: out, compatibility });
     };
     timer = setTimeout(() => done([]), hermesAcpModelsTimeoutMs(env));
     child.once("error", () => done([]));
@@ -323,6 +327,7 @@ export async function fetchHermesAcpModels(
     let sessionId = 0;
     child.stdout?.on("data", (chunk) => {
       buf += String(chunk);
+      if (Buffer.byteLength(buf) > 2 * 1024 * 1024) return done([]);
       let nl: number;
       while ((nl = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, nl);
@@ -334,9 +339,18 @@ export async function fetchHermesAcpModels(
           continue;
         }
         if (msg?.id === initId) {
-          if (!msg.result) return done([]);
+          if (msg.result?.protocolVersion !== 1) return done([]);
+          const caps = msg.result.agentCapabilities;
+          compatibility.protocol = 1;
+          compatibility.version = typeof msg.result.agentInfo?.version === "string" ? msg.result.agentInfo.version.slice(0, 80) : null;
+          compatibility.loadSession = caps?.loadSession === true;
+          compatibility.resumeSession = Boolean(caps?.sessionCapabilities?.resume);
+          compatibility.images = caps?.promptCapabilities?.image === true;
+          compatibility.stage = "session/new";
           sessionId = send("session/new", { cwd: env.HOME || env.USERPROFILE || homedir(), mcpServers: [] });
         } else if (sessionId && msg?.id === sessionId) {
+          compatibility.sessionOpened = typeof msg.result?.sessionId === "string" && Boolean(msg.result.sessionId);
+          if (compatibility.sessionOpened) compatibility.stage = "ready";
           const list = Array.isArray(msg.result?.models?.availableModels)
             ? msg.result.models.availableModels
             : [];
@@ -359,15 +373,21 @@ export async function fetchHermesAcpModels(
   });
 }
 
+export async function fetchHermesAcpModels(cli: string, env: Record<string, string | undefined>, allowEnv: readonly string[] = []) {
+  return (await probeHermesAcp(cli, env, allowEnv)).models;
+}
+
 export async function resolveHermesModels(
   env: Record<string, string | undefined>,
   config?: { cli?: string },
   allowEnv: readonly string[] = [],
+  fresh = false,
 ): Promise<ModelCatalog> {
   const cli = config?.cli || "hermes";
   const catalog = await mergeLocalInject(EMPTY, env);
   const configured = hermesConfiguredModel(env);
-  const remote = configured ? await fetchHermesAcpModels(cli, env, allowEnv) : [];
+  const probe = configured || (fresh && hermesInstalled(cli)) ? await probeHermesAcp(cli, env, allowEnv) : undefined;
+  const remote = probe?.models ?? [];
   const seen = new Set<string>();
   const options = [...(configured ? [configured] : []), ...remote, ...catalog.options].filter((o) => {
     if (seen.has(o.id)) return false;
@@ -379,7 +399,7 @@ export async function resolveHermesModels(
   if (!options.length && !hermesUsesProbedProvider(env) && hermesInstalled(cli)) {
     options.push(hermesConfigOption(""));
   }
-  return { default: options[0]?.id ?? "", options };
+  return { default: options[0]?.id ?? "", options, ...(fresh && probe ? { hermesCompatibility: probe.compatibility } : {}) };
 }
 
 async function applySetting(
@@ -414,7 +434,7 @@ const support: AcpSupport = {
   displayName: "Hermes",
   access: "custom",
   models: EMPTY,
-  resolveModels: (env: Record<string, string | undefined>, config: any, _instanceId: string, _fresh?: boolean, allowEnv?: readonly string[]) => resolveHermesModels(env, config, allowEnv),
+  resolveModels: (env: Record<string, string | undefined>, config: any, _instanceId: string, fresh?: boolean, allowEnv?: readonly string[]) => resolveHermesModels(env, config, allowEnv, fresh),
   resolveTurnModel: (model, env) => {
     // Never inherit a broad or stale compatibility grant from the parent; bind one concrete model.
     bindHermesScreenshotCompat(env, model);

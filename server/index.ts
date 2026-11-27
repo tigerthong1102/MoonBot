@@ -21,7 +21,7 @@ import { ToolResults, TOOL_RESULT_MAX_CHARS } from "./tool-results.ts";
 import { basename, join } from "node:path";
 import { authorizeExternalRuntime, externalRuntimeIsActive, type ExternalRuntimeGrant } from "./external-runtime.ts";
 import { z } from "zod";
-import { readCompactedToolOutput, summaryWithToolReferences, toolRecallEnabled } from "./compacted-tool-results.ts";
+import { nativeCompactionContext, readCompactedToolOutput, sessionReadView, summaryWithToolReferences, toolRecallEnabled } from "./compacted-tool-results.ts";
 import { selectReplay, replayToolCalls, DEFAULT_REBUILD_BYTES, MAX_SUMMARY_BYTES } from "./context-rebuild.ts";
 import { draftSummary, foldPoint } from "./compaction-summary.ts";
 import { compactBudget, compactionReading, contextWindowFor, shouldCompact } from "./context-budget.ts";
@@ -346,7 +346,7 @@ import { createTtsRoutes } from "./routes/tts.ts";
 import { turnStartLogLine } from "./turn-log.ts";
 import { TurnStops, outwardActions, stoppedTurnOutcome, turnEvidence } from "./turn-outcome.ts";
 import { buildRecoveryText, buildTurnContext, engineIsFresh, replaysNatively } from "./turn-context.ts";
-import { externalContextMarker, isExternalContextMarker, Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionReadView, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
+import { externalContextMarker, isExternalContextMarker, Handoffs, handedStateUsable, isContextMessage, recordHanded, renderUnseen, routedWorkMarker, sessionStart, stoppedWorkNeedsFreshSession, unseenMessages, withUnseenMessages, type ContextMessage } from "./delta-context.ts"; import { recordStoppedRequest } from "./host/work-bot-stop-state.ts"; import { isFreshStart, sinceFreshStart } from "./fresh-start.ts";
 import { extractHandoffMedia, extractReplayImages, extractTurnImages, videoFramesWithin } from "./turn-images.ts";
 import { callTitleExcerpt } from "./thread-title.ts";
 import { createThreadTitleGate, generateThreadTitle, llmThreadTitlesEnabled } from "./thread-title-generate.ts";
@@ -5492,7 +5492,6 @@ function clearTurnDigestState(threadId: string): void {
 const TOOL_RESULTS_DIR = join(DATA_DIR, "tool-results");
 const TOOL_RESULT_SPILL_MAX = 512 * 1024;
 
-const DIGESTS_AFTER_COMPACTION = 2;
 function ingestEngineHook(capability: InternalCapability, body: unknown): { ok: boolean; ignored?: string; context?: string; hookSpecificOutput?: unknown } {
   const event = body && typeof body === "object" ? (body as { event?: unknown; payload?: unknown }) : {};
   const name = typeof event.event === "string" ? event.event : "";
@@ -5508,11 +5507,11 @@ function ingestEngineHook(capability: InternalCapability, body: unknown): { ok: 
   if (name === "SessionStart") {
     if (payload.source !== "compact") return { ok: true, ignored: `SessionStart ${String(payload.source ?? "")}` };
     const bot = store.bot(capability.botId);
-    const digests = sinceFreshStart(store.activePath(threadId)).filter((m) => m.kind === "digest" && m.digest).slice(-DIGESTS_AFTER_COMPACTION);
-    chip(`context compacted — re-sent the last ${digests.length} digest${digests.length === 1 ? "" : "s"}`);
-    if (!digests.length) return { ok: true };
-    const context = digests.map((m) => digestPromptLine(m.digest!, m.from?.name ?? store.bot(m.digest!.botId)?.name ?? bot?.name ?? "the bot")).join("\n");
-    return { ok: true, context };
+    const recall = Boolean(bot && !store.groupByThread(threadId) && toolRecallEnabled(cfg.context, bot.memoryEnabled));
+    const { context, count } = nativeCompactionContext(sinceFreshStart(store.activePath(threadId)), threadId,
+      m => m.from?.name ?? store.bot(m.digest!.botId)?.name ?? bot?.name ?? "the bot", recall, recall ? toolScopeForTurn(capability.botId) : undefined);
+    chip(`context compacted — re-sent the last ${count} digest${count === 1 ? "" : "s"}`);
+    return context ? { ok: true, context } : { ok: true };
   }
   if (name === "Stop") return { ok: true };
   if (name === "PostToolUseFailure") return shellTimeoutHookResult(payload);
@@ -7901,7 +7900,7 @@ async function beginTurn(
       const contextOrder = context.map(m => m.id);
       const replayable = context.filter(m => !skipTranscript.has(m.id));
       const record = latestCompaction(activeMessages);
-      const selection = selectReplay(context, { budgetBytes: cfg.context?.rebuildBytes ?? DEFAULT_REBUILD_BYTES, excludedIds: skipTranscript, compaction: record && toolRecallEnabled(cfg.context, bot.memoryEnabled) ? { ...record, summary: summaryWithToolReferences(record.summary, threadId, activeMessages, record.foldedThroughId) } : record, tools: replayToolCalls(activeMessages, cfg.context) });
+      const selection = selectReplay(context, { budgetBytes: cfg.context?.rebuildBytes ?? DEFAULT_REBUILD_BYTES, excludedIds: skipTranscript, compaction: record && toolRecallEnabled(cfg.context, bot.memoryEnabled) ? { ...record, summary: summaryWithToolReferences(record.summary, threadId, activeMessages, record.foldedThroughId, toolScope) } : record, tools: replayToolCalls(activeMessages, cfg.context) });
       const transcript = selection.transcript.map(({ role, text }) => ({ role, text }));
       const contextReset = selection.compacted > 0 && record?.id !== task.appliedCompactionId;
       if (contextReset) store.patchTask(bot.id, threadId, { resumeCursors: {} });
@@ -13535,12 +13534,13 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (!threadId || !messageId) return json(res, 400, { error: "threadId and messageId are required" });
         const recall = recallThreads(from, internalCapability);
         const own = recall.ownThreads.includes(threadId);
-        const message = own ? readMessageText(threadId, messageId) ?? (threadId === fromThreadId && !store.groupByThread(threadId) && toolRecallEnabled(cfg.context, from.memoryEnabled) ? readCompactedToolOutput(threadId, messageId, sinceFreshStart(store.activePath(threadId))) : null) : null;
+        const message = own ? readMessageText(threadId, messageId) ?? (threadId === fromThreadId && !store.groupByThread(threadId) && toolRecallEnabled(cfg.context, from.memoryEnabled) ? readCompactedToolOutput(threadId, messageId, sinceFreshStart(store.activePath(threadId)), TOOL_RESULTS_DIR, toolScopeForTurn(from.id)) : null) : null;
         if (!message) return json(res, 404, { error: "no such message in your conversations" });
-        const readInRoom = Boolean(store.groupByThread(fromThreadId));
-        const readCrossed = readInRoom && threadId !== fromThreadId && !recall.roomByThread.has(threadId);
+        const page = sessionReadView(message.text, store.messagesFor(threadId).find(line => line.id === messageId), Number(url.searchParams.get("offset") ?? 0));
+        if (!page) return json(res, 400, { error: "invalid message offset" });
+        const readCrossed = Boolean(store.groupByThread(fromThreadId)) && threadId !== fromThreadId && !recall.roomByThread.has(threadId);
         if (readCrossed) discloseRecall(from, fromThreadId, [threadId]);
-        return json(res, 200, sessionReadView(message, store.messagesFor(threadId).find(line => line.id === messageId), readCrossed, store.taskByThread(from.id, threadId)?.title));
+        return json(res, 200, { ...message, ...page, crossed: readCrossed, task: store.taskByThread(from.id, threadId)?.title });
       }
       if (method === "GET" && path === "/api/internal/skills") {
         if (!skillAuthoringEnabled(cfg)) return json(res, 403, { error: "skill authoring is not enabled in Settings" });

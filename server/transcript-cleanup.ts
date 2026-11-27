@@ -1,4 +1,4 @@
-import { unlinkSync } from "node:fs";
+import { rmSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { DATA_DIR, EVENTS_DIR, NATIVE_DIR } from "./config.ts";
 import { discardNativeLog } from "./drivers/native.ts";
@@ -8,6 +8,10 @@ export const messagesFile = (threadId: string) => join(DATA_DIR, `messages-${thr
 
 export function discardTranscriptFiles(threadId: string) {
   discardNativeLog(threadId);
+  if (/^[\w-]+$/.test(threadId)) {
+    try { rmSync(join(DATA_DIR, "tool-results", threadId), { recursive: true, force: true }); }
+    catch (error) { console.warn("Could not remove the deleted transcript's tool results", error); }
+  }
   for (const file of [
     messagesFile(threadId),
     `${messagesFile(threadId)}.imported`,

@@ -45,7 +45,11 @@ async function restartFixture(fixture: VerificationServer): Promise<ChildProcess
   try {
     const deadline = Date.now() + 30_000;
     for (;;) {
-      if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Restored fixture exited; see ${fixture.info.logPath}`);
+      if (child.exitCode !== null || child.signalCode !== null) {
+        const lines = readFileSync(fixture.info.logPath, "utf8").slice(-40_000).split(/\r?\n/).filter(line => /Error:|exception|denied|failure|Cannot |fatal|locked|preflight|\bat (applyPendingWorkspaceRestore|assertRestoreDatabasesIdle)\b/i.test(line));
+        const details = lines.slice(-12).map(line => line.replaceAll(dataDir, "[fixture]").replaceAll(ROOT, "[repo]").replace(/([a-z0-9_/.+=~-]{30,})/gi, "[redacted]").slice(0, 230));
+        throw new Error("Restored fixture exited (" + (child.exitCode ?? child.signalCode) + "): " + details.join(" | "));
+      }
       try {
         const response = await fetch(`${fixture.info.url}/api/health`, { signal: AbortSignal.timeout(1_000) });
         const health = await response.json() as { app?: string; pid?: number };

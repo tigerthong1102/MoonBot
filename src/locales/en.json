@@ -11709,5 +11709,6 @@
   "directMcp.zapier": "Run actions in the apps you set up in Zapier",
   "directMcp.granola": "Search meeting notes and transcripts",
   "directMcp.intercom": "Search conversations, contacts and articles",
-  "directMcp.notice": "Sign in with the provider to choose an account and review the requested permissions. Bot access follows the MCP settings for that account."
+  "directMcp.notice": "Sign in with the provider to choose an account and review the requested permissions. Bot access follows the MCP settings for that account.",
+  "skills.library.compatibility": "Declared compatibility: {value}"
 }

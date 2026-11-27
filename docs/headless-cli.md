@@ -502,3 +502,12 @@ same job, and returns the same result, as `wait`.
 ### Read the active host's MCP catalog
 
 `openmausbot mcp-catalog --json` lists configured MCP servers through the same authenticated workspace connection used by Settings. Add `--bot ID` to see whether each server is available to that bot. The command prints names and status only. In Plugins, ClickUp, Airtable, Todoist, Zapier, Granola and Intercom offer direct provider sign-in. Use the Intercom region matching the workspace.
+
+### Review an OpenClaw bot before adding it
+
+Use `openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY` to preview
+its identity and SOUL.md. Add `--skills` to copy ordinary SKILL.md files as
+disabled skills. The importer validates the preview using StartupBot's normal
+team-file reader. Inspect the generated files and run
+`openmausbot team apply NEW_DIRECTORY/team.json --dry-run` to compare with
+the target workspace. Applying that file is a separate choice.

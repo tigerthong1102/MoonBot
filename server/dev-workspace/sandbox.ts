@@ -32,7 +32,7 @@ export async function sandboxCommand(ctx: VerbContext) {
     const id = docker(["run", "--detach", "--rm", "--pull=never", "--network=none", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
       "--memory=512m", "--pids-limit=128", "--tmpfs", "/workspace:rw,size=384m", "--tmpfs", "/tmp:rw,size=32m", "--label", label + "=" + owner,
       "--label", "ai.startupbot.revision=" + head, "--workdir", "/workspace", "--entrypoint", "sleep", image, String(minutes * 60)]);
-    try { docker(["cp", "-", id + ":/workspace"], archive.stdout); }
+    try { docker(["exec", "-i", "--workdir", "/workspace", id, "tar", "-xf", "-"], archive.stdout); }
     catch (error) { docker(["stop", "--time", "1", id]); throw error; }
     result = { id, image, head, ttlMinutes: minutes, directory: "/workspace" };
   } else if (action === "stop") {

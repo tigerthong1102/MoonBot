@@ -4,6 +4,7 @@ import { libraryOwner } from "./source-cache";
 import { observeLibraryOwner } from "./source-sync";
 import {
   approvePage,
+  brainOwner,
   evidenceReader,
   newPage,
   pageKinds,
@@ -15,6 +16,7 @@ import {
   type BrainSelection,
   type VerifiedPage,
 } from "./brain";
+import { cloudAsleep } from "@/lib/cloud-power";
 import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { Select } from "../Select";
 import { SourceCitation } from "./SourceCitation";
@@ -47,26 +49,26 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
       setReady(false);
       setPages([]);
     }
-    async function read() {
+    async function read(background = false) {
       hide();
-      if (document.hidden) return;
+      if (document.hidden || (background && cloudAsleep())) return;
       const controller = new AbortController(),
         signal = controller.signal;
       view.current = controller;
       reading = true;
       try {
-        const owner = await libraryOwner(undefined, true);
+        const owner = await brainOwner(signal, background);
         if (!owner) throw new Error();
         if (account.current && account.current !== owner) {
           close();
           return;
         }
         account.current = owner;
-        const visible = await verifiedPages(owner, signal);
+        const visible = await verifiedPages(owner, signal, background);
         const pending = activeDraft.current;
         const source = pending?.page.source ?? (!proposed.current ? selection : undefined);
-        const evidence = source ? await evidenceReader(owner, signal)(source) : null;
-        if ((source && !evidence) || (await libraryOwner(undefined, true)) !== owner) throw new Error();
+        const evidence = source ? await evidenceReader(owner, signal, background)(source) : null;
+        if ((source && !evidence) || (await brainOwner(signal, background)) !== owner) throw new Error();
         signal.throwIfAborted();
         if (!alive) return;
         setPages(visible);
@@ -86,11 +88,12 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
         if (view.current === controller) reading = false;
       }
     }
-    const sync = () => {
-      if (!reading) void read();
-    };
+    const sync = () => { if (!reading) void read(); };
+    const backgroundSync = () => { if (!reading) void read(true); };
+    const visibility = () => { void read(); };
     const documentSync = (event: Event) => {
-      if ((event as CustomEvent).detail?.signal !== view.current?.signal) sync();
+      const detail = (event as CustomEvent).detail;
+      if (detail?.signal !== view.current?.signal) (detail?.background ? backgroundSync : sync)();
     };
     const unavailable = () => {
       hide();
@@ -101,10 +104,10 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
       () => (account.current ? JSON.stringify([account.current, threadId]) : null),
       unavailable,
     );
-    const timer = window.setInterval(sync, 60000);
+    const timer = window.setInterval(backgroundSync, 60000);
     window.addEventListener("focus", sync);
     window.addEventListener("startupbot-document-sync", documentSync);
-    document.addEventListener("visibilitychange", read);
+    document.addEventListener("visibilitychange", visibility);
     void read();
     return () => {
       alive = false;
@@ -113,7 +116,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
       window.clearInterval(timer);
       window.removeEventListener("focus", sync);
       window.removeEventListener("startupbot-document-sync", documentSync);
-      document.removeEventListener("visibilitychange", read);
+      document.removeEventListener("visibilitychange", visibility);
     };
   }, [threadId, selection, epoch]);
 
@@ -180,7 +183,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
           {evidence.quote}
         </blockquote>
         {src.kind === "document" ? (
-          <SourceCitation {...src}>{t("brain.openSource")}</SourceCitation>
+          <SourceCitation {...src} signal={view.current?.signal}>{t("brain.openSource")}</SourceCitation>
         ) : (
           <button
             className="ui-button ui-button-sm"

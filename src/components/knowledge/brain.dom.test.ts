@@ -26,6 +26,7 @@ vi.mock("@/state/api", () => ({ api: vi.fn() }));
 vi.mock("./source-cache", async (load) => ({
   ...(await load<typeof import("./source-cache")>()),
   libraryOwner: vi.fn(),
+  libraryKey: vi.fn(async () => JSON.stringify(["viewer-a","thread"])),
 }));
 vi.mock("./source-sync", () => ({ currentLibrary: vi.fn(), observeLibraryOwner: () => () => {} }));
 const pages = new Map<string, BrainPage>(),
@@ -99,6 +100,13 @@ it("requires an explicit review, leaves no record on cancel, and reopens a sourc
     await open("new session");
     expect(host.querySelector("article")?.textContent).toContain("15/12");
     expect(host.querySelector("article summary")?.textContent).toContain(path);
+    await click(t("brain.openSource"));
+    const sourceViewer = document.body.querySelector("dialog");
+    expect(sourceViewer?.textContent).toContain("15/12");
+    await act(async () => sourceViewer!.querySelector("button")!.click());
+    await act(async () => window.dispatchEvent(new CustomEvent("startupbot-document-sync", { detail: {background:true} })));
+    expect(vi.mocked(api).mock.lastCall?.[1]).toMatchObject({background:true});
+    expect(vi.mocked(currentLibrary).mock.lastCall?.[1]).toMatchObject({background:true});
     await click(t("brain.export"));
     expect(download).toHaveBeenCalledOnce();
     vi.mocked(api).mockRejectedValue(Error("forbidden"));

@@ -2,7 +2,7 @@ import { browserRecord } from "@/lib/browser-records";
 import { sha256Hex } from "@/lib/sha256";
 import { randomUuid } from "@/lib/random-uuid";
 import { t } from "@/lib/i18n";
-import { api } from "@/state/api";
+import { api, apiFetch } from "@/state/api";
 import type { Message } from "@/state/store";
 import { libraryOwner, parseSourceLink } from "./source-cache";
 import { currentLibrary } from "./source-sync";
@@ -66,14 +66,18 @@ function passage(index: Library, ref: { path?: string; digest: string; start: nu
   return part ? { label: citationLocation(doc.path, part), quote: part.text } : null;
 }
 
+export function brainOwner(signal: AbortSignal, background: boolean) {
+  return libraryOwner((input, init) => apiFetch(input,{ ...init,signal,background,timeoutMs:30000 }),true);
+}
+
 // The cache lives for one read or approval only. A later action checks the viewer and source again.
-export function evidenceReader(owner: string, signal: AbortSignal) {
+export function evidenceReader(owner: string, signal: AbortSignal, background = false) {
   const messages = new Map<string, Promise<{ messages: Message[] }>>();
   const rights = new Map<string, Promise<unknown>>();
   const libraries = new Map<string, Promise<Index | undefined>>();
   async function documents(threadId: string) {
     if (!libraries.has(threadId))
-      libraries.set(threadId, currentLibrary(JSON.stringify([owner, threadId]), { signal }));
+      libraries.set(threadId, currentLibrary(JSON.stringify([owner, threadId]), { signal, background }));
     return libraries.get(threadId);
   }
   return async (selection: BrainSelection): Promise<BrainEvidence | null> => {
@@ -81,13 +85,13 @@ export function evidenceReader(owner: string, signal: AbortSignal) {
     const { threadId } = selection;
     if (selection.kind === "document") {
       if (!rights.has(threadId))
-        rights.set(threadId, api("/api/threads/" + encodeURIComponent(threadId) + "/messages?limit=0", { signal }));
+        rights.set(threadId, api("/api/threads/" + encodeURIComponent(threadId) + "/messages?limit=0", { signal, background }));
       await rights.get(threadId);
       const found = passage(await documents(threadId), selection);
       return found && { ...found, source: selection, citations: [] };
     }
     const path = "/api/threads/" + encodeURIComponent(threadId) + "/messages?limit=1&around=" + encodeURIComponent(selection.messageId);
-    if (!messages.has(path)) messages.set(path, api<{ messages: Message[] }>(path, { signal }));
+    if (!messages.has(path)) messages.set(path, api<{ messages: Message[] }>(path, { signal, background }));
     const row = (await messages.get(path))?.messages.find(m => m.id === selection.messageId);
     if (row?.kind !== "text" || !row.text?.trim() || row.workBotReviewHold || row.workBotCopy || row.workBotRouting)
       return null;
@@ -112,8 +116,8 @@ export function evidenceReader(owner: string, signal: AbortSignal) {
   };
 }
 
-export async function verifiedPages(owner: string, signal: AbortSignal) {
-  const read = evidenceReader(owner, signal);
+export async function verifiedPages(owner: string, signal: AbortSignal, background = false) {
+  const read = evidenceReader(owner, signal, background);
   const pages = latestPages(await pageHistory(owner));
   const visible: VerifiedPage[] = [];
   for (const page of pages) {
@@ -121,7 +125,7 @@ export async function verifiedPages(owner: string, signal: AbortSignal) {
     const evidence = await read(page.source).catch(() => null);
     if (evidence) visible.push({ page, evidence });
   }
-  if ((await libraryOwner(undefined, true)) !== owner) throw new Error("viewer_changed");
+  if ((await brainOwner(signal, background)) !== owner) throw new Error("viewer_changed");
   signal.throwIfAborted();
   return visible;
 }

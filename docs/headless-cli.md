@@ -497,3 +497,14 @@ file (`--token-file`).
 `openmausbot mcp` serves the same operations as MCP tools on stdin and stdout
 ([docs/mcp-server.md](mcp-server.md)): `wait_for_conversation` waits on the
 same job, and returns the same result, as `wait`.
+
+### Keep a local Codex terminal open between connections
+
+On macOS or Linux with tmux and the Codex CLI installed, run
+`openmausbot terminal start research codex` from the project folder. Reconnect
+using `openmausbot terminal attach research`. Press Ctrl-B then D or close the
+terminal window to detach. `openmausbot terminal output research` reads recent
+output, `openmausbot terminal list` lists sessions, and
+`openmausbot terminal stop research` ends that process. A machine restart ends
+local processes. Each OS user and StartupBot data directory has its own sessions.
+On Windows the commands run inside a Linux WSL distribution with tmux and Codex installed there.

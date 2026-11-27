@@ -200,7 +200,16 @@ export interface Routine {
 
 export type RoutineBlock = "connection" | "model" | "permission" | "approval" | "usage" | "computer" | "target";
 
+/** Provider acceptance concerns the outgoing server. An unconfirmed send requires reconciliation before another send. */
+export interface ReportDelivery {
+  destination: string;
+  state: "unconfirmed" | "accepted" | "rejected";
+  at: number;
+  messageId?: string;
+}
+
 export interface RoutineRun {
+  emailDeliveries?: ReportDelivery[];
   id: string;
   routineId: string;
   routineName: string;

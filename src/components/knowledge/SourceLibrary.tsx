@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { citationLocation } from "./citation";
 import { sourceAnswerIssue, type SourceAnswerIssue } from "./source-answer-issue";
+import { openConversationDialog } from "../conversation-share/conversation-share";
 import { SourcePassage } from "./SourcePassage";
 import { cloudFolders, currentLibrary, observeLibraryOwner, onSourceSync, readSource, readWatch, scanSource, setSource as saveSource, type FolderSource } from "./source-sync";
 import { Select } from "../Select";
@@ -332,6 +333,10 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
       <button type="button" className="ui-button ui-button-primary" disabled={busy || sending || search !== query} onClick={ask}>{t("knowledge.ask", { count: Math.min(3, hits.length) })}</button></>}
     {sendError && <p role="alert">{t(sendError)}</p>}
     {sendError && !starting && !renderedOwner && <button className="ui-button ui-button-sm" onClick={() => recheck.current?.()}>{t("chat.retry")}</button>}
-    {shown && source && <SourcePassage doc={shown} start={source.start} />}
+    {shown && source && <><SourcePassage doc={shown} start={source.start} />
+      <button type="button" className="ui-button ui-button-sm" disabled={busy || starting || cacheFailed || !renderedOwner} onClick={() => {
+        const selection = { kind: "document" as const, threadId: bot.threadId, path: shown.path, digest: shown.digest, start: source.start };
+        close(); openConversationDialog({ kind: "brain", botId: bot.id, threadId: bot.threadId, selection });
+      }}>{t("brain.save")}</button></>}
   </dialog>;
 }

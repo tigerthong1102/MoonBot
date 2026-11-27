@@ -99,6 +99,10 @@ export function useBotMessageMenu({
     });
   }
   if (onRegenerate) items.push({ key: "regenerate", icon: <RefreshCw {...ACTION_ICON} />, label: t("chat.regenerate"), onSelect: onRegenerate });
+  if (canSpeak && botId && threadId && text.trim() && !messageId.startsWith("optimistic-")) items.push({
+    key: "save-brain", icon: <BookmarkPlus {...ACTION_ICON} />, label: t("brain.save"),
+    onSelect: () => openConversationDialog({ kind: "brain", botId, threadId, selection: { kind: "message", threadId, messageId } }),
+  });
   items.push(...teamMemory, ...pinItem(pin), idItem(messageId));
   return items;
 }

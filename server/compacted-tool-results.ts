@@ -29,7 +29,7 @@ export function readCompactedToolOutput(threadId: string, messageId: string, pat
   const message = path.find(item => item.id === messageId);
   const output = message && savedOutput(message);
   if (!message || !output) return null;
-  return { threadId, messageId, at: message.at, role: "bot", text: `Stored tool output from ${toolReplayLine(message.tool!)}\n${redactSecretsInText(output)}` };
+  return { threadId, messageId, at: message.at, role: "bot", text: redactSecretsInText(output) };
 }
 
 export function toolRecallEnabled(settings: { replayToolHistory?: boolean } | undefined, memoryEnabled: boolean | undefined) {

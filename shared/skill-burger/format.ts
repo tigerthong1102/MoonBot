@@ -60,9 +60,17 @@ const caseRule = workflowCondition.extend({ case: caseName });
 
 const PLACE: Record<string, string> = { vm: "on the cloud computer", yourComputer: "on the person's own computer", browser: "in the browser" };
 
+const fieldName = z.string().min(1).max(80).regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+  .refine(name => !["__proto__", "constructor", "prototype"].includes(name));
+const fieldPath = z.string().min(1).max(200).refine(path => path.split(".").every(part => /^\d+$/.test(part) || fieldName.safeParse(part).success));
+export const readBatchSchema = z.object({
+  rows: ref, column: fieldPath, argument: fieldName, select: fieldPath,
+}).strict();
+export const WORKFLOW_BATCH_LIMIT = 100;
+
 export const workflowStepSchema = z.discriminatedUnion("kind", [
   z.object({ ...common, kind: z.literal("shell"), run: z.string().min(1).max(20_000), cwd: z.string().max(1_000).optional(), stdin: ref.optional(), shell: z.enum(["bash", "unknown"]).optional() }).strict(),
-  z.object({ ...common, kind: z.literal("app"), app: z.string().min(1).max(64), tool: z.string().min(1).max(200), args: z.record(z.string(), z.unknown()), account: z.string().max(200).optional() }).strict(),
+  z.object({ ...common, kind: z.literal("app"), app: z.string().min(1).max(64), tool: z.string().min(1).max(200), args: z.record(z.string(), z.unknown()), batch: readBatchSchema.optional(), account: z.string().max(200).optional() }).strict(),
   z.object({ ...common, kind: z.literal("browser"), action: z.literal("open"), url: z.union([z.string().url(), ref]) }).strict(),
   z.object({ ...common, kind: z.literal("file"), path: z.string().min(1).max(1_000), content: z.union([z.string(), ref]) }).strict(),
   z.object({
@@ -92,7 +100,7 @@ export const WORKFLOW_PARALLEL_LIMIT = 4;
 
 /** Only known read-only connector operations can share a wave. Unknown or plain proxy tools stay sequential. */
 export function parallelRead(step: WorkflowStep | undefined): boolean {
-  return step?.kind === "app" && KNOWN_READ_SLUGS.has(step.tool) && step.app.toLowerCase() === step.tool.split("_")[0]?.toLowerCase()
+  return step?.kind === "app" && !step.batch && KNOWN_READ_SLUGS.has(step.tool) && step.app.toLowerCase() === step.tool.split("_")[0]?.toLowerCase()
     && (!step.where || step.where === "app") && !step.when && !step.approval && !step.check;
 }
 
@@ -125,6 +133,15 @@ export const workflowSchema = z.object({
       while (workflow.steps[end]?.parallelWithPrevious) end++;
       const problem = parallelProblem(workflow.steps.slice(index, end));
       if (problem) issue.addIssue({ code: "custom", message: problem });
+    }
+    if (step.kind === "app" && step.batch) {
+      const { rows, argument } = step.batch;
+      if (!KNOWN_READ_SLUGS.has(step.tool) || step.app.toLowerCase() !== step.tool.split("_")[0]?.toLowerCase() || (step.where && step.where !== "app")) {
+        issue.addIssue({ code: "custom", message: "A batch requires a known read-only connector tool." });
+      }
+      if (Object.hasOwn(step.args, argument) || ("$arg" in rows ? !Object.hasOwn(workflow.args, rows.$arg) : !seen.has(rows.$step))) {
+        issue.addIssue({ code: "custom", message: "Choose a declared row source and an unused tool argument." });
+      }
     }
     if (seen.has(step.id)) issue.addIssue({ code: "custom", message: `step id ${step.id} is used twice` });
     if (step.kind === "decide" && !step.rules?.length && !step.prompt) issue.addIssue({ code: "custom", message: `decide step ${step.id} needs rules or a prompt` });
@@ -197,7 +214,7 @@ function stepLine(step: WorkflowStep, args: Workflow["args"]): string {
   const where = step.kind === "app" ? appLabel(step.app) : step.kind === "ai" ? "AI" : step.kind === "shell" ? "Command" : step.kind === "file" ? "File" : "Browser";
   const used = Object.keys(args).filter((name) => JSON.stringify(step).includes(`"$arg":"${name}"`) || (step.kind === "shell" && step.run.includes(`OMB_ARG_${name.toUpperCase()}`)));
   const detail = used.map((name) => `${args[name]!.label ?? name}: ${name}${args[name]!.default === undefined ? "" : `, default ${JSON.stringify(args[name]!.default)}`}`);
-  const what = step.kind === "shell" ? ` \`${step.run.split("\n", 1)[0]!.slice(0, 120)}\`` : step.kind === "app" ? ` (${step.tool})` : "";
+  const what = step.kind === "shell" ? ` \`${step.run.split("\n", 1)[0]!.slice(0, 120)}\`` : step.kind === "app" ? (step.batch ? ` (${step.tool}, up to ${WORKFLOW_BATCH_LIMIT} rows, ${step.batch.column} → ${step.batch.argument}, return ${step.batch.select})` : ` (${step.tool})`) : "";
   const place = step.where && PLACE[step.where] && !(step.kind === "browser" && step.where === "browser") ? ` ${PLACE[step.where]}` : "";
   return `${prefix}${where}${place}: ${step.label}${what}${detail.length ? ` (${detail.join("; ")})` : ""}${step.kind === "ai" ? " (your judgement)" : ""}${done}`;
 }

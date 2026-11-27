@@ -1,5 +1,11 @@
 import type { compare } from "./compare";
 import type { MessageKey, Translate } from "./messages";
+import type { SheetRows } from "./compare";
+
+export function sourceRows(source?: SheetRows): string {
+  return source ? source.sheet + " [" + source.rows.join(", ") + "]" : "";
+}
+
 export type Report = ReturnType<typeof compare>;
 const escape = (value: string | number) => String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
@@ -7,7 +13,7 @@ export function htmlReport(r: Report, t: Translate, lang: string) {
   const headings: MessageKey[] = ["reconcile.document", "reconcile.reason", "reconcile.leftRows", "reconcile.rightRows", "reconcile.leftAmount", "reconcile.rightAmount", "reconcile.difference"];
   const header = headings.map(key => "<th>" + escape(t(key)) + "</th>").join("");
   const rows = r.exceptions.map(x => {
-    const values = [x.document, x.reasons.map(key => t(key)).join(", "), x.leftCount, x.rightCount, x.left, x.right, x.difference];
+    const values = [x.document, x.reasons.map(key => t(key)).join(", "), [x.leftCount, sourceRows(x.leftSource)].filter(x => x !== "").join(" · "), [x.rightCount, sourceRows(x.rightSource)].filter(x => x !== "").join(" · "), x.left, x.right, x.difference];
     return "<tr>" + values.map(value => "<td>" + escape(value) + "</td>").join("") + "</tr>";
   }).join("");
   const title = escape(t("reconcile.reportTitle"));

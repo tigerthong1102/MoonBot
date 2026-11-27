@@ -47,6 +47,11 @@ export function openReview(raw: string): { report: Report; changes: ReviewChange
         (row.left !== "" && !amount(row.left)) || (row.right !== "" && !amount(row.right)) || !amount(row.difference) ||
         !Array.isArray(row.reasons) || !row.reasons.length || row.reasons.length > reasons.size ||
         !row.reasons.every((reason: string) => reasons.has(reason))) throw new Error("invalid document");
+    for (const [source, expected] of [[row.leftSource, row.leftCount], [row.rightSource, row.rightCount]]) {
+      if (source === undefined) continue;
+      if (!source || typeof source.sheet !== "string" || !source.sheet.length || source.sheet.length > 128 || !Array.isArray(source.rows) ||
+        source.rows.length !== expected || !source.rows.every((n: unknown) => typeof n === "number" && Number.isSafeInteger(n) && n >= 1 && n <= 65_536)) throw new Error("invalid sheet reference");
+    }
     seen.add(row.document);
   }
   return { report: r, changes: mergeReviewChanges(changesFor(envelope, r)) };

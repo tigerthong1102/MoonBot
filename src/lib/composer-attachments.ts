@@ -1,3 +1,4 @@
+import { isSourceLineReference, type SourceLineReference } from "./source-line-reference.ts";
 import { isCitationAttachment, serializeCitation, type CitationAttachment } from "./citations.ts";
 import { randomUuid } from "./random-uuid.ts";
 import { FILE_MAX_BYTES } from "../../shared/upload-limits.ts";
@@ -5,6 +6,7 @@ export { dataContextFor, type DataContext, type DataViewContext } from "../../sh
 
 export type PasteAttachment = {
   kind: "paste";
+  resource?: SourceLineReference;
   id: string;
   text: string;
   size: number;
@@ -41,6 +43,7 @@ export function isAttachment(value: unknown): value is Attachment {
   if (typeof attachment.id !== "string" || !validSize(attachment.size)) return false;
   if (attachment.kind === "paste") {
     return (
+      (attachment.resource === undefined || isSourceLineReference(attachment.resource)) &&
       typeof attachment.text === "string" &&
       typeof attachment.lines === "number" &&
       Number.isInteger(attachment.lines) &&

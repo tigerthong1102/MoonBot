@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { posix, win32 } from "node:path";
 
+import { runReadBatch, type BatchRowStatus } from "./read-batch.ts";
 import { parallelProblem, caseOf, teammateNames, type Workflow, type WorkflowRef, type WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { embeddedSourceHas } from "../../shared/skill-burger/embedded-source.ts";
 import { redactSecretsInText } from "../../shared/redact.ts";
@@ -26,6 +27,7 @@ export interface StepResult {
 
 /** What a step's row on the run card can open to: the replies of a delegation and its rounds, a check's verdict. */
 export interface StepDetail {
+  batch?: { tool: string; source: WorkflowRef; rows: BatchRowStatus[] };
   replies?: Array<{ name: string; ok: boolean; text: string }>;
   rounds?: number;
   waitingOn?: string[];
@@ -205,11 +207,14 @@ export function interpolatedActionHash(step: WorkflowStep, args: RunState["args"
 async function timed(ms: number, outer: AbortSignal | undefined, run: (signal: AbortSignal) => Promise<ExecResult>): Promise<ExecResult | "timeout"> {
   if (outer?.aborted) return { ok: false, error: "The owning turn was stopped." };
   const controller = new AbortController();
-  const stop = () => controller.abort();
+  let cancelled!: (result: ExecResult) => void;
+  const cancellation = new Promise<ExecResult>(done => { cancelled = done; });
+  const stop = () => { controller.abort(); cancelled({ ok: false, error: "The owning turn was stopped." }); };
   outer?.addEventListener("abort", stop, { once: true });
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
+      cancellation,
       run(controller.signal),
       new Promise<"timeout">((done) => { timer = setTimeout(() => { controller.abort(); done("timeout"); }, ms); }),
     ]);
@@ -403,16 +408,25 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
 
     deps.events.started(id, name, step);
     const limit = step.timeoutMs ?? STEP_TIMEOUT_MS;
-    if (deps.authorizationExec) {
+    const batch = step.kind === "app" ? step.batch : undefined;
+    if (!batch && deps.authorizationExec) {
       const startedApproval = now();
       const approval = await execute(step, args, results, deps.authorizationExec, deps.signal ?? new AbortController().signal);
       approvalTime += now() - startedApproval;
       if (deps.signal?.aborted) return envelope({ status: "cancelled" });
       if (!approval.ok) return fail(step, "step_failed", "The action was not approved or is no longer permitted.");
     }
-    const outcome = await timed(limit, deps.signal, (signal) => execute(step, args, results, deps.actionExec ?? deps.exec, signal));
-    if (outcome === "timeout") return fail(step, "timeout", `"${step.label}" took longer than ${Math.round(limit / 1000)} s and was stopped. Check the action's result before trying again.`, undefined, false);
-    if (!outcome.ok) return fail(step, outcome.tooLarge ? "output_too_large" : "step_failed", `${clip(redactSecretsInText(outcome.error), ERROR_MAX)}. Check the action's result before trying again.`, undefined, false);
+    const trace = step.kind === "app" && batch ? { tool: step.tool, source: batch.rows, rows: [] as BatchRowStatus[] } : undefined;
+    const detail = trace ? { batch: trace } : undefined;
+    const outcome = await timed(limit, deps.signal, signal => step.kind === "app" && batch && trace
+      ? runReadBatch(step, batch, resolve(batch.rows, args, results), resolve(step.args, args, results) as Record<string, unknown>, deps.exec.app, signal, trace.rows)
+      : execute(step, args, results, deps.actionExec ?? deps.exec, signal));
+    if (deps.signal?.aborted) {
+      if (detail) end(step, { state: "failed", detail, error: "The owning turn was stopped." });
+      return envelope({ status: "cancelled" });
+    }
+    if (outcome === "timeout") return fail(step, "timeout", `"${step.label}" took longer than ${Math.round(limit / 1000)} s and was stopped. Check the action's result before trying again.`, detail, false);
+    if (!outcome.ok) return fail(step, outcome.tooLarge ? "output_too_large" : "step_failed", `${clip(redactSecretsInText(outcome.error), ERROR_MAX)}. Check the action's result before trying again.`, detail, false);
     const output = parsed(outcome.output);
     const check = checkRule(step);
     if (check?.rule) {
@@ -421,7 +435,7 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
       results[step.id] = { state: "done", output };
       return hand(step, "check", undefined, { prompt: `Check this step's result against: "${check.says}". Resume with "pass", or "fail: <why>".`, input: asText(output) });
     }
-    end(step, { state: "done", output, ...(check?.rule ? { detail: { check: { passed: true, says: check.says } } } : {}) });
+    end(step, { state: "done", output, ...(detail || check?.rule ? { detail: { ...detail, ...(check?.rule ? { check: { passed: true, says: check.says } } : {}) } } : {}) });
   }
   const last = [...workflow.steps].reverse().find((step) => results[step.id]?.state === "done" && results[step.id]?.output !== undefined);
   return envelope({ status: "ok", ...(last ? { output: results[last.id]!.output } : {}) });

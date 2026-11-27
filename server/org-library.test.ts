@@ -1085,6 +1085,22 @@ describe("a newer release of an added team", () => {
     expect(app.readState().installs[installId].release).toBe("1.4.0");
   });
 
+  it("rejects mismatched package metadata and never applies an unapproved or withdrawn capability expansion", async () => {
+    const { app, library, installId, first, update } = await addedTeam();
+    const expanded = release("full-team.v2.json", doc => {
+      NEXT(doc); doc.package.requirements.capabilities.push("Read invoice files");
+    });
+    await update(expanded, { release: { ...entry(TEAM_ID, expanded).release, version: "9.9.9" } });
+    expect(library.preview(TEAM_ID)).toMatchObject({ ok: false, code: "invalid_package" });
+    expect(app.readState().installs[installId].sha256).toBe(first.sha256);
+    await update(expanded);
+    const review = library.list().packages[0]!.updateReview!;
+    expect(review.added).toEqual(["Capability · Read invoice files"]);
+    await update(expanded, { withdrawnReleases: [{ version: "1.4.0", sha256: expanded.sha256 }] });
+    expect(library.approveUpdate(TEAM_ID, review.base, review.target, review.added)).toMatchObject({ ok: false });
+    expect(app.readState().installs[installId].sha256).toBe(first.sha256);
+  });
+
   it("waits while the new release isn't downloaded or needs a newer app, and never moves to a withdrawn one", async () => {
     const { app, installId, botOf, update } = await addedTeam();
     const soul = botOf("lead").soul;

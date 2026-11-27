@@ -1,3 +1,4 @@
+import { SourceLineChip } from "./ComposerSourceLines";
 import { useEffect, useRef, useState } from "react";
 import { ClipboardPaste, File as FileIcon, Image as ImageIcon, LoaderCircle, MessageSquareText, X } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -21,7 +22,7 @@ export function pathForFile(file: File): string {
 }
 
 export function ComposerAttachments({
-  items,
+  threadId, items,
   onAdd,
   onRemove,
   onChangeCitation,
@@ -33,6 +34,7 @@ export function ComposerAttachments({
   onPendingChange,
   uploadImage,
 }: {
+  threadId?: string;
   items: Attachment[];
   onAdd: (attachments: Attachment[]) => void;
   onRemove: (id: string) => void;
@@ -145,6 +147,10 @@ export function ComposerAttachments({
                 onRemove={() => onRemove(a.id)}
                 solid
               />
+            ) : a.kind === "paste" && a.resource ? (
+              <Chip key={a.id} label="FILE" title={a.text} onRemove={() => onRemove(a.id)}>
+                <SourceLineChip source={a.resource} threadId={threadId ?? ""} />
+              </Chip>
             ) : a.kind === "paste" ? (
               <Chip
                 key={a.id}

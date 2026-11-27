@@ -92,7 +92,7 @@ openmausbot doctor --host [--data-dir DIR] [--port 8799] [--domain HOST]
   On this computer's own server the code is made for you; elsewhere, get one from Settings → Phone & devices.
   Then use it: --url URL --token-file FILE (or OPENMAUSBOT_URL and OPENMAUSBOT_TOKEN).`,
   "mcp-catalog": "openmausbot mcp-catalog [--bot ID] [--json]\n  Inspect the server catalog through the active workspace connection.",
-  "team import-openclaw": "openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY [--skills]\n  Preview an OpenClaw bot as a StartupBot team file.",
+  "team import-openclaw": "openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY [--skills] [--notes AGENTS.md,MEMORY.md] [--dry-run]\n  Preview an OpenClaw bot as a StartupBot team file.",
   "dev worktree": "openmausbot dev worktree list|create|show|setup|checkpoint|remove-clean --repo DIR [--base REF --title TITLE --out DIR --note TEXT --target DIR]",
   "dev issues": "openmausbot dev issues --github OWNER/REPO [--project NUMBER] [--out BOARD.html] or --tracker gitlab|linear|jira --scope PROJECT [--site NAME.atlassian.net]",
   "dev stack": "openmausbot dev stack --github OWNER/REPO --pr NUMBER",

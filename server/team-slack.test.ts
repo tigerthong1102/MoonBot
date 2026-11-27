@@ -58,6 +58,7 @@ describe("teamSlackPhase", () => {
     expect(received).toMatchObject({ text: expect.stringContaining("A tool ran") });
     expect(JSON.stringify(received)).not.toContain("private");
     const limit = row({ role: "bot", kind: "activity", tool: { name: "quota", ok: false, nameCode: "chat.notice.usageLimit" } });
+    expect(teamSlackPhase([row({ sendId: ID, requestPending: true }), limit], ID, idle)).toBe("unsettled");
     expect(teamSlackPhase([request, limit], ID, idle)).toEqual({ state: "failed", error: "limit" });
   });
 

@@ -125,7 +125,7 @@ export function teamSlackPhase(path: readonly Message[], sendId: string, live: {
       ? "A tool ran, but the agent left no final reply. Check the conversation before repeating the request."
       : "The agent left no final reply. Open the conversation to check the request." };
   }
-  if (next >= 0 || (error && !live.busy)) return { state: "failed", ...(error ? { error } : {}) };
+  if (next >= 0) return { state: "failed", ...(error ? { error } : {}) };
   // A question outlives the turn that asked it, so it holds this run only while that turn is still blocked on it.
   const card = run.find((message) => requestNeedsInput(message) || (live.busy && openCard(message)));
   if (card) return { state: "waiting", waiting: card.card?.requestId && !isPersistentQuestionCard(card.card) ? "approval" : "question" };

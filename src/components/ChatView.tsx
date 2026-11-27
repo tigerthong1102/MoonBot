@@ -266,7 +266,7 @@ function TrialCreditFailedRow({ kind, onRetry }: { kind: TrialCreditRefusal; onR
 }
 
 export function FailedTurnRow({ tool, engine, onRetry, botId, threadId, messageAt, reviewActions }: { tool: NonNullable<Message["tool"]>; engine: InstanceInfo | undefined; onRetry?: () => void; botId?: string; threadId?: string; messageAt?: number; reviewActions?: boolean }) {
-  const resume = useLimitResetContinue(botId, threadId, tool.limitResetsAt, reviewActions), fix = useFailedTurnFix(tool, botId, threadId);
+  const resume = useLimitResetContinue(botId, threadId, tool.limitResetsAt), fix = useFailedTurnFix(tool, botId, threadId);
   const past = usePastLimitNotice(tool, messageAt);
   if (tool.place && botId) return <PlaceFailedRow place={tool.place} botId={botId} threadId={threadId} onRetry={onRetry} />;
   const credit = trialCreditKind(failedTurnCause(tool.name) ?? "");
@@ -280,7 +280,7 @@ export function FailedTurnRow({ tool, engine, onRetry, botId, threadId, messageA
       message={notice ?? cause}
       headline={signedOut ? t("chat.error.signedOut", { name: signedOut.displayName }) : notice ?? plainErrorLine(cause)}
       onRetry={onRetry}
-      action={resume ?? fix.action} control={fix.control}
+      action={resume ?? fix.action} control={resume && reviewActions ? <span className="text-xs text-ink-secondary">{t("chat.limit.reviewActions")}</span> : fix.control}
       setupInstance={tool.setup ? engine : undefined}
       claudeUpdateInstance={tool.claudeUpdate ? claudeUpdateTarget(engine) : undefined}
     />

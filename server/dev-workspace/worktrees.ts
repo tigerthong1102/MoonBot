@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseDocument } from "yaml";
 import { writeFileAtomic } from "../atomic.ts";
@@ -58,10 +58,18 @@ export async function checkpoint(directory: string, progress: string) {
 }
 
 export function removeCleanWorktree(repo: string, target: string) {
-  const directory = realpathSync(target);
-  const primary = worktreeList(repo)[0]?.directory;
-  if (!primary || realpathSync(primary) === directory) throw new Error("Choose a linked StartupBot task worktree.");
-  const registered = worktreeList(repo).find(entry => existsSync(entry.directory) && realpathSync(entry.directory) === directory);
+  const directory = realpathSync.native(target);
+  const targetStat = statSync(directory, { bigint: true });
+  const sameDirectory = (candidate: string) => {
+    const entry = statSync(candidate, { bigint: true, throwIfNoEntry: false });
+    if (!entry?.isDirectory()) return false;
+    // Git for Windows can print a long or differently cased spelling of the runner's TEMP directory.
+    if (entry.ino && targetStat.ino) return entry.dev === targetStat.dev && entry.ino === targetStat.ino;
+    return realpathSync.native(candidate) === directory;
+  };
+  const [primary, ...linked] = worktreeList(repo);
+  if (!primary || sameDirectory(primary.directory)) throw new Error("Choose a linked StartupBot task worktree.");
+  const registered = linked.find(entry => sameDirectory(entry.directory));
   if (!registered || registered.locked) throw new Error("Worktree is locked or belongs to another repository.");
   const status = inspectWorktree(directory);
   if (!status.task || registered.branch !== "refs/heads/" + status.task.branch || status.changes.length) throw new Error("The worktree must be managed, on its recorded branch and clean.");

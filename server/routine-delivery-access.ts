@@ -1,5 +1,6 @@
 import { KNOWN_READ_SLUGS } from "../shared/outbound.ts";
 import type { Coordinator } from "./coordinator.ts";
+import { localFileReferences } from "./connector-files.ts";
 import { connectorCallFromFrame } from "./connector-verdict.ts";
 import type { RoutineRun } from "./routines.ts";
 
@@ -33,5 +34,5 @@ export function isDeliveryConnectorRead(frame: unknown): boolean {
   if (method !== "tools/call") return false;
   if (typeof params?.name === "string" && discovery.has(params.name)) return true;
   const call = connectorCallFromFrame(frame);
-  return call.kind === "tools" && call.names.every(slug => KNOWN_READ_SLUGS.has(slug));
+  return call.kind === "tools" && call.names.every(slug => KNOWN_READ_SLUGS.has(slug)) && localFileReferences(frame).references.length === 0;
 }

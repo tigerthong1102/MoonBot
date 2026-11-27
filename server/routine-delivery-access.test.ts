@@ -11,7 +11,7 @@ describe("reconciliation external delivery policy", () => {
       expect(isDeliveryConnectorRead(frame)).toBe(true);
     }
     for (const frame of [call("GMAIL_SEND_EMAIL"), call("GMAIL_CREATE_EMAIL_DRAFT"), call("COMPOSIO_REMOTE_WORKBENCH"),
-      call("COMPOSIO_MANAGE_CONNECTIONS"), multi("GMAIL_FETCH_EMAILS", "SLACK_SEND_MESSAGE"), multi(), [call("GMAIL_SEND_EMAIL")]]) {
+      call("COMPOSIO_MANAGE_CONNECTIONS"), call("GMAIL_FETCH_EMAILS", { attachments: ["/inside/report.pdf"] }), multi("GMAIL_FETCH_EMAILS", "SLACK_SEND_MESSAGE"), multi(), [call("GMAIL_SEND_EMAIL")]]) {
       expect(isDeliveryConnectorRead(frame)).toBe(false);
     }
   });

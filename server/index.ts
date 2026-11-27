@@ -14384,8 +14384,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const connectorCalls = rpc?.method === "tools/call" && typeof rpcParams?.name === "string"
           ? connectorCallsIn(rpcParams.name, rpcParams.arguments)
           : [];
-        const deliveryWrite = !isDeliveryConnectorRead(body);
-        if (deliveryWrite && internalDelivery(internalCapability)) return refuseOutbound(INTERNAL_DELIVERY_ONLY);
+        const refusesExternalDelivery = () => internalDelivery(internalCapability) && !isDeliveryConnectorRead(body);
+        if (refusesExternalDelivery()) return refuseOutbound(INTERNAL_DELIVERY_ONLY);
         if (proactive.fence.refusesConnectorCall(currentSender, internalCapability.threadId, body)) return refuseOutbound(READ_AND_DRAFT_REFUSAL);
         const scopeRefusal = managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs) ?? await teamConnections.callRefusal(internalCapability, connectorCalls); if (scopeRefusal) return refuseOutbound(scopeRefusal);
         // A room turn can run at a Chief's delegated level, which only the room handoff carries.
@@ -14431,7 +14431,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             requireActiveInternalCapability();
             const checkDispatch = (final = false, record = true) => {
               requireActiveInternalCapability();
-              if (deliveryWrite && internalDelivery(internalCapability)) refuseDispatch(INTERNAL_DELIVERY_ONLY);
+              if (refusesExternalDelivery()) refuseDispatch(INTERNAL_DELIVERY_ONLY);
               const identityRefusal = teamConnections.relayDispatchRefusal(internalCapability, scopesRevision, actor.access);
               if (identityRefusal) refuseDispatch(identityRefusal);
               const fresh = store.bot(internalCapability.botId);

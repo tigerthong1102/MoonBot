@@ -7,8 +7,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // attachments.ts reads DATA_DIR at import time.
 const DATA_ROOT = mkdtempSync(join(tmpdir(), "omb-bot-attachment-"));
 process.env.OMB_DATA_DIR = join(DATA_ROOT, "data");
-const { attachForTurn, contentUploadId, deliveredCopy, guestWorkspaceToHost, saveBotAttachment } = await import("./bot-attachment.ts");
-const { ATTACHMENTS_DIR, FILE_MAX_BYTES, PREVIEW_MAX_BYTES } = await import("./attachments.ts");
+const { attachForTurn, attachmentResponse, contentUploadId, deliveredCopy, guestWorkspaceToHost, saveBotAttachment } = await import("./bot-attachment.ts");
+const { saveReconciliationBytes } = await import("./routine-deliverables.ts");
+const { ATTACHMENTS_DIR, deleteAttachment, FILE_MAX_BYTES, PREVIEW_MAX_BYTES } = await import("./attachments.ts");
 
 const WORK = join(DATA_ROOT, "work");
 const VM_HOME = join(DATA_ROOT, "vm-home");
@@ -19,6 +20,21 @@ beforeAll(() => {
   mkdirSync(join(VM_HOME, "reports"), { recursive: true });
 });
 afterAll(() => rmSync(DATA_ROOT, { recursive: true, force: true }));
+
+it("returns the same upload receipt, per-turn quota and expired-turn response for workspace and generated files", async () => {
+  const bytes = Buffer.from("source,amount\nINV-1,700\n");
+  const name = "sources.csv", file = join(WORK, name), inline = "data:text/csv;base64," + bytes.toString("base64");
+  writeFileSync(file, bytes);
+  for (const path of [file, inline]) {
+    const save = () => path === file ? saveBotAttachment({ path, roots: [WORK] }) : saveReconciliationBytes(path, name);
+    const reply = (used: number, live: boolean) => attachmentResponse(path, name, 2, () => attachForTurn({ attachedFiles: used }, 2, {
+      save, stillLive: () => live, publish: () => {}, discard: saved => deleteAttachment(saved.attachment.path),
+    }));
+    expect(await reply(0, true)).toEqual({ status: 200, body: { ok: true, name, bytes: bytes.length } });
+    expect(await reply(2, true)).toEqual({ status: 429, body: { error: "You already attached 2 files this turn. Put the rest in one document or archive summary instead." } });
+    expect(await reply(0, false)).toEqual({ status: 409, body: { error: "This turn ended before the file could be attached, so nothing was posted." } });
+  }
+});
 
 describe("guestWorkspaceToHost", () => {
   const guest = "/home/cua/workspace";

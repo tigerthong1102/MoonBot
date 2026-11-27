@@ -255,7 +255,6 @@ export async function attachForTurn<S>(
   }
 }
 
-/** Keep the attachment receipt and errors identical for existing workspace files and generated run artifacts. */
 export async function attachmentResponse(path: string, name: string | undefined, max: number, attach: () => Promise<AttachForTurnOutcome<SavedBotAttachment>>) {
   try {
     const outcome = await attach();

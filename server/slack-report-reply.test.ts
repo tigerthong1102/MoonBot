@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { slackReportReply } from "./slack-report-reply.ts";
+import { reportStillPosted, slackReportReply } from "./slack-report-reply.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import type { TeamSlackMessage, TeamSlackRecord } from "./team-slack.ts";
 
@@ -20,4 +20,16 @@ describe("Slack automation report replies", () => {
     expect(slackReportReply({ ...follow, audience: "team" }, auth, "member", records, find)).toBeNull();
     expect(slackReportReply(follow, auth, "other", records, find)).toBeUndefined();
   });
+});
+
+
+it("suppresses delayed and replayed Slack results if the exact report leaves the active conversation", () => {
+  const first = slackReportReply(input, auth, "member", [], find)!;
+  const record = { botId: first.botId, threadId: first.threadId, reportRef: first.reportRef } as TeamSlackRecord;
+  expect(reportStillPosted(record, first, () => [{ id: first.messageId }])).toBe(true);
+  expect(reportStillPosted(record, first, () => [{ id: "other-branch" }])).toBe(false);
+  expect(reportStillPosted(record, { ...first, messageId: "replacement" }, () => [{ id: "replacement" }])).toBe(false);
+  expect(reportStillPosted(record, undefined, () => [{ id: first.messageId }])).toBe(false);
+  const older = { ...record, reportRef: { ...first.reportRef, messageId: undefined } };
+  expect(reportStillPosted(older, first, () => [])).toBe(false);
 });

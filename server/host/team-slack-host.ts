@@ -9,7 +9,7 @@
 // checked against the conversation's own, so a channel's message never lands in a private chat and a direct message
 // never in a shared one; a bot the member can't chat with answers as one that doesn't exist; nothing in a report's
 // answer stops or starts anything.
-import { slackReportKey, slackReportReply, type FindReport } from "../slack-report-reply.ts";
+import { reportStillPosted, slackReportKey, slackReportReply, type FindReport } from "../slack-report-reply.ts";
 import { isPersistentQuestionCard } from "../../shared/ask-question.ts";
 import { atLeast } from "../../shared/bot-access.ts";
 import { defaultBotPerson } from "../../shared/default-bot.ts";
@@ -172,6 +172,11 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
     });
   };
 
+  const mayReturnReport = (auth: RequestAuth, record: TeamSlackRecord): boolean => {
+    if (!record.reportRef || member(auth)?.person !== record.person || (!personal && deps.audienceOf(record.threadId) !== memberAudience(record.person))) return false;
+    return reportStillPosted(record, deps.findReport?.(auth, record.reportRef.runId), id => store.activePath(id));
+  };
+
   async function flush(id: string): Promise<void> {
     if (sending.has(id)) return;
     sending.add(id);
@@ -181,8 +186,7 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
         if (!record || teamSlackOver(record) || record.told === teamSlackKey(record)) return;
         if (record.reportRef) {
           const auth = deps.reportSession?.(record.reportRef.sessionId);
-          const target = auth && member(auth)?.person === record.person && deps.findReport?.(auth, record.reportRef.runId);
-          if (!target || target.threadId !== record.threadId || (!personal && deps.audienceOf(target.threadId) !== memberAudience(record.person))) {
+          if (!auth || !mayReturnReport(auth, record)) {
             replies.delete(id);
             messages.patch(id, { closed: true });
             return;
@@ -342,7 +346,7 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
       if (!who) return Promise.resolve(refusal(404, "not_a_member", "Not found."));
       const notYours = refusal(403, "not_yours", "That message is someone else's.");
       const known = messages.get(input.id);
-      if (known?.reportRef && (known.person !== who.person || deps.findReport?.(auth, known.reportRef.runId)?.threadId !== known.threadId)) return Promise.resolve(NO_SUCH_CONVERSATION);
+      if (known?.reportRef && !mayReturnReport(auth, known)) return Promise.resolve(NO_SUCH_CONVERSATION);
       if (known) return Promise.resolve(known.person === who.person ? { status: 202, body: { ...accepted(known) } } : notYours);
       const running = taking.get(input.id);
       if (running) return running.person === who.person ? running.answer : Promise.resolve(notYours);

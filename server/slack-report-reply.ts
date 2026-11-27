@@ -20,8 +20,8 @@ export function slackReportReply(input: TeamSlackMessage, auth: RequestAuth, per
   const runId = command?.[1] ?? (previous && previous.runId);
   if (!runId || (previous && previous.runId !== runId)) return null;
   const target = find?.(auth, runId);
-  if (!target || (input.conversationId && input.conversationId !== target.threadId) || ("id" in input.bot && input.bot.id !== target.botId)) return null;
-  return { ...target, text: command?.[2] ?? input.text, reportRef: { key, runId, sessionId: auth.session.id } };
+  if (!target || (previous && previous.messageId && previous.messageId !== target.messageId) || (input.conversationId && input.conversationId !== target.threadId) || ("id" in input.bot && input.bot.id !== target.botId)) return null;
+  return { ...target, text: command?.[2] ?? input.text, reportRef: { key, runId, messageId: target.messageId, sessionId: auth.session.id } };
 }
 
 export function slackReportLookup(runs: () => readonly import("./routines.ts").RoutineRun[], viewer: (auth: RequestAuth) => import("./bot-visibility.ts").VisibleSet): FindReport {
@@ -32,4 +32,11 @@ export function slackReportLookup(runs: () => readonly import("./routines.ts").R
     if (!run || report?.state !== "posted" || !visible.thread(report.threadId) || !atLeast(visible.level(run.botId), "chat")) return undefined;
     return { botId: run.botId, threadId: report.threadId, messageId: report.messageId };
   };
+}
+
+/** Recheck the exact source line after a retry, restart, fork or deletion before sending cached text. */
+export function reportStillPosted(record: TeamSlackRecord, target: ReportThread | undefined, active: (threadId: string) => readonly { id: string }[]): boolean {
+  const source = record.reportRef;
+  return Boolean(source && target && target.botId === record.botId && target.threadId === record.threadId &&
+    (!source.messageId || source.messageId === target.messageId) && active(target.threadId).some(line => line.id === target.messageId));
 }

@@ -161,7 +161,8 @@ export function createExecutors(context: ExecutorContext): StepExecutors {
     async assignment(id, signal) {
       const answer = await context.internal("agents", `/api/internal/assignment-status?id=${encodeURIComponent(id)}`, undefined, signal);
       const row = record(answer.body.assignment) ?? answer.body;
-      return answer.ok && typeof row.status === "string" ? { status: row.status, result: typeof row.result === "string" ? row.result : "" } : null;
+      return answer.ok && typeof row.status === "string" ? { status: row.status, result: typeof row.result === "string" ? row.result : "",
+        ...(typeof row.finishedAt === "number" && Number.isFinite(row.finishedAt) ? { finishedAt: row.finishedAt } : {}) } : null;
     },
     shell: (input) => input.where === "vm" ? runOnVm(context, input) : engineHomes.active() && !context.threadId
       ? Promise.resolve({ ok: false, error: "the conversation's engine home is unavailable" })

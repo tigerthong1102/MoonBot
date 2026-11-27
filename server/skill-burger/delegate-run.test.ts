@@ -43,7 +43,7 @@ function team(roster: Array<{ id: string; name: string; title?: string }> = [{ i
     },
     assignment: async (id) => status.get(id) ?? null,
   };
-  const reply = (bot: string, result: string) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: "completed", result }); };
+  const reply = (bot: string, result: string, finishedAt?: number) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: "completed", result, finishedAt }); };
   const fail = (bot: string, outcome: string) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: outcome, result: "failed" }); };
   return { exec, sent, reply, fail };
 }
@@ -392,13 +392,26 @@ describe("worker result contracts", () => {
     if (ok) expect(result.output).toMatchObject({ replies: { Kiwi: JSON.parse(text) } });
   });
 
-  it("ignores a late result after the saved deadline", async () => {
+  it.each([
+    { finishedAt: 2100, ok: true },
+    { finishedAt: 2200, ok: true },
+    { finishedAt: 2201, ok: false },
+  ])("applies the saved deadline to completion at $finishedAt even when collection happens later", async ({ finishedAt, ok }) => {
     let clock = 1200;
     const t = team(), h = harness(t.exec);
     h.deps.now = () => clock;
     await startRun({ name: "report", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
-    clock += 1100;
-    t.reply("kiwi", JSON.stringify({ amount: 12, sources: contract.sources }));
-    expect((await h.resume("returned late")).ok).toBe(false);
+    t.reply("kiwi", JSON.stringify({ amount: 12, sources: contract.sources }), finishedAt);
+    clock = 3300;
+    expect((await h.resume("collect after the deadline")).ok).toBe(ok);
+  });
+
+  it("expires an unfinished assignment when collection reaches the deadline", async () => {
+    let clock = 1200;
+    const t = team(), h = harness(t.exec);
+    h.deps.now = () => clock;
+    await startRun({ name: "report", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    clock = 2200;
+    expect((await h.resume("collect")).ok).toBe(false);
   });
 });

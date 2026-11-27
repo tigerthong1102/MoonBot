@@ -4,7 +4,7 @@ import { teammateNames } from "../../shared/skill-burger/format.ts";
 
 type DelegateStep = Extract<WorkflowStep, { kind: "delegate" }>;
 export type Teammate = { id: string; name: string; title?: string };
-export type Settled = { status: string; result: string };
+export type Settled = { status: string; result: string; finishedAt?: number };
 
 /** Where a delegation is between pauses: who each part went to, the hand-offs out now, and the replies so far. */
 export interface DelegationState {
@@ -124,13 +124,15 @@ export async function collect(state: DelegationState, exec: DelegateExecutors, s
   const replies = { ...state.replies };
   const waiting: string[] = [];
   for (const request of state.requests) {
-    const expired = () => state.deadline !== undefined && now() >= state.deadline;
-    const got = expired() ? null : await exec.assignment(request.requestId, signal);
-    if (expired()) { replies[request.part] = { name: request.name, ok: false, text: "The worker result deadline passed.", round: state.round }; continue; }
-    if (!got || !SETTLED.has(got.status)) { waiting.push(request.name); continue; }
+    const got = await exec.assignment(request.requestId, signal);
+    const settled = got !== null && SETTLED.has(got.status);
+    const deadline = state.deadline;
+    const late = deadline !== undefined && (settled ? got.finishedAt !== undefined && got.finishedAt > deadline : now() >= deadline);
+    if (late) { replies[request.part] = { name: request.name, ok: false, text: "The worker result deadline passed.", round: state.round }; continue; }
+    if (!settled) { waiting.push(request.name); continue; }
     if ((got.status === "completed" || got.status === "done") && request.resultContract) {
       let data: unknown;
-      if (got.result.length <= REPLY_MAX * 4) { try { data = JSON.parse(got.result); } catch { /* Malformed JSON fails its contract below. */ } }
+      if (got.result.length <= REPLY_MAX * 4) { try { data = JSON.parse(got.result); } catch { data = undefined; } }
       const issue = resultContractError(request.resultContract, data);
       replies[request.part] = { name: request.name, ok: !issue, text: issue ?? got.result, round: state.round, ...(issue ? {} : { data }) };
       continue;

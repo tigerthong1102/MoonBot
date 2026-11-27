@@ -1,4 +1,5 @@
 import { importOpenClaw } from "./team-import-local.ts";
+import { reviewCommand } from "../dev-workspace/review.ts";
 import { HEADLESS_USAGE } from "../cli-usage.ts";
 import { EXIT, HeadlessError, MUTATING_VERBS, parseCommand } from "./args.ts";
 import { explain, loadMcp, openClient, type ClientDeps, type HeadlessClient } from "./client.ts";
@@ -86,6 +87,8 @@ openmausbot doctor --host [--data-dir DIR] [--port 8799] [--domain HOST]
   Then use it: --url URL --token-file FILE (or OPENMAUSBOT_URL and OPENMAUSBOT_TOKEN).`,
   "mcp-catalog": "openmausbot mcp-catalog [--bot ID] [--json]\n  Inspect the server catalog through the active workspace connection.",
   "team import-openclaw": "openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY [--skills]\n  Preview an OpenClaw bot as a StartupBot team file.",
+  dev: "openmausbot dev review --help\n  Review a local developer workspace.",
+  "dev review": "openmausbot dev review --repo DIR --base REF --out REVIEW.html [--github OWNER/REPO --pr NUMBER]",
   mcp: "openmausbot mcp\n  Serve the StartupBot MCP tools on stdin and stdout, for an agent (docs/mcp-server.md).",
   token: "openmausbot token create NAME --out FILE … | token list | token revoke ID   (see help token create)",
   "token create": `openmausbot token create NAME --out FILE [--scope client|admin] [--expires 90d] [--force]
@@ -117,6 +120,7 @@ const VERBS: Record<string, (ctx: VerbContext) => Promise<VerbOutcome>> = {
     return { result: { servers }, exitCode: EXIT.done, human: servers.length ? servers.map(server => String(server.name)) : ["No MCP servers."] };
   },
   "team import-openclaw": importOpenClaw,
+  "dev review": reviewCommand,
   doctor, bots: list, channels: list, models: list, messages, send, "send-channel": send, run: runVerb, wait: waitVerb,
   interrupt, "new-bot": newBot, "new-channel": newChannel, "set-model": setModel, edit, export: exportVerb, events: eventsVerb,
   "team apply": teamApplyVerb, "team export": teamExportVerb, "engine set": engineVerb, "engine list": engineVerb, connect: connectVerb,

@@ -521,3 +521,12 @@ StartupBot thread's recorded engine cursor. The source must be in the active
 Codex home's sessions directory. Both actions start a separate conversation.
 
 Use `openmausbot terminal start NAME cursor` to run the installed Cursor CLI in a persistent terminal. `openmausbot terminal models cursor` prints model IDs from that installation.
+
+### Review a coding task
+
+`openmausbot dev review --repo DIR --base main --out review.html` opens a
+review snapshot as a local HTML file. Click a diff line to write or remove a
+note, then export the notes with both commits, the file and left/right line.
+Pass `--github OWNER/REPO --pr NUMBER` to include live checks, discussions
+and resolved/outdated thread status. This requires GitHub CLI access and the
+PR's exact head in the selected checkout. The command creates a new file.

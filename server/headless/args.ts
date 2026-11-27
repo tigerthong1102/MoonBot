@@ -108,6 +108,7 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
     positionals: 1,
   },
   "mcp-catalog": { options: { bot: { type: "string" } }, positionals: 0 },
+  "dev review": { options: { repo: { type: "string" }, base: { type: "string" }, out: { type: "string" }, github: { type: "string" }, pr: { type: "string" } }, positionals: 0 },
   mcp: { options: {}, positionals: 0 },
   "token create": { options: { out: { type: "string" }, scope: { type: "string" }, expires: { type: "string" }, force: { type: "boolean" } }, positionals: 1 },
   "token list": { options: {}, positionals: 0 },
@@ -129,7 +130,7 @@ export interface ParsedCommand {
   positionals: string[];
 }
 
-const SUBCOMMANDS = new Map([["team", ["apply", "export", "import-openclaw"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]]]);
+const SUBCOMMANDS = new Map([["team", ["apply", "export", "import-openclaw"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]], ["dev", ["review"]]]);
 
 /** Strict: an unknown flag or a missing value is a usage error (exit 2). */
 export function parseCommand(argv: readonly string[]): ParsedCommand {

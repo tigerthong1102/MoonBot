@@ -604,3 +604,13 @@ untracked changes block staging; ignored files and machine-specific Git settings
 are excluded. `wsl-undo --distro NAME --folder /new/folder --receipt UUID` moves
 the unchanged staged checkout to a recoverable sibling directory. It refuses a
 changed destination. Git and GNU coreutils are required in the chosen distribution.
+
+For Linux task containers, repeat `--allow-host raw.githubusercontent.com` on
+`dev sandbox start` to permit HTTPS reads from exact domains. This uses the
+local `node:24.22.2-bookworm` image for a separate broker. In the task, run
+`curl --unix-socket /run/egress/fetch.sock -G http://localhost/fetch --data-urlencode url=https://raw.githubusercontent.com/OWNER/REPO/COMMIT/FILE`.
+Only GET requests to public IPv4 addresses over port 443 are supported. The
+broker checks TLS, refuses redirects and caps each response at 8 MiB.
+`dev sandbox egress-log --id ID` shows recent hosts and status codes.
+`dev sandbox revoke --id ID` disconnects the broker, including its active
+requests. Local files remain available in the task until stop or expiry.

@@ -44,7 +44,6 @@ export function similarLearnedSkills(botId: string, name: string): string[] {
   });
 }
 
-/** An explicit choice keeps one reviewed body and archives the redundant one intact for rollback. */
 export function consolidateLearnedSkill(botId: string, redundant: string, revision: string, keep: string, keepRevision: string, referenced: boolean) {
   const target = listSkills(botId).find(skill => skill.name === keep && skill.enabled && skill.reviewedRevision === keepRevision);
   if (!target || revision.split(":")[1] !== keepRevision.split(":")[1] || !similarLearnedSkills(botId, redundant).includes(keep)) {

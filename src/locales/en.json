@@ -11732,5 +11732,9 @@
   "simulator.local.capture": "Capture screen",
   "simulator.local.empty": "Open an iOS Simulator in Xcode, then refresh.",
   "simulator.local.error": "Could not read the selected simulator. Check Xcode and refresh the device list.",
-  "simulator.local.save": "Save PNG"
+  "simulator.local.save": "Save PNG",
+  "review.notes.import": "Add exported code review notes to the chat draft",
+  "review.notes.added": "Review notes added to the draft.",
+  "review.notes.invalid": "Choose a Markdown file exported from the StartupBot code review.",
+  "computer.files.turnEvidence": "View the turn that recorded this file change"
 }

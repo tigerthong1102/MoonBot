@@ -52,6 +52,9 @@ CFG
   done
   "${cli[@]}" host status --host fixture --config "$fixture/ssh_config" --folder "$repo" --json > "$fixture/result" || { cat "$fixture/sshd.log"; exit 1; }
   node -e 'const fs=require("fs");if(JSON.parse(fs.readFileSync(process.argv[1])).head!==fs.readFileSync(process.argv[2],"utf8").trim())process.exit(1)' "$fixture/result" "$fixture/head"
+  "${cli[@]}" host tree --host fixture --config "$fixture/ssh_config" --folder "$repo" --json > "$fixture/tree"
+  "${cli[@]}" host read --host fixture --config "$fixture/ssh_config" --folder "$repo" --file deliverable.txt --json > "$fixture/file"
+  node -e 'const fs=require("node:fs"),tree=JSON.parse(fs.readFileSync(process.argv[1])),file=JSON.parse(fs.readFileSync(process.argv[2]));if(!tree.files.includes(file.file)||tree.head!==file.head||file.text!=="committed in fixture\n")process.exit(1)' "$fixture/tree" "$fixture/file"
   local_port=$(node -e 'const s=require("net").createServer().listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')
   "${cli[@]}" host forward --host fixture --config "$fixture/ssh_config" --local "$local_port" --port "$ssh_port" --connect > "$fixture/forward" 2>&1 &
   forward_pid=$!

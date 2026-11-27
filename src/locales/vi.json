@@ -11732,5 +11732,9 @@
   "simulator.local.capture": "Chụp màn hình",
   "simulator.local.empty": "Hãy mở trình giả lập iOS trong Xcode rồi làm mới.",
   "simulator.local.error": "Không đọc được trình giả lập. Hãy kiểm tra Xcode rồi làm mới danh sách thiết bị.",
-  "simulator.local.save": "Lưu PNG"
+  "simulator.local.save": "Lưu PNG",
+  "review.notes.import": "Thêm ghi chú review mã vào bản nháp chat",
+  "review.notes.added": "Đã thêm ghi chú review vào bản nháp.",
+  "review.notes.invalid": "Hãy chọn tệp Markdown xuất từ màn hình review mã của StartupBot.",
+  "computer.files.turnEvidence": "Xem lượt bot ghi nhận thay đổi tệp"
 }

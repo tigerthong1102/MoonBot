@@ -48,12 +48,30 @@ export async function hostCommand(ctx: VerbContext) {
     }
   } else {
     const { host, prefix } = sshArgs(ctx.flags.host, ctx.flags.config);
-    if (action === "status") {
+    if (action === "status" || action === "tree" || action === "read") {
       const folder = String(ctx.flags.folder || "");
       if (!posix.isAbsolute(folder) || /[\r\n\0]/.test(folder)) throw new Error("Choose an absolute remote repository path.");
-      const git = "git -C " + shellQuote(folder);
-      result = { host, folder, head: execute("ssh", [...prefix, host, git + " rev-parse HEAD"]).trim(),
-        changes: execute("ssh", [...prefix, host, git + " status --porcelain=v1 -z"]).split("\0").filter(Boolean) };
+      const git = (args: string[]) => execute("ssh", [...prefix, host,
+        ["git", "--literal-pathspecs", "-C", folder, ...args].map(shellQuote).join(" ")]);
+      const head = git(["rev-parse", "--verify", "HEAD^{commit}"]).trim();
+      if (!/^[a-f0-9]{40,64}$/.test(head)) throw new Error("The remote repository returned an invalid revision.");
+      if (action === "status") {
+        const changes = git(["status", "--porcelain=v1", "-z"]).split("\0").filter(Boolean);
+        if (git(["rev-parse", "HEAD"]).trim() !== head) throw new Error("The remote checkout changed while reading status.");
+        result = { host, folder, head, changes };
+      } else if (action === "tree") {
+        result = { host, folder, head, files: git(["ls-tree", "-r", "--name-only", "-z", head]).split("\0").filter(Boolean) };
+      } else {
+        const file = String(ctx.flags.file || "");
+        if (!file || posix.isAbsolute(file) || file.split("/").some(bit => !bit || bit === "." || bit === "..") || file.includes("\0")) throw new Error("Choose a file from the remote Git tree.");
+        const record = git(["ls-tree", "-z", head, "--", file]);
+        const entry = /^(100644|100755) blob ([0-9a-f]{40,64})\t([^\0]+)\0$/s.exec(record);
+        if (!entry || entry[3] !== file) throw new Error("Choose an ordinary committed file.");
+        if (Number(git(["cat-file", "-s", entry[2]!])) > 256 * 1024) throw new Error("Remote previews support up to 256 KiB.");
+        const text = git(["cat-file", "blob", entry[2]!]);
+        if (text.includes("\0")) throw new Error("Choose a text file.");
+        result = { host, folder, head, file, blob: entry[2], text };
+      }
     } else if (action === "forward") {
       const local = port(ctx.flags.local), remote = port(ctx.flags.port);
       const args = [...prefix, "-o", "ExitOnForwardFailure=yes", "-N", "-T", "-L", "127.0.0.1:" + local + ":127.0.0.1:" + remote, host];
@@ -71,7 +89,7 @@ export async function hostCommand(ctx: VerbContext) {
         } finally { for (const signal of signals) process.removeListener(signal, stop); }
         result = { host, local, remote, connected: false, closed: true };
       }
-    } else throw new Error("Choose status, forward, wsl-list or wsl-status.");
+    } else throw new Error("Choose status, tree, read, forward, wsl-list or wsl-status.");
   }
   return { result, exitCode: EXIT.done, human: [JSON.stringify(result, null, 2)] };
 }

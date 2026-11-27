@@ -583,3 +583,9 @@ branch. After CI on an open PR, the workflow checks the current head and run
 attempt, then saves the draft as a seven-day workflow artifact. Ambiguous or
 superseded PRs do not receive a draft. The workflow uses read-only repository
 permissions and checks out its own trusted default-branch revision.
+
+From **Computer → Files**, import the Markdown exported by a code review into the selected conversation draft. The exact base, head, paths, sides and line numbers stay visible before sending. A recent file with a recorded bot turn links back to that turn. The recorded change applies to the file, while `dev source` reads line authorship from Git.
+
+For a paired development machine using SSH, `dev host tree --host ALIAS --folder /repo` lists committed paths. `dev host read --host ALIAS --folder /repo --file PATH` reads an ordinary text file at the captured revision and returns its Git blob ID.
+
+`dev issues --github OWNER/REPO --out board.html` saves an offline view with links to the first 100 open issues. For GitLab.com use `--tracker gitlab --scope GROUP/PROJECT` (optional `GITLAB_TOKEN`). For Linear, use `--tracker linear --scope TEAM_KEY` and `LINEAR_API_KEY`. For Jira Cloud, use `--tracker jira --scope PROJECT_KEY --site TENANT.atlassian.net`, with `JIRA_EMAIL` and `JIRA_API_TOKEN`. Each reads the selected account in the CLI environment and writes a new board only if `--out` is supplied.

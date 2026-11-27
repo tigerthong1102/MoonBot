@@ -7,15 +7,16 @@ import { AttachedFileChip, type MessageAttachmentContext } from "./AttachmentPre
 import { prependComposerDraft } from "@/lib/drafts";
 import { shortPath } from "@/lib/short-path";
 import { t } from "@/lib/i18n";
+import { ImportReviewNotes } from "./ImportReviewNotes";
 import { LocalSimulatorPane } from "./LocalSimulatorPane";
 import { LocalTerminalPane } from "./LocalTerminalPane";
 import { openBotSettings } from "./bot-panel/panel-link";
 
 const MAX_FILES = 20;
 
-export function recentChangedFiles(bot: Bot, limit = MAX_FILES): string[] {
+function recentChanges(bot: Bot, limit: number) {
   const seen = new Set<string>();
-  const files: string[] = [];
+  const files: { path: string; messageId: string; turn?: string }[] = [];
   const messages = visibleMessages(bot);
   for (let index = messages.length - 1; index >= 0 && files.length < limit; index -= 1) {
     const digestFiles = messages[index]!.digest?.files;
@@ -24,12 +25,14 @@ export function recentChangedFiles(bot: Bot, limit = MAX_FILES): string[] {
     for (const path of [...digestFiles.added, ...digestFiles.changed]) {
       if (seen.has(path)) continue;
       seen.add(path);
-      files.push(path);
+      files.push({ path, messageId: messages[index]!.id, turn: messages[index]!.digest?.turnId });
       if (files.length >= limit) break;
     }
   }
   return files;
 }
+
+export function recentChangedFiles(bot: Bot, limit = MAX_FILES) { return recentChanges(bot, limit).map(change => change.path); }
 
 interface SharedFile {
   file: GalleryFile;
@@ -88,8 +91,10 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
   const task = bot.tasks?.find((candidate) => candidate.threadId === bot.threadId);
   const pinned = task?.cwd;
   const cwd = pinned === undefined ? bot.cwd : pinned;
+  const group = state?.groups?.find(candidate => candidate.id === state.selectedId);
+  const draft = group ? `group:${group.id}:${group.threadId}` : `bot:${bot.id}:${bot.threadId}`;
   const criterion = query.trim().toLocaleLowerCase();
-  const files = recentChangedFiles(bot, criterion ? Infinity : MAX_FILES).filter(path => path.toLocaleLowerCase().includes(criterion)).slice(0, MAX_FILES);
+  const files = useMemo(() => recentChanges(bot, criterion ? Infinity : MAX_FILES).filter(change => change.path.toLocaleLowerCase().includes(criterion)).slice(0, MAX_FILES), [bot, criterion]);
   const shared = useMemo(() => sharedFileReferences(bot), [bot.messages, bot.activeLeafId, bot.threadId, bot.tasks, bot.cwd]);
   return (
     <div className="flex-1 overflow-y-auto px-5 pb-5" data-testid="computer-files">
@@ -113,6 +118,7 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
         </div>
         {pinned !== undefined && <p className="mt-2 text-[12px] leading-5 text-ink-secondary">{t("computer.files.pinnedFolderHint")}</p>}
       </div>
+      <ImportReviewNotes key={draft} draft={draft} />
       {typeof window !== "undefined" && window.ogb?.platform === "darwin" && window.ogb.localSimulator && !state.config?.cloudHome && !window.ogb.remoteClient?.active && <LocalSimulatorPane key={"sim-" + bot.threadId} bridge={window.ogb.localSimulator} />}
       {typeof window !== "undefined" && window.ogb?.localTerminal && !state.config?.cloudHome && !window.ogb.remoteClient?.active && window.ogb.platform !== "win32" && <LocalTerminalPane key={bot.threadId} bridge={window.ogb.localTerminal} />}
       <div className="mt-3 rounded-xl bg-card p-4">
@@ -122,7 +128,7 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
           <p className="mt-2 text-[12px] leading-5 text-ink-secondary">{criterion ? t("computer.files.noMatches") : t("computer.files.empty", { name: bot.name })}</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-1">
-            {files.map((path) => {
+            {files.map(({ path, messageId, turn }) => {
               const { name, folder } = splitPath(path);
               const reference = shared.get(path);
               return (
@@ -143,11 +149,12 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
                     </div>
                   )}
                   {reference && <button type="button" className="px-2.5 text-xs text-accent" onClick={() => {
-                    const group = state.groups.find(candidate => candidate.id === state.selectedId);
-                    const key = group ? `group:${group.id}:${group.threadId}` : `bot:${bot.id}:${bot.threadId}`;
-                    prependComposerDraft(key, t("computer.files.reference", { path: reference.file.path }));
+                    prependComposerDraft(draft, t("computer.files.reference", { path: reference.file.path }));
                     setAdded(path);
                   }}>{t(added === path ? "computer.files.added" : "computer.files.addDraft")}</button>}
+                  {turn && <button type="button" className="px-2.5 text-xs text-accent" title={turn} onClick={() => {
+                    dispatch({ type: "focusMessage", threadId: bot.threadId, messageId });
+                  }}>{t("computer.files.turnEvidence")}</button>}
                   {folder && <div className="mt-1 truncate px-2.5 text-[11px] text-ink-tertiary">{shortPath(folder, home)}</div>}
                 </li>
               );

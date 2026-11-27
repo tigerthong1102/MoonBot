@@ -112,6 +112,9 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
   "dev issues": { options: { repo: { type: "string" }, github: { type: "string" }, project: { type: "string" } }, positionals: 0 },
   "dev stack": { options: { repo: { type: "string" }, github: { type: "string" }, pr: { type: "string" } }, positionals: 0 },
   "dev draft": { options: { repo: { type: "string" }, base: { type: "string" }, out: { type: "string" } }, positionals: 0 },
+  "dev host": { options: { host: { type: "string" }, config: { type: "string" }, folder: { type: "string" }, distro: { type: "string" }, port: { type: "string" }, local: { type: "string" }, connect: { type: "boolean" } }, positionals: 1 },
+  "dev attempt": { options: { repo: { type: "string" }, host: { type: "string" }, retry: { type: "boolean" }, attempt: { type: "string" }, exit: { type: "string" }, artifact: { type: "string" } }, positionals: 1 },
+  "dev sandbox": { options: { repo: { type: "string" }, image: { type: "string" }, minutes: { type: "string" }, id: { type: "string" } }, positionals: 1 },
   "dev review": { options: { repo: { type: "string" }, base: { type: "string" }, out: { type: "string" }, github: { type: "string" }, pr: { type: "string" } }, positionals: 0 },
   mcp: { options: {}, positionals: 0 },
   "token create": { options: { out: { type: "string" }, scope: { type: "string" }, expires: { type: "string" }, force: { type: "boolean" } }, positionals: 1 },
@@ -134,7 +137,7 @@ export interface ParsedCommand {
   positionals: string[];
 }
 
-const SUBCOMMANDS = new Map([["team", ["apply", "export", "import-openclaw"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]], ["dev", ["review", "worktree", "issues", "stack", "draft"]]]);
+const SUBCOMMANDS = new Map([["team", ["apply", "export", "import-openclaw"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]], ["dev", ["review", "worktree", "issues", "stack", "draft", "host", "sandbox", "attempt"]]]);
 
 /** Strict: an unknown flag or a missing value is a usage error (exit 2). */
 export function parseCommand(argv: readonly string[]): ParsedCommand {

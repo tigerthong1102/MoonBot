@@ -508,3 +508,11 @@ output, `openmausbot terminal list` lists sessions, and
 `openmausbot terminal stop research` ends that process. A machine restart ends
 local processes. Each OS user and StartupBot data directory has its own sessions.
 On Windows the commands run inside a Linux WSL distribution with tmux and Codex installed there.
+
+Use `terminal history FOLDER [QUERY]` to search explicitly selected, uncompressed
+Codex rollout files. It reads each header and shows the ID, branch, directory
+and file in JSON. In the original project directory, `terminal fork NAME FILE`
+opens a new Codex branch of that conversation. For a StartupBot conversation,
+`terminal fork-chat NAME FILE THREAD [INSTANCE]` also checks the selected
+StartupBot thread's recorded engine cursor. The source must be in the active
+Codex home's sessions directory. Both actions start a separate conversation.

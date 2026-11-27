@@ -3,9 +3,13 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 
+import { localFork, searchRollouts } from "./local-codex-history.ts";
 import { whichOnPath } from "./bot-box/detect.ts";
 
 const help = `terminal start NAME codex    Start Codex in a persistent local PTY in this directory.
+terminal history FOLDER [QUERY]   Search local Codex session metadata by ID, project directory or branch.
+terminal fork NAME FILE           Fork an external Codex rollout in its original working directory.
+terminal fork-chat NAME FILE THREAD [INSTANCE]   Fork a matching StartupBot chat into its own Codex terminal.
 terminal list                List sessions for this local StartupBot data directory.
 terminal attach NAME         Reconnect. Press Ctrl-B then D to leave it running.
 terminal output NAME         Read the last 2,000 lines of scrollback.
@@ -14,8 +18,10 @@ terminal stop NAME           Terminate this named session and its foreground com
 export function runPersistentCli(args: string[]): number {
   const [action, name, engine] = args;
   if (!action || action === "help" || action === "--help") { console.log(help); return 0; }
+  if (action === "history" && name && args.length <= 3) { console.log(JSON.stringify(searchRollouts(name, engine))); return 0; }
   const valid = action === "list" ? args.length === 1
     : /^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(name ?? "") && (
+      action === "fork" ? args.length === 3 : action === "fork-chat" ? (args.length === 4 || args.length === 5) && Boolean(args[3]) :
       action === "start" ? args.length === 3 && engine === "codex"
         : ["attach", "output", "stop"].includes(action) && args.length === 2);
   if (!valid) { console.error(help); return 2; }
@@ -29,10 +35,14 @@ export function runPersistentCli(args: string[]): number {
   const target = "=" + name;
   let command: string[];
   switch (action) {
+    case "fork":
+    case "fork-chat":
     case "start": {
       const codex = whichOnPath("codex");
       if (!codex) { console.error("Install the Codex CLI on this computer first."); return 1; }
-      command = ["new-session", "-d", "-s", name!, "-c", process.cwd(), "/usr/bin/env", codex];
+      const home = resolve(process.env.CODEX_HOME || resolve(homedir(), ".codex"));
+      const fork = action === "start" ? null : localFork(engine!, home, dataDir, action === "fork-chat" ? args[3] : undefined, args[4]);
+      command = ["new-session", "-d", "-s", name!, "-c", process.cwd(), "-e", "CODEX_HOME=" + home, "/usr/bin/env", codex, ...(fork ? ["fork", fork.id] : [])];
       break;
     }
     case "attach":

@@ -3,14 +3,14 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
 
-const row = z.object({
+export const pairedRow = z.object({
   id: z.string().min(1), fixtureHash: z.string().regex(/^[a-f0-9]{64}$/),
   score: z.object({ pass: z.boolean() }), done: z.boolean(), calls: z.array(z.string()),
   answerCorrect: z.boolean().nullable(), citationCorrect: z.boolean().nullable(),
   elapsedMs: z.number().nonnegative(), costUsd: z.number().nonnegative().nullable(),
 });
-export type PairedRow = z.infer<typeof row>;
-const report = z.object({ rows: z.array(row).min(1) });
+export type PairedRow = z.infer<typeof pairedRow>;
+const report = z.object({ rows: z.array(pairedRow).min(1) });
 
 export function fixtureHash(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");

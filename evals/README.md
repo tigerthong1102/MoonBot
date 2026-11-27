@@ -115,3 +115,11 @@ case ids and hashes, counts incomplete turns as failures, and reports accuracy,
 citation accuracy where a case has an oracle, p95 duration, calls, total cost
 and cost per correct result. A missing price is reported as null. The synthetic
 `vn-invoice-citation` case checks the final answer against an amount and source.
+
+Add `--checkpoint PATH.sqlite` to the tool-choice runner to resume the bundled
+synthetic corpus. Each case commits its tool names, final reply excerpt,
+scores, timing and price together. A completed case is read back on restart.
+Changing the corpus, Git revision, instance configuration or bridge mode
+requires another checkpoint. Interrupted model calls may incur cost again.
+The output report includes trajectory schema version 1 and a count of usable
+traces (finished, expected tool reached, and all applicable oracles passed).

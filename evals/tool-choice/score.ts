@@ -30,7 +30,7 @@ export function scoreCase(testCase: Pick<ToolChoiceCase, "tools">, calls: readon
 }
 
 /** Pass rate, plus what a bridge or a shorter prompt has to beat. */
-export function summarize(rows: ReadonlyArray<{ score: CaseScore; costUsd?: number | null; inputTokens?: number }>) {
+export function summarize(rows: ReadonlyArray<{ score: Pick<CaseScore, "pass" | "searched">; costUsd?: number | null; inputTokens?: number }>) {
   const passed = rows.filter((row) => row.score.pass).length;
   return {
     cases: rows.length,

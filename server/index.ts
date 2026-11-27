@@ -21,6 +21,7 @@ import { ToolResults, TOOL_RESULT_MAX_CHARS } from "./tool-results.ts";
 import { basename, join } from "node:path";
 import { authorizeExternalRuntime, externalRuntimeIsActive, type ExternalRuntimeGrant } from "./external-runtime.ts";
 import { z } from "zod";
+import { readCompactedToolOutput, summaryWithToolReferences, toolRecallEnabled } from "./compacted-tool-results.ts";
 import { selectReplay, replayToolCalls, DEFAULT_REBUILD_BYTES, MAX_SUMMARY_BYTES } from "./context-rebuild.ts";
 import { draftSummary, foldPoint } from "./compaction-summary.ts";
 import { compactBudget, compactionReading, contextWindowFor, shouldCompact } from "./context-budget.ts";
@@ -7897,7 +7898,7 @@ async function beginTurn(
       const contextOrder = context.map(m => m.id);
       const replayable = context.filter(m => !skipTranscript.has(m.id));
       const record = latestCompaction(activeMessages);
-      const selection = selectReplay(context, { budgetBytes: cfg.context?.rebuildBytes ?? DEFAULT_REBUILD_BYTES, excludedIds: skipTranscript, compaction: record, tools: replayToolCalls(activeMessages, cfg.context) });
+      const selection = selectReplay(context, { budgetBytes: cfg.context?.rebuildBytes ?? DEFAULT_REBUILD_BYTES, excludedIds: skipTranscript, compaction: record && toolRecallEnabled(cfg.context, bot.memoryEnabled) ? { ...record, summary: summaryWithToolReferences(record.summary, threadId, activeMessages, record.foldedThroughId) } : record, tools: replayToolCalls(activeMessages, cfg.context) });
       const transcript = selection.transcript.map(({ role, text }) => ({ role, text }));
       const contextReset = selection.compacted > 0 && record?.id !== task.appliedCompactionId;
       if (contextReset) store.patchTask(bot.id, threadId, { resumeCursors: {} });
@@ -13531,7 +13532,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         if (!threadId || !messageId) return json(res, 400, { error: "threadId and messageId are required" });
         const recall = recallThreads(from, internalCapability);
         const own = recall.ownThreads.includes(threadId);
-        const message = own ? readMessageText(threadId, messageId) : null;
+        const message = own ? readMessageText(threadId, messageId) ?? (threadId === fromThreadId && !store.groupByThread(threadId) && toolRecallEnabled(cfg.context, from.memoryEnabled) ? readCompactedToolOutput(threadId, messageId, sinceFreshStart(store.activePath(threadId))) : null) : null;
         if (!message) return json(res, 404, { error: "no such message in your conversations" });
         const contextTextForAgent = routedWorkMarker(store.messagesFor(threadId).find(line => line.id === messageId) ?? {}) ?? message.text;
         const readInRoom = Boolean(store.groupByThread(fromThreadId));

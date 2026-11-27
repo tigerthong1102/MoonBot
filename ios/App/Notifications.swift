@@ -21,12 +21,13 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         (try? await center.requestAuthorization(options: [.alert, .badge, .sound])) == true
     }
 
-    func deliver(_ notification: NotificationFrame, sequence: Int?, connectionID: String) {
-        center.add(Self.request(notification, sequence: sequence, connectionID: connectionID))
+    func deliver(_ notification: NotificationFrame, sequence: Int?, connectionID: String, computerName: String) {
+        center.add(Self.request(notification, sequence: sequence, connectionID: connectionID, computerName: computerName))
     }
 
-    static func request(_ notification: NotificationFrame, sequence: Int?, connectionID: String) -> UNNotificationRequest {
+    static func request(_ notification: NotificationFrame, sequence: Int?, connectionID: String, computerName: String = "") -> UNNotificationRequest {
         let content = UNMutableNotificationContent()
+        content.subtitle = String(computerName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
         content.title = notification.title
         content.body = notification.body
         content.sound = .default

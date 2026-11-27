@@ -61,12 +61,12 @@ class InMemoryOnboardingStore(initial: Boolean = false) : OnboardingStore {
 }
 
 interface NotificationSink {
-    fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String)
+    fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String, computerName: String = "")
     fun setBadge(count: Int)
 }
 
 object NoOpNotificationSink : NotificationSink {
-    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) = Unit
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String, computerName: String) = Unit
     override fun setBadge(count: Int) = Unit
 }
 

@@ -1873,6 +1873,7 @@ class SessionTest {
         runCurrent()
         assertEquals(1, notifications.delivered.size)
         assertEquals(42, notifications.delivered.single().second)
+        assertEquals("Mac", notifications.lastComputerName)
     }
 
     @Test
@@ -2103,10 +2104,12 @@ private object EagerDispatcher : CoroutineDispatcher() {
 }
 
 private class RecordingNotifications : NotificationSink {
+    var lastComputerName: String? = null
     val delivered = mutableListOf<Pair<NotificationFrame, Int?>>()
     var lastBadge = 0
         private set
-    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String, computerName: String) {
+        lastComputerName = computerName
         delivered += notification to sequence
     }
     override fun setBadge(count: Int) {

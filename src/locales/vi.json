@@ -11688,5 +11688,9 @@
   "workflow.interrupted": "Lượt chạy bị ngắt sau khi được duyệt. Hãy đối chiếu kết quả thực tế trước khi chạy lại.",
   "workflow.resume": "Tiếp tục",
   "workflow.approve": "Duyệt và tiếp tục",
-  "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\"."
+  "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\".",
+  "apps.localPanels.title": "Bảng cục bộ",
+  "apps.localPanels.open": "Mở tệp JSON cho phiên này",
+  "apps.localPanels.invalid": "Không mở được bảng. Hãy kiểm tra định dạng, kích thước tệp và giới hạn tám tiện ích.",
+  "apps.localPanels.remove": "Gỡ bảng"
 }

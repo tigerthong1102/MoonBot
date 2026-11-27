@@ -11688,5 +11688,9 @@
   "workflow.interrupted": "The run was interrupted after approval. Check the actual result before starting again.",
   "workflow.resume": "Resume",
   "workflow.approve": "Approve and resume",
-  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\"."
+  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\".",
+  "apps.localPanels.title": "Local panels",
+  "apps.localPanels.open": "Open a panel JSON file for this session",
+  "apps.localPanels.invalid": "Could not open this panel. Check its manifest, size, and the limit of eight plugins.",
+  "apps.localPanels.remove": "Remove panel"
 }

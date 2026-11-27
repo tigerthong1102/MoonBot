@@ -63,6 +63,7 @@ const recordSchema = z.object({
   at: z.number(),
   state: z.enum(["running", "waiting", "completed", "failed", "stopped"]),
   waiting: z.enum(["approval", "question"]).optional(),
+  error: z.enum(["limit", "model"]).optional(),
   /** The last state the Admin answered for; a message is over here once this is its final state. */
   told: z.string().optional(),
   /** The Admin no longer wants reports for it (already over there, or not this team's). */

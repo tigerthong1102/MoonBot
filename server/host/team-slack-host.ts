@@ -76,7 +76,7 @@ export interface TeamSlackHostDeps {
 
 export interface TeamSlackAnswer { status: number; body: Record<string, unknown> }
 
-type Phase = { state: TeamSlackState; waiting?: TeamSlackWaiting; text?: string } | "unsettled";
+type Phase = { state: TeamSlackState; waiting?: TeamSlackWaiting; text?: string; error?: "limit" | "model" } | "unsettled";
 
 const refusal = (status: number, code: string, error: string): TeamSlackAnswer => ({ status, body: { error, code } });
 const NO_SUCH_BOT = refusal(404, "no_such_bot", "No such bot.");
@@ -113,11 +113,19 @@ export function teamSlackPhase(path: readonly Message[], sendId: string, live: {
   const after = path.slice(lines.request + 1);
   const next = after.findIndex((message) => message.role === "user" && !message.steered);
   const run = next < 0 ? after : after.slice(0, next);
+  const failure = run.findLast(message => message.tool?.ok === false && message.tool.nameCode)?.tool?.nameCode;
+  const error = failure === "chat.notice.usageLimit" || failure === "chat.notice.usageLimitResets" ? "limit" as const : undefined;
   if (line.requestPending === false) {
     const reply = lines.request === lines.at ? run.findLast((message) => message.role === "bot" && message.kind === "text" && message.turnTerminal) : undefined;
-    return { state: "completed", ...(reply?.text ? { text: reply.text } : {}) };
+    if (reply?.text) return { state: "completed", text: reply.text };
+    if (lines.request !== lines.at) return { state: "completed" };
+    if (error) return { state: "failed", error };
+    const usedTool = run.some(message => message.role === "bot" && message.tool?.itemId);
+    return { state: "completed", text: usedTool
+      ? "A tool ran, but the agent left no final reply. Check the conversation before repeating the request."
+      : "The agent left no final reply. Open the conversation to check the request." };
   }
-  if (next >= 0) return { state: "failed" };
+  if (next >= 0 || (error && !live.busy)) return { state: "failed", ...(error ? { error } : {}) };
   // A question outlives the turn that asked it, so it holds this run only while that turn is still blocked on it.
   const card = run.find((message) => requestNeedsInput(message) || (live.busy && openCard(message)));
   if (card) return { state: "waiting", waiting: card.card?.requestId && !isPersistentQuestionCard(card.card) ? "approval" : "question" };
@@ -174,7 +182,7 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
         const body: TeamSlackReport = {
           id, status: record.state, conversationId: record.threadId, bot: { id: record.botId, name: record.botName }, openUrl: openUrl(record),
           ...(record.state === "waiting" ? { waiting: record.waiting ?? "question" } : {}),
-          ...(record.state === "failed" ? { error: "failed" as const } : {}),
+          ...(record.state === "failed" ? { error: record.error ?? "failed" as const } : {}),
           ...(record.state === "completed" && text ? { text: text.slice(0, TEAM_SLACK_ANSWER_MAX) } : {}),
         };
         const outcome = await report(body);
@@ -209,7 +217,7 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
     unsettledSince.delete(id);
     if (phase.state === record.state && phase.waiting === record.waiting) return;
     if (phase.state === "completed" && phase.text) replies.set(id, phase.text);
-    messages.patch(id, { state: phase.state, waiting: phase.waiting });
+    messages.patch(id, { state: phase.state, waiting: phase.waiting, error: phase.error });
     void flush(id);
   }
 

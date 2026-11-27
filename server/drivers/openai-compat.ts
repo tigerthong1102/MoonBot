@@ -210,6 +210,9 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
     // Another server on this network is only asked for Ollama's model list once it has answered Ollama's version route.
     const answersAsOllama = () => isOllamaServer(config) || isOllama(ollamaOrigin(config.url));
     if (!savedKey && ollamaCandidate && !isOllamaServer(config) && await answersAsOllama()) await probeOllama(config.url, { timeoutMs: 1_500 });
+    if (savedKey?.startsWith("sbpilot_") && (!savedKey.startsWith("sbpilot_engine_") || process.env.OMB_CLOUD_ROLE === "team" || input.environment.OMB_CLOUD_ROLE === "team")) {
+      throw new Error("Use a personal pilot engine token on a personal StartupBot host. Team members can use their own pilot wallets.");
+    }
     const apiKey = savedKey || (ollamaCandidate && isOllamaServer(config) ? OLLAMA_PLACEHOLDER_KEY : "");
     const missingKey = !ownKeyVariable || OWN_KEY_ENVS.has(config.apiKeyEnv)
       ? "No API key — open Settings → AI → Providers."
@@ -378,6 +381,7 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
       apiUrl: config.url,
       tools: config.tools,
       computerUse: true,
+      textOnly: apiKey.startsWith("sbpilot_engine_"),
       nudgeAnnouncedAction: true,
       models: () => catalog,
       refreshModels: fetchModels,

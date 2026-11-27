@@ -10,13 +10,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Probe native file access in the fixture environment
-        shell: pwsh
-        run: node scripts/probe-windows-restore.mjs
       - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24.22.2
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run --maxWorkers=1 server/workspace-backup-workflow.test.ts
+      - run: pnpm exec vitest run --maxWorkers=1 server/workspace-restore-holders.test.ts server/workspace-backup-workflow.test.ts

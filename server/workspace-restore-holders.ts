@@ -81,7 +81,8 @@ function checkLinuxFileLeases(files: readonly string[]) {
 
 const windowsProbe = `
 $ErrorActionPreference = 'Stop'
-foreach ($file in (ConvertFrom-Json $env:STARTUPBOT_RESTORE_PATHS)) {
+$paths = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd()))
+foreach ($file in $paths.Split([char]0)) {
   try { $handle = [IO.File]::Open($file, 'Open', 'Read', 'None'); $handle.Dispose() }
   catch [UnauthorizedAccessException] { exit 3 }
   catch [IO.IOException] { exit 2 }
@@ -94,10 +95,10 @@ export function assertRestoreDatabasesIdle(root: string, names: readonly string[
   if (process.platform === "win32") {
     const powershell = join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
     const probe = spawnSync(powershell, ["-NoProfile", "-NonInteractive", "-Command", windowsProbe], {
-      windowsHide: true, timeout: 10_000, env: { ...process.env, STARTUPBOT_RESTORE_PATHS: JSON.stringify(files) },
+      windowsHide: true, timeout: 10_000, input: Buffer.from(files.join("\0"), "utf8").toString("base64"),
     });
     if (probe.status === 2) throw new Error("Another process has a workspace SQLite file open. Close it before restoring.");
-    if (probe.status !== 0) throw new Error("Cannot access SQLite files for the restore preflight. Native status=" + probe.status + " error=" + ((probe.error as NodeJS.ErrnoException | undefined)?.code ?? "none") + " signal=" + (probe.signal ?? "none") + " stderr=" + probe.stderr?.toString().replaceAll(/\s+/g, " ").slice(0, 160));
+    if (probe.status !== 0) throw new Error("Cannot access SQLite files for the restore preflight.");
     return;
   }
   let holders: number[];

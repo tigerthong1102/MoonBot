@@ -29,7 +29,7 @@ vi.mock("node:fs", async importOriginal => {
 
 it.each(process.platform === "linux" ? ["normal", "denied", "hidden"] : ["normal"])("refuses the WAL writer and admits its committed data after exit (procfs: %s)", async mode => {
   procView.mode = mode;
-  const dir = mkdtempSync(join(tmpdir(), "restore db "));
+  const dir = mkdtempSync(join(tmpdir(), "Đối soát O'Brien & [Q4] $ "));
   const filename = join(dir, "runtime.db"), child = join(dir, "writer.cjs");
   writeFileSync(child, `const { DatabaseSync } = require("node:sqlite");
 const db = new DatabaseSync(process.argv[2]);

@@ -7,6 +7,7 @@ import { api, useStore, type Bot } from "@/state/store";
 import { BrowserProfilesManager } from "./BrowserProfilesManager";
 import { ChromeRow, type BrowserNav, type BrowserTab } from "./browser/ChromeRow";
 import { ExtensionsMenu, extensionsOf, type BrowserExtension } from "./browser/ExtensionsMenu";
+import { ElementEvidencePicker, type PickerHandle } from "./browser/ElementEvidencePicker";
 import { MoreMenu } from "./browser/MoreMenu";
 import { PasskeyNotice } from "./browser/PasskeyNotice";
 import { StreamSurface, type StreamSurfaceHandle, type SurfaceConnect } from "./browser/StreamSurface";
@@ -40,6 +41,8 @@ function tabsOf(value: unknown): BrowserTab[] {
  */
 export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserSignIn; page?: BrowserPage }) {
   const { state } = useStore();
+  const picker = useRef<PickerHandle>(null);
+  const [pickScope, setPickScope] = useState("");
   const [fallback, setFallback] = useState(false);
   const stream = state.config?.browserEngine?.engine === "chrome" && !fallback;
   const [attempt, setAttempt] = useState(0);
@@ -161,6 +164,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   }, []);
 
   const onMessage = useCallback((message: Readonly<Record<string, unknown>>) => {
+    if (message.type === "elementEvidence") { picker.current?.receive(message); return; }
     if (message.type === "tabs") {
       const next = tabsOf(message.tabs);
       setTabs(next);
@@ -281,6 +285,12 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   const heldElsewhere = control?.controller === "another-viewer";
   const commandsReady = connected && !heldElsewhere;
   const you = control?.controller === "you";
+  const activeTab = tabs.find(tab => tab.active)?.tabId;
+  const group = state.groups?.find(g => g.id === state.selectedId);
+  const draftId = group ? `group:${group.id}:${group.threadId}` : `bot:${bot.id}:${bot.threadId ?? ""}`;
+  const pickerScope = stream && connected && you && activeTab && !nav.loading
+    ? JSON.stringify([attempt, bot.id, bot.browserProfile, draftId, activeTab, nav.url, control.generation]) : "";
+  useEffect(() => { setPickScope(""); }, [pickerScope]);
   // A page nobody can see keeps the stream off. A viewer holding the browser keeps it: their hold pauses the bot, so
   // closing the view to save frames would hand the browser over while nobody watches.
   const shown = pageVisible || you;
@@ -334,6 +344,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
         onViewport={(next) => clientRef.current?.send({ type: "viewport", setting: next })}
         onZoom={(factor) => clientRef.current?.send({ type: "zoom", factor })}
         onPip={togglePip}
+        onInspect={pickerScope ? () => setPickScope(pickerScope) : undefined}
         onType={() => { setMasked(false); setShowTyping(true); }}
         onSecret={() => { setMasked(true); setShowTyping(true); }}
         onReconnect={reconnect}
@@ -362,6 +373,12 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
           onLeave={() => address.current?.focus()}
         />
       ) : null}
+      {pickerScope && pickScope === pickerScope && activeTab && <ElementEvidencePicker key={pickerScope} ref={picker} draftId={draftId}
+        portable={Boolean(!group && bot.defaultBot && !state.config?.team)} close={() => setPickScope("")}
+        pick={(x, y, requestId) => {
+          const point = surface.current?.pagePoint(x, y);
+          return Boolean(point && clientRef.current?.send({ type: "elementEvidence", requestId, tabId: activeTab, x: point.x, y: point.y }));
+        }} />}
       {asleep || heldElsewhere || gone || !connected || starting ? (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/95 p-6 text-center text-[13px] text-ink-secondary">
           {asleep ? <Moon size={24} /> : heldElsewhere ? <Hand size={24} /> : gone ? <Globe size={24} /> : <Loader2 size={24} className="animate-spin" />}

@@ -97,12 +97,16 @@ async function connect(url: string) {
       env: { PATH: process.env.PATH, HOME: fixture.info.dataDir, USERPROFILE: fixture.info.dataDir, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}) }, stdio: "ignore",
     });
     const portFile = join(profile, "DevToolsActivePort");
+    let endpointUrl = "";
     await expect.poll(() => {
       if (chrome!.exitCode !== null || chrome!.signalCode !== null) throw new Error("Fixture Chrome exited before startup");
-      return existsSync(portFile);
+      if (!existsSync(portFile)) return false;
+      const [port, endpoint] = readFileSync(portFile, "utf8").trim().split(/\r?\n/);
+      if (!port || !/^\d+$/.test(port) || !endpoint?.startsWith("/devtools/browser/")) return false;
+      endpointUrl = `ws://127.0.0.1:${port}${endpoint}`;
+      return true;
     }, { timeout: 30_000 }).toBe(true);
-    const [port, endpoint] = readFileSync(portFile, "utf8").trim().split("\n");
-    cdp = await connect(`ws://127.0.0.1:${port}${endpoint}`);
+    cdp = await connect(endpointUrl);
     const target = await cdp.request("Target.createTarget", { url: "about:blank" });
     const { sessionId } = await cdp.request("Target.attachToTarget", { targetId: target.targetId, flatten: true });
     const request = (method: string, params: unknown = {}) => cdp!.request(method, params, sessionId);

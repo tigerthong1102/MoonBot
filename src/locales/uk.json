@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Вибрати елемент сторінки",
+  "browser.evidence.add": "Додати до чернетки чату",
+  "browser.evidence.failed": "Не вдалося захопити цей елемент.",
   "workflow.controls": "Налаштування кроків",
   "workflow.approvalPrompt": "Запит на схвалення (необов’язково)",
   "workflow.when": "Виконати, якщо попередній результат відповідає умові",

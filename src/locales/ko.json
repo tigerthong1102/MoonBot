@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "페이지 요소 선택",
+  "browser.evidence.add": "채팅 초안에 추가",
+  "browser.evidence.failed": "이 요소를 캡처할 수 없습니다.",
   "workflow.controls": "단계 설정",
   "workflow.approvalPrompt": "승인 요청(선택 사항)",
   "workflow.when": "이전 결과가 조건에 맞을 때 실행",

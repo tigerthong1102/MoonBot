@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Selecionar um elemento da página",
+  "browser.evidence.add": "Adicionar ao rascunho da conversa",
+  "browser.evidence.failed": "Não foi possível capturar este elemento.",
   "workflow.controls": "Configurações das etapas",
   "workflow.approvalPrompt": "Pedido de aprovação (opcional)",
   "workflow.when": "Executar quando um resultado anterior corresponder",

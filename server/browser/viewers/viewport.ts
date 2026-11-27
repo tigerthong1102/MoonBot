@@ -69,3 +69,16 @@ function presetSize(setting: Extract<ViewportSetting, { mode: "preset" }>): { wi
 
 /** The CSS size a page of `size` lays out in at `zoom`, as Chrome zooms. */
 export const zoomedLayout = (size: { width: number; height: number }, zoom: number) => ({ width: Math.max(1, Math.round(size.width / zoom)), height: Math.max(1, Math.round(size.height / zoom)) });
+
+export function parseSetting(setting: Record<string, unknown> | null): ViewportSetting | null {
+  if (!setting) return null;
+  if (setting.mode === "fill") return { mode: "fill" };
+  if (setting.mode === "preset" && typeof setting.preset === "string" && setting.preset in VIEWPORT_PRESETS) {
+    return { mode: "preset", preset: setting.preset as keyof typeof VIEWPORT_PRESETS, ...(setting.landscape === true ? { landscape: true } : {}) };
+  }
+  if (setting.mode === "fixed") {
+    const size = requestedSize(setting.width, setting.height);
+    return size ? { mode: "fixed", ...size } : null;
+  }
+  return null;
+}

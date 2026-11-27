@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Sélectionner un élément de la page",
+  "browser.evidence.add": "Ajouter au brouillon du chat",
+  "browser.evidence.failed": "Impossible de capturer cet élément.",
   "workflow.controls": "Paramètres des étapes",
   "workflow.approvalPrompt": "Demande de validation (facultatif)",
   "workflow.when": "Exécuter si un résultat précédent correspond",

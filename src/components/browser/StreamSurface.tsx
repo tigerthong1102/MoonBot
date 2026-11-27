@@ -44,6 +44,7 @@ import { SelectPopup, type SelectPopupOption } from "./SelectPopup";
 export interface StreamSurfaceHandle {
   /** The canvas once it shows a frame, to seed picture in picture. */
   readonly canvas: () => HTMLCanvasElement | null;
+  readonly pagePoint: (x: number, y: number) => PagePoint | null;
   readonly focusPage: () => void;
 }
 
@@ -289,6 +290,7 @@ export function StreamSurface(props: {
   useImperativeHandle(ref, () => ({
     canvas: () => (hasFrameRef.current ? canvasRef.current : null),
     focusPage: focusInput,
+    pagePoint: (x, y) => pagePoint(x, y, false),
   }), []);
 
   useEffect(() => {

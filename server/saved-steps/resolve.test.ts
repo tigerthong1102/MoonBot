@@ -1,3 +1,4 @@
+import { windowStateOptions } from "./resolve.ts";
 import { beforeEach, describe, expect, it } from "vitest";
 import { completeWindowState, windowState } from "../testing/saved-steps-fixtures.ts";
 import type { WireElement } from "./driver-wire.ts";
@@ -46,14 +47,14 @@ function caller(windowStateAnswer: object = state(), answers: Partial<Record<Loo
 }
 
 const LOOKUPS: [string, Record<string, unknown>][] = [
-  ["list_apps", {}], ["list_windows", { pid: 4242, on_screen_only: false }], ["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false }],
+  ["list_apps", {}], ["list_windows", { pid: 4242, on_screen_only: false }], ["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false, ...windowStateOptions(process.platform, false) }],
 ];
 const tools = () => calls.map(([tool]) => tool);
 
 describe("resolveStep", () => {
   it("resolves an element step afresh, without a screenshot", async () => {
     expect(await resolveStep(CLICK_DOCUMENT, caller(), signal)).toEqual({ ok: true, args: { pid: 4242, window_id: 7, element_token: "s2-e2" } });
-    expect(calls.at(-1)).toStrictEqual(["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false }]);
+    expect(calls.at(-1)).toStrictEqual(["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false, ...windowStateOptions(process.platform, false) }]);
     expect(calls).toStrictEqual(LOOKUPS);
   });
 
@@ -360,5 +361,17 @@ describe("resolveStepSoon", () => {
     const started = Date.now();
     expect(await resolveStepSoon(CLICK_DOCUMENT, appearing(1, "list_apps", apps(NOTES_INSTALLED)), signal)).toMatchObject({ ok: true });
     expect(Date.now() - started).toBeGreaterThanOrEqual(POLL_MS - 5);
+  });
+});
+
+
+describe("platform-specific window requests", () => {
+  it("keeps existing Windows and Linux requests while asking macOS for a complete tree", () => {
+    expect(windowStateOptions("darwin", false)).toEqual({ tree_format: "elements", full_output: true, timeout_ms: 10000 });
+    expect(windowStateOptions("win32", false)).toEqual({});
+    expect(windowStateOptions("linux", false)).toEqual({});
+    for (const platform of ["darwin", "win32", "linux"] as const) {
+      expect(windowStateOptions(platform, true)).toEqual({ tree_format: "elements", timeout_ms: 30000, max_elements: 5000 });
+    }
   });
 });

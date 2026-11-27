@@ -383,7 +383,7 @@ describe("WaitManager", () => {
   });
 
   it("restores a run watcher, stops if access disappears, and notifies once at completion", async () => {
-    let state: "active" | "settled" | undefined = "active";
+    let state: "active" | "failed" | undefined = "active";
     const h = harness({ runState: (id, source) => id === "run-a" && source.threadId === "t-1" ? state : undefined });
     const condition = { kind: "run_finished" as const, runId: "run-a" };
     expect(await h.create(condition, { threadId: "other" })).toMatchObject({ state: "refused" });
@@ -391,8 +391,8 @@ describe("WaitManager", () => {
     expect(h.showCard).toHaveBeenCalledOnce();
     h.reload(); h.advance(5000); await h.manager.tick();
     expect(h.posts).toEqual([]);
-    state = "settled"; h.advance(5000); await h.manager.tick(); await h.manager.tick();
-    expect(h.posts).toMatchObject([{ status: "fired" }]);
+    state = "failed"; h.advance(5000); await h.manager.tick(); await h.manager.tick();
+    expect(h.posts).toMatchObject([{ status: "fired", runState: "failed" }]);
     state = "active"; await h.create(condition);
     state = undefined; h.advance(5000); await h.manager.tick();
     expect(h.posts.at(-1)?.status).toBe("stopped");

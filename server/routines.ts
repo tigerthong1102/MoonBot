@@ -473,9 +473,9 @@ export class RoutineManager {
     return removed;
   }
 
-  waitState(id: string, source: Pick<RoutineRun, "botId" | "threadId">): "active" | "settled" | undefined {
+  waitState(id: string, source: Pick<RoutineRun, "botId" | "threadId">): import("./waits.ts").WaitRunState | undefined {
     const run = this.runs.find(r => r.id === id && r.botId === source.botId && !!source.threadId && [r.threadId, r.sourceThreadId, r.resultsThreadId].includes(source.threadId));
-    return run && (["queued", "running", "waiting"].includes(run.status) ? "active" : "settled");
+    return run && (run.status === "queued" || run.status === "running" || run.status === "waiting" ? "active" : run.status);
   }
   isActiveThread(threadId: string): boolean {
     return this.runs.some(run => run.threadId === threadId && ["running", "waiting"].includes(run.status));

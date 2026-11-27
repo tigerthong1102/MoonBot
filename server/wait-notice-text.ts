@@ -8,6 +8,7 @@ const FIRED_KEY = {
 
 export function waitNoticeText(wait: WaitRecord, notice: WaitNotice): ServerText | undefined {
   const params = { label: wait.label };
+  if (notice.runState) return { key: `chat.notice.waitRun.${notice.runState}`, params };
   if (notice.status === "expired") {
     const hours = Math.round((wait.expiresAt - wait.createdAt) / 3_600_000);
     return { key: hours === 1 ? "chat.notice.waitExpiredOne" : "chat.notice.waitExpiredMany", params: { ...params, hours } };

@@ -6,6 +6,7 @@ import { basename, join, posix } from "node:path";
 import { Readable } from "node:stream";
 import { buffer } from "node:stream/consumers";
 import { reconciliationCsv, RECONCILIATION_CSV_MAX_BYTES } from "./reconciliation-csv.ts";
+import { DOCUMENT_BYTES, verifyReconciliationDocument } from "./reconciliation-document.ts";
 import { DATA_DIR } from "./config.ts";
 import { openInboxFile, type InboxRead } from "./host/handoff-inbox.ts";
 import {
@@ -159,12 +160,15 @@ export async function saveBotAttachment(input: SaveBotAttachmentInput): Promise<
     }
     if (!imageExtension && file.bytes > FILE_MAX_BYTES) throw statusError(413, `file exceeds ${FILE_MAX_BYTES} bytes`);
     const extension = (imageExtension ?? fileExtension)!;
-    let csv: Buffer | undefined;
+    let output: Buffer | undefined;
     if (input.reconciliation && fileExtension === ".csv") {
       const source = file.handle.createReadStream({ start: 0, end: RECONCILIATION_CSV_MAX_BYTES, autoClose: false });
-      csv = reconciliationCsv(await buffer(source)).bytes;
+      output = reconciliationCsv(await buffer(source)).bytes;
+    } else if (input.reconciliation && (fileExtension === ".xlsx" || fileExtension === ".pdf")) {
+      output = await buffer(file.handle.createReadStream({ start: 0, end: DOCUMENT_BYTES, autoClose: false }));
+      await verifyReconciliationDocument(fileExtension === ".pdf" ? "pdf" : "xlsx", output);
     }
-    const sha256 = input.byContent ? (csv ? createHash("sha256").update(csv).digest("hex") : await sha256Of(file)) : undefined;
+    const sha256 = input.byContent ? (output ? createHash("sha256").update(output).digest("hex") : await sha256Of(file)) : undefined;
     const uploadId = sha256 ? contentUploadId(sha256, extension) : undefined;
     const store = async (): Promise<SavedBotAttachment> => {
       const content = sha256 ? { sha256, fresh: !existsSync(join(ATTACHMENTS_DIR, `${uploadId}${extension}`)) } : {};
@@ -172,8 +176,8 @@ export async function saveBotAttachment(input: SaveBotAttachmentInput): Promise<
         const saved = saveImage(await file.handle.readFile(), mime, uploadId);
         return { attachment: { kind: "image", path: saved.path, mime: saved.mime, name, source: file.path }, bytes: saved.bytes, ...content };
       }
-      const saved = await saveFile(csv ? Readable.from([csv]) : file.handle.createReadStream({ start: 0, autoClose: false }), name || basename(file.name), mime, {
-        expectedBytes: csv?.length ?? file.bytes, ...(uploadId ? { uploadId } : {}),
+      const saved = await saveFile(output ? Readable.from([output]) : file.handle.createReadStream({ start: 0, autoClose: false }), name || basename(file.name), mime, {
+        expectedBytes: output?.length ?? file.bytes, ...(uploadId ? { uploadId } : {}),
       });
       return { attachment: { kind: "file", path: saved.path, mime: saved.mime, name: saved.name, source: file.path }, bytes: saved.bytes, ...content };
     };

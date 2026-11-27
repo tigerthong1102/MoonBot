@@ -207,3 +207,6 @@ Distributed under the MIT License (third_party/hermes-agent/LICENSE).
 The attachment body-mirror and card filtering in deploy/teams/bridge.py adapts
 plugins/platforms/teams/adapter.py from the Hermes Agent revision identified
 above. See public/licenses/hermes-agent.txt for the MIT notice.
+
+The reconciliation document validator bundles pdf-lib and saxes. Their licenses
+and dependency notices are included in public/licenses/reconciliation-document-parsers.txt.

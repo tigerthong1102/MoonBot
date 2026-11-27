@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const DATA_ROOT = mkdtempSync(join(tmpdir(), "omb-bot-attachment-"));
 process.env.OMB_DATA_DIR = join(DATA_ROOT, "data");
 const { attachForTurn, attachmentResponse, contentUploadId, deliveredCopy, guestWorkspaceToHost, saveBotAttachment } = await import("./bot-attachment.ts");
-const { saveReconciliationBytes } = await import("./routine-deliverables.ts");
+const { incompleteReconciliation, saveReconciliationBytes } = await import("./routine-deliverables.ts");
 const { ATTACHMENTS_DIR, deleteAttachment, FILE_MAX_BYTES, PREVIEW_MAX_BYTES } = await import("./attachments.ts");
 
 const WORK = join(DATA_ROOT, "work");
@@ -49,6 +49,20 @@ it("stores the same inert source CSV from a file or inline bytes and hashes the 
   expect(readFileSync(path)).toEqual(raw);
   const ordinary = await saveBotAttachment({ path, roots: [WORK] });
   expect(readFileSync(ordinary.attachment.path)).toEqual(raw);
+});
+
+it("rechecks a queued workbook after its bytes change and leaves ordinary workspace uploads independent", async () => {
+  const name = "reconciliation.xlsx", path = join(WORK, name);
+  const original = readFileSync(new URL("./testing/fixtures/reconciliation/reconciliation.xlsx", import.meta.url));
+  writeFileSync(path, original);
+  const saved = await saveBotAttachment({ path, roots: [WORK], reconciliation: true });
+  expect(incompleteReconciliation(ATTACHMENTS_DIR, [saved.attachment])).not.toContain(name);
+  writeFileSync(saved.attachment.path, "not a workbook");
+  expect(incompleteReconciliation(ATTACHMENTS_DIR, [saved.attachment])).toContain(name);
+  writeFileSync(path, "not a workbook");
+  await expect(saveBotAttachment({ path, roots: [WORK], reconciliation: true })).rejects.toThrow(/value-only/);
+  const ordinary = await saveBotAttachment({ path, roots: [WORK] });
+  expect(readFileSync(ordinary.attachment.path, "utf8")).toBe("not a workbook");
 });
 
 describe("guestWorkspaceToHost", () => {

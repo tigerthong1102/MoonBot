@@ -452,7 +452,15 @@ it("posts a reconciliation only with all requested artifacts and opens its scope
   expect(link.expiresAt).toBeGreaterThan(Date.now());
   const downloadedPdf = Buffer.from(await (await fetch(s.url + link.url)).arrayBuffer());
   expect(downloadedPdf.equals(pdf)).toBe(true);
-  expect(downloadedPdf.toString("latin1")).toContain("Invoice INV-1: reconciled amount 700");
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const printed = getDocument({ data: new Uint8Array(downloadedPdf), useSystemFonts: false });
+  try {
+    const document = await printed.promise;
+    const content = await (await document.getPage(1)).getTextContent();
+    const text = content.items.map(item => "str" in item ? item.str : "").join(" ");
+    expect(text).toContain("INV-1");
+    expect(text).toContain("700");
+  } finally { await printed.destroy(); }
   const artifact = async (index: number) => {
     const granted = await s.api("POST", route, { shareArtifact: true, path: line.attachments[index].path });
     return Buffer.from(await (await fetch(s.url + granted.url)).arrayBuffer());

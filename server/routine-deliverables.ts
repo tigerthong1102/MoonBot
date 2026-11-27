@@ -5,14 +5,14 @@ import { ATTACHMENTS_DIR, deleteAttachment, saveFile } from "./attachments.ts";
 import type { SavedBotAttachment } from "./bot-attachment.ts";
 import { reconciliationCsv, RECONCILIATION_CSV_MAX_BYTES } from "./reconciliation-csv.ts";
 import type { Message } from "./store.ts";
-import { zipDirectoryLocation, zipMembers } from "./zip-archive.ts";
+import { DOCUMENT_BYTES, verifiedReconciliationDocument, verifyReconciliationDocument } from "./reconciliation-document.ts";
 
 const required = {
   "report.pdf": "application/pdf",
   "reconciliation.xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "sources.csv": "text/csv",
 } as const;
-export const RECONCILIATION_DELIVERY_PROMPT = "Attach report.pdf (report), reconciliation.xlsx (working papers) and sources.csv (a table identifying the source for each result) with attach_file in the final turn. To create a file in this confined turn, use its exact name and pass its bytes as a data:<mime>;base64,<content> path (up to 256 KiB per file). The report is delivered to the routine’s selected StartupBot conversation. Keep files there for review. External delivery requires a separate request after verification.";
+export const RECONCILIATION_DELIVERY_PROMPT = "Attach report.pdf (report), reconciliation.xlsx (working papers) and sources.csv (a table identifying the source for each result) with attach_file in the final turn. Use value-only worksheet cells, numerical totals, plain source references and a static PDF without interactive actions. To create a file in this confined turn, use its exact name and pass its bytes as a data:<mime>;base64,<content> path (up to 256 KiB per file). The report is delivered to the routine’s selected StartupBot conversation. Keep files there for review. External delivery requires a separate request after verification.";
 
 export async function saveReconciliationBytes(path: string, name?: string): Promise<SavedBotAttachment> {
   const invalid = () => Object.assign(new Error("Use a required reconciliation filename and its matching base64 file contents (up to 256 KiB)."), { status: 400 });
@@ -25,6 +25,7 @@ export async function saveReconciliationBytes(path: string, name?: string): Prom
   const bytes = Buffer.from(encoded, "base64");
   if (bytes.length > 256 * 1024 || bytes.toString("base64") !== encoded) throw invalid();
   const output = artifact === "sources.csv" ? reconciliationCsv(bytes).bytes : bytes;
+  if (artifact !== "sources.csv") await verifyReconciliationDocument(artifact === "report.pdf" ? "pdf" : "xlsx", output);
   const saved = await saveFile(Readable.from([output]), name, mime, { expectedBytes: output.length });
   if (!usable(ATTACHMENTS_DIR, saved.path, artifact)) {
     deleteAttachment(saved.path);
@@ -52,13 +53,8 @@ function usable(root: string, path: string, name: keyof typeof required): boolea
       if (readSync(fd!, buffer, 0, length, offset) !== length) throw new Error("Truncated artifact");
       return buffer;
     }
-    if (name === "report.pdf") return read(0, 5).toString("ascii") === "%PDF-" && read(Math.max(0, stat.size - 1024), Math.min(stat.size, 1024)).includes("%%EOF");
     if (name === "sources.csv") return stat.size <= RECONCILIATION_CSV_MAX_BYTES && !reconciliationCsv(read(0, stat.size)).changed;
-    const start = Math.max(0, stat.size - 65557);
-    const { directoryOffset, directoryBytes, entryCount } = zipDirectoryLocation(read(start, stat.size - start), start, 2048);
-    if (directoryBytes > 1024 * 1024 || read(0, 4).readUInt32LE() !== 0x04034b50) return false;
-    const names = new Set(zipMembers(read(directoryOffset, directoryBytes), entryCount).map(entry => entry.name));
-    return names.has("[Content_Types].xml") && names.has("xl/workbook.xml") && [...names].some(entry => /^xl\/worksheets\/[^/]+\.xml$/.test(entry));
+    return stat.size <= DOCUMENT_BYTES && verifiedReconciliationDocument(name === "report.pdf" ? "pdf" : "xlsx", read(0, stat.size));
   } catch { return false; }
   finally { if (fd !== undefined) closeSync(fd); }
 }

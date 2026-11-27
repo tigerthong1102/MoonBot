@@ -11685,5 +11685,7 @@
   "knowledge.addSection": "Adicionar seção",
   "knowledge.removeSection": "Remover",
   "knowledge.sectionFailed": "Verifique se você pode gerenciar este relatório e abrir o relatório de origem no mesmo espaço de trabalho.",
-  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente."
+  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente.",
+  "today.dueDate": "Prazo",
+  "today.criteria": "Critérios de conclusão"
 }

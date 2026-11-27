@@ -730,7 +730,7 @@ class Session(
                             else -> {
                                 _state.update { it.apply(frame) }
                                 if (payload is Frame.Notify) {
-                                    notificationSink.deliver(payload.notification, frame.seq, activeClient.connection.id)
+                                    notificationSink.deliver(payload.notification, frame.seq, activeClient.connection.id, activeClient.connection.name)
                                 }
                                 notificationSink.setBadge(_state.value.unreadCount)
                                 _state.update { it.advance(frame.seq) }

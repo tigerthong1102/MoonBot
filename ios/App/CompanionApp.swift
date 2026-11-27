@@ -121,6 +121,15 @@ struct RootView: View {
         .onChange(of: notificationOnboardingPending) { _, isPending in
             if isPending { reconcileNotificationOnboarding() }
         }
+        .alert("Open on another computer?", isPresented: Binding(
+            get: { session.notificationComputer != nil },
+            set: { if !$0 { session.notificationComputer = nil } }
+        ), presenting: session.notificationComputer) { target in
+            if let id = target.connectionID, let computer = session.connections.first(where: { $0.id == id }) {
+                Button(computer.name) { Task { await session.confirmNotificationComputer(target) } }
+            }
+            Button("Cancel", role: .cancel) { }
+        }
         .alert(
             "Something went wrong",
             isPresented: Binding(

@@ -165,5 +165,5 @@ The browser document index uses @noble/hashes for SHA-256 where Web Crypto is
 unavailable. Copyright (c) 2022 Paul Miller. Its MIT license is distributed in
 public/licenses/noble-hashes.txt.
 
-Browser element selector helpers from stablyai/orca, copyright (c) 2026 Lovecast Inc.,
+Browser element selector and account reset countdown helpers from stablyai/orca, copyright (c) 2026 Lovecast Inc.,
 used under the MIT License. See public/licenses/orca.txt.

@@ -13,7 +13,7 @@ import { PlanUsage } from "./PlanUsage";
 describe("Plan usage presentation", () => {
   it("distinguishes remaining account allowance, per-model usage, and unavailable windows", () => {
     fixture.report = {
-      fetchedAt: "2026-10-02T09:00:00Z",
+      fetchedAt: "2026-10-02T09:00:00Z", computerName: "Studio Mac",
       providers: [{
         id: "fixture", name: "Fixture provider", driver: "claude", plan: "Pro", ok: true, error: null,
         fiveHour: { available: true, remainingPercent: 68, usedPercent: 32, resetsAt: null },
@@ -22,6 +22,8 @@ describe("Plan usage presentation", () => {
       }],
     };
     const html = renderToStaticMarkup(createElement(PlanUsage));
+    expect(html).toContain("Studio Mac");
+    expect(html).toContain('dateTime="2026-10-02T09:00:00Z"');
     expect(html).toContain("68% left");
     expect(html).toContain("70% used");
     expect(html).toContain("Not reported by this plan");

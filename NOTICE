@@ -176,3 +176,7 @@ copyright (c) 2026 Lovecast Inc. See public/licenses/orca.txt.
 
 The local iOS Simulator inventory parser derives from stablyai/orca,
 copyright (c) 2026 Lovecast Inc., under the MIT license in public/licenses/orca.txt.
+
+Selective JSON member extraction for Claude session headers and the Linear
+open-issue filter are adapted from stablyai/orca, copyright (c) 2026 Lovecast Inc.
+See public/licenses/orca.txt.

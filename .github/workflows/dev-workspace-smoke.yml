@@ -57,5 +57,28 @@ jobs:
             'No runnable WSL distribution on this runner.' >> $env:GITHUB_STEP_SUMMARY
             exit 0
           }
-          node --experimental-strip-types server/openmausbot.ts dev host wsl-list --json
-          exit $LASTEXITCODE
+          $inventory = node --experimental-strip-types server/openmausbot.ts dev host wsl-list --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!$inventory.distros) { 'No user distribution after filtering.' >> $env:GITHUB_STEP_SUMMARY; exit 0 }
+          $distro = @($inventory.distros)[0]
+          wsl.exe --distribution $distro --exec git --version
+          if ($LASTEXITCODE -ne 0) { 'No Git in selected distribution.' >> $env:GITHUB_STEP_SUMMARY; exit 0 }
+          $root = (wsl.exe --distribution $distro --exec mktemp -d /tmp/startupbot-qa-XXXXXXXX).Trim()
+          if ($LASTEXITCODE -ne 0 -or $root -notmatch '^/tmp/startupbot-qa-[a-zA-Z0-9]+$') { throw 'Invalid isolated WSL fixture.' }
+          try {
+            $repo = Join-Path $env:RUNNER_TEMP ('wsl-source-' + [guid]::NewGuid().ToString())
+            git init --quiet $repo
+            'fixture' | Set-Content (Join-Path $repo 'proof.txt')
+            git -C $repo add proof.txt
+            git -C $repo -c user.name=Fixture -c user.email=f@example.invalid commit -qm seed
+            $dest = "$root/staged"
+            $receipt = node --experimental-strip-types server/openmausbot.ts dev host wsl-stage --repo $repo --distro $distro --folder $dest --json | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or !$receipt.receipt) { throw 'WSL transfer failed.' }
+            $proof = wsl.exe --distribution $distro --exec cat "$dest/proof.txt"
+            if ($LASTEXITCODE -ne 0 -or $proof.Trim() -ne 'fixture') { throw 'WSL readback failed.' }
+            node --experimental-strip-types server/openmausbot.ts dev host wsl-undo --distro $distro --folder $dest --receipt $receipt.receipt --json
+            if ($LASTEXITCODE -ne 0) { throw 'WSL undo failed.' }
+            'Native WSL transfer, content readback and undo passed.' >> $env:GITHUB_STEP_SUMMARY
+          } finally {
+            wsl.exe --distribution $distro --exec rm -rf -- $root
+          }

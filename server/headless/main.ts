@@ -98,7 +98,7 @@ openmausbot doctor --host [--data-dir DIR] [--port 8799] [--domain HOST]
   "dev stack": "openmausbot dev stack --github OWNER/REPO --pr NUMBER",
   "dev draft": "openmausbot dev draft --repo DIR --base REF --out NEW_FILE",
   dev: "openmausbot dev review --help\n  Review a local developer workspace.",
-  "dev host": "openmausbot dev host status|tree|read|forward|wsl-list|wsl-status --help",
+  "dev host": "openmausbot dev host status|tree|read|forward|wsl-list|wsl-status|wsl-preview|wsl-stage|wsl-undo --help",
   "dev attempt": "openmausbot dev attempt start|show|finish --repo DIR --host HOST [--retry --attempt N --exit CODE --artifact FILE]",
   "dev sandbox": "openmausbot dev sandbox list|start|stop --repo DIR [--image IMAGE --minutes N --id CONTAINER]",
   "dev source": "openmausbot dev source --repo DIR --file PATH --line N [--editor code|cursor|zed --launch]",

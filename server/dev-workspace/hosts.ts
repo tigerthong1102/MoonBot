@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { resolve, posix } from "node:path";
 import type { VerbContext } from "../headless/context.ts";
 import { EXIT } from "../headless/args.ts";
+import { wslCheckout } from "./wsl-checkout.ts";
 import { shellQuote } from "../browser/chrome/wrapper.ts";
 
 // Copied from stablyai/orca src/main/wsl/discovery/wsl-distro-list-output.ts.
@@ -35,7 +36,7 @@ function execute(program: string, args: string[], encoding: BufferEncoding = "ut
 export async function hostCommand(ctx: VerbContext) {
   const [action] = ctx.positionals;
   let result;
-  if (action === "wsl-list" || action === "wsl-status") {
+  if (action?.startsWith("wsl-")) {
     if (process.platform !== "win32") throw new Error("WSL discovery must run on the Windows host.");
     const distros = filterUserWslDistros(parseWslDistros(execute("wsl.exe", ["--list", "--quiet"], "utf16le")));
     if (action === "wsl-list") result = { distros };
@@ -44,7 +45,9 @@ export async function hostCommand(ctx: VerbContext) {
       if (!distros.includes(distro)) throw new Error("Select a distribution listed on this computer.");
       const cwd = String(ctx.flags.folder || "");
       if (!posix.isAbsolute(cwd)) throw new Error("Choose an absolute path inside the distribution.");
-      result = { distro, cwd, head: execute("wsl.exe", ["--distribution", distro, "--exec", "git", "-C", cwd, "rev-parse", "HEAD"]).trim() };
+      const inside = (args: string[]) => execute("wsl.exe", ["--distribution", distro, "--exec", ...args]);
+      result = action === "wsl-status" ? { distro, cwd, head: inside(["git", "-C", cwd, "rev-parse", "HEAD"]).trim() } :
+        { distro, ...wslCheckout(action, resolve(String(ctx.flags.repo || ".")), cwd, String(ctx.flags.receipt || ""), inside) };
     }
   } else {
     const { host, prefix } = sshArgs(ctx.flags.host, ctx.flags.config);

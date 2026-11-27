@@ -5,7 +5,7 @@ import { basename, isAbsolute, join, relative, sep } from "node:path";
 
 const ROLLOUT_READ_LIMIT = 64 * 1024;
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
-interface Rollout { id: string; cwd: string; branch: string; file: string }
+export interface Rollout { id: string; cwd: string; branch: string; file: string }
 
 export function readRollout(file: string): Rollout | null {
   if (!/^rollout-.*\.jsonl$/.test(basename(file))) return null;
@@ -29,7 +29,7 @@ export function readRollout(file: string): Rollout | null {
 }
 
 /** Scan only the chosen directory and ordinary children; keep no index or prompt bodies. */
-export function searchRollouts(directory: string, query = "") {
+export function searchRollouts(directory: string, query = "", read = readRollout) {
   const pending = [realpathSync(directory)];
   const byId = new Map<string, Rollout>();
   const needle = query.toLowerCase();
@@ -45,7 +45,7 @@ export function searchRollouts(directory: string, query = "") {
       const file = join(folder, entry.name);
       if (entry.isDirectory()) { pending.push(file); continue; }
       if (!entry.isFile()) continue;
-      const row = readRollout(file);
+      const row = read(file);
       if (row) {
         const previous = byId.get(row.id);
         // Native rollout names sort by their timestamp, including rewound copies of the same conversation.

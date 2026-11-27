@@ -589,3 +589,18 @@ From **Computer → Files**, import the Markdown exported by a code review into 
 For a paired development machine using SSH, `dev host tree --host ALIAS --folder /repo` lists committed paths. `dev host read --host ALIAS --folder /repo --file PATH` reads an ordinary text file at the captured revision and returns its Git blob ID.
 
 `dev issues --github OWNER/REPO --out board.html` saves an offline view with links to the first 100 open issues. For GitLab.com use `--tracker gitlab --scope GROUP/PROJECT` (optional `GITLAB_TOKEN`). For Linear, use `--tracker linear --scope TEAM_KEY` and `LINEAR_API_KEY`. For Jira Cloud, use `--tracker jira --scope PROJECT_KEY --site TENANT.atlassian.net`, with `JIRA_EMAIL` and `JIRA_API_TOKEN`. Each reads the selected account in the CLI environment and writes a new board only if `--out` is supplied.
+
+For Claude Code, `terminal start NAME claude` opens the installed CLI. Use
+`terminal history-claude FOLDER [QUERY]` to list selected primary JSONL
+metadata. From the recorded directory, `terminal fork-claude NAME FILE` uses
+Claude's native `--resume ID --fork-session`, scoped to the active
+`CLAUDE_CONFIG_DIR/projects`. Prompt text is excluded from search results.
+
+On Windows, `dev host wsl-preview --distro NAME --repo LOCAL_REPO --folder /new/folder`
+reports the source HEAD, tracked file count, working-tree changes and destination
+state. `wsl-stage` copies committed history into a new detached checkout and
+returns a receipt. It leaves the original repository in place. Uncommitted or
+untracked changes block staging; ignored files and machine-specific Git settings
+are excluded. `wsl-undo --distro NAME --folder /new/folder --receipt UUID` moves
+the unchanged staged checkout to a recoverable sibling directory. It refuses a
+changed destination. Git and GNU coreutils are required in the chosen distribution.

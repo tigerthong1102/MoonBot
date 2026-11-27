@@ -21,13 +21,13 @@ export async function localTerminalPane(dataDir, action, target, input, run = in
   const socket = "startupbot-" + createHash("sha256").update(resolve(dataDir)).digest("hex").slice(0, 24);
   const cmd = (args, value) => run(["-f", "/dev/null", "-L", socket, ...args], value);
   let inventory;
-  try { inventory = await cmd(["list-panes", "-a", "-F", "#{pid}/#{session_created}/#{pane_id}\t#{session_name}"]); }
+  try { inventory = await cmd(["list-panes", "-a", "-F", "#{pid}/#{session_created}/#{pane_id}:#{session_name}"]); }
   catch (err) {
     if (action === "list" && (err.code === "ENOENT" || /no server running|No such file or directory/.test(err.stderr || ""))) return [];
     throw err;
   }
   const panes = inventory.trim().split("\n").flatMap(line => {
-    const [id, name] = line.split("\t");
+    const [id, name] = line.split(":");
     return /^\d+\/\d+\/%\d+$/.test(id) && /^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/.test(name ?? "") ? [{ id, name }] : [];
   });
   if (action === "list") return panes;

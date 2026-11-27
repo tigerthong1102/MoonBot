@@ -72,6 +72,11 @@ async function draft() {
   return newPage(owner, evidence!);
 }
 it("requires an explicit review, leaves no record on cancel, and reopens a source-backed page", async () => {
+  vi.mocked(currentLibrary).mockImplementation(async (key, options) => {
+    window.dispatchEvent(new CustomEvent("startupbot-document-sync", { detail: { key, signal: options?.signal } }));
+    return index();
+  });
+  const download = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -94,6 +99,8 @@ it("requires an explicit review, leaves no record on cancel, and reopens a sourc
     await open("new session");
     expect(host.querySelector("article")?.textContent).toContain("15/12");
     expect(host.querySelector("article summary")?.textContent).toContain(path);
+    await click(t("brain.export"));
+    expect(download).toHaveBeenCalledOnce();
     vi.mocked(api).mockRejectedValue(Error("forbidden"));
     await act(async () => {
       window.dispatchEvent(new Event("focus"));

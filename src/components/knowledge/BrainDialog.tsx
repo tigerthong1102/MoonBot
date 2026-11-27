@@ -15,6 +15,7 @@ import {
   type BrainSelection,
   type VerifiedPage,
 } from "./brain";
+import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { Select } from "../Select";
 import { SourceCitation } from "./SourceCitation";
 import { useStore } from "@/state/store";
@@ -23,6 +24,8 @@ import { closeConversationDialog as close } from "../conversation-share/conversa
 const field = "my-1 block w-full rounded-lg border border-hairline bg-inset p-2 text-ink";
 
 export default function BrainDialog({ threadId, selection }: { threadId: string; selection?: BrainSelection }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useModalDialog(panel, close);
   const { state, dispatch } = useStore();
   const [pages, setPages] = useState<VerifiedPage[]>([]);
   const [draft, setDraft] = useState<VerifiedPage | null>(null);
@@ -86,6 +89,9 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
     const sync = () => {
       if (!reading) void read();
     };
+    const documentSync = (event: Event) => {
+      if ((event as CustomEvent).detail?.signal !== view.current?.signal) sync();
+    };
     const unavailable = () => {
       hide();
       setDraft(null);
@@ -97,7 +103,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
     );
     const timer = window.setInterval(sync, 60000);
     window.addEventListener("focus", sync);
-    window.addEventListener("startupbot-document-sync", sync);
+    window.addEventListener("startupbot-document-sync", documentSync);
     document.addEventListener("visibilitychange", read);
     void read();
     return () => {
@@ -106,7 +112,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
       stop();
       window.clearInterval(timer);
       window.removeEventListener("focus", sync);
-      window.removeEventListener("startupbot-document-sync", sync);
+      window.removeEventListener("startupbot-document-sync", documentSync);
       document.removeEventListener("visibilitychange", read);
     };
   }, [threadId, selection, epoch]);
@@ -205,14 +211,9 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
   }
   const visible = searchPages(pages, query);
   return (
-    <dialog
-      ref={(node) => {
-        if (node && !node.open) node.showModal();
-      }}
-      onCancel={close}
-      aria-label={t("brain.name")}
-      className="m-auto max-h-[88vh] w-[min(42rem,96vw)] overflow-auto rounded-xl border border-hairline bg-card p-5 text-sm text-ink backdrop:bg-black/30"
-    >
+    <div className="ui-scrim fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-6">
+      <div ref={panel} role="dialog" aria-modal="true" tabIndex={-1} aria-label={t("brain.name")}
+        className="ui-modal max-h-[88dvh] w-full max-w-2xl overflow-auto p-5 text-sm text-ink">
       <header className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{t("brain.name")}</h2>
         <button className="ui-button ui-button-sm" onClick={close}>
@@ -322,6 +323,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
             ))}
           </section>
         ))}
-    </dialog>
+      </div>
+    </div>
   );
 }

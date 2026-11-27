@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { imeComposing } from "@/lib/send-key";
 import { useStore, type Bot } from "@/state/store";
+import { BusinessBlueprintForm } from "./BusinessBlueprintForm";
 import { Select } from "../Select";
 
 export type SetUpKind = "schedule" | "webhook" | "app";
@@ -29,6 +30,7 @@ export function NewAutomation({ initialText = "", onClose, onSetUpYourself }: {
   const bots = state.bots.filter((bot) => !bot.hidden);
   const [text, setText] = useState(initialText);
   const [botId, setBotId] = useState(() => defaultBot(bots, state.selectedId)?.id ?? "");
+  const [catalog, setCatalog] = useState(false);
   const [yourself, setYourself] = useState(false);
   const [kind, setKind] = useState<SetUpKind>("schedule");
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -52,12 +54,12 @@ export function NewAutomation({ initialText = "", onClose, onSetUpYourself }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-5 pt-[14vh] backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={t("automations.newBox.title")} tabIndex={-1} className="w-full max-w-[560px] rounded-2xl border border-hairline/60 bg-panel p-5 shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={t("automations.newBox.title")} tabIndex={-1} className="max-h-[80dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl border border-hairline/60 bg-panel p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-[17px] font-semibold text-ink">{yourself ? t("automations.newBox.when") : t("automations.newBox.title")}</h2>
+          <h2 className="text-[17px] font-semibold text-ink">{catalog ? t("blueprint.catalog") : yourself ? t("automations.newBox.when") : t("automations.newBox.title")}</h2>
           <button type="button" onClick={onClose} aria-label={t("automations.newBox.cancel")} className="rounded-full p-1.5 text-ink-secondary hover:bg-raised hover:text-ink"><X size={16} /></button>
         </div>
-        {yourself ? (
+        {catalog && bot ? <BusinessBlueprintForm bot={bot} onBack={() => setCatalog(false)} onClose={onClose} /> : yourself ? (
           <>
             <div role="radiogroup" aria-label={t("automations.newBox.when")} className="mt-4 space-y-2">
               {choice("schedule", t("automations.newBox.onSchedule"), CalendarClock)}
@@ -84,6 +86,7 @@ export function NewAutomation({ initialText = "", onClose, onSetUpYourself }: {
               </label>
             )}
             <div className="mt-4 flex items-center justify-between gap-2">
+              <button type="button" disabled={!bot} onClick={() => setCatalog(true)} className="rounded-lg px-2 py-1.5 text-[13px] text-accent disabled:opacity-40">{t("blueprint.catalog")}</button>
               <button type="button" onClick={() => setYourself(true)} className="rounded-lg px-2 py-1.5 text-[13px] text-ink-secondary underline-offset-2 hover:text-ink hover:underline">{t("automations.newBox.yourself")}</button>
               <button type="button" disabled={!text.trim() || !bot} onClick={send} className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-[13px] font-medium text-accent-ink hover:brightness-110 disabled:opacity-40"><Send size={14} />{t("automations.newBox.send")}</button>
             </div>

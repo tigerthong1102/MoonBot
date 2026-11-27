@@ -10,6 +10,7 @@
 // A new Cloud's first look is the Chief's own turn in its chat: through the relay it too may only read Gmail and Google
 // Calendar and write a few reply drafts, so nothing it reads can make it send, accept or delete anything.
 import { connectorCallsIn, isReadOnlyTool, KNOWN_READ_SLUGS } from "../shared/outbound.ts";
+import type { RoutineAccess } from "../shared/routines.ts";
 import type { RuntimeEvent } from "../shared/runtime-events.ts";
 import type { ProviderAdapter } from "./contracts.ts";
 import type { DecisionRow } from "./decision-log.ts";
@@ -49,6 +50,7 @@ export const DRAFT_TOOL = "GMAIL_CREATE_EMAIL_DRAFT";
 /** Fields of a draft that would add someone the reply is not to. */
 const OTHER_RECIPIENTS = ["cc", "bcc", "extra_recipients", "recipients"] as const;
 
+const SOURCE_PREFIX = { "read-calendar": "GOOGLECALENDAR_", "read-gmail": "GMAIL_", "read-outlook": "OUTLOOK_" } as const;
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const mayRead = (slug: string): boolean => READ_APPS.some((app) => slug.startsWith(app)) && (KNOWN_READ_SLUGS.has(slug) || isReadOnlyTool(slug));
 
@@ -81,7 +83,7 @@ export function draftReply(args: unknown): DraftReply | null {
 
 /** The first app tool of a relay frame a read-and-draft run may not run, or null when it only reads, drafts as allowed or
  * describes tools. Initialize, list and notification frames carry no tool. */
-export function refusedConnectorCall(frame: unknown, draft: (reply: DraftReply) => boolean): string | null {
+export function refusedConnectorCall(frame: unknown, draft: (reply: DraftReply) => boolean, access?: RoutineAccess): string | null {
   if (!isRecord(frame) || frame.method !== "tools/call") return null;
   const call = isRecord(frame.params) ? frame.params : {};
   if (typeof call.name !== "string" || !call.name) return "tools/call";
@@ -89,6 +91,7 @@ export function refusedConnectorCall(frame: unknown, draft: (reply: DraftReply) 
   const calls = connectorCallsIn(call.name, call.arguments);
   if (!calls.length) return call.name;
   for (const one of calls) {
+    if (access && access !== "read-and-draft" && (!one.slug.startsWith(SOURCE_PREFIX[access]) || !mayRead(one.slug))) return one.slug;
     if (mayRead(one.slug)) continue;
     const reply = one.slug === DRAFT_TOOL ? draftReply(one.arguments) : null;
     if (!reply || !draft(reply)) return one.slug;
@@ -131,7 +134,7 @@ export function recordsAnswer(bytes: Uint8Array, contentType: string): Uint8Arra
 export function createReadAndDraft(deps: ReadAndDraftDeps) {
   const runOf = (threadId: string): RoutineRun | null => {
     const run = deps.runFor(threadId);
-    return run?.access === "read-and-draft" && run.threadId === threadId ? run : null;
+    return run?.access && run.threadId === threadId ? run : null;
   };
   /** This conversation is a read-and-draft run's own, finished or not. */
   const confines = (threadId: string): boolean => runOf(threadId) !== null;
@@ -161,7 +164,10 @@ export function createReadAndDraft(deps: ReadAndDraftDeps) {
 
   function refusesRoute(bot: Pick<Bot, "id" | "name">, threadId: string, method: string, path: string): boolean {
     const route = `${method} ${path}`;
-    return !ROUTES.has(route) && confines(threadId) && refuse(bot, threadId, route);
+    const run = runOf(threadId);
+    if (!run) return false;
+    const otherConversation = run.access !== "read-and-draft" && (path === "/api/internal/session-search" || path === "/api/internal/session-read");
+    return (!ROUTES.has(route) || otherConversation) && refuse(bot, threadId, route);
   }
 
   /** True when the frame was refused; an allowed draft is counted, so a retry of the run never writes it twice. */
@@ -175,7 +181,7 @@ export function createReadAndDraft(deps: ReadAndDraftDeps) {
       const ok = run ? run.checkKey !== undefined && deps.mayDraft(run.checkKey, reply.threadId, reply.to) : looking!.draft(reply);
       if (ok) drafts.push(reply);
       return ok;
-    });
+    }, run?.access);
     if (refused !== null) return refuse(bot, threadId, refused);
     if (run) for (const reply of drafts) deps.drafted(run.checkKey!, reply.threadId);
     if (drafts.length) deps.wroteDrafts?.(bot.id, drafts.length);

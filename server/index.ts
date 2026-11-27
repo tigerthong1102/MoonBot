@@ -7690,6 +7690,7 @@ async function beginTurn(
     if (removedComputerInstanceIds(cfg.instances).has(bot.modelSelection.instanceId)) void retryComputerEngineMove();
     throw noAiNotice.refusal(threadId, opts?.sender, bot.modelSelection.instanceId) ?? Object.assign(new Error(`provider instance "${bot.modelSelection.instanceId}" is unavailable — pick another model in settings`), { status: 409, code: "model_unavailable" });
   }
+  if (proactive.fence.confines(threadId) && !proactive.supportsReadOnlyRoutine(instance.driverKind)) throw Object.assign(new Error("Choose Claude Agent for this read-only automation."), { status: 409, code: "routine_read_engine" });
   const policyRefusal = policyModelRefusal(instance);
   if (policyRefusal) throw Object.assign(new Error(policyRefusal), { status: 409, code: "managed_policy" });
   const toolScope = toolScopeForTurn(bot.id);

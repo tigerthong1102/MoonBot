@@ -4,12 +4,12 @@ import { createReadAndDraft, draftReply, READ_AND_DRAFT_REFUSAL, recordsAnswer, 
 import type { RoutineRun } from "./routines.ts";
 
 const call = (slug: string, args: Record<string, unknown> = {}) => ({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "COMPOSIO_MULTI_EXECUTE_TOOL", arguments: { tools: [{ tool_slug: slug, arguments: args }] } } });
-const run = (access?: "read-and-draft"): RoutineRun => ({
+const run = (access?: RoutineRun["access"]): RoutineRun => ({
   id: "r1", routineId: "watch", routineName: "Keep an eye on my day", target: "bot", botId: "chief", runOn: "maus", scheduledFor: 0, status: "running",
   manual: false, createdAt: 0, threadId: "run-thread", checkKey: "chk-1", ...(access ? { access } : {}),
 });
 
-function fence(access: "read-and-draft" | null = "read-and-draft") {
+function fence(access: RoutineRun["access"] | null = "read-and-draft") {
   const decided: unknown[] = [];
   const drafted: string[] = [];
   const respond = vi.fn(async () => "rejected" as const);
@@ -42,6 +42,15 @@ describe("what a read-and-draft run may do through the connected-apps relay", ()
     expect(refusedConnectorCall(call("SLACK_FETCH_CONVERSATION_HISTORY"), never)).toBe("SLACK_FETCH_CONVERSATION_HISTORY");
     expect(refusedConnectorCall({ method: "tools/call", params: { name: "COMPOSIO_REMOTE_WORKBENCH", arguments: { code: "x" } } }, never)).toBe("COMPOSIO_PROXY_EXECUTE");
     expect(refusedConnectorCall({ method: "tools/call", params: { name: "COMPOSIO_MANAGE_CONNECTIONS", arguments: {} } }, never)).toBe("COMPOSIO_MANAGE_CONNECTIONS");
+  });
+
+  it("confines a single-source template to reads on the chosen connector", () => {
+    const { gate } = fence("read-gmail");
+    expect(gate.refusesConnectorCall(bot, "run-thread", call("GMAIL_FETCH_EMAILS"))).toBe(false);
+    for (const slug of ["OUTLOOK_LIST_MESSAGES", "GOOGLECALENDAR_EVENTS_LIST", "GMAIL_CREATE_EMAIL_DRAFT"]) {
+      expect(gate.refusesConnectorCall(bot, "run-thread", call(slug, { thread_id: "t-ada", recipient_email: "ada@x.test" }))).toBe(true);
+    }
+    expect(gate.refusesRoute(bot, "run-thread", "GET", "/api/internal/session-search")).toBe(true);
   });
 
   it("a draft must reply in one thread to one person, with nobody else on it", () => {

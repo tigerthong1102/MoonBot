@@ -90,7 +90,7 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
       jsonl: { type: "boolean" } },
     positionals: 0,
   },
-  "team import-openclaw": { options: { out: { type: "string" }, skills: { type: "boolean" } }, positionals: 1 },
+  "team import-openclaw": { options: { out: { type: "string" }, skills: { type: "boolean" }, notes: { type: "string" }, "dry-run": { type: "boolean" } }, positionals: 1 },
   "team apply": {
     options: { "dry-run": { type: "boolean" }, check: { type: "boolean" }, prune: { type: "boolean" },
       "rotate-secrets": { type: "boolean" }, "wait-idle": { type: "string" } },

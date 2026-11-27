@@ -533,7 +533,12 @@ its identity and SOUL.md. Add `--skills` to copy ordinary SKILL.md files as
 disabled skills. The importer validates the preview using StartupBot's normal
 team-file reader. Inspect the generated files and run
 `openmausbot team apply NEW_DIRECTORY/team.json --dry-run` to compare with
-the target workspace. Applying that file is a separate choice.
+the target workspace. Add `--notes AGENTS.md,MEMORY.md --dry-run` to preview selected
+workspace notes by source and checksum. You may also select USER.md and dated
+memory/YYYY-MM-DD.md files. Omit `--dry-run` to stage them as disabled skills.
+The generated openclaw-sources.json maps each selected source to its draft,
+including duplicate notes. Repeating a note import reuses an identical preview.
+A changed preview requires a new output directory.
 
 ### Review a coding task
 

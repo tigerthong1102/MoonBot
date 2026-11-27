@@ -2,7 +2,7 @@ import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { VerbContext } from "../headless/context.ts";
 import { EXIT } from "../headless/args.ts";
-import { trackerCommand, saveBoard } from "./tracker-board.ts";
+import { projectTickets, trackerCommand, saveBoard } from "./tracker-board.ts";
 import { run, commitOf } from "./command.ts";
 import { addWorktree, checkpoint, inspectWorktree, removeCleanWorktree, setupPreview, worktreeList } from "./worktrees.ts";
 
@@ -55,7 +55,8 @@ export async function githubWork(ctx: VerbContext) {
   if (ctx.verb === "dev issues") {
     const issues = args(["issue", "list", "--repo", repo, "--limit", "100", "--state", "open", "--json", "number,title,url,labels,assignees"]);
     const project = ctx.flags.project ? args(["project", "item-list", positive(ctx.flags.project), "--owner", repo.split("/")[0]!, "--format", "json", "--limit", "100"]) : undefined;
-    const output = ctx.flags.out ? saveBoard(String(ctx.flags.out), repo, issues.map((i: { number: number; title: string; url: string }) => ({ key: "#" + i.number, title: i.title, url: i.url, status: "open" }))) : undefined;
+    const rows = project ? projectTickets(project) : issues.map((i: { number: number; title: string; url: string }) => ({ key: "#" + i.number, title: i.title, url: i.url, status: "open" }));
+    const output = ctx.flags.out ? saveBoard(String(ctx.flags.out), project ? repo.split("/")[0] + " · Project " + ctx.flags.project : repo, rows) : undefined;
     result = { repository: repo, issues, limit: 100, project, output };
   } else {
     const fields = "number,title,url,baseRefName,headRefName,isCrossRepository,state";

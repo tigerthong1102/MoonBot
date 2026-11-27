@@ -45,6 +45,16 @@ export async function readTracker(tracker: string, scope: string, site: string, 
   return jiraIssues.parse(response).issues.map(i => ({ key:i.key, title:i.fields.summary, status:i.fields.status.name, url:"https://" + site + "/browse/" + encodeURIComponent(i.key) }));
 }
 
+export function projectTickets(project: unknown): Ticket[] {
+  const card = z.object({ title: z.string().optional(), status: z.string().optional(),
+    content: z.object({ title: z.string().optional(), number: z.number().optional(), repository: z.string().optional(), url: z.string().optional(), type: z.string().optional() }).optional() });
+  return z.object({ items: z.array(card) }).parse(project).items.map((item, index) => {
+    const content = item.content;
+    return { key: content?.number ? (content.repository || "") + "#" + content.number : (content?.type || "Item") + " " + (index + 1),
+      title: item.title ?? content?.title ?? "", status: item.status ?? "", url: content?.url ?? "" };
+  });
+}
+
 export function saveBoard(path: string, title: string, tickets: Ticket[]) {
   const esc = (s: string) => s.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");
   const rows = tickets.map(i => {

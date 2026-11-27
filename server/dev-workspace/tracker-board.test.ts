@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readTracker, saveBoard } from "./tracker-board.ts";
+import { projectTickets, readTracker, saveBoard } from "./tracker-board.ts";
 
 it("reads Linear, GitLab and Jira without forwarding credentials to a changed origin", async () => {
   const seen: { url: string; options: RequestInit }[] = [];
@@ -32,4 +32,10 @@ it("escapes titles and renders only HTTPS links in an exclusive new board", () =
     expect(html).not.toContain("javascript:");
     expect(()=>saveBoard(path,"another",[])).toThrow();
   } finally { rmSync(dir,{recursive:true,force:true}); }
+});
+
+it("keeps a project's own cards, including draft items without repository URLs", () => {
+  const cards=projectTickets({items:[{title:"Roadmap",status:"Planning",content:{type:"DraftIssue"}},{content:{title:"Bug",repository:"team/other",number:19,url:"https://github.com/team/other/issues/19"}}]});
+  expect(cards[0]).toMatchObject({title:"Roadmap",status:"Planning",url:""});
+  expect(cards[1]).toMatchObject({key:"team/other#19",title:"Bug"});
 });

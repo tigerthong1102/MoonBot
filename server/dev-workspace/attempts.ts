@@ -45,12 +45,12 @@ export async function attemptCommand(ctx: VerbContext) {
     const { diagnoseAttempt } = await import("./diagnostics.ts");
     const file = String(ctx.flags.file || "");
     const read = () => diagnoseAttempt(repo, Number(ctx.flags.attempt), String(ctx.flags.host || ""), file);
-    let result = read();
+    let result = await read();
     if (ctx.flags.watch === true) {
       ctx.output.progress(result);
       for await (const event of watch(dirname(resolve(repo, file)), { signal: ctx.signal })) {
         if (event.filename && event.filename !== basename(file)) continue;
-        const next = read();
+        const next = await read();
         if (next.sourceSha256 !== result.sourceSha256) ctx.output.progress(next);
         result = next;
       }

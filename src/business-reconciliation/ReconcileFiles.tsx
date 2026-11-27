@@ -125,10 +125,10 @@ export default function ReconcileFiles({ close, dropdown: Dropdown, t, threadId 
     <input type="file" hidden ref={reviewFile} accept=".json" onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void restore(file); }} />
     <div className="reconcile-pair">{inputs.map((input, i) => <fieldset key={i}>
       <legend>{t(sides[i])}</legend>
-      <label>{t("reconcile.chooseFile")}<input type="file" accept=".csv,.xlsx" onChange={e => {
+      <label>{t("reconcile.chooseFile")}<input type="file" accept=".csv,.xlsx,.xml,.xls" onChange={e => {
         const file = e.target.files?.[0]; e.target.value = ""; if (file) void load(i, file);
       }}/></label>
-      {input.name && <small>{input.name}{input.busy ? " · " + t("reconcile.busy") : ""}</small>}
+      {input.name && <small>{input.name}{input.source?.data.origin && " · " + input.source.data.origin.sheet}{input.busy ? " · " + t("reconcile.busy") : ""}</small>}
       {input.error && <p role="alert">{input.error}</p>}
       {input.source && fields.map(f => <label key={f}>{t(`reconcile.${f}`)}<Dropdown aria-label={t(sides[i]) + " · " + t(`reconcile.${f}`)} value={input.source!.mapping[f]} onChange={e => {
         const source = input.source!;

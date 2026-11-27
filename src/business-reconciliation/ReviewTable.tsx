@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { SelectHTMLAttributes, ComponentType } from "react";
-import type { Report } from "./report";
+import { sourceRows, type Report } from "./report";
 import type { Translate } from "./messages";
 import { reviewStatuses, type ReviewChange, type ReviewStatus } from "./review";
 
@@ -34,6 +34,7 @@ export function ReviewTable({ report, t, initialChanges, persist, dropdown: Drop
     link.href = url; link.download = "startupbot-review.json"; link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  const selected = report.exceptions.find(item => item.document === documentId);
   const current = documentId === null ? undefined : latest.get(documentId);
   return <>
     <div className="reconcile-scroll"><table><thead><tr>
@@ -49,6 +50,8 @@ export function ReviewTable({ report, t, initialChanges, persist, dropdown: Drop
       <button type="button" className="ui-button ui-button-sm" disabled={(page + 1) * pageSize >= report.exceptions.length} onClick={() => setPage(page + 1)}>{t("reconcile.review.next")}</button>
     </div>}
     {documentId !== null && <fieldset><legend>{documentId}</legend>
+      {selected?.leftSource && <p>{t("reconcile.left")} · {sourceRows(selected.leftSource)}</p>}
+      {selected?.rightSource && <p>{t("reconcile.right")} · {sourceRows(selected.rightSource)}</p>}
       <label>{t("reconcile.review.owner")}<input maxLength={200} value={assignee} onChange={e => setAssignee(e.target.value)} /></label>
       <label>{t("reconcile.review.status")}<Dropdown value={status} onChange={e => setStatus(e.target.value as ReviewStatus)}>
         {reviewStatuses.map(value => <option key={value} value={value}>{t(`reconcile.review.${value}`)}</option>)}</Dropdown></label>

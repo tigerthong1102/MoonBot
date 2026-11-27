@@ -1,6 +1,7 @@
 import { ReconcileError } from "./messages";
 import Papa from "papaparse";
 import { BlobReader, ZipReader, type FileEntry } from "@zip.js/zip.js/index-native.js";
+import { spreadsheetML } from "./spreadsheetml";
 import { MAX_ROWS, table, type Cell, type Table } from "./compare";
 
 const MB = 1024 * 1024;
@@ -104,5 +105,11 @@ export async function readFileTable(file: File): Promise<Table> {
   if (!file.size || file.size > 4 * MB) throw new ReconcileError("reconcile.fileSize");
   if (/\.csv$/i.test(file.name)) return csv(utf8(new Uint8Array(await file.arrayBuffer())));
   if (/\.xlsx$/i.test(file.name)) return workbook(file);
+  if (/\.(xls|xml)$/i.test(file.name)) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    if (bytes[0] === 0xd0 && bytes[1] === 0xcf) throw new ReconcileError("reconcile.legacyXml");
+    const encoding = bytes[0] === 0xff && bytes[1] === 0xfe ? "utf-16le" : bytes[0] === 0xfe && bytes[1] === 0xff ? "utf-16be" : "utf-8";
+    return spreadsheetML(new TextDecoder(encoding, { fatal: true }).decode(bytes));
+  }
   throw new ReconcileError("reconcile.fileType");
 }

@@ -278,7 +278,7 @@ function sha256Hex(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
-function libraryContentMatches(root: string, entry: SkillLibraryEntry): boolean {
+export function libraryContentMatches(root: string, entry: SkillLibraryEntry): boolean {
   try {
     const file = join(librarySkillDirectory(root, entry.name), "SKILL.md");
     if (!existsSync(file) || sha256Hex(readFileSync(file, "utf8")) !== entry.sha256) return false;

@@ -26,7 +26,8 @@ import { ConflictNotice } from "../bot-settings/MemorySection";
 import { OrgSkillsCard } from "../bot-settings/OrgSkillsCard";
 import { SavedWorkflowsCard } from "../skill-burger/SavedWorkflowsCard";
 import { isBurgerSource } from "../../../shared/skill-burger/saved";
-import { SkillReviewDialog, skillSwitchOn, useManagedSkills, type ManagedSkill } from "../bot-settings/SkillsSection";
+import { SkillMaintenance } from "../bot-settings/SkillMaintenance";
+import { learnedSkillUsageText, SkillReviewDialog, skillSwitchOn, useManagedSkills, type ManagedSkill } from "../bot-settings/SkillsSection";
 import { useBotApps, type BotApp } from "../bot-settings/useBotApps";
 import { useChoosesVisibility, VisibilitySection } from "../bot-settings/VisibilitySection";
 import type { useBotSettingsDerived } from "../bot-settings/useBotSettingsDerived";
@@ -475,18 +476,17 @@ export function SkillsPage({ bot }: PageContext) {
         ) : own.length === 0 ? (
           <NoteRow>{t("botSettings.simple.noSkills")}</NoteRow>
         ) : own.map((skill) => (
-          <SwitchRow
-            key={skill.name}
+          <div key={skill.name}><SwitchRow
             data-panel-row={`skill:${skill.name}`}
             title={skill.name}
-            hint={skill.description || skill.source}
+            hint={[skill.description || skill.source, learnedSkillUsageText(skill)].filter(Boolean).join(" · ")}
             label={t("botSettings.simple.skillToggle", { name: skill.name })}
             color={bot.color}
             checked={skillSwitchOn(skill)}
             disabled={Boolean(skills.working)}
             onChange={() => void skills.toggle(skill)}
             extra={skill.origin === "imported" || skill.origin === "native" ? undefined : <TrashButton data-panel-action={`remove-skill:${skill.name}`} label={t("botPanel.skills.remove", { name: skill.name })} disabled={Boolean(skills.working)} onClick={() => void remove(skill)} />}
-          />
+          />{skill.reviewedRevision && <SkillMaintenance botId={bot.id} skill={skill} refresh={skills.refresh} />}</div>
         ))}
         {skills.error && !skills.reviewing && <NoteRow tone="warn">{skills.error}</NoteRow>}
       </Card>

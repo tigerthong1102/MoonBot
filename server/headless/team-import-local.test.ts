@@ -25,3 +25,27 @@ it("stages only selected bot documents, validates the actual team file and never
     expect(existsSync(join(root, "invalid"))).toBe(false);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+it("previews selected notes, records provenance, and stages identical input idempotently", () => {
+  const root = mkdtempSync(join(tmpdir(), "omb-openclaw-notes-"));
+  try {
+    const source = join(root, "source"), out = join(root, "draft");
+    mkdirSync(source);
+    const note = "Preserve source codes exactly.\n";
+    writeFileSync(join(source, "AGENTS.md"), note);
+    writeFileSync(join(source, "MEMORY.md"), note);
+    const opts = { notes: "MEMORY.md,AGENTS.md,MEMORY.md" };
+    const plan = reviewOpenClaw(source, out, false, { ...opts, dryRun: true });
+    expect(existsSync(out)).toBe(false);
+    expect(plan.items).toMatchObject([{ source: "AGENTS.md" }, { source: "MEMORY.md", duplicateOf: "AGENTS.md" }]);
+    const staged = reviewOpenClaw(source, out, false, opts);
+    expect(reviewOpenClaw(source, out, false, opts)).toEqual(staged);
+    expect(loadTeamFile(staged.manifest).bots[0]?.skills).toMatchObject([{ name: "openclaw-agents", enabled: false }]);
+    expect(readFileSync(join(out, "openclaw-agents.md"), "utf8")).toContain(note);
+    expect(JSON.parse(readFileSync(join(out, "openclaw-sources.json"), "utf8")).items).toEqual(plan.items);
+    writeFileSync(join(source, "MEMORY.md"), "Different content.");
+    expect(() => reviewOpenClaw(source, out, false, opts)).toThrow();
+    expect(() => reviewOpenClaw(source, out, false, { notes: "../AGENTS.md" })).toThrow();
+    expect(readFileSync(join(out, "openclaw-agents.md"), "utf8")).toContain(note);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

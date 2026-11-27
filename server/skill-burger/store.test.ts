@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { WORKFLOW_FILE, type Workflow } from "../../shared/skill-burger/format.ts";
-import { librarySkillDirectory, readSkillLibraryIndex, setLibrarySkillEveryBot, setLibrarySkillOptOut } from "../skill-library.ts";
+import { librarySkillDirectory, readSkillLibraryIndex, setLibrarySkillReviewState, setLibrarySkillEveryBot, setLibrarySkillOptOut } from "../skill-library.ts";
 import { installSkill, listMigratableSkills, listSkills, setSkillEnabled, skillsSystemPrompt } from "../skills.ts";
-import { findWorkflowSkill, listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, replaceWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, workflowSkillsPrompt } from "./store.ts";
+import { findWorkflowSkill, inspectWorkflowDependencies, listWorkflowSkills, readWorkflowSkill, removeWorkflowSkill, renameWorkflowSkill, replaceWorkflowSkill, saveWorkflowSkill, setWorkflowEveryChat, workflowSkillsPrompt } from "./store.ts";
 
 const workflow: Workflow = {
   version: 1,
@@ -209,4 +209,17 @@ it("saving the same run again from the same bot gives back the burger it already
   const again = saveWorkflowSkill({ workflow, place: { botId: bot }, botIds: [bot], root });
   expect(again).toEqual(first);
   expect(listWorkflowSkills([bot], root)).toHaveLength(1);
+});
+
+it("inspects a disabled library workflow with verified bytes and keeps it unavailable to the runner", () => {
+  const { root, bot, botIds } = fixture();
+  const place = { everyChat: true as const };
+  const saved = saveWorkflowSkill({ root, botIds, workflow, name: "review-invoices", place });
+  if ("error" in saved) throw Error(saved.error);
+  expect(setLibrarySkillReviewState(saved.name, "disabled", root)).toMatchObject({ enabled: false });
+  expect(inspectWorkflowDependencies(place, saved.name, root)).toEqual(workflow);
+  expect(findWorkflowSkill(bot, saved.name, root)).toBeNull();
+  expect(readWorkflowSkill(place, saved.name, root)).toBeNull();
+  writeFileSync(join(librarySkillDirectory(root, saved.name), WORKFLOW_FILE), JSON.stringify({ ...workflow, summary: "Different revision" }));
+  expect(inspectWorkflowDependencies(place, saved.name, root)).toBeNull();
 });

@@ -31,6 +31,7 @@ import {
 import { enabledSkillFiles, listSkills, readSkillFile, resolveBotSkills, skillsSystemPrompt, type SkillListing } from "../skills.ts";
 import type { BotRecord, Message, Store } from "../store.ts";
 import { claudeUserSkillsEnabled, settingsTurnFields } from "../turn-settings.ts";
+import { learnedSkillUsage } from "../message-db.ts";
 import { typedWords } from "../typed-sends.ts";
 import { supportsWorkspaceFiles, TASK_WORKSPACES_DIR } from "../workspace.ts";
 
@@ -328,7 +329,7 @@ export function createSkillsLibraryHost(deps: SkillsLibraryHostDeps) {
     /** Each `/name` called for one of the bot's own, library or imported skills, one its engine loads by itself, or one its
      * project ships. `lines` are the turn's own lines when it is a person's turn: only words they typed can call a skill
      * past the start of the text. `privateOnly`: the conversation keeps a private folder, as `store.pinTaskCwd` is told. */
-    expandSkillCommand(bot: BotRecord, threadId: string, text: string, instance?: TurnInstance, lines: ReadonlyArray<{ sendId?: string; text?: string }> = [], ownStart = false, privateOnly = false): string {
+    expandSkillCommand(bot: BotRecord, threadId: string, text: string, instance?: TurnInstance, lines: ReadonlyArray<{ sendId?: string; text?: string }> = [], ownStart = false, privateOnly = false, invocation?: { generation: string; message: string }): string {
       const typed = typedWords(threadId, lines);
       const mentioned = skillCalls(text, typed, ownStart);
       if (!mentioned.length) return text;
@@ -349,6 +350,10 @@ export function createSkillsLibraryHost(deps: SkillsLibraryHostDeps) {
       if (files.size < mentioned.length) add(projectInUse(bot, threadId, cwd, instance, assigned).filter((skill) => !skill.modelOnly));
       const burgers = mentioned.flatMap((name) => { const found = findWorkflowSkill(bot.id, name, undefined, liveAssigned(bot), skillsLibraryEnabled(cfg)); return found ? [{ name, found }] : []; });
       for (const { name, found } of burgers) if (!files.has(name) && "everyChat" in found.place) files.set(name, librarySkillFilePath(name));
+      if (invocation) for (const skill of listSkills(bot.id)) {
+        if (skill.enabled && skill.reviewedRevision && mentioned.includes(skill.name) && files.has(skill.name))
+          learnedSkillUsage.started({ ...invocation, bot: bot.id, thread: threadId }, skill.name, skill.reviewedRevision);
+      }
       const expanded = skillCommandTurnText(text, files, typed, ownStart);
       return burgers.length ? `${expanded}\n\n${burgers.map(({ name, found }) => `/${name} is a saved Skill Burger: run it with the run_workflow tool (name "${name}"), filling its args from the request, rather than by hand.${burgerInputs(found.workflow)}`).join(" ")}` : expanded;
     },

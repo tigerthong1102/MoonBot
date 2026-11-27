@@ -14414,6 +14414,12 @@ describe("message pages", () => {
         body: JSON.stringify({ path: linkedFile }),
       },
     );
+    const refRoute = `/api/threads/${threadId}/messages/linked-file-message/file`;
+    const read = await api("POST", refRoute, { path: linkedFile, sourceLines: { start: 1, end: 1 } });
+    expect(read.body).toMatchObject({ text: "# Phone-ready report", start: 1, end: 1, sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect((await api("POST", refRoute, { path: linkedFile, sourceLines: { start: 1, end: 1, sha256: read.body.sha256 } })).status).toBe(200);
+    expect((await api("POST", refRoute, { path: linkedFile, sourceLines: { start: 1, end: 1, sha256: "0".repeat(64) } })).status).toBe(409);
+    expect((await api("POST", refRoute.replace("linked-file-message","prose-file-message"), { path: linkedFile, sourceLines: { start: 1, end: 1 } })).status).toBe(403);
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("# Phone-ready report\n");
     expect(response.headers.get("content-type")).toContain("text/markdown");

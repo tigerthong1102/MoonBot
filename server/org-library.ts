@@ -1,3 +1,4 @@
+import { capabilityReview, newerRelease, type OrgCapabilityReview } from "../shared/org-capabilities.ts";
 import {
   closeSync,
   constants,
@@ -270,6 +271,7 @@ interface AppliedLibrary {
 export type BlobStatus = "ready" | "unavailable" | "unsupported";
 
 export interface OrgLibraryListEntry extends OrgLibraryEntry {
+  updateReview?: OrgCapabilityReview;
   blob: BlobStatus;
   installed: { installId: string; release: string; status: OrgInstall["status"] } | null;
 }
@@ -756,7 +758,7 @@ export class OrgLibrary {
       return refusal(422, "invalid_package", `This package could not be read: ${error instanceof Error ? error.message : "it is not a valid package"}`);
     }
     const [publisherSlug, packageSlug] = entry.ref.split("/");
-    if (document.package.id !== packageSlug || document.package.publisher?.organization !== publisherSlug) {
+    if (bytes.length !== entry.release.sizeBytes || document.package.release !== entry.release.version || document.package.id !== packageSlug || document.package.publisher?.organization !== publisherSlug) {
       return refusal(422, "invalid_package", "This package is not the one your organization listed.");
     }
     return { ok: true, status: 200, value: document };
@@ -767,11 +769,30 @@ export class OrgLibrary {
     return entry && entry.mode !== "off" ? entry : null;
   }
 
+  approveUpdate(packageId: string, base: string, target: string, approved: readonly string[]): OrgLibraryOutcome<{ updated: true }> {
+    const entry = this.visibleEntry(packageId), installId = this.currentInstallId(packageId);
+    const context = this.releases();
+    if (!entry || !installId || !context) return refusal(404, "not_listed", NOT_LISTED);
+    const updated = applyUpdates(context, { installId, base, target, approved });
+    if (!updated.includes(installId)) return refusal(409, "update_changed", "Review the current release and its capabilities again.");
+    this.save();
+    this.report();
+    return { ok: true, status: 200, value: { updated: true } };
+  }
+
   private listEntry(entry: OrgLibraryEntry): OrgLibraryListEntry {
     const installId = this.currentInstallId(entry.packageId)!;
     const install = this.state.installs[installId];
+    let review: OrgCapabilityReview | null = null;
+    if (install?.status === "installed" && install.kind === "team" && entry.release && entry.ref === install.ref &&
+        entry.publisher.organizationId === install.publisher.organizationId && newerRelease(entry.release.version, install.release) &&
+        !entry.withdrawnReleases.some(item => item.sha256 === entry.release!.sha256)) {
+      const next = this.releaseDocument(entry);
+      if (next.ok) review = capabilityReview(this.installDocument(install), next.value, install.sha256, entry.release.sha256);
+    }
     return {
       ...structuredClone(entry),
+      ...(review ? { updateReview: review } : {}),
       blob: this.blobStatus(entry),
       installed: install ? { installId, release: install.release, status: install.status } : null,
     };

@@ -1,9 +1,11 @@
+import { newerRelease } from "../../shared/org-capabilities";
 import { t } from "@/lib/i18n";
 import type { InstalledPackageMetadata } from "../../shared/wire";
 import type { PackageDocument } from "../../shared/package-format";
 import { teamImportPreview, type PendingTeamImport } from "./team-import";
 
 export interface OrgLibraryPackage {
+  updateReview?: import("../../shared/org-capabilities").OrgCapabilityReview;
   packageId: string;
   ref: string;
   name: string;
@@ -64,7 +66,7 @@ export function orgModeBadge(entry: Pick<OrgLibraryPackage, "mode" | "publisher"
 export function orgCardNotes(entry: OrgLibraryPackage): string[] {
   const notes: string[] = [];
   if (entry.installed?.status === "withdrawn") notes.push(t("orgLibrary.withdrawn", { name: entry.publisher.name }));
-  if (entry.installed?.status === "installed" && entry.release && entry.release.version !== entry.installed.release) {
+  if (entry.installed?.status === "installed" && entry.release && !entry.updateReview && newerRelease(entry.release.version, entry.installed.release)) {
     notes.push(t("orgLibrary.newerRelease", { version: entry.release.version }));
   }
   return notes;

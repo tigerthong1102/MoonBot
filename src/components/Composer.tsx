@@ -1,7 +1,10 @@
+import { useComposerDraftActions } from "@/lib/use-composer-draft-actions";
+import { ComposerSourceLines } from "./ComposerSourceLines";
+import { useComposerSourceCheck } from "@/lib/use-composer-source-check";
 import { directMessageSent, roomMessageSent } from "@/lib/product-events";
 import { TeamAudienceLabel } from "./TeamSideSwitch";
 import { useComposerDictation } from "@/lib/use-composer-dictation";
-import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Mic, Paperclip, Square, X } from "lucide-react";
 import { sameFields, useStoreDispatch, useStoreSelector } from "@/state/store-select"; import { useStoreRef } from "@/state/store-ref"; import { sameDrawnBots } from "@/lib/drawn-bots";
 import { visibleMessages, currentTaskBot, type Bot, type Group, type InstanceInfo, type Message } from "@/state/store";
@@ -18,7 +21,7 @@ import { alternateSend, alternateSendLabel, useFollowUpDefault } from "@/lib/fol
 import {
   draftRevision,
   appendDraftAttachments,
-  changeDraftAttachmentPending,
+  changeDraftAttachmentPending, isDraftAttachmentPending,
   forgetFailedComposerSend,
   markDraftEdited,
   prependComposerDraft,
@@ -179,20 +182,7 @@ export function Composer({
   const attachmentPending = useDraftAttachmentPending(draftId);
   const failedSends = useFailedComposerSends(draftId); const picks = mentionPicksFor(draftId);
   const [channelMode, setChannelMode] = useComposerChannelMode(draftId);
-  const editText = useCallback(
-    (next: string) => {
-      markDraftEdited(draftId);
-      setText(next);
-    },
-    [draftId, setText],
-  );
-  const editAttachments = useCallback(
-    (next: SetStateAction<Attachment[]>) => {
-      markDraftEdited(draftId);
-      setAttachments(next);
-    },
-    [draftId, setAttachments],
-  );
+  const { editText, editAttachments } = useComposerDraftActions(draftId, setText, setAttachments);
   const restoreDraft = useCallback(
     (sent: ComposerDraftSnapshot) => {
       if (recoverFailedComposerSend(sent) === "restored") {
@@ -513,7 +503,9 @@ export function Composer({
   const followUpFor = (alternate: boolean) => resolveFollowUp({ running: busy && !group && Boolean(bot), alternate, preferred: followUpDefault, canSteer }) ?? undefined;
   const steersNow = group ? canSteer : followUpFor(false) === "steer";
   const sendNames = sendLabels({ simple: !advanced, busy, canSteer: steersNow, name: busyName, sendLabel });
-  const retryFailedSend = (failed: FailedComposerSend) => {
+  const sources = useComposerSourceCheck(threadId, draftId, draftIdRef, setAttachmentNotice);
+  const retryFailedSend = async (failed: FailedComposerSend) => {
+    if (failed.sourceReferences?.length && !await sources.verify(failed.sourceReferences)) return;
     const failedMode = failed.channelMode ?? "chat";
     if (failed.requestText.includes("<attached-image ") && !imageTargetsSupport(failed.requestText, failedMode)) {
       dispatch({ type: "error", message: t("composer.error.noImages") });
@@ -535,8 +527,8 @@ export function Composer({
       dispatch({ type: "send", botId: bot.id, mode: failedMode, followUp: failed.followUp, ...retry, onAccepted: () => recordSlashSkillUse(failed.text, failed.sendId) });
     }
   };
-  const send = (followUp: FollowUp | undefined = followUpFor(false)) => {
-    if (locked || attachmentPending || activation.pending) return;
+  const send = async (followUp: FollowUp | undefined = followUpFor(false)) => {
+    if (locked || isDraftAttachmentPending(draftId) || activation.pending || sources.busy.current) return;
     if (
       attachments.some((attachment) => attachment.kind === "image") &&
       !imageTargetsSupport(effectiveText, effectiveChannelMode)
@@ -548,7 +540,10 @@ export function Composer({
       setAttachmentNotice(t("server.roomCouncil.textOnly"));
       return;
     }
-    const composed = composeMessage(serializeThreadRefs(effectiveText, threads, currentBotId), attachments);
+    const sourceReferences = attachments.flatMap(a => a.kind === "paste" && a.resource ? [a.resource] : []);
+    const resolved = sourceReferences.length ? await sources.prepare(attachments, sourceReferences) : attachments;
+    if (!resolved) return;
+    const composed = composeMessage(serializeThreadRefs(effectiveText, threads, currentBotId), resolved);
     if (!composed) return;
     stopDictation();
     const body = restoredRequestText(draftId) ?? composed;
@@ -560,6 +555,7 @@ export function Composer({
       text,
       requestText: body,
       attachments: [...attachments],
+      ...(sourceReferences.length ? { sourceReferences } : {}),
       dataContext,
       workBotUploadReceipts: selectedUploadReceipts(attachments),
       reply: replyTo ?? null,
@@ -739,7 +735,8 @@ export function Composer({
           </div>
         )}
         <PointedChips threadId={threadId} />{!group && bot && <SetupRequestChip bot={bot} threadId={threadId} />}
-        <ComposerAttachments
+        {!locked && <ComposerSourceLines key={draftId} draftId={draftId} threadId={threadId} messages={group ? group.messages : bot ? visibleMessages(bot) : []} attach={a => editAttachments(current => [...current, a])} />}
+        <ComposerAttachments threadId={threadId}
           items={attachments}
           onAdd={addAttachments}
           onRemove={removeAttachment}

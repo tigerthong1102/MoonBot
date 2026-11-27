@@ -633,7 +633,7 @@ describe("staged skill writes", () => {
     const maintain = (action: "pin" | "unpin" | "archive" | "restore", referenced = false) => maintainLearnedSkill(bot, name, revision, action, referenced);
     expect(similarLearnedSkills(bot, name)).toEqual(["beta-report"]);
     expect(skillDependencies(name, bot, [{ botId: bot, name: "Invoices", prompt: "/alpha-report" }], undefined, [])).toContain("routine");
-    expect(skillDependencies(name, bot, [{ groupId: "finance", name: "Weekly", prompt: "/alpha-report" }], undefined, [], [{ id: "finance", memberIds: [bot] }])).toContain("routine");
+    expect(skillDependencies(name, bot, [{ botId: "", groupId: "finance", name: "Weekly", prompt: "/alpha-report" }], undefined, [], [{ id: "finance", memberIds: [bot] }])).toContain("routine");
     expect(skillDependencies(name, bot, [], undefined, [], [], [{ skills: [name] }])).toContain("template");
     expect(maintain("pin")).toHaveProperty("maintenancePinned", true);
     expect(maintain("archive")).toHaveProperty("error");

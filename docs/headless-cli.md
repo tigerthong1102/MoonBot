@@ -521,3 +521,13 @@ the owner's GitHub Project. `dev stack --github OWNER/REPO --pr N` shows
 open PRs whose base and head branches depend on each other in that repository.
 `dev draft --repo DIR --base main --out draft.md` makes a local PR draft with
 the commit subjects, exact revisions, change summary and repository template.
+
+`dev source --repo DIR --file FILE --line N` reports the recorded Git author
+and revision of the selected line. A locally modified line is labelled as such.
+Add `--editor code|cursor|zed --launch` to open it in an installed editor.
+
+Feed a GitHub workflow_run, check_run or pull_request event to
+`dev ci-event --event FILE --github OWNER/REPO --pr N --out NEW_DRAFT`.
+It verifies the repository, source identity, PR head and current run attempt
+against authenticated GitHub reads before writing a local diagnostic draft.
+Identical redeliveries reuse the draft.

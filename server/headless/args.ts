@@ -110,6 +110,8 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
   "dev issues": { options: { repo: { type: "string" }, github: { type: "string" }, project: { type: "string" } }, positionals: 0 },
   "dev stack": { options: { repo: { type: "string" }, github: { type: "string" }, pr: { type: "string" } }, positionals: 0 },
   "dev draft": { options: { repo: { type: "string" }, base: { type: "string" }, out: { type: "string" } }, positionals: 0 },
+  "dev source": { options: { repo: { type: "string" }, file: { type: "string" }, line: { type: "string" }, editor: { type: "string" }, launch: { type: "boolean" } }, positionals: 0 },
+  "dev ci-event": { options: { repo: { type: "string" }, event: { type: "string" }, github: { type: "string" }, pr: { type: "string" }, out: { type: "string" } }, positionals: 0 },
   "dev review": { options: { repo: { type: "string" }, base: { type: "string" }, out: { type: "string" }, github: { type: "string" }, pr: { type: "string" } }, positionals: 0 },
   mcp: { options: {}, positionals: 0 },
   "token create": { options: { out: { type: "string" }, scope: { type: "string" }, expires: { type: "string" }, force: { type: "boolean" } }, positionals: 1 },
@@ -132,7 +134,7 @@ export interface ParsedCommand {
   positionals: string[];
 }
 
-const SUBCOMMANDS = new Map([["dev", ["review", "worktree", "issues", "stack", "draft"]], ["team", ["apply", "export"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]]]);
+const SUBCOMMANDS = new Map([["dev", ["review", "worktree", "issues", "stack", "draft", "source", "ci-event"]], ["team", ["apply", "export"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]]]);
 
 /** Strict: an unknown flag or a missing value is a usage error (exit 2). */
 export function parseCommand(argv: readonly string[]): ParsedCommand {

@@ -390,3 +390,11 @@ Focused security constraints, external platform facts and public wire contracts
 remain documented. No executable logic, assertion, resource or localization is
 removed by that comment-policy pass. Token equality is not a substitute for
 native build, app tests or installed acceptance.
+
+Each successful emulator or simulator smoke writes an offline review page at
+`mobile-artifacts/android/index.html` or `mobile-artifacts/ios/index.html`.
+Open the page beside the conversation to inspect the screenshot and exact build.
+Its sibling `evidence.json` records the device, runtime, source revision, build and
+image hashes, dimensions, and the scope of the smoke. Android hashes the APK.
+iOS hashes the executable in the installed candidate and includes the separate
+bundle installation receipt. Extract the artifact folder before opening the page.

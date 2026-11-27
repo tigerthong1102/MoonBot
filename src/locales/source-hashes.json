@@ -38425,7 +38425,11 @@
       "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2",
       "browser.evidence.pick": "405343991ecbfb1a59597a6d9d1186576f0257116884a50950ae905fa2bf2452",
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
-      "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9"
+      "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
+      "apps.localPanels.title": "fcbfe0184e3c17809ad73d3e922a4f79e60660bef0fd62f8259d976545a39ccf",
+      "apps.localPanels.open": "7703232e73a92eb53b0746429a70d61736cae5b25d1ce7a7ebd47831175f5697",
+      "apps.localPanels.invalid": "537067c5dc8fa7412276b16257b96d738e29f5cb96d66e1dad77a16954faabfa",
+      "apps.localPanels.remove": "097c3b2149c243666eb26f353afe1a19ca20d94775f2aba653bc871e75906e6f"
     },
     "zh": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",

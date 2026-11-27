@@ -11688,5 +11688,9 @@
   "knowledge.addSection": "Adicionar seção",
   "knowledge.removeSection": "Remover",
   "knowledge.sectionFailed": "Verifique se você pode gerenciar este relatório e abrir o relatório de origem no mesmo espaço de trabalho.",
-  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente."
+  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente.",
+  "apps.localPanels.title": "Painéis locais",
+  "apps.localPanels.open": "Abrir um arquivo JSON de painel nesta sessão",
+  "apps.localPanels.invalid": "Não foi possível abrir o painel. Verifique o manifesto, o tamanho do arquivo e o limite de oito extensões.",
+  "apps.localPanels.remove": "Remover painel"
 }

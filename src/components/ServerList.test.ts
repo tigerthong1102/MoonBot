@@ -56,6 +56,7 @@ it("each saved server says how it is reached and how it is doing, with one thing
   expect(row("vps").querySelector("[data-server-where]")?.textContent).toBe("maus.example.com · HTTPS");
   expect(row("mini").querySelector("[data-server-where]")?.textContent).toBe("192.168.1.50:8799 · Private network, not encrypted");
   expect(row("mac").querySelector("[data-server-where]")?.textContent).toBe("mac.tail1234.ts.net · Tailscale");
+  expect(row("vps").querySelector("[data-server-version]")?.textContent).toBe("v0.1.140 · docker");
   expect(row("vps").querySelector("[data-server-state]"), "a connected server needs no line").toBeNull();
   expect(row("mini").querySelector("[data-server-state]")?.textContent).toMatch(/^Can't reach · since 0?9:12.*Try now$/);
   expect(row("mac").querySelector("[data-server-state]")?.textContent).toBe("Needs a new codePair again");

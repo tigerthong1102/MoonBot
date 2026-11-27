@@ -4,19 +4,29 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type ts from "@typescript/typescript6";
 import { commitOf, publishFile, run } from "./command.ts";
 
+type DiagnosticProject = Pick<ts.ParsedCommandLine, "options" | "fileNames" | "projectReferences"> & { directory: string };
 type Issue = { code: number; line: number; column: number; message: string };
 const digest = (text: string) => createHash("sha256").update(text).digest("hex");
 
-export function analyzeTypeScriptSource(ts: typeof import("@typescript/typescript6"), file: string, content: string, options: ts.CompilerOptions, root: string, files: string[]): Issue[] {
+export function analyzeTypeScriptSource(ts: typeof import("@typescript/typescript6"), file: string, content: string, project: DiagnosticProject): Issue[] {
+  const canonicalPath = (name: string) => {
+    const path = resolve(project.directory, name);
+    return ts.sys.useCaseSensitiveFileNames ? path : path.toLowerCase();
+  };
+  const sourcePath = canonicalPath(file);
+  const files = project.fileNames.some(name => canonicalPath(name) === sourcePath) ? project.fileNames : [...project.fileNames, file];
   const host: ts.LanguageServiceHost = {
-    getCompilationSettings: () => options,
+    getCompilationSettings: () => project.options,
+    getProjectReferences: () => project.projectReferences,
     getScriptFileNames: () => files,
     getScriptVersion: () => "1",
     getScriptSnapshot: name => {
-      const data = relative(file, name) === "" ? content : ts.sys.readFile(name);
+      const data = canonicalPath(name) === sourcePath ? content : ts.sys.readFile(name);
       return data === undefined ? undefined : ts.ScriptSnapshot.fromString(data);
     },
-    getCurrentDirectory: () => root,
+    getCurrentDirectory: () => project.directory,
+    useCaseSensitiveFileNames: () => ts.sys.useCaseSensitiveFileNames,
+    realpath: ts.sys.realpath,
     getDefaultLibFileName: ts.getDefaultLibFilePath,
     fileExists: ts.sys.fileExists, readFile: ts.sys.readFile, readDirectory: ts.sys.readDirectory,
     directoryExists: ts.sys.directoryExists, getDirectories: ts.sys.getDirectories,
@@ -50,23 +60,23 @@ export async function diagnoseAttempt(repo: string, attempt: number, host: strin
   const before = oid ? run("git", ["cat-file", "blob", oid], root) : "";
   const source = readFileSync(file, "utf8");
   const config = ts.findConfigFile(dirname(file), name => !relative(root, name).startsWith(".." + sep) && ts.sys.fileExists(name));
-  const options: ts.CompilerOptions = { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.NodeNext, strict: true };
-  let files = [file];
+  let project: DiagnosticProject = {
+    directory: root, fileNames: [file],
+    options: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.NodeNext, strict: true },
+  };
   if (config) {
     const parsed = ts.readConfigFile(config, ts.sys.readFile);
     if (parsed.error) throw new Error("Cannot read the project's TypeScript configuration.");
     const settings = ts.parseJsonConfigFileContent(parsed.config, ts.sys, dirname(config), undefined, config);
     const invalid = settings.errors.filter(error => error.code !== 18003);
     if (invalid.length) throw new Error("Invalid TypeScript options: " + ts.flattenDiagnosticMessageText(invalid[0]!.messageText, "\n"));
-    Object.assign(options, settings.options);
-    files = settings.fileNames;
-    if (!files.some(name => relative(file, name) === "")) files = [...files, file];
+    project = { ...settings, directory: dirname(config) };
   }
-  const previous = analyzeTypeScriptSource(ts, file, before, options, root, files);
+  const previous = analyzeTypeScriptSource(ts, file, before, project);
   const key = (issue: Issue) => JSON.stringify([issue.code, issue.message]);
   const counts = new Map<string, number>();
   for (const issue of previous) counts.set(key(issue), (counts.get(key(issue)) ?? 0) + 1);
-  const diagnostics = analyzeTypeScriptSource(ts, file, source, options, root, files).map(issue => {
+  const diagnostics = analyzeTypeScriptSource(ts, file, source, project).map(issue => {
     const remaining = counts.get(key(issue)) ?? 0;
     if (remaining) counts.set(key(issue), remaining - 1);
     return { ...issue, status: remaining ? "existing" : "new" };

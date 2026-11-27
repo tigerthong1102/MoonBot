@@ -558,7 +558,6 @@ it("bounds concurrent identity challenges before opening the selection menu", as
   vi.useFakeTimers();
   const instance = personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", (endpoint, init) => localFetch(endpoint, init));
   instance.invite("11111111-1111-4111-8111-111111111111");
-  // Allow three 10ms challenge batches to complete before the menu's 1500ms deadline.
   await vi.advanceTimersByTimeAsync(100);
   expect(fixture.menu).toHaveLength(10);
   expect(maximum).toBeLessThanOrEqual(4);

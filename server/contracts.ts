@@ -481,6 +481,7 @@ export interface ProviderAuthenticationStatus extends Omit<ProviderAuthenticatio
 }
 
 export interface ModelCatalog {
+  hermesCompatibility?: import("../shared/hermes-compatibility.ts").HermesCompatibility;
   default: string;
   options: Array<{
     id: string;

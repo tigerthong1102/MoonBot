@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Building2, Check, Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -26,6 +27,7 @@ export function OrgLibraryTab({
   error,
   onAdd,
   onDetails,
+  onUpdate,
 }: {
   listing: OrgLibraryListing & { organization: { id: string; name: string } };
   busy: string | null;
@@ -33,6 +35,7 @@ export function OrgLibraryTab({
   error: string;
   onAdd: (entry: OrgLibraryPackage) => void;
   onDetails: (entry: OrgLibraryPackage) => void;
+  onUpdate?: (entry: OrgLibraryPackage, approved: string[]) => void;
 }) {
   const name = listing.organization.name;
   return (
@@ -43,7 +46,7 @@ export function OrgLibraryTab({
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-x-10 md:grid-cols-2">
           {listing.packages.map((entry, index) => (
-            <OrgPackageCard key={entry.packageId} entry={entry} index={index} busy={busy} onAdd={onAdd} onDetails={onDetails} />
+            <OrgPackageCard key={entry.packageId} entry={entry} index={index} busy={busy} onAdd={onAdd} onDetails={onDetails} onUpdate={onUpdate} />
           ))}
         </div>
       )}
@@ -59,12 +62,14 @@ function OrgPackageCard({
   busy,
   onAdd,
   onDetails,
+  onUpdate,
 }: {
   entry: OrgLibraryPackage;
   index: number;
   busy: string | null;
   onAdd: (entry: OrgLibraryPackage) => void;
   onDetails: (entry: OrgLibraryPackage) => void;
+  onUpdate?: (entry: OrgLibraryPackage, approved: string[]) => void;
 }) {
   const action = orgCardAction(entry);
   const badge = orgModeBadge(entry);
@@ -84,6 +89,7 @@ function OrgPackageCard({
           {entry.release && <span>{entry.release.version}</span>}
         </p>
         <p className="mt-0.5 truncate text-[12px] text-ink-tertiary">{orgContentsLine(entry.contents)}</p>
+        {entry.updateReview && onUpdate && <ConsentUpdate key={entry.updateReview.target} entry={entry} busy={busy !== null} update={onUpdate} />}
         {notes.map((note) => <p key={note} className="mt-0.5 text-[12px] text-warning">{note}</p>)}
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -119,4 +125,20 @@ function OrgPackageCard({
       </div>
     </article>
   );
+}
+
+function ConsentUpdate({ entry, busy, update }: { entry: OrgLibraryPackage; busy: boolean; update(entry: OrgLibraryPackage, approved: string[]): void }) {
+  const review = entry.updateReview!;
+  const [checked, setChecked] = useState<string[]>([]);
+  return <details className="mt-2 text-xs">
+    <summary className="cursor-pointer">{t("orgLibrary.reviewUpdate")}</summary>
+    <p className="my-2 break-all">{entry.ref} · {entry.installed?.release} → {entry.release?.version} · SHA-256 {review.target}</p>
+    {review.baselineMissing && <p>{t("orgLibrary.baselineMissing")}</p>}
+    {review.added.map(item => <label className="my-1 block break-all" key={item}>
+      <input type="checkbox" checked={checked.includes(item)} onChange={e => setChecked(current => e.target.checked ? [...current, item] : current.filter(value => value !== item))} /> {item}
+    </label>)}
+    {review.removed.map(item => <p key={item}>− {item}</p>)}
+    <button type="button" className="ui-button ui-button-sm" disabled={busy || checked.length !== review.added.length}
+      onClick={() => update(entry, checked)}>{t("orgLibrary.approveUpdate")}</button>
+  </details>;
 }

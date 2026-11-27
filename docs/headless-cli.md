@@ -533,7 +533,12 @@ its identity and SOUL.md. Add `--skills` to copy ordinary SKILL.md files as
 disabled skills. The importer validates the preview using StartupBot's normal
 team-file reader. Inspect the generated files and run
 `openmausbot team apply NEW_DIRECTORY/team.json --dry-run` to compare with
-the target workspace. Applying that file is a separate choice.
+the target workspace. Add `--notes AGENTS.md,MEMORY.md --dry-run` to preview selected
+workspace notes by source and checksum. You may also select USER.md and dated
+memory/YYYY-MM-DD.md files. Omit `--dry-run` to stage them as disabled skills.
+The generated openclaw-sources.json maps each selected source to its draft,
+including duplicate notes. Repeating a note import reuses an identical preview.
+A changed preview requires a new output directory.
 
 ### Review a coding task
 
@@ -604,3 +609,21 @@ untracked changes block staging; ignored files and machine-specific Git settings
 are excluded. `wsl-undo --distro NAME --folder /new/folder --receipt UUID` moves
 the unchanged staged checkout to a recoverable sibling directory. It refuses a
 changed destination. Git and GNU coreutils are required in the chosen distribution.
+
+For Linux task containers, repeat `--allow-host raw.githubusercontent.com` on
+`dev sandbox start` to permit HTTPS reads from exact domains. This uses the
+local `node:24.22.2-bookworm` image for a separate broker. In the task, run
+`curl --unix-socket /run/egress/fetch.sock -G http://localhost/fetch --data-urlencode url=https://raw.githubusercontent.com/OWNER/REPO/COMMIT/FILE`.
+Only GET requests to public IPv4 addresses over port 443 are supported. The
+broker checks TLS, refuses redirects and caps each response at 8 MiB.
+`dev sandbox egress-log --id ID` shows recent hosts and status codes.
+`dev sandbox revoke --id ID` disconnects the broker, including its active
+requests. Local files remain available in the task until stop or expiry.
+
+A worker can inspect a changed TypeScript file with
+`dev attempt diagnose --repo DIR --attempt N --host HOST --file src/example.ts`.
+Add `--watch` to report diagnostics after each save. The bundled TypeScript
+language service reads the project's compiler options and compares the file to
+its version at the attempt's commit. It does not start language servers or
+plugins from the project. `dev attempt show` includes diagnostics, line
+numbers, the Git commit, and the exact working-file digest.

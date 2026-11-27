@@ -28,6 +28,7 @@ import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { callCapabilityHelp, type CallCapabilityHelp } from "@/lib/call-capability";
 import { onCallStartRequest } from "@/lib/call-start-request";
 import { CALL_ENDPOINT_MS, fishListeningReady, listensHere, speechBridge } from "@/lib/speech";
+import { WakePhraseButton } from "./WakePhraseButton";
 import { VoiceSetupDialog } from "./VoiceSetupDialog";
 import { openBotSettings } from "./bot-panel/panel-link";
 import { MENU_SHEET } from "./menu-recipe";
@@ -285,6 +286,9 @@ export function CallTargetButton({
           <span className="absolute right-1 top-1 size-1.5 rounded-full bg-warning ring-2 ring-app" aria-hidden="true" />
         )}
       </button>
+      {composer && canLive && setupBotId && !active && !liveElsewhere && !unavailable && ["darwin", "win32", "linux"].includes(globalThis.window?.ogb?.platform ?? "") && (
+        <WakePhraseButton key={targetId + ":" + threadId + ":" + mode} onWake={() => requestedStart.current(mode)} />
+      )}
       {canLive && !round && (
         <button
           ref={chevronRef}

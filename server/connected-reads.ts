@@ -5,8 +5,11 @@
 import { findMeetingLink } from "../shared/meetings.ts";
 import { parseMcpResponse } from "./connector-tools-list.ts";
 
+import { READ_ADAPTER_VERSION, readAdapterFor, type ReadApp } from "./connected-read-adapters.ts";
+export type { ReadApp } from "./connected-read-adapters.ts";
+
 export const READ_APPS = ["gmail", "outlook", "googlecalendar"] as const;
-export type ReadApp = (typeof READ_APPS)[number];
+
 export type MailApp = "gmail" | "outlook";
 
 export interface CalendarEvent {
@@ -61,12 +64,14 @@ const SIGNED_OUT = /\b(?:unauthori[sz]ed|unauthenticated|invalid[_ ]grant|expire
 export class SourceError extends Error {
   readonly app: ReadApp;
   readonly signedOut: boolean;
+  readonly rateLimited: boolean;
   /** The read named one of the app's several connected accounts, so that account is the one to check. */
   readonly severalAccounts: boolean;
   constructor(app: ReadApp, message: string, severalAccounts = false) {
     super(message);
     this.app = app;
     this.signedOut = SIGNED_OUT.test(message);
+    this.rateLimited = /\b(?:429|too many requests|rate.limit(?:ed| exceeded)?)\b/i.test(message);
     this.severalAccounts = severalAccounts;
     this.name = "SourceError";
   }
@@ -489,7 +494,7 @@ const OUTLOOK_PAGES = 24;
 
 type AccountPin = { accounts?: Promise<AppAccounts> };
 
-const appOf = (slug: string): ReadApp => (slug.startsWith("GMAIL_") ? "gmail" : slug.startsWith("OUTLOOK_") ? "outlook" : "googlecalendar");
+
 
 export function createConnectedReads(deps: ConnectedReadDeps): Omit<ConnectedReads, "session"> & { session(): MailBodySession } {
   const readTimeoutMs = deps.readTimeoutMs ?? READ_TIMEOUT_MS;
@@ -501,7 +506,7 @@ export function createConnectedReads(deps: ConnectedReadDeps): Omit<ConnectedRea
     async function open(signal: AbortSignal): Promise<string | undefined> {
       const init = await deps.relay({
         jsonrpc: "2.0", id: "omb-check-init", method: "initialize",
-        params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "startupbot-checks", version: "1" } },
+        params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "startupbot-checks", version: String(READ_ADAPTER_VERSION) } },
       }, undefined, signal);
       if (init.status !== 200) throw new Error(`connected apps answered HTTP ${init.status}`);
       // Streamable-HTTP MCP servers expect the initialized notification before the first request.
@@ -513,7 +518,7 @@ export function createConnectedReads(deps: ConnectedReadDeps): Omit<ConnectedRea
      *  when `shortened` is set and the answer was too large to come back whole. */
     async function call(slug: string, args: Record<string, unknown>, options: { signal?: AbortSignal; gone?: (toolError: string) => boolean; shortened?: boolean; pin?: AccountPin } = {}): Promise<unknown> {
       const { gone, shortened, pin, signal = AbortSignal.timeout(readTimeoutMs) } = options;
-      const app = appOf(slug);
+      const app = readAdapterFor(slug);
       let account: string | undefined;
       try {
         signal.throwIfAborted();

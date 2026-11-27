@@ -24,8 +24,10 @@ import { writeFileAtomic } from "./atomic.ts";
 import { DATA_DIR } from "./config.ts";
 import { redactSecretsInText } from "./redact.ts";
 import {
-  githubSkillOriginSchema, prepareSkillFolder, skillFolderDigest, skillFolderRecordSchema, writeSkillFolder, type GitHubSkillOrigin, type SkillFolderFile,
+  prepareSkillFolder, skillFolderDigest, writeSkillFolder, type GitHubSkillOrigin, type SkillFolderFile,
 } from "./skill-folder.ts";
+import { skillManifestSchema, type SkillManifest, type SkillManifestEntry, type SkillPackageStamp } from "./skill-manifest.ts";
+export type { SkillPackageStamp } from "./skill-manifest.ts";
 import { LEARN_SOURCE_PREFIX } from "./skill-learn.ts";
 import { libraryDescriptionsAt, librarySkillFilePath, librarySkillsForBot, librarySkillsToOffer, type LibrarySkillListing } from "./skill-library.ts";
 import { readManagedLinks, writeManagedLinks } from "./skill-link-registry.ts";
@@ -52,66 +54,6 @@ export const INDEX_MAX_BYTES = 4_000;
 const loggedIndexOmissions = new Map<string, string>();
 export const MAX_STAGED_SKILLS = 20;
 export const STAGED_GIST_MAX = 240;
-interface SkillManifestEntry {
-  description: string;
-  enabled: boolean;
-  source: string;
-  sha256: string;
-  importedAt: string;
-  license?: string;
-  compatibility?: string;
-  warnings: string[];
-  skippedFiles: string[];
-  referencesSha256?: string;
-  /** An import's files beside SKILL.md, and skillFolderDigest over them. */
-  files?: string[];
-  filesSha256?: string;
-  github?: GitHubSkillOrigin;
-  /** Replay guard for a crash between promotion and card settlement. Never exposed to agents. */
-  appliedStageId?: string;
-  storageRevision?: string;
-  package?: SkillPackageStamp;
-}
-
-export interface SkillPackageStamp {
-  installId: string;
-  key: string;
-  release: string;
-  r: string;
-  w: string;
-  via?: "preset";
-}
-
-interface SkillManifest {
-  [name: string]: SkillManifestEntry;
-}
-
-const skillManifestEntrySchema = z.object({
-  description: z.string(),
-  enabled: z.boolean(),
-  source: z.string(),
-  sha256: z.string().regex(/^[a-f0-9]{64}$/),
-  importedAt: z.string(),
-  license: z.string().optional(),
-  compatibility: z.string().optional(),
-  warnings: z.array(z.string()),
-  skippedFiles: z.array(z.string()),
-  referencesSha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  ...skillFolderRecordSchema,
-  github: githubSkillOriginSchema.optional(),
-  appliedStageId: z.string().optional(),
-  storageRevision: z.string().regex(/^[a-f0-9]{64}$/).optional(),
-  package: z.object({
-    installId: z.string().regex(/^[a-f0-9]{32}$/),
-    key: z.string().min(1).max(64),
-    release: z.string().min(1).max(40),
-    r: z.string().regex(/^[a-f0-9]{64}$/),
-    w: z.string().regex(/^[a-f0-9]{64}$/),
-    via: z.literal("preset").optional(),
-  }).optional(),
-});
-const skillManifestSchema = z.record(z.string(), skillManifestEntrySchema);
-
 function skillsDir(botId: string): string {
   return join(workspaceDir(botId), "skills");
 }
@@ -453,6 +395,7 @@ export function ownSkillLinks(botId: string): Map<string, string> {
 }
 
 export interface SkillListing {
+  reviewedRevision?: string;
   name: string;
   description: string;
   enabled: boolean;
@@ -492,6 +435,7 @@ function skillListing(botId: string, name: string, entry: SkillManifestEntry): S
     ...visible,
     enabled: entry.enabled && intact,
     editable: entry.source.startsWith(LEARN_SOURCE_PREFIX) && Boolean(appliedStageId),
+    ...(appliedStageId && entry.source.startsWith(LEARN_SOURCE_PREFIX) ? { reviewedRevision: [entry.sha256, entry.referencesSha256].filter(Boolean).join(":") } : {}),
     warnings: intact
       ? visible.warnings
       : [...visible.warnings, "stored skill files changed after review — enablement is blocked"],
@@ -566,11 +510,37 @@ export function skillPackageStamps(botId: string): Array<{ name: string; enabled
     : []);
 }
 
+type MaintenanceAction = "pin" | "unpin" | "archive" | "restore";
+export function maintainLearnedSkill(botId: string, name: string, revision: string, action: MaintenanceAction, referenced: boolean): SkillListing | { error: string } {
+  if (!isSkillName(name)) return { error: "Invalid skill name." };
+  const manifest = readManifest(botId);
+  const entry = manifest[name];
+  if (!entry || !entry.appliedStageId || !entry.source.startsWith(LEARN_SOURCE_PREFIX) ||
+      [entry.sha256, entry.referencesSha256].filter(Boolean).join(":") !== revision || !skillContentMatches(botId, name, entry))
+    return { error: "The reviewed revision changed. Open the skill again." };
+  if (action === "pin") entry.maintenancePinned = true;
+  if (action === "unpin") delete entry.maintenancePinned;
+  if (action === "archive") {
+    if (entry.maintenancePinned || referenced) return { error: "This skill is pinned or referenced by other work." };
+    entry.archivedFrom ??= { enabled: entry.enabled, revision };
+    entry.enabled = false;
+  }
+  if (action === "restore") {
+    if (entry.archivedFrom?.revision !== revision) return { error: "No matching archived revision." };
+    entry.enabled = entry.archivedFrom.enabled;
+    delete entry.archivedFrom;
+  }
+  writeManifest(botId, manifest);
+  syncSkillLinks(botId);
+  return skillListing(botId, name, entry);
+}
+
 export function setSkillEnabled(botId: string, name: string, enabled: boolean): SkillListing | { error: string } {
   if (!isSkillName(name)) return { error: "invalid skill name" };
   const manifest = readManifest(botId);
   const entry = manifest[name];
   if (!entry) return { error: `no imported skill named "${name}"` };
+  if (enabled && entry.archivedFrom) return { error: "Restore the archived revision before enabling this skill." };
   if (enabled && !skillContentMatches(botId, name, entry)) {
     return { error: "stored skill files changed after review — remove and import or learn it again" };
   }
@@ -912,6 +882,7 @@ function updatePreparedSkill(
   const name = prepared.parsed.name;
   const manifest = readManifest(botId);
   const existing = manifest[name];
+  if (existing?.archivedFrom) return { error: "Restore the archived revision before updating it." };
   const skillMd = prepared.files[0]!.content;
   const sha256 = createHash("sha256").update(skillMd).digest("hex");
   const referencesSha256 = skillReferencesSha256(prepared.files);

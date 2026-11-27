@@ -309,3 +309,18 @@ it.each(["ai", "decide"] as const)("reviews the exact %s handoff after interpola
   expect(handed.requiresInput).toMatchObject({ type: kind === "ai" ? "ai_step" : "decide", prompt: shown.prompt, input: shown.input });
   expect(handed.requiresInput[kind === "ai" ? "example" : "cases"]).toEqual(shown[kind === "ai" ? "example" : "cases"]);
 });
+
+it("loads a saved batch and audits 100 connector decisions through the run route", async () => {
+  let checks = 0;
+  const h = await serve({ workflow: { version: 1, args: { records: {} }, summary: "Read invoices", steps: [
+    { kind: "app", id: "read", label: "Invoice lookup", app: "gmail", tool: "GMAIL_FETCH_EMAILS", args: {},
+      batch: { rows: { $arg: "records" }, column: "invoice", argument: "query", select: "rows.0.0" } },
+  ] }, guard: { allowed: () => true, approve: async () => { checks++; return true; } } });
+  const records = Array.from({ length: 100 }, (_, i) => ({ invoice: String(i).padStart(5, "0") }));
+  const result = await h.post("/api/internal/skill-burgers/run", { name: "read-invoices", args: { records } });
+  expect(result).toMatchObject({ ok: true, output: { count: 100, missing: 0 } });
+  expect(result.output.rows[99]).toEqual({ row: 100, key: "00099", value: 1, status: "read" });
+  expect(h.calls).toHaveLength(100);
+  expect(checks).toBe(100);
+  expect(h.events.some(event => event.type === "item.completed" && JSON.parse(event.output ?? "{}").detail?.batch?.rows.length === 100)).toBe(true);
+});

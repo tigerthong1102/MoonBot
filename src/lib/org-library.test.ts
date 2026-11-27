@@ -122,3 +122,17 @@ describe("the preview and the provenance line", () => {
       .toEqual({ line: "From Sales desk 1.3.0 · Acme Partners", withdrawn: "Withdrawn by Acme Partners" });
   });
 });
+
+it("shows the from/to release, checksum and explicit decision for each added capability", () => {
+  const item = entry({ installed: { installId: "inst", release: "1.2.0", status: "installed" }, updateReview: {
+    base: "0".repeat(64), target: "a".repeat(64), added: ["Capability · Read invoice files", "App · outlook"], removed: [], baselineMissing: false,
+  } });
+  const markup = renderToStaticMarkup(createElement(OrgLibraryTab, {
+    listing: { organization: { id: "org", name: "Acme" }, packages: [item] }, busy: null, notice: "", error: "",
+    onAdd: vi.fn(), onDetails: vi.fn(), onUpdate: vi.fn(),
+  }));
+  expect(text(markup)).toContain("1.2.0 → 1.3.0");
+  expect(markup).toContain("a".repeat(64));
+  expect(markup.match(/type="checkbox"/g)).toHaveLength(2);
+  expect(markup).toContain('disabled=""');
+});

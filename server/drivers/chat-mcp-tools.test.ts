@@ -1101,6 +1101,7 @@ describe("Chat MCP servers past the tool limit", () => {
   });
 
   it("keeps the tool search's own three tools inside the room it divides", () => {
+    expect([...directServers([{ name: "reconciliation", tools: 3, bytes: 15000 }, { name: "calendar", tools: 2, bytes: 2000 }], 40, 3200)]).toEqual(["calendar"]);
     expect([...directServers([{ name: "a", tools: 10 }, { name: "b", tools: 3 }], 13)]).toEqual(["a", "b"]);
     expect([...directServers([{ name: "a", tools: 12 }, { name: "b", tools: 5 }], 13)]).toEqual(["b"]);
     expect([...directServers([{ name: "a", tools: 4 }, { name: "b", tools: 40 }, { name: "c", tools: 6 }], 13)]).toEqual(["a", "c"]);

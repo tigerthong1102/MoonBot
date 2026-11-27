@@ -30,3 +30,20 @@ describe("file consent boundary", () => {
     await expect(readFileTable(await spreadsheet('<row><c r="A1"><f>1+1</f><v>2</v></c></row>'))).rejects.toThrow(/reconcile.flatSheet/);
   });
 });
+
+it("reconciles Excel 2003 XML with physical source rows, exact codes and signed numeric text", async () => {
+  const { compare, guess } = await import("./compare");
+  const { htmlReport } = await import("./report");
+  const ns = "urn:schemas-microsoft-com:office:spreadsheet";
+  const cell = (type: string, text: string) => '<Cell><Data ss:Type="' + type + '">' + text + '</Data></Cell>';
+  const header = ["Mã công ty", "Kỳ", "Số chứng từ", "Số tiền"].map(x => cell("String", x)).join("");
+  const body = (amount: string) => ["001", "2025-01-31T00:00:00.000", "00017", amount].map((x, i) => cell(["String", "DateTime", "String", "Number"][i], x)).join("");
+  const file = (value: string) => new File(['<Workbook xmlns="' + ns + '" xmlns:ss="' + ns + '"><Worksheet ss:Name="Công nợ"><Table><Row>' + header + '</Row><Row ss:Index="12">' + body(value) + '</Row></Table></Worksheet></Workbook>'], "old.xls");
+  const left = await readFileTable(file("-120.5000"));
+  const right = await readFileTable(file("-120.2500"));
+  expect(left.rows[0]).toEqual(["001", "2025-01-31T00:00:00.000", "00017", { numeric: "-120.5000" }]);
+  const report = compare({ data: left, mapping: guess(left.headers), separator: "." }, { data: right, mapping: guess(right.headers), separator: "." }, { company: "001", period: "2025-01-31T00:00:00.000" });
+  expect(report.exceptions[0]).toMatchObject({ document: "00017", difference: "-0.2500", leftSource: { sheet: "Công nợ", rows: [12] } });
+  expect(htmlReport(report, key => key, "vi")).toContain("Công nợ [12]");
+  await expect(readFileTable(new File([Uint8Array.of(0xd0, 0xcf)], "binary.xls"))).rejects.toThrow("reconcile.legacyXml");
+});

@@ -5,6 +5,7 @@ import { userInfo } from "node:os";
 import { resolve } from "node:path";
 import type { VerbContext } from "../headless/context.ts";
 import { EXIT } from "../headless/args.ts";
+import { egressHosts, launchEgress, taskBroker } from "./egress.ts";
 import { run, commitOf } from "./command.ts";
 
 const label = "ai.startupbot.dev-task";
@@ -29,16 +30,26 @@ export async function sandboxCommand(ctx: VerbContext) {
     const head = commitOf(repo, "HEAD");
     const archive = spawnSync("git", ["archive", "--format=tar", head], { cwd: repo, timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
     if (archive.error || archive.status !== 0) throw new Error("The committed task archive could not be prepared within 64 MiB.");
-    const id = docker(["run", "--detach", "--rm", "--pull=never", "--network=none", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
+    const hosts = egressHosts(ctx.flags["allow-host"]);
+    const broker = hosts.length ? launchEgress(docker, owner, hosts, minutes) : undefined;
+    let id: string;
+    try { id = docker(["run", "--detach", "--rm", "--pull=never", "--network=none", "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
       "--memory=512m", "--pids-limit=128", "--tmpfs", "/workspace:rw,size=384m", "--tmpfs", "/tmp:rw,size=32m", "--label", label + "=" + owner,
-      "--label", "ai.startupbot.revision=" + head, "--workdir", "/workspace", "--entrypoint", "sleep", image, String(minutes * 60)]);
+      ...(broker ? ["--volumes-from", broker + ":ro", "--label", "ai.startupbot.egress-id=" + broker] : []), "--label", "ai.startupbot.revision=" + head, "--workdir", "/workspace", "--entrypoint", "sleep", image, String(minutes * 60)]); }
+    catch (error) { if (broker) docker(["stop", "--time", "1", broker]); throw error; }
     try { docker(["exec", "-i", "--workdir", "/workspace", id, "tar", "-xf", "-"], archive.stdout); }
-    catch (error) { docker(["stop", "--time", "1", id]); throw error; }
-    result = { id, image, head, ttlMinutes: minutes, directory: "/workspace" };
-  } else if (action === "stop") {
+    catch (error) { try { docker(["stop", "--time", "1", id]); } finally { if (broker) docker(["stop", "--time", "1", broker]); } throw error; }
+    result = { id, image, head, ttlMinutes: minutes, directory: "/workspace", ...(broker ? { httpsReadHosts: hosts, fetchSocket: "/run/egress/fetch.sock" } : {}) };
+  } else if (action === "stop" || action === "revoke" || action === "egress-log") {
     const id = String(ctx.flags.id || "");
     if (!/^[a-f0-9]{64}$/.test(id) || docker(["inspect", "--format", '{{index .Config.Labels "' + label + '"}}', id]) !== owner) throw new Error("Select a full container ID owned by this task checkout.");
-    docker(["stop", "--time", "3", id]); result = { stopped: id };
-  } else throw new Error("Choose list, start or stop.");
+    const broker = taskBroker(docker, id, owner);
+    if (action === "egress-log") result = { id, log: broker ? docker(["logs", "--tail", "200", broker]) : null };
+    else {
+      if (broker) docker(["stop", "--time", "1", broker]);
+      if (action === "revoke") result = { id, httpsReadHosts: [] };
+      else { docker(["stop", "--time", "3", id]); result = { stopped: id }; }
+    }
+  } else throw new Error("Choose list, start, revoke, egress-log or stop.");
   return { result, exitCode: EXIT.done, human: [JSON.stringify(result, null, 2)] };
 }

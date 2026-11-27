@@ -194,6 +194,32 @@ it("applies requested Full Access workflows through MCP without duplicate approv
     const updatedSkills = await api("GET", `/api/bots/${chief.id}/skills`);
     expect(updatedSkills.skills).toEqual([expect.objectContaining({ name: "monthly-fixture-review", enabled: true })]);
     expect(updatedSkills.staged).toHaveLength(0);
+    await run(chief, chief.activeTaskId, "/monthly-fixture-review reconcile these test invoices", []);
+    const listing = await api("GET", `/api/bots/${chief.id}/skills`);
+    expect(listing.skills.find((item: any) => item.name === "monthly-fixture-review").usage).toMatchObject({ calls: 1, failed: 0 });
+    const maintenancePath = `/api/bots/${chief.id}/skills/monthly-fixture-review?maintenance=1`;
+    const skillName = "monthly-fixture-review";
+    await api("POST", "/api/skills-library", { text: skill(skillName, "Check the separately maintained library version.") }, 201);
+    await api("PATCH", `/api/skills-library/${skillName}`, { enabled: true });
+    await api("PATCH", `/api/bots/${peer.id}/skills-library`, { name: skillName, assigned: true });
+    const peerSkills = await api("GET", `/api/bots/${peer.id}/skills`);
+    expect(peerSkills.skills).toContainEqual(expect.objectContaining({ name: skillName, origin: "library" }));
+    expect((await api("GET", maintenancePath)).dependencies).not.toContain("team");
+    const revision = listing.skills.find((item: any) => item.name === skillName).reviewedRevision;
+    await api("PATCH", `/api/bots/${chief.id}/skills/${skillName}`, { maintenance: "archive", revision });
+    expect((await api("GET", `/api/bots/${peer.id}/skills/${skillName}`)).text).toContain("separately maintained");
+    await api("PATCH", `/api/bots/${chief.id}/skills/${skillName}`, { maintenance: "restore", revision });
+    async function disabledShared(name: string, prompt: string) {
+      await api("POST", "/api/skill-burgers", { everyChat: true, name, workflow: {
+        version: 1, summary: name, args: {}, steps: [{ id: "read", label: "Review", kind: "ai", deterministic: false, prompt }],
+      } }, 201);
+      await api("PATCH", `/api/skills-library/${name}`, { enabled: false });
+    }
+    await disabledShared("unrelated-review", "Use /monthly-fixture-review-extra for this task.");
+    expect((await api("GET", maintenancePath)).dependencies).not.toContain("workflow");
+    await disabledShared("related-review", "Use /monthly-fixture-review for this task.");
+    expect((await api("GET", maintenancePath)).dependencies).toContain("workflow");
+
 
     plans[peer.id] = { turns: [{ reply: "Fixture peer verified the reporting instructions." }] };
     await run(chief, chief.activeTaskId, "Have Ada independently verify the fixture reporting instructions and return the result.", [
@@ -241,7 +267,7 @@ it("applies requested Full Access workflows through MCP without duplicate approv
     expect(inverseTurn.permissionMode).toBe("bypassPermissions");
     expect((await bots()).find(bot => bot.id === inverse.id)).toMatchObject({ title: "Applied from Full task", approvalMode: "ask" });
     expect(await unanswered(chief.activeTaskId)).toHaveLength(0);
-    expect(providerTurns()).toHaveLength(7);
+    expect(providerTurns()).toHaveLength(8);
     const persisted = readRegistry(dataDir).bots;
     expect(persisted.find((bot: any) => bot.id === chief.id)).toMatchObject({ title: "Monthly reporting Chief", approvalMode: "full" });
     expect(persisted.find((bot: any) => bot.id === chief.id).tasks.find((task: any) => task.threadId === ask.threadId).approvalMode).toBe("ask");

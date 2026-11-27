@@ -306,6 +306,15 @@ export function TeamLibraryPanel({
     }
   };
 
+  const approveOrgUpdate = async (entry: OrgLibraryPackage, approved: string[]) => {
+    const review = entry.updateReview;
+    if (!review) return;
+    setOrgBusy(entry.packageId); setOrgError("");
+    try {
+      await api("/api/org-library/update", { method: "POST", body: JSON.stringify({ packageId: entry.packageId, base: review.base, target: review.target, approved }) });
+    } catch (cause) { setOrgError(cause instanceof Error ? cause.message : String(cause)); }
+    finally { await loadOrgLibrary(); setOrgBusy(null); }
+  };
   const addOrgPackage = async (entry: OrgLibraryPackage) => {
     setOrgBusy(entry.packageId);
     setImporting(true);
@@ -658,6 +667,7 @@ export function TeamLibraryPanel({
                   notice={orgNotice}
                   error={orgError}
                   onAdd={(entry) => void addOrgPackage(entry)}
+                  onUpdate={(entry, approved) => void approveOrgUpdate(entry, approved)}
                   onDetails={(entry) => void loadOrgDetails(entry)}
                 />
               )}

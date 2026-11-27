@@ -149,6 +149,21 @@ it("brings an added team to a newer release, keeping what the person changed", a
     expect((await call("GET", "/api/routines")).body.routines.every((routine: any) => !routine.enabled)).toBe(true);
     const shelf = (await call("GET", "/api/org-library")).body.packages[0];
     expect(shelf.installed).toMatchObject({ release: "1.4.0", status: "installed" });
+    const expanded = release("full-team.v2.json", document => {
+      document.package.release = "1.5.0";
+      document.package.requirements.capabilities.push("Read invoice attachments");
+    });
+    await offer(expanded, 3);
+    const waiting = (await call("GET", "/api/org-library")).body.packages[0];
+    expect(waiting.installed.release).toBe("1.4.0");
+    expect(waiting.updateReview).toMatchObject({ base: next.sha256, target: expanded.sha256, added: ["Capability · Read invoice attachments"] });
+    const consent = { packageId: TEAM_ID, base: next.sha256, target: expanded.sha256, approved: waiting.updateReview.added };
+    expect((await call("POST", "/api/org-library/update", { ...consent, approved: [] })).status).toBe(409);
+    expect((await call("POST", "/api/org-library/update", { ...consent, target: "0".repeat(64) })).status).toBe(409);
+    expect((await call("POST", "/api/org-library/update", consent)).status).toBe(200);
+    expect((await byKey("lead")).installedPackage).toMatchObject({ release: "1.5.0", sha256: expanded.sha256 });
+    await offer(next, 4);
+    expect((await byKey("lead")).installedPackage.release).toBe("1.5.0");
   } finally {
     await fixture.close();
   }

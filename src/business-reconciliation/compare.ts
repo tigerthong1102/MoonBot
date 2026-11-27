@@ -1,6 +1,7 @@
 import { ReconcileError, type MessageKey } from "./messages";
 export type Cell = string | { numeric: string };
-export type Table = { headers: string[]; rows: Cell[][] };
+export type SheetRows = { sheet: string; rows: number[] };
+export type Table = { headers: string[]; rows: Cell[][]; origin?: SheetRows };
 export const fields = ["company", "period", "document", "amount"] as const;
 export type Mapping = Record<typeof fields[number], number>;
 export const titles = { company: "Mã công ty", period: "Kỳ", document: "Số chứng từ", amount: "Số tiền" };
@@ -64,23 +65,25 @@ function format(value: bigint, scale: number) {
 export type Source = { data: Table; mapping: Mapping; separator: "." | "," };
 export type Scope = { company: string; period: string };
 
-function keys(row: Cell[], m: Mapping, index: number): Scope {
+function keys(row: Cell[], m: Mapping, line: number): Scope {
   const p = row[m.period];
   const period = typeof p === "object" && /^\d{4}$/.test(p.numeric) ? p.numeric : p;
-  return { company: identifier(row[m.company], "company", index + 1), period: identifier(period, "period", index + 1) };
+  return { company: identifier(row[m.company], "company", line), period: identifier(period, "period", line) };
 }
 
 function collect(source: Source, scope: Scope) {
   const { data, mapping } = source;
   checkMapping(data, mapping);
-  const documents = new Map<string, { count: number; total: bigint }>();
+  const documents = new Map<string, { count: number; total: bigint; source?: SheetRows }>();
   let total = 0n, scale = 0, count = 0;
   data.rows.forEach((row, index) => {
-    const key = keys(row, mapping, index);
+    const line = data.origin?.rows[index] ?? index + 1;
+    const key = keys(row, mapping, line);
     if (key.company !== scope.company || key.period !== scope.period) return;
-    const doc = identifier(row[mapping.document], "document", index + 1);
-    const amount = sumValue(row[mapping.amount], source.separator, index + 1);
+    const doc = identifier(row[mapping.document], "document", line);
+    const amount = sumValue(row[mapping.amount], source.separator, line);
     const record = documents.get(doc) ?? { count: 0, total: 0n };
+    if (data.origin) (record.source ??= { sheet: data.origin.sheet, rows: [] }).rows.push(line);
     record.count++;
     record.total += amount.value;
     documents.set(doc, record);
@@ -110,7 +113,7 @@ export function compareTotals({ left: a, right: b, scope }: ReturnType<typeof re
     if (!y) reasons.push("reconcile.missingRight");
     if (x && y && x.total !== y.total) reasons.push("reconcile.different");
     if ((x?.count ?? 0) > 1 || (y?.count ?? 0) > 1) reasons.push("reconcile.multiple");
-    if (reasons.length) exceptions.push({ document, reasons, leftCount: x?.count ?? 0,
+    if (reasons.length) exceptions.push({ document, reasons, ...(x?.source ? { leftSource: x.source } : {}), ...(y?.source ? { rightSource: y.source } : {}), leftCount: x?.count ?? 0,
       rightCount: y?.count ?? 0, left: x ? format(x.total, scale) : "", right: y ? format(y.total, scale) : "",
       difference: format((x?.total ?? 0n) - (y?.total ?? 0n), scale) });
   }

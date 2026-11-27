@@ -377,3 +377,11 @@ This slice covers direct threads. It does not add channel compaction, change
 provider-native compaction, prove live-model summary quality, or ship native
 iOS/Android compaction controls. The renderer test checks note markup and escaping,
 not a real browser click. Native mobile indicators remain separate PR work.
+
+An administrator can pin tool-free background calls in the host's `config.json`
+under `backgroundModels.compaction` and `backgroundModels.work-bot-offer`.
+Each value is an object with an `instanceId` and a `model`. The route must
+belong to the conversation's selected Claude or OpenAI-compatible instance.
+The host checks the model catalog, organization grant and bot spend limit
+before dispatch. A refused or unavailable pinned summary falls back to local
+excerpts. A failed work classification retains the existing local behavior.

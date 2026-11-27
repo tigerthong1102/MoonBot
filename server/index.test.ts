@@ -21,6 +21,7 @@ import { z } from "zod";
 
 import type { InspectorPage } from "../shared/inspector.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { startFakeHttpMcp } from "./testing/fake-http-mcp-server.ts";
 import { startFakeOAuth } from "./testing/fake-oauth-server.ts";
 import { freePortBlock, withFreeSignInPort } from "./testing/ports.ts";
@@ -1749,7 +1750,7 @@ describe("harness HTTP API", () => {
 
     try {
       const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`competing server did not exit; stderr: ${contenderStderr.slice(-2_000)}`)), 30_000);
+        const timer = setTimeout(() => reject(new Error(`competing server did not exit; stderr: ${contenderStderr.slice(-2_000)}`)), hostTimeout(30_000));
         timer.unref?.();
         contender.once("close", (code, signal) => {
           clearTimeout(timer);
@@ -1763,7 +1764,7 @@ describe("harness HTTP API", () => {
     } finally {
       await waitForExit(contender, { signal: "SIGTERM", graceMs: 1_000 });
     }
-  }, 45_000);
+  }, hostTimeout(45_000));
 
   it("serves packaged UI assets and preserves API 404s", async () => {
     const root = await fetch(`${BASE}/`);
@@ -14413,6 +14414,12 @@ describe("message pages", () => {
         body: JSON.stringify({ path: linkedFile }),
       },
     );
+    const refRoute = `/api/threads/${threadId}/messages/linked-file-message/file`;
+    const read = await api("POST", refRoute, { path: linkedFile, sourceLines: { start: 1, end: 1 } });
+    expect(read.body).toMatchObject({ text: "# Phone-ready report", start: 1, end: 1, sha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect((await api("POST", refRoute, { path: linkedFile, sourceLines: { start: 1, end: 1, sha256: read.body.sha256 } })).status).toBe(200);
+    expect((await api("POST", refRoute, { path: linkedFile, sourceLines: { start: 1, end: 1, sha256: "0".repeat(64) } })).status).toBe(409);
+    expect((await api("POST", refRoute.replace("linked-file-message","prose-file-message"), { path: linkedFile, sourceLines: { start: 1, end: 1 } })).status).toBe(403);
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("# Phone-ready report\n");
     expect(response.headers.get("content-type")).toContain("text/markdown");

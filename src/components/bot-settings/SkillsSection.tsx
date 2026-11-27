@@ -1,5 +1,5 @@
 import { BookOpen, Trash2 } from "lucide-react";
-import { t } from "@/lib/i18n";
+import { intlLocale, t } from "@/lib/i18n";
 import { skillImportLines } from "@/lib/skill-import";
 import type { SkillImportSummary } from "../../../shared/skill-import";
 import { useEffect, useRef, useState } from "react";
@@ -12,9 +12,14 @@ import { inputCls } from "./field";
 import { OrgSkillsCard } from "./OrgSkillsCard";
 import { WriteCommandCard } from "./WriteCommandCard";
 import { Select } from "../Select";
+import { SkillMaintenance } from "./SkillMaintenance";
 import { SkillInstructions } from "../SkillInstructions";
 
 export interface ManagedSkill {
+  reviewedRevision?: string;
+  maintenancePinned?: boolean;
+  archivedFrom?: { enabled: boolean; revision: string };
+  usage?: { calls: number; lastAt: number; failed: number; priorCalls: number };
   name: string;
   description: string;
   enabled: boolean;
@@ -34,6 +39,14 @@ const inFolder = (skill: ManagedSkill): boolean => skill.origin === "native" || 
 /** A skill's switch: on whenever the skill is on, including an imported one the bot finds only when a task needs it,
  * so one click always turns it fully off. */
 export const skillSwitchOn = (skill: ManagedSkill): boolean => skill.enabled;
+
+export function learnedSkillUsageText(skill: ManagedSkill): string | undefined {
+  const usage = skill.usage;
+  if (!usage) return undefined;
+  if (!usage.calls) return t("skills.usage.prior", { count: usage.priorCalls });
+  const history = t("skills.usage.calls", { count: usage.calls, date: new Date(usage.lastAt).toLocaleString(intlLocale()) });
+  return usage.failed ? history + " " + t("skills.usage.failed", { count: usage.failed }) : history;
+}
 
 interface LibraryPoolSkill {
   name: string;
@@ -507,6 +520,8 @@ export function SkillsSection({ bot }: { bot: Bot }) {
                     </button>
                   )}
                 </div>
+                {skill.reviewedRevision && <SkillMaintenance botId={bot.id} skill={skill} refresh={refresh} />}
+                {skill.usage && <div className="mt-1 text-[11px] text-ink-secondary">{learnedSkillUsageText(skill)}</div>}
                 {skill.warnings.length > 0 && (
                   <div className="mt-1 text-[11px] text-warning">{skill.warnings.join(" · ")}</div>
                 )}

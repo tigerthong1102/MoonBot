@@ -5,6 +5,7 @@
 // `r`) and the person did not (the part as it is now still hashes to `w`); it is then written and stamped `r` = `w` =
 // the new hash. A part the person edited is kept as they left it, and its stamp is left alone, so it stays theirs.
 // Security: an update never raises approval, switches a routine on, or adds a connection or its values.
+import { capabilityReview, newerRelease } from "../shared/org-capabilities.ts";
 import type { PackageAgent, PackageDocument } from "../shared/package-format.ts";
 import type { OrgInstall, OrgLibraryDeps, OrgLibraryEntry } from "./org-library.ts";
 import {
@@ -73,17 +74,22 @@ function switchOff(deps: OrgLibraryDeps, installId: string): void {
 }
 
 /** Brings each added team up to its catalog release; the ids of the installs it moved to a new release. */
-export function applyUpdates(context: ReleaseContext): string[] {
+export function applyUpdates(context: ReleaseContext, consent?: { installId: string; base: string; target: string; approved: readonly string[] }): string[] {
   const updated: string[] = [];
   for (const [installId, install] of Object.entries(context.installs)) {
+    if (consent && consent.installId !== installId) continue;
     if (context.currentInstallId(install.packageId) !== installId || install.status !== "installed" || install.kind !== "team") continue;
     const entry = context.entries.find((candidate) => candidate.packageId === install.packageId);
     const release = entry?.release;
-    if (!entry || !release || release.sha256 === install.sha256) continue;
+    if (!entry || !release || entry.mode === "off" || entry.ref !== install.ref || entry.publisher.organizationId !== install.publisher.organizationId || !newerRelease(release.version, install.release)) continue;
+    if (consent && (consent.base !== install.sha256 || consent.target !== release.sha256)) continue;
     if (entry.withdrawnReleases.some((withdrawn) => withdrawn.sha256 === release.sha256)) continue;
     const next = context.releaseDocument(entry);
     if (!next) continue;
-    const update = new InstallUpdate(context.deps, installId, install, next, release.sha256, context.installedDocument(install));
+    const previous = context.installedDocument(install);
+    const review = capabilityReview(previous, next, install.sha256, release.sha256);
+    if (review && (!consent || JSON.stringify([...consent.approved].sort()) !== JSON.stringify(review.added))) continue;
+    const update = new InstallUpdate(context.deps, installId, install, next, release.sha256, previous);
     try {
       update.bots();
       update.rooms();

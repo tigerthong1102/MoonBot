@@ -398,6 +398,33 @@ describe("the page's file picker and downloads", () => {
     expect(fixture.answers).toEqual([]);
   });
 
+  it("resumes a canceled transfer by immutable download ID and checks the audience for each request", async () => {
+    const folder = mkdtempSync(join(tmpdir(), "omb-download-"));
+    folders.push(folder);
+    const bytes = Buffer.alloc(2 * 1024 * 1024, 17);
+    bytes.write("final chunk", bytes.length - 11);
+    const path = join(folder, "report.bin");
+    writeFileSync(path, bytes);
+    let permitted = true;
+    const fixture = await serve({
+      audience: () => permitted ? "team" : null,
+      download: id => id === "report-1" ? { id, fileName: "report.bin", path, receivedBytes: bytes.length, state: "completed" } as Download : undefined,
+    });
+    const url = `http://${fixture.origin}/api/bots/pepper/browser/download/report-1`;
+    const request = await fetch(url);
+    const reader = request.body!.getReader();
+    const { value } = await reader.read();
+    await reader.cancel();
+    const range = { headers: { range: `bytes=${value!.byteLength}-` } };
+    const resumed = await fetch(url, range);
+    expect(resumed.status).toBe(206);
+    expect(Buffer.concat([value!, Buffer.from(await resumed.arrayBuffer())]).equals(bytes)).toBe(true);
+    expect((await fetch(url, { method: "HEAD" })).headers.get("content-length")).toBe(String(bytes.length));
+    expect((await fetch(url, { headers: { range: `bytes=${bytes.length}-` } })).status).toBe(416);
+    permitted = false;
+    expect((await fetch(url, range)).status).toBe(404);
+  });
+
   it("serves a finished download as an attachment, and nothing else", async () => {
     const folder = mkdtempSync(join(tmpdir(), "omb-download-"));
     folders.push(folder);

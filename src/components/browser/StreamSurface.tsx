@@ -37,6 +37,7 @@ import {
 import { copyText } from "@/lib/copy-text";
 import { t } from "@/lib/i18n";
 import { serverErrorText } from "@/lib/server-error";
+import { formatBytes } from "@/lib/memory";
 import { AgentCursor } from "./AgentCursor";
 import { AuthPrompt } from "./AuthPrompt";
 import { SelectPopup, type SelectPopupOption } from "./SelectPopup";
@@ -748,7 +749,7 @@ export function StreamSurface(props: {
                 {notice.kind === "download" ? (
                   <>
                     <Download size={13} aria-hidden="true" className="shrink-0" />
-                    <span className="min-w-0 truncate">{t("browser.notice.downloaded", { name: notice.download.fileName })}</span>
+                    <span className="min-w-0 truncate">{t("browser.notice.downloaded", { name: notice.download.fileName })} · {formatBytes(notice.download.sizeBytes)}</span>
                     <button type="button" className="shrink-0 rounded-md bg-accent px-2 py-0.5 text-accent-ink" onClick={() => { save(notice.download); dismiss(notice.id); }}>{t("common.save")}</button>
                   </>
                 ) : notice.kind === "clipboard" ? (

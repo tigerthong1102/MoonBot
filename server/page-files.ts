@@ -1,3 +1,4 @@
+import { rangeOf } from "./http-byte-range.ts";
 // A folder page's files, served to its sandboxed frame at /api/page-files/<token>/<path>. The frame's requests carry no
 // sign-in, so the route answers before the sign-in gate, and the token is the whole of its authority:
 //
@@ -66,14 +67,6 @@ export function pageFilePath(raw: string): string | null {
     segments.push(segment);
   }
   return segments.join("/");
-}
-
-/** The bytes a Range header asks of a file this size, or null when it can't be met. */
-function rangeOf(header: string, size: number): { start: number; end: number } | null {
-  const range = /^bytes=(\d*)-(\d*)$/.exec(header);
-  const start = range?.[1] ? Number(range[1]) : range?.[2] ? Math.max(0, size - Number(range[2])) : NaN;
-  const end = range?.[1] && range[2] ? Math.min(size - 1, Number(range[2])) : size - 1;
-  return !range || !Number.isSafeInteger(start) || start >= size || end < start ? null : { start, end };
 }
 
 /** The open video, if it is still the regular file the page recorded. */

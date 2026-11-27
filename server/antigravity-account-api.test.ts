@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { verificationServerEnvironment } from "../scripts/control-omb.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { freePortBlock } from "./testing/ports.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -31,7 +32,7 @@ async function launch(port: number) {
   await vi.waitFor(async () => {
     const health = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(1000) });
     expect((await health.json() as { pid: number }).pid).toBe(child!.pid);
-  }, { timeout: 20_000, interval: 100 });
+  }, { timeout: hostTimeout(20_000), interval: 100 });
 }
 beforeAll(async () => {
   home = mkdtempSync(join(tmpdir(), "omb-google-accounts-"));
@@ -53,7 +54,7 @@ await import(${JSON.stringify(pathToFileURL(join(ROOT, "server/testing/fake-acp-
     "google-original": { driver: "antigravityAgent", displayName: "Original Google", config: { cli, fullAuto: true }, environment: { GOOGLE_API_KEY: "synthetic-do-not-copy" } },
   } }));
   await launch(port);
-}, 30_000);
+}, hostTimeout(30_000));
 afterAll(async () => {
   await waitForExit(child, { signal: "SIGTERM" });
   if (logPath) {
@@ -111,7 +112,7 @@ it("adds independent accounts, switches a bot between their models, and preserve
   }, { timeout: 15_000, interval: 250 });
   const bots = await api("GET", "/api/bots");
   expect(bots.body.bots.find((bot: any) => bot.id === created.body.bot.id).modelSelection).toMatchObject({ instanceId: ids[1], model: "gemini-fixture" });
-}, 40_000);
+}, hostTimeout(40_000));
 
 it("removes an unused added account but never the original Antigravity account", async () => {
   const created = await api("POST", "/api/instances/antigravity-accounts", { displayName: "Remove me", sourceInstanceId: "google-original" });

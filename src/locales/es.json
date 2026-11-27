@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Saldo de IA de prueba",
+  "pilot.open": "Abrir saldo de prueba",
   "browser.evidence.pick": "Seleccionar un elemento de la página",
   "browser.evidence.add": "Añadir al borrador del chat",
   "browser.evidence.failed": "No se pudo capturar este elemento.",

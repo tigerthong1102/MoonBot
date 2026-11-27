@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Тестовый кошелёк ИИ",
+  "pilot.open": "Открыть тестовый кошелёк",
   "browser.evidence.pick": "Выбрать элемент страницы",
   "browser.evidence.add": "Добавить в черновик чата",
   "browser.evidence.failed": "Не удалось получить данные элемента.",

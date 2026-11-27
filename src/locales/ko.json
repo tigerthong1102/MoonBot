@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "AI 테스트 지갑",
+  "pilot.open": "테스트 지갑 열기",
   "browser.evidence.pick": "페이지 요소 선택",
   "browser.evidence.add": "채팅 초안에 추가",
   "browser.evidence.failed": "이 요소를 캡처할 수 없습니다.",

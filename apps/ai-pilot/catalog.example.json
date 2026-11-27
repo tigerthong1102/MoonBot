@@ -1,0 +1,14 @@
+{
+  "version": "sandbox-1",
+  "currency": "usd",
+  "offers": {
+    "monthly": { "amountMinor": 900, "creditMicros": 3000000 },
+    "annual": { "amountMinor": 9000, "creditMicros": 36000000 },
+    "topup": { "amountMinor": 300, "creditMicros": 1000000 }
+  },
+  "model": "openai/gpt-4.1-mini",
+  "maxOutput": 2048,
+  "maxPromptUsdPerMillion": 1,
+  "maxOutputUsdPerMillion": 4,
+  "keyLimitUsd": 50
+}

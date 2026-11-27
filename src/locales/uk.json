@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Тестовий гаманець ШІ",
+  "pilot.open": "Відкрити тестовий гаманець",
   "browser.evidence.pick": "Вибрати елемент сторінки",
   "browser.evidence.add": "Додати до чернетки чату",
   "browser.evidence.failed": "Не вдалося захопити цей елемент.",

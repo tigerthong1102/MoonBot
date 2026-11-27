@@ -26,7 +26,6 @@ describe("lazy host claim and pin on use (issue #1650)", () => {
   let stateFile = "";
   let dumpFile = "";
   let finishFile = "";
-  let output = "";
   let child: ChildProcess | null = null;
   let base = "";
 
@@ -45,8 +44,8 @@ describe("lazy host claim and pin on use (issue #1650)", () => {
     expect(result.status, `${method} ${path}: ${JSON.stringify(result.body)}`).toBeLessThan(400);
     return result.body;
   };
-  async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean): Promise<T> {
-    const end = Date.now() + 20_000;
+  async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean, timeoutMs = 20_000): Promise<T> {
+    const end = Date.now() + timeoutMs;
     for (;;) {
       const value = await read();
       if (accept(value)) return value;
@@ -82,7 +81,6 @@ describe("lazy host claim and pin on use (issue #1650)", () => {
   async function start(env: Record<string, string> = {}) {
     const port = await freePortBlock([0, 1]);
     base = `http://127.0.0.1:${port}`;
-    output = "";
     // The desktop app's own server: it hears the app's driver record over its parent port, as Electron hands it over.
     const proc = spawn(process.execPath, ["--import", pathToFileURL(join(ROOT, "server/testing/group-local-vm-hooks.mjs")).href,
       "--import", pathToFileURL(join(ROOT, "server/testing/desktop-parent.mjs")).href, join(ROOT, "server/index.ts")], {
@@ -95,15 +93,18 @@ describe("lazy host claim and pin on use (issue #1650)", () => {
         OMB_USER_DATA: join(home, "user-data"), OMB_TEST_DESKTOP_CUA_CONNECTION: join(home, "user-data", "cua-connection.json"),
         OMB_COMPUTER_CALL_WAIT_MS: String(CALL_WAIT_MS),
         OMB_COMPUTER_CALL_ACT_WITHIN_MS: String(ACT_WITHIN_MS), ...env,
-      }, stdio: ["ignore", "pipe", "pipe"],
+      }, stdio: "ignore",
     });
     child = proc;
-    proc.stdout!.on("data", chunk => { output += chunk; });
-    proc.stderr!.on("data", chunk => { output += chunk; });
+    const bootTimeout = hostTimeout(20_000);
+    const signal = AbortSignal.timeout(bootTimeout);
     await until(async () => {
-      if (proc.exitCode !== null) throw new Error(`server exited during boot:\n${output}`);
-      try { return (await fetch(base + "/api/health")).ok; } catch { return false; }
-    }, Boolean);
+      if (proc.exitCode !== null || proc.signalCode !== null) throw new Error(`Fixture server exited before /api/health (exit ${proc.exitCode}, signal ${proc.signalCode}).`);
+      try {
+        const response = await fetch(base + "/api/health", { signal });
+        return response.ok ? "ready" : `/api/health returned HTTP ${response.status}`;
+      } catch { return "No response from /api/health"; }
+    }, status => status === "ready", bootTimeout);
   }
   async function stop() {
     if (!child) return;

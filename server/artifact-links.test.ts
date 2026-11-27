@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { expect, it } from "vitest";
 import { ArtifactLinks } from "./artifact-links.ts";
 import type { RequestAuth } from "./request-auth.ts";
@@ -20,4 +23,20 @@ it("expires a conversation attachment link and allows only its issuer to revoke 
   expect(second.id).not.toBe(first.id);
   now = second.expiresAt;
   expect(links.read(second.id, "a", "m")).toBeNull();
+});
+
+
+it("keeps scoped grants through restart and shares revocation with other server processes", () => {
+  const dir = mkdtempSync(join(tmpdir(), "startupbot-artifacts-"));
+  const file = join(dir, "links.sqlite");
+  const first = new ArtifactLinks(Date.now,file), second = new ArtifactLinks(Date.now,file);
+  try {
+    const link = first.issue("thread","message","report.md",session("owner"));
+    first.close();
+    expect(second.issue("thread","message","report.md",session("owner"))).toEqual(link);
+    second.revoke(link.id,"thread","message",session("reader"));
+    expect(first.read(link.id,"thread","message")).toBe("report.md");
+    second.revoke(link.id,"thread","message",session("owner"));
+    expect(first.read(link.id,"thread","message")).toBeNull();
+  } finally { first.close(); second.close(); rmSync(dir,{recursive:true,force:true}); }
 });

@@ -17,6 +17,7 @@ import type { Coordinator } from "../coordinator.ts";
 import type { WorkspaceAccess } from "../enterprise.ts";
 import type { GroupUsageReader } from "../group-thread-usage.ts";
 import { readMessage, searchMessagesAsync } from "../message-db.ts";
+import { DATA_DIR } from "../config.ts";
 import { ArtifactLinks } from "../artifact-links.ts";
 import { MessageMediaLinks } from "../message-media-links.ts";
 import {
@@ -87,7 +88,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
     botComputerControlSnapshot, messageFileRootsForThread, viewerFor, visibleTo,
   } = deps;
   const mediaLinks = new MessageMediaLinks();
-  const artifactLinks = new ArtifactLinks();
+  const artifactLinks = new ArtifactLinks(Date.now, join(DATA_DIR, "artifact-links.sqlite"));
   // tasks stays explicit: clients expect [] where wireBot() would omit the key.
   const shownBot = (bot: BotRecord, visible: VisibleSet, limit: number | undefined) => {
     const wired = wireBot(bot);

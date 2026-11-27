@@ -330,6 +330,7 @@ export function mergedServersNotice({ server, same }: MergedChatMcpServers): str
 export function searchedServersNotice(budget: ToolBudget): string | undefined {
   const names = budget.servers.filter((server) => !server.direct).map((server) => server.name);
   if (!names.length) return undefined;
+  if (budget.schemaBudgetBytes) return `To fit tool definitions in the model's context window, the tools of ${quotedList(names)} are reached through the tool search this turn.`;
   return `To fit the model's ${budget.limit}-tool limit, the tools of ${quotedList(names)} are reached through the tool search this turn.`;
 }
 
@@ -643,6 +644,8 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
     const sizes = configured.map(({ origin, tools }) => ({ name: origin.server, tools: tools.length,
       bytes: Number.isFinite(schemaBudget) ? tools.reduce((sum, { tool }) => sum + Buffer.byteLength(JSON.stringify(tool)), 0) : 0 }));
     const schemasNeedSearch = sizes.reduce((sum, server) => sum + server.bytes, 0) > schemaBudget;
+    if (schemasNeedSearch) budget.schemaBudgetBytes = schemaBudget;
+    else delete budget.schemaBudgetBytes;
     const wanted = [...offeredTools, ...configured].reduce((sum, server) => sum + server.tools.length, 0);
     const searchRoom = configured.some((server) => server.tools.length) && (wanted > room || schemasNeedSearch) ? DIRECTORY_TOOL_COUNT : 0;
     // The agents server keeps its whole list first; configured servers fit in what the built-ins leave.

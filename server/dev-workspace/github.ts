@@ -6,7 +6,6 @@ import { run } from "./command.ts";
 
 const HUNK_TAIL_LINES = 8
 
-/** The hunk's last lines without its @@ header; what the host forwards so phones get the code, not the whole hunk. */
 export function tailDiffHunk(hunk: string | null | undefined): string | undefined {
   if (!hunk) {
     return undefined

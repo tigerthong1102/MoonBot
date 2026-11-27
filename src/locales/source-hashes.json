@@ -38425,7 +38425,14 @@
       "server.roomCouncil.textOnly": "511bc65921b5e38918e3b377202f6d342613e36317f82760a89a63a86103e6f2",
       "browser.evidence.pick": "405343991ecbfb1a59597a6d9d1186576f0257116884a50950ae905fa2bf2452",
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
-      "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9"
+      "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
+      "directMcp.clickup": "646432934f0e01baca3c5b71b7e05b10246082a32a1c220a14f1ee3864f0a0b1",
+      "directMcp.airtable": "1f5653a3029a8bf61b8c355fab45d571ea3a021740e8d41107158d240e7ad4c7",
+      "directMcp.todoist": "fe13028cbf5fa8a4d4abb4c6b0152d12602723c6583a53cf2d61edb13950a065",
+      "directMcp.zapier": "5973af5e3a30fab31188d7095978241a3bea39b564cfc8fe0c2dc326bf316841",
+      "directMcp.granola": "2e503a28b5072fd445899cfd73b3cd6e378536a7785abc8edf7b21ec0ab38265",
+      "directMcp.intercom": "c4ef610667685743b502996a7fb33ea5e348b48e5a26500ff4c065e261883b2a",
+      "directMcp.notice": "3688c2e64ec3a80cbd2df4f12f0db8318ba780c81338eb19c9423472c7a354f4"
     },
     "zh": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",

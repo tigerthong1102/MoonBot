@@ -125,13 +125,18 @@ export function createEmailHost(deps: EmailHostDeps) {
         if (deps.internalDelivery?.(capability)) return emailError(INTERNAL_DELIVERY_ONLY);
         const send = () => run.sendMessage(mailbox, guard, { to: args.to, subject: args.subject, text: args.text, ...pick(args, ["cc", "bcc", "html", "inline_images"]), ...threading });
         if (!report) return emailText({ account: from, ...await send() });
+        let lastingFailure: SendingError | undefined;
         const result = await report.deliveries.send(report.id, capability, args.to[0], async () => {
           try { return await send(); }
           catch (error) {
-            if (error instanceof SendingError && error.fault === "rejected") return { messageId: "", accepted: [], rejected: [args.to[0]] };
+            if (error instanceof SendingError) {
+              if (LASTING_SENDING_FAULTS.has(error.fault)) lastingFailure = error;
+              if (lastingFailure || error.fault === "rejected") return { messageId: "", accepted: [], rejected: [args.to[0]] };
+            }
             throw error;
           }
         });
+        if (lastingFailure) throw lastingFailure;
         if (result.receipt.state !== "accepted") return emailError(JSON.stringify({ ...result, instruction: "Reconcile this receipt against the outgoing mailbox before sending anything else." }));
         return { ...emailText(result), structuredContent: result };
       }

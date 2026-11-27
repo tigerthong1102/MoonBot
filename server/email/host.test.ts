@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import "../server-line-packs.ts";
 import { setConversationLanguage } from "../server-lines.ts";
 import { boxUploadsDir } from "../bot-box/plan.ts";
+import { RoutineEmailDeliveries } from "../routine-email-deliveries.ts";
+import type { RoutineRun } from "../routines.ts";
 import { EmailError, openGuard, sendingError, SendingError } from "./client.ts";
 import { outsideRouteRefused } from "../host/outside-fence.ts";
 import { createEmailHost, EMAIL_INTERNAL_MCP_PATH, emailAccess, emailAllowedFor, type EmailBot, type EmailHostDeps } from "./host.ts";
@@ -18,13 +20,13 @@ const dirs: string[] = [];
 // The decision log is appended to after a call answers, so a folder may still be written as it goes.
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); });
 
-async function fixture(run: EmailHostDeps["run"] = {}, bot: EmailBot | null = { id: "b1", name: "Ada", color: "blue" }, connected = true, internalDelivery?: EmailHostDeps["internalDelivery"]) {
+async function fixture(run: EmailHostDeps["run"] = {}, bot: EmailBot | null = { id: "b1", name: "Ada", color: "blue" }, connected = true, internalDelivery?: EmailHostDeps["internalDelivery"], reportRun?: EmailHostDeps["reportRun"]) {
   const dataDir = mkdtempSync(join(tmpdir(), "omb-mail-host-")); dirs.push(dataDir);
   const service = createEmailService({ dataDir, publicOnly: false, guard: openGuard, discover: { fetchText: async () => null, mx: async () => [], srv: async () => [], cname: async () => [], reverse: async () => [] }, test: { mailbox: (async () => ({ messages: 1 })) as never, sending: (async () => {}) as never } });
   if (connected) await service.connect({ address: "me@shop.example", password: PASSWORD });
   const marked: string[] = [];
   const rows: Array<Record<string, unknown>> = [];
-  const host = createEmailHost({ internalDelivery, service, dataDir, bot: () => bot, inRoom: () => false, appendMessage: (_thread, message) => rows.push(message), markOutside: (threadId) => marked.push(threadId), run });
+  const host = createEmailHost({ reportRun, internalDelivery, service, dataDir, bot: () => bot, inRoom: () => false, appendMessage: (_thread, message) => rows.push(message), markOutside: (threadId) => marked.push(threadId), run });
   const call = (name: string, args: Record<string, unknown> = {}) => host.handle({ method: "tools/call", params: { name, arguments: args } }, { botId: "b1", threadId: "t1" }, () => {}) as Promise<EmailToolResult>;
   return { host, service, marked, rows, call, dataDir };
 }
@@ -62,6 +64,22 @@ describe("a turn's Email tools", () => {
       expect(result.content[0]?.text).toContain("selected StartupBot conversation");
     }
     expect(sends).toBe(0);
+  });
+
+  it("records a refused report send and tells the person how to repair their outgoing mailbox", async () => {
+    const runs = [{ id: "report", botId: "b1", threadId: "t1", status: "running" }] as RoutineRun[];
+    const deliveries = new RoutineEmailDeliveries(() => runs, write => write(), Date.now);
+    let calls = 0;
+    const { call, service } = await fixture({ sendMessage: async () => {
+      calls++;
+      throw new SendingError("password", { host: "smtp.shop.example", port: 587, secure: false });
+    } }, undefined, true, undefined, () => ({ id: "report", deliveries }));
+    const send = () => call("EMAIL_SEND_MESSAGE", { to: ["customer@EXAMPLE.TEST"], subject: "Draft", text: "Ready", report_delivery: true });
+    expect((await send()).content[0]?.text).toContain("Connected apps");
+    expect(service.sendingProblem("me@shop.example")).toContain("refused the password");
+    expect(runs[0]?.emailDeliveries).toMatchObject([{ destination: "customer@example.test", state: "rejected" }]);
+    expect((await send()).isError).toBe(true);
+    expect(calls).toBe(1);
   });
 
   it("every read marks the conversation as outside work, before the mail comes back", async () => {

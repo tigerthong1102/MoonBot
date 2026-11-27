@@ -22,6 +22,7 @@ def inspect_csv(data: bytes) -> dict:
     _first_invocation = False
     if not isinstance(data, bytes) or not 0 < len(data) <= MAX_BYTES:
         raise ValueError("CSV input must fit within 1 MiB.")
+    csv.field_size_limit(MAX_BYTES)
     reader = csv.reader(io.StringIO(data.decode("utf-8-sig"), newline=""), strict=True)
     header = next(reader, [])
     if not header:

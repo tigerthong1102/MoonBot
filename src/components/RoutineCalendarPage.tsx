@@ -1461,7 +1461,7 @@ export function EventDetails({
               : <div className="space-y-1">{recentRuns.map((recent) => <RecentRunRow key={recent.id} run={recent} current={recent.id === run?.id} onOpen={() => onOpenRun?.(recent)} />)}</div>}
           </DrawerField>
         )}
-        {run && <RunDiagnostics run={run} />}
+        {advanced && run && <RunDiagnostics run={run} />}
         {error && <div role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-[12px] text-danger">{error}</div>}
       </div>
 

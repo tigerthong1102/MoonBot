@@ -13,6 +13,10 @@ class TestWorker(unittest.TestCase):
         with self.assertRaises(ValueError):
             inspect_csv.local(b"a" * (1024 * 1024 + 1))
 
+    def test_a_single_field_can_fill_the_input_budget(self):
+        result = inspect_csv.local(b"column\n" + b"a" * (1024 * 1024 - 7))
+        self.assertEqual((result["dataRows"], result["columns"], result["inconsistentRows"]), (1, 1, 0))
+
     def test_dedup_and_explicit_retry_preserve_unknown_costs(self):
         db = sqlite3.connect(":memory:")
         self.addCleanup(db.close)

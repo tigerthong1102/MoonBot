@@ -231,6 +231,13 @@ describe("routine drawer", () => {
     expect(html).toContain("2 min");
   });
 
+  it("shows the diagnostics download in Advanced mode", () => {
+    const item = routineItem(routine, runs[0]);
+    expect(details(item).html).not.toContain("startupbot-run-diagnostics.json");
+    fixture.advanced = true;
+    expect(details(item).html).toContain("startupbot-run-diagnostics.json");
+  });
+
   it("opens a recent run in place", () => {
     const { props, tree } = details(routineItem(routine));
     const rows = tree.filter(named("RecentRunRow"));

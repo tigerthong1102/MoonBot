@@ -1,9 +1,10 @@
 import { FileText, FolderOpen } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useStore, visibleMessages, type Bot } from "@/state/store";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { collectMessageFiles, fileIdentity, splitMessageAttachments, type GalleryFile } from "./AttachmentGallery";
 import { AttachedFileChip, type MessageAttachmentContext } from "./AttachmentPreview";
+import { prependComposerDraft } from "@/lib/drafts";
 import { shortPath } from "@/lib/short-path";
 import { t } from "@/lib/i18n";
 import { openBotSettings } from "./bot-panel/panel-link";
@@ -77,13 +78,16 @@ function splitPath(path: string): { name: string; folder: string } {
 }
 
 export function ComputerFilesPane({ bot }: { bot: Bot }) {
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
+  const [query, setQuery] = useState("");
+  const [added, setAdded] = useState("");
   const { capabilities } = useDesktopCapabilities();
   const home = capabilities.host.homeDir;
   const task = bot.tasks?.find((candidate) => candidate.threadId === bot.threadId);
   const pinned = task?.cwd;
   const cwd = pinned === undefined ? bot.cwd : pinned;
-  const files = recentChangedFiles(bot);
+  const criterion = query.trim().toLocaleLowerCase();
+  const files = recentChangedFiles(bot, criterion ? Infinity : MAX_FILES).filter(path => path.toLocaleLowerCase().includes(criterion)).slice(0, MAX_FILES);
   const shared = useMemo(() => sharedFileReferences(bot), [bot.messages, bot.activeLeafId, bot.threadId, bot.tasks, bot.cwd]);
   return (
     <div className="flex-1 overflow-y-auto px-5 pb-5" data-testid="computer-files">
@@ -109,8 +113,9 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
       </div>
       <div className="mt-3 rounded-xl bg-card p-4">
         <div className="text-[13px] font-medium text-ink">{t("computer.files.recent")}</div>
+        <input type="search" aria-label={t("computer.files.find")} placeholder={t("computer.files.find")} value={query} onChange={event => setQuery(event.target.value)} className="my-2 w-full rounded-lg bg-inset px-3 py-2 text-sm" />
         {files.length === 0 ? (
-          <p className="mt-2 text-[12px] leading-5 text-ink-secondary">{t("computer.files.empty", { name: bot.name })}</p>
+          <p className="mt-2 text-[12px] leading-5 text-ink-secondary">{criterion ? t("computer.files.noMatches") : t("computer.files.empty", { name: bot.name })}</p>
         ) : (
           <ul className="mt-2 flex flex-col gap-1">
             {files.map((path) => {
@@ -133,6 +138,12 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
                       <span className="shrink-0 text-[11px] text-ink-tertiary">{t("computer.files.notShared")}</span>
                     </div>
                   )}
+                  {reference && <button type="button" className="px-2.5 text-xs text-accent" onClick={() => {
+                    const group = state.groups.find(candidate => candidate.id === state.selectedId);
+                    const key = group ? `group:${group.id}:${group.threadId}` : `bot:${bot.id}:${bot.threadId}`;
+                    prependComposerDraft(key, t("computer.files.reference", { path: reference.file.path }));
+                    setAdded(path);
+                  }}>{t(added === path ? "computer.files.added" : "computer.files.addDraft")}</button>}
                   {folder && <div className="mt-1 truncate px-2.5 text-[11px] text-ink-tertiary">{shortPath(folder, home)}</div>}
                 </li>
               );

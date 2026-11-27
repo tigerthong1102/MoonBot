@@ -11694,5 +11694,13 @@
   "today.criteria": "Tiêu chí hoàn thành",
   "artifact.link.create": "Tạo liên kết cho người xem cuộc trò chuyện",
   "artifact.link.revoke": "Thu hồi liên kết",
-  "artifact.link.scope": "Người xem cuộc trò chuyện · hết hạn {time}"
+  "artifact.link.scope": "Người xem cuộc trò chuyện · hết hạn {time}",
+  "palette.resources": "Công việc và báo cáo",
+  "browser.context.connection": "Máy: {host} · Hồ sơ: {profile} · Kết nối: {transport}",
+  "browser.context.live": "Xem trực tiếp v1",
+  "computer.files.find": "Tìm tệp đã thay đổi theo tên hoặc thư mục",
+  "computer.files.noMatches": "Không tìm thấy tệp đã thay đổi phù hợp.",
+  "computer.files.reference": "Tệp từ cuộc trò chuyện này: {path}",
+  "computer.files.addDraft": "Thêm đường dẫn tệp vào nháp",
+  "computer.files.added": "Đã thêm vào nháp"
 }

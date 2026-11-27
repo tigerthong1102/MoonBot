@@ -11694,5 +11694,13 @@
   "today.criteria": "Completion criteria",
   "artifact.link.create": "Create a link for conversation readers",
   "artifact.link.revoke": "Revoke link",
-  "artifact.link.scope": "Conversation readers · expires {time}"
+  "artifact.link.scope": "Conversation readers · expires {time}",
+  "palette.resources": "Tasks and reports",
+  "browser.context.connection": "Computer: {host} · Profile: {profile} · Connection: {transport}",
+  "browser.context.live": "Live view v1",
+  "computer.files.find": "Find a changed file by name or folder",
+  "computer.files.noMatches": "No changed files match.",
+  "computer.files.reference": "File from this conversation: {path}",
+  "computer.files.addDraft": "Add file reference to draft",
+  "computer.files.added": "Added to draft"
 }

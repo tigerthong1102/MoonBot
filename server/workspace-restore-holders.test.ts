@@ -1,17 +1,18 @@
 import { fork } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expect, it, vi } from "vitest";
 import { assertRestoreDatabasesIdle } from "./workspace-restore-holders.ts";
 
-const procView = vi.hoisted(() => ({ mode: "normal" }));
+const procView = vi.hoisted(() => ({ mode: "normal", systemPython: true }));
 vi.mock("node:fs", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs")>();
   return {
     ...fs,
+    existsSync: (path: Parameters<typeof fs.existsSync>[0]) => (path !== "/usr/bin/python3" || procView.systemPython) && fs.existsSync(path),
     readFileSync: (...args: Parameters<typeof fs.readFileSync>) => {
       if (procView.mode === "hidden" && args[0] === "/proc/mounts") return "proc /proc proc rw,hidepid=2 0 0\n";
       return fs.readFileSync(...args);
@@ -45,8 +46,14 @@ process.send("ready");`);
     assertRestoreDatabasesIdle(dir, ["runtime.db"]);
     if (mode !== "normal") {
       vi.stubEnv("PATH", dir);
-      try { expect(() => assertRestoreDatabasesIdle(dir, ["runtime.db"])).toThrow("Cannot confirm SQLite files are idle"); }
-      finally { vi.unstubAllEnvs(); }
+      try {
+        if (existsSync("/usr/bin/python3")) assertRestoreDatabasesIdle(dir, ["runtime.db"]);
+        procView.systemPython = false;
+        expect(() => assertRestoreDatabasesIdle(dir, ["runtime.db"])).toThrow("Cannot confirm SQLite files are idle");
+      } finally {
+        procView.systemPython = true;
+        vi.unstubAllEnvs();
+      }
     }
     const db = new DatabaseSync(filename, { readOnly: true });
     try { expect(db.prepare("SELECT value FROM test").get()?.value).toBe(37); }

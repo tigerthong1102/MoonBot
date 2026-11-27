@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 function filesAt(root: string, names: readonly string[]) {
@@ -73,7 +73,8 @@ for path in sys.argv[1:]:
 `;
 
 function checkLinuxFileLeases(files: readonly string[]) {
-  const probe = spawnSync("python3", ["-I", "-S", "-c", linuxLeaseProbe, ...files], { timeout: 10_000 });
+  const python = existsSync("/usr/bin/python3") ? "/usr/bin/python3" : "python3";
+  const probe = spawnSync(python, ["-I", "-S", "-c", linuxLeaseProbe, ...files], { timeout: 10_000 });
   if (probe.status === 2) throw new Error("Another process has a workspace SQLite file open. Close it before restoring.");
   if (probe.status !== 0) throw new Error("Cannot confirm SQLite files are idle: process inspection is restricted and a Linux file lease could not be acquired. Check Python 3, file ownership and filesystem lease support before restoring.");
 }
@@ -91,7 +92,8 @@ export function assertRestoreDatabasesIdle(root: string, names: readonly string[
   const files = filesAt(root, names);
   if (!files.length) return;
   if (process.platform === "win32") {
-    const probe = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", windowsProbe], {
+    const powershell = join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    const probe = spawnSync(powershell, ["-NoProfile", "-NonInteractive", "-Command", windowsProbe], {
       windowsHide: true, timeout: 10_000, env: { ...process.env, STARTUPBOT_RESTORE_PATHS: JSON.stringify(files) },
     });
     if (probe.status === 2) throw new Error("Another process has a workspace SQLite file open. Close it before restoring.");

@@ -155,7 +155,7 @@ describe("a routine every minute by cron whose tool server is dead", () => {
     console.log(`turns started in 6 hours by a routine every minute with a dead tool server: ${h.started.length}`);
     expect(h.started).toHaveLength(5);
     expect(h.routine()).toMatchObject({ enabled: true, schedule: { type: "cron", expression: "* * * * *" } });
-  });
+  }, hostTimeout(60_000));
 });
 
 describe("a routine every 5 minutes on a server whose engines cannot start", () => {

@@ -353,7 +353,11 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
       const key = slackReportKey(input);
       const lane = key && `${who.person}:${key}`;
       const prior = lane ? lanes.get(lane) : undefined;
-      const answer = (prior ? prior.then(() => take(auth, who.person, input), () => take(auth, who.person, input)) : take(auth, who.person, input))
+      const afterPrior = () => {
+        const current = auth.kind === "session" ? deps.reportSession?.(auth.session.id) : undefined;
+        return current && member(current)?.person === who.person ? take(current, who.person, input) : Promise.resolve(NO_SUCH_CONVERSATION);
+      };
+      const answer = (prior ? prior.then(afterPrior, afterPrior) : take(auth, who.person, input))
         .finally(() => { taking.delete(input.id); if (lane && lanes.get(lane) === answer) lanes.delete(lane); });
       if (lane) lanes.set(lane, answer);
       taking.set(input.id, { person: who.person, answer });

@@ -33,3 +33,38 @@ it("suppresses delayed and replayed Slack results if the exact report leaves the
   const older = { ...record, reportRef: { ...first.reportRef, messageId: undefined } };
   expect(reportStillPosted(older, first, () => [])).toBe(false);
 });
+
+it("drops a queued Slack question if its member session expires before dispatch", async () => {
+  const { createTeamSlackHost } = await import("./host/team-slack-host.ts");
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "startupbot-slack-lane-"));
+  let live = true;
+  let dispatched = 0;
+  let finish!: () => void;
+  const gate = new Promise<void>(resolve => { finish = resolve; });
+  const bot = { id: "bot", name: "Bot" };
+  const host = createTeamSlackHost({
+    cloudHome: { publicOrigin: "https://example.test", machineId: "fixture", bootstrapSecret: "fixture", adminOrigin: "https://example.test" },
+    dataDir: dir, owner: () => "member", findReport: find, reportSession: () => live ? auth : undefined,
+    reporter: async () => "told", setTimer: () => ({}),
+    visibleFor: () => ({ bot: () => true, thread: () => true, level: () => "chat" }),
+    store: { botByThread: () => bot, taskByThread: () => ({}), activePath: () => [{ id: "message-run1" }], onChange: () => {} },
+    sender: () => undefined, trigger: () => "user", actor: () => ({ admin: false }),
+    send: async () => { dispatched++; await gate; throw new Error("Fixture turn ended"); },
+  } as unknown as import("./host/team-slack-host.ts").TeamSlackHostDeps)!;
+  try {
+    const first = host.message(auth, input);
+    const second = host.message(auth, { ...input, id: "second" });
+    expect(dispatched).toBe(1);
+    live = false;
+    finish();
+    await first;
+    expect((await second).body.code).toBe("no_such_conversation");
+    expect(dispatched).toBe(1);
+  } finally {
+    finish();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Carteira de IA de teste",
+  "pilot.open": "Abrir carteira de teste",
   "browser.evidence.pick": "Selecionar um elemento da página",
   "browser.evidence.add": "Adicionar ao rascunho da conversa",
   "browser.evidence.failed": "Não foi possível capturar este elemento.",

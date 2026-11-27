@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Yapay zekâ test cüzdanı",
+  "pilot.open": "Test cüzdanını aç",
   "browser.evidence.pick": "Sayfada bir öğe seç",
   "browser.evidence.add": "Sohbet taslağına ekle",
   "browser.evidence.failed": "Bu öğe yakalanamadı.",

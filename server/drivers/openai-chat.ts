@@ -237,7 +237,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     signal?: AbortSignal,
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
-    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string,
+    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, logicalRequestId?: string,
   ): Promise<Completion> => {
     const timeoutController = new AbortController();
     let idleTimer: NodeJS.Timeout | null = null;
@@ -268,7 +268,8 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       const response = await send(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
         method: "POST",
         ...(messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url")) ? { redirect: "error" as const } : {}),
-        headers: { authorization: `Bearer ${options.apiKey}`, "content-type": "application/json" },
+        headers: { authorization: `Bearer ${options.apiKey}`, "content-type": "application/json",
+          ...(options.apiKey.startsWith("sbpilot_engine_") ? { "idempotency-key": createHash("sha256").update(logicalRequestId ?? newId()).update(payload).digest("hex") } : {}) },
         body: payload,
         signal: activeSignal,
       });
@@ -440,7 +441,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     signal?: AbortSignal,
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
-    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, beforeRequest?: () => void,
+    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, beforeRequest?: () => void, logicalRequestId?: string,
   ): Promise<Completion> => {
     for (;;) {
       let replied = false;
@@ -449,7 +450,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return await completeOn(routes.routeFor(model, tools.length > 0), messages, model, stream, signal, onDelta && ((text, kind) => {
           replied = true;
           onDelta(text, kind);
-        }), tools, onUsage, variant, threadId);
+        }), tools, onUsage, variant, threadId, logicalRequestId);
       } catch (error) {
         if (!(error instanceof ModelRouteRefused) || replied || signal?.aborted) throw error;
         if (!routes.advance(model, error.refusal)) throw new ChatProtocolError(noRouteLeft(error.message));
@@ -635,7 +636,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 if (streamKind === "assistant_text") answerStreamed = true;
                 const shown = holdback && streamKind === "assistant_text" ? holdback.feed(text) : text;
                 if (shown) delta(shown, streamKind);
-              }, tools.definitions, undefined, turn.variant, turn.threadId, turn.requestBudget?.before);
+              }, tools.definitions, undefined, turn.variant, turn.threadId, turn.requestBudget?.before, `${turnId}/${round}`);
               // A reply cut off at the token limit may be a call cut short; running half of one is worse than saying so.
               const written = holdback && !completion.toolCalls.length && completion.finishReason !== "length" ? textToolCalls(completion.text, tools.definitions) : null;
               unreadable = written?.kind === "unreadable" && !askedAgain;

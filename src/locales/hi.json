@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "परीक्षण AI वॉलेट",
+  "pilot.open": "परीक्षण वॉलेट खोलें",
   "browser.evidence.pick": "पेज पर कोई तत्व चुनें",
   "browser.evidence.add": "चैट ड्राफ़्ट में जोड़ें",
   "browser.evidence.failed": "यह तत्व कैप्चर नहीं हो सका।",

@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Testowy portfel AI",
+  "pilot.open": "Otwórz portfel testowy",
   "browser.evidence.pick": "Wybierz element strony",
   "browser.evidence.add": "Dodaj do szkicu wiadomości",
   "browser.evidence.failed": "Nie udało się przechwycić tego elementu.",

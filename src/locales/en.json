@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "AI pilot wallet",
+  "pilot.open": "Open test wallet",
   "browser.evidence.pick": "Select a web element",
   "browser.evidence.add": "Add to chat draft",
   "browser.evidence.failed": "Could not capture this element.",

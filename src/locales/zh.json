@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "AI 测试钱包",
+  "pilot.open": "打开测试钱包",
   "browser.evidence.pick": "选择网页元素",
   "browser.evidence.add": "添加到聊天草稿",
   "browser.evidence.failed": "无法捕获此元素。",

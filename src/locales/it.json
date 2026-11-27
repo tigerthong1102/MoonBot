@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Portafoglio IA di prova",
+  "pilot.open": "Apri il portafoglio di prova",
   "browser.evidence.pick": "Seleziona un elemento della pagina",
   "browser.evidence.add": "Aggiungi alla bozza della chat",
   "browser.evidence.failed": "Impossibile acquisire questo elemento.",

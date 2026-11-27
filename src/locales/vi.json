@@ -1,4 +1,6 @@
 {
+  "pilot.wallet": "Ví AI thử nghiệm",
+  "pilot.open": "Mở ví thử nghiệm",
   "browser.evidence.pick": "Chọn thành phần trên trang",
   "browser.evidence.add": "Thêm vào bản nháp chat",
   "browser.evidence.failed": "Không thể lấy bằng chứng cho thành phần này.",

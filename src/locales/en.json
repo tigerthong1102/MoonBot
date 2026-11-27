@@ -1,4 +1,7 @@
 {
+  "artifact.link.create": "Create a link for conversation readers",
+  "artifact.link.revoke": "Revoke link",
+  "artifact.link.scope": "Conversation readers · expires {time}",
   "workBotOffer.continueHere": "Continue here",
   "server.workBot.scheduleConflict": "A linked bot has a schedule or run that may overlap, or its link cannot be checked. Open Automations and review related schedules, then choose New → Set it up yourself if this is separate work to create it manually.",
   "server.workBot.choiceInProgress": "The bot choice is being processed. Try again when it finishes.",

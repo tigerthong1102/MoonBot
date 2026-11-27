@@ -1,3 +1,4 @@
+import { ArtifactLink } from "./ArtifactLink";
 import { useEffect, useState } from "react";
 import { Code2, Download, Eye, LoaderCircle, RotateCcw } from "lucide-react";
 import { requestMessageFile, useLocalFileSave, type MessageAttachmentContext } from "./AttachmentPreview";
@@ -42,6 +43,7 @@ export default function MarkdownFileContent({ path, name, message }: { path: str
   if (source === null) return <div className="p-12 text-center text-sm text-ink-secondary"><span role="status" className="inline-flex items-center gap-2"><LoaderCircle size={16} className="animate-spin" />{t("markdown.loading")}</span>{recovery}</div>;
   return <div className="flex flex-col gap-2">
     <div className="flex items-center justify-end gap-1">
+      <ArtifactLink key={JSON.stringify([path, message.threadId, message.messageId])} path={path} message={message} />
       <button type="button" className="table-action" aria-pressed={showSource} aria-label={t(showSource ? "markdown.rendered" : "html.source")} title={t(showSource ? "markdown.rendered" : "html.source")} onClick={() => setShowSource(!showSource)}>{showSource ? <Eye size={14} /> : <Code2 size={14} />}</button>
       <button type="button" className="table-action" aria-label={t("html.reload")} title={t("html.reload")} onClick={() => setAttempt(attempt + 1)}><RotateCcw size={14} /></button>
       <button type="button" className="table-action" aria-label={t("attach.saveAria", { name })} title={t("attach.saveAria", { name })} disabled={save.state === "saving"} onClick={() => void save.save()}><Download size={14} /></button>

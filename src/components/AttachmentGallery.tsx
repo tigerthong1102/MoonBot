@@ -1,5 +1,6 @@
 // Security: local files and videos load only after an explicit action, through the server's exact-message file
 // authorization.
+import { ArtifactLink } from "./ArtifactLink";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { ChevronDown, ChevronUp, Download, Film, LoaderCircle, Music, Play, X } from "lucide-react";
@@ -432,7 +433,7 @@ function AudioAttachment({ file, message }: { file: GalleryFile; message: Messag
 }
 
 type GalleryItem = { key: string; source?: string } & (
-  | { kind: "image"; image: PreviewImage }
+  | { kind: "image"; path: string; image: PreviewImage }
   | { kind: "video" | "audio" | "file"; file: GalleryFile }
 );
 
@@ -461,7 +462,7 @@ export function AttachmentGallery({ images = [], files = [], originals, message,
         ? previewImage(path, typeof reference === "string" ? undefined : reference.name)
         : null;
       const source = originalOf(originals, path);
-      if (image) result.push({ key, source, kind: "image", image });
+      if (image) result.push({ key, source, kind: "image", path, image });
       else result.push({ key, source, kind: "file", file: typeof reference === "string" ? { path, name: attachmentBasename(path) } : reference });
     }
     for (const file of files) {
@@ -496,6 +497,7 @@ export function AttachmentGallery({ images = [], files = [], originals, message,
             {thumbs.map((item) => item.kind === "image" && (
               <div key={item.key} className="min-w-0" title={item.image.name} {...reveal.targetProps(item.source)}>
                 <AttachmentThumbnail key={item.image.src} image={item.image} eager={eager} onPreview={() => setSelected(item.image)} className="h-24 w-auto max-w-48 rounded-2xl border-0" />
+                {message?.botOutput && <ArtifactLink path={item.path} message={message} />}
               </div>
             ))}
           </div>
@@ -531,6 +533,7 @@ export function AttachmentGallery({ images = [], files = [], originals, message,
           {media.map((item) => item.kind === "image" ? (
             <div key={item.key} className="min-w-0" title={item.image.name} {...reveal.targetProps(item.source)}>
               <AttachmentThumbnail key={item.image.src} image={item.image} eager={eager} onPreview={() => setSelected(item.image)} className="max-h-72 rounded-2xl border-0 bg-transparent" />
+              {message?.botOutput && <ArtifactLink path={item.path} message={message} />}
             </div>
           ) : item.kind === "video" && message ? (
             <span key={`${message.threadId}:${message.messageId}:${item.key}`} className="contents" {...reveal.targetProps(item.source)}><VideoAttachment file={item.file} message={message} /></span>

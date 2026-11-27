@@ -335,6 +335,8 @@ export function EventEditor({
     setBotIds(ids);
   };
   const [routineTarget, setRoutineTarget] = useState<RoutineTarget>(existingRoutine?.target ?? "bot");
+  const canRequireDelivery = kind === "routine" && routineTarget === "bot" && recurrence !== "limit_reset"
+    && !existingRoutine?.checks?.length && !existingRoutine?.access && !existingRoutine?.deliver && !existingRoutine?.sameConversation;
   const [requireDelivery, setRequireDelivery] = useState(existingRoutine?.deliverables === "reconciliation");
   const [groupId, setGroupId] = useState(existingRoutine?.groupId ?? "");
   const [runOn, setRunOn] = useState<RoutineRunOn>(existingRoutine?.runOn ?? defaultRunOn ?? "maus");
@@ -475,7 +477,7 @@ export function EventEditor({
         const input: RoutineInput = {
           name,
           prompt: description,
-          deliverables: requireDelivery && routineTarget === "bot" ? "reconciliation" : null,
+          deliverables: canRequireDelivery && requireDelivery ? "reconciliation" : null,
           target: routineTarget,
           botId: lockedBotId ?? botIds[0] ?? "",
           groupId: routineTarget === "room-goal" && groupId ? groupId : null,
@@ -814,7 +816,7 @@ export function EventEditor({
                     ? t("routines.attachment.callSharedHelp")
                     : t("routines.attachment.callKeptHelp")}
               </div>
-              {kind === "routine" && !existingRoutine?.checks?.length && !existingRoutine?.access && recurrence !== "limit_reset" &&
+              {canRequireDelivery &&
                 <label className="flex items-center gap-2 text-[13px] text-ink-secondary"><input type="checkbox" checked={requireDelivery} onChange={event => setRequireDelivery(event.target.checked)} />{t("routines.requiredReconciliation")}</label>}
               {attachmentNotice && <div className="text-[12px] text-warning">{attachmentNotice}</div>}
             </div>}

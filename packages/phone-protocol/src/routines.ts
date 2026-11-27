@@ -161,6 +161,7 @@ export interface Routine {
   overlap?: "skip" | "queue";
   /** Each run starts with the previous run's report. */
   continuity?: boolean;
+  sameConversation?: boolean;
   /** The model each run's thread uses instead of its bot's. Missing means the bot's model. */
   modelSelection?: ModelSelection;
   /** Also run once each time OpenMausBot starts. */

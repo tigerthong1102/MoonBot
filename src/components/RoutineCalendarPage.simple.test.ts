@@ -338,6 +338,33 @@ describe("routine editor", () => {
     expect(JSON.parse(init.body)).toMatchObject({ target: "room-goal", botId: bot.id, groupId: null });
   });
 
+  it("hides reconciliation delivery for routines that already have another delivery or keep one conversation", () => {
+    fixture.advanced = true;
+    expect(editor({ ...routine, deliver: "brief" })).not.toContain("Deliver report.pdf");
+    expect(editor({ ...routine, sameConversation: true })).not.toContain("Deliver report.pdf");
+  });
+
+  it.each(["POST", "PATCH"])("drops the report requirement when saving a limit reset via %s", (method) => {
+    fixture.advanced = true;
+    const seed = { kind: "routine" as const, at: Date.now() + 3_600_000, durationMinutes: 30, botIds: [bot.id],
+      name: routine.name, description: routine.prompt, ...(method === "PATCH" ? { routine: { ...routine, deliverables: "reconciliation" as const } } : {}) };
+    const props = { seed, bots: [bot], onClose: vi.fn(), onSavedCall: vi.fn() };
+    const render = () => capture(() => EventEditor(props));
+    const label = (tree: Node[]) => tree.find(node => node.type === "label" && textOf(node.props.children).includes("Deliver report.pdf"));
+    let tree = render();
+    const checkbox = nodes(label(tree)!.props.children).find(node => node.type === "input")!;
+    (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    tree = render();
+    const repeat = tree.find(node => node.props["aria-label"] === "Repeat")!;
+    (repeat.props.onChange as (event: unknown) => void)({ target: { value: "limit_reset" } });
+    tree = render();
+    expect(label(tree)).toBeUndefined();
+    click(buttons(tree).get("Save"));
+    const [path, init] = fixture.api.mock.calls.at(-1) as unknown as [string, { method: string; body: string }];
+    expect([path, init.method]).toEqual([method === "PATCH" ? `/api/routines/${routine.id}` : "/api/routines", method]);
+    expect(JSON.parse(init.body)).toMatchObject({ schedule: { type: "limit_reset" }, deliverables: null });
+  });
+
   it("hides Remember the last run for a one-time routine", () => {
     expect(editor()).not.toContain("Remember the last run");
   });

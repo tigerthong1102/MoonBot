@@ -103,10 +103,10 @@ async function harness(script: Script, options: { waitMs?: number; full?: boolea
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as { port: number }).port;
   const base = `http://127.0.0.1:${port}`;
-  const call = async (botId: string, key: string, body: unknown, init: { method?: string; query?: string; contentType?: string; idempotencyKey?: string } = {}) => {
+  const call = async (botId: string, key: string, body: unknown, init: { method?: string; query?: string; contentType?: string; idempotencyKey?: string; confined?: boolean } = {}) => {
     const response = await fetch(`${base}/hooks/api/bots/${botId}/messages${init.query ?? ""}`, {
       method: init.method ?? "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": init.contentType ?? "application/json", ...(init.idempotencyKey ? { "idempotency-key": init.idempotencyKey } : {}) },
+      headers: { authorization: `Bearer ${key}`, "content-type": init.contentType ?? "application/json", ...(init.confined ? { "x-startupbot-require-confined": "1" } : {}), ...(init.idempotencyKey ? { "idempotency-key": init.idempotencyKey } : {}) },
       ...(init.method === "GET" ? {} : { body: typeof body === "string" ? body : JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
@@ -498,6 +498,7 @@ describe("a key that acts as the owner", () => {
     expect([on.status, on.body.actsAsOwner]).toEqual([200, true]);
     expect(JSON.stringify(on.body)).not.toContain(key);
 
+    expect((await h.call("b1", key, { message: "External caller" }, { confined: true })).status).toBe(403);
     const owned = await h.call("b1", key, { message: "Tidy the build folder" });
     expect(owned.status).toBe(200);
     const ownedThread = owned.body.thread as string;

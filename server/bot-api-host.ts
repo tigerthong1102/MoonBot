@@ -245,7 +245,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     return { status: 200, body: { reply: replyText(after()), thread: threadId } };
   }
 
-  const accessNow = (botId: string, key: string): { owner: boolean } | { status: 401 | 403; error: string } => {
+  const accessNow = (botId: string, key: string, requireConfined: boolean): { owner: boolean } | { status: 401 | 403; error: string } => {
     const denied = (status: 401 | 403, error: string) => {
       if (deps.store.bot(botId)) manager.recordRefused(botId, status, error);
       return { status, error };
@@ -254,6 +254,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     if (!manager.authorize(botId, key)) return denied(401, "Invalid key");
     if (!included()) return denied(403, BOT_API_UPGRADE);
     const owner = asOwner(botId);
+    if (owner && requireConfined) return denied(403, "This integration requires a confined Bot API key");
     return !owner && !deps.canConfine(botId) ? denied(403, CANNOT_CONFINE) : { owner };
   };
 
@@ -272,7 +273,8 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     // A call can wait minutes for its reply: the claim that holds off maintenance ends once the turn has started.
     const release = () => { claim?.(); claim = undefined; };
     try {
-      let access = accessNow(botId, bearerSecret(req));
+      const requireConfined = header(req, "x-startupbot-require-confined") === "1";
+      let access = accessNow(botId, bearerSecret(req), requireConfined);
       if ("error" in access) { json(res, access.status, { error: access.error }); return true; }
       if (req.method === "GET") {
         const threadId = url.searchParams.get("thread") ?? "";
@@ -298,7 +300,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         json(res, status, { error: message });
         return true;
       }
-      access = accessNow(botId, bearerSecret(req));
+      access = accessNow(botId, bearerSecret(req), requireConfined);
       if ("error" in access) { json(res, access.status, { error: access.error }); return true; }
       const keyAsOwner = access.owner;
       const requestKey = header(req, "idempotency-key");
@@ -324,7 +326,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
       try {
         const reserve = requestKey ? (owner: boolean) => manager.reserve(botId, requestKey, fingerprint, owner) : undefined;
         const answer = await runCall(botId, call, release, keyAsOwner, reserve);
-        const finalAccess = accessNow(botId, bearerSecret(req));
+        const finalAccess = accessNow(botId, bearerSecret(req), requireConfined);
         if ("error" in finalAccess) { json(res, finalAccess.status, { error: finalAccess.error }); return true; }
         if (!finalAccess.owner && deps.store.taskByThread(botId, answer.body.thread)?.botApiAsOwner) {
           json(res, 403, { error: NO_LONGER_OWNER }); return true;

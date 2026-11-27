@@ -147,3 +147,7 @@ the request in the named thread or with the operator before submitting it again.
 Receipts survive restarts for 24 hours, scoped to one bot and its current API
 key. Up to 1,024 live receipts can be held per bot. Rotating or disabling an API
 key ends its retry window.
+
+## Personal Microsoft Teams
+
+The [Teams bridge](../deploy/teams/README.md) binds an enrolled Teams sender to their own confined Bot API conversation. Integrations sending `X-StartupBot-Require-Confined: 1` receive HTTP 403 when the configured key is acting as its owner.

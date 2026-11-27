@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "選取網頁元素",
+  "browser.evidence.add": "加入聊天草稿",
+  "browser.evidence.failed": "無法擷取這個元素。",
   "workflow.controls": "步驟設定",
   "workflow.approvalPrompt": "核准請求（選填）",
   "workflow.when": "前面步驟的結果符合條件時執行",

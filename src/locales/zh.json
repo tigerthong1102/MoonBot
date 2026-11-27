@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "选择网页元素",
+  "browser.evidence.add": "添加到聊天草稿",
+  "browser.evidence.failed": "无法捕获此元素。",
   "workflow.controls": "步骤设置",
   "workflow.approvalPrompt": "审批请求（可选）",
   "workflow.when": "前面步骤的结果符合条件时运行",

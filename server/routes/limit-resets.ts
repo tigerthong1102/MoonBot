@@ -31,7 +31,7 @@ const MAX_TITLE = 60;
 export function continueInstructions(title: string, engine: string): string {
   return `Continue the conversation “${title}” where it stopped. Your previous turn here was cut off because ${engine}'s usage limit ` +
     "was reached before you finished. Read the conversation, pick up exactly where you left off and finish the work; do not redo " +
-    "what is already done. Then say in a sentence or two what you finished.";
+    "what is already done. If a previous action could have changed an external system and its outcome is missing, read back the result before attempting it again. If it cannot be verified, ask the person. Then say in a sentence or two what you finished.";
 }
 
 function waitingIn(routines: readonly Routine[], botId: string, threadId: string): Routine | undefined {

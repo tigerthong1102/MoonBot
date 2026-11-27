@@ -17,6 +17,8 @@ import type { Coordinator } from "../coordinator.ts";
 import type { WorkspaceAccess } from "../enterprise.ts";
 import type { GroupUsageReader } from "../group-thread-usage.ts";
 import { readMessage, searchMessagesAsync } from "../message-db.ts";
+import { DATA_DIR } from "../config.ts";
+import { ArtifactLinks } from "../artifact-links.ts";
 import { MessageMediaLinks } from "../message-media-links.ts";
 import {
   listMessageFolder, MESSAGE_FILE_DOWNLOAD_MAX_BYTES, MESSAGE_FILE_MAX_BYTES, messageAttachmentName, messageFileDisposition, messageFileDownloadName, messageFolderEntryName,
@@ -86,6 +88,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
     botComputerControlSnapshot, messageFileRootsForThread, viewerFor, visibleTo,
   } = deps;
   const mediaLinks = new MessageMediaLinks();
+  const artifactLinks = new ArtifactLinks(Date.now, join(DATA_DIR, "artifact-links.sqlite"));
   // tasks stays explicit: clients expect [] where wireBot() would omit the key.
   const shownBot = (bot: BotRecord, visible: VisibleSet, limit: number | undefined) => {
     const wired = wireBot(bot);
@@ -195,7 +198,8 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
     );
     // A <video> element can only GET, so a POST first trades its body for a link id.
     const mediaId = m && method === "GET" && !streamsMessageImage ? url.searchParams.get("media") : null;
-    if (m && (method === "POST" || streamsMessageImage || mediaId)) {
+    const artifactId = m && method === "GET" && !streamsMessageImage && !mediaId ? url.searchParams.get("artifact") : null;
+    if (m && (method === "POST" || streamsMessageImage || mediaId || artifactId)) {
       if (method === "POST" && !String(req.headers["content-type"] ?? "").toLowerCase().startsWith("application/json")) {
         return json(res, 415, { error: "content-type must be application/json" });
       }
@@ -217,15 +221,26 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
       // Authorization can change while the request body is streaming.
       if (body && !visibleTo(viewerFor(auth)).thread(threadId)) return json(res, 404, { error: "no such conversation" });
       const asksMediaLink = body?.media === true;
+      const asksArtifact = body?.shareArtifact === true;
+      if (asksArtifact && (asksMediaLink || body.entry !== undefined || body.listFolder || body.revokeArtifact)) return json(res, 400, { error: "choose a single file attachment" });
+      if (artifactId || asksArtifact || body?.revokeArtifact) {
+        if (message.role !== "bot" || !visibleTo(viewerFor(auth)).thread(threadId)) return json(res, 404, { error: "no such artifact" });
+        if (typeof body?.revokeArtifact === "string") {
+          artifactLinks.revoke(body.revokeArtifact, threadId, message.id, auth);
+          return json(res, 200, { ok: true });
+        }
+      }
+      const sharedPath = artifactId ? artifactLinks.read(artifactId, threadId, message.id) : null;
+      if (artifactId && !sharedPath) return json(res, 404, { error: "that artifact link has expired" });
       const rawReference = streamsMessageImage ? url.searchParams.get("ref") : null;
       if (streamsMessageImage && (!rawReference || !/^\d+$/.test(rawReference))) {
         return json(res, 400, { error: "ref must identify a rendered image" });
       }
-      const href = mediaGrant
+      const href = sharedPath ?? (mediaGrant
         ? mediaGrant.path
         : method === "POST"
           ? (typeof body.path === "string" ? body.path : "")
-          : messageImageTargetAt(messageText, Number(rawReference));
+          : messageImageTargetAt(messageText, Number(rawReference)));
       if (!href) return json(res, 400, { error: "path is required" });
 
       let roots: string[];
@@ -295,6 +310,12 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
       if ((asksMediaLink || mediaGrant) && !STREAMABLE_VIDEO_MIMES.has(file.mime)) {
         await file.handle.close();
         return json(res, 415, { error: "only videos can be played here" });
+      }
+      if (asksArtifact) {
+        await file.handle.close();
+        res.setHeader("cache-control", "private, no-store");
+        const { id, expiresAt } = artifactLinks.issue(threadId, message.id, href, auth);
+        return json(res, 200, { id, expiresAt, url: `${path}?artifact=${id}` });
       }
       if (asksMediaLink) {
         await file.handle.close();

@@ -25,7 +25,7 @@ class LocalNotificationPoster(
         ensureChannels()
     }
 
-    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String, computerName: String) {
         if (!canPost()) return
         val channelId = NotificationMapping.channelId(notification)
         val intent = NotificationIntents.contentIntent(appContext, notification, connectionId)
@@ -39,6 +39,7 @@ class LocalNotificationPoster(
         val body = NotificationText.anchored(notification.body)
         val builder = NotificationCompat.Builder(appContext, channelId)
             .setSmallIcon(R.drawable.ic_startupbot_status)
+            .setSubText(computerName.trim().take(80).ifBlank { null })
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

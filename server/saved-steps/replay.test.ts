@@ -24,14 +24,16 @@ let deps: Parameters<typeof runSteps>[2];
 
 function computer(answer: (tool: string) => CallOutcome | undefined = () => undefined): ComputerCaller {
   let snapshot = 2;
+  let document = "";
   return {
     async call(tool, args) {
       const override = answer(tool);
       if (override) return override;
       if (tool === "list_apps") return { ok: true, structured: { apps: [{ pid: 4242, name: "TextEdit", bundle_id: "com.apple.TextEdit", running: true }] } };
       if (tool === "list_windows") return { ok: true, structured: { windows: [{ window_id: 7, pid: 4242, title: "Untitled", app_name: "TextEdit" }] } };
-      if (tool === "get_window_state") return { ok: true, structured: completeWindowState(windowState(snapshot++)) };
+      if (tool === "get_window_state") return { ok: true, structured: completeWindowState(windowState(snapshot++), document) };
       if (OBSERVATIONS.has(tool)) throw new Error(`unexpected ${tool}`);
+      if (tool === "set_value") document = String(args.value);
       acted.push([tool, args]);
       return { ok: true, structured: {} };
     },
@@ -58,7 +60,7 @@ describe("runSteps", () => {
   it("asks once per action, resolves afresh and reports each step", async () => {
     expect(await runSteps(RECIPE, TURN, deps)).toEqual({ kind: "done" });
     expect(asked).toEqual([["mcp__computer__click", 'click on "Document" in TextEdit'], ["mcp__computer__set_value", 'set_value on "Document" in TextEdit']]);
-    expect(acted).toEqual([["click", { pid: 4242, window_id: 7, element_token: "s2-e2" }], ["set_value", { value: "hello world", pid: 4242, window_id: 7, element_token: "s3-e2" }]]);
+    expect(acted).toEqual([["click", { pid: 4242, window_id: 7, element_token: "s2-e2" }], ["set_value", { value: "hello world", pid: 4242, window_id: 7, element_token: "s4-e2" }]]);
     expect(itemEvents()).toEqual([
       ["item.started", "turn-1", undefined], ["item.completed", "turn-1", true], ["item.started", "turn-1", undefined], ["item.completed", "turn-1", true]]);
   });
@@ -93,11 +95,21 @@ describe("runSteps", () => {
     await runSteps(RECIPE, TURN, deps);
     const turn = { threadId: "t1", turnId: "turn-1", provider: "claudeAgent", providerInstanceId: "claude" };
     expect(events[0]).toMatchObject({ ...turn, type: "item.started", itemType: "tool", title: "mcp__computer__click", input: 'click on "Document" in TextEdit' });
-    expect(events[1]).toMatchObject({ ...turn, type: "item.completed", itemType: "tool", ok: true, output: "done", itemId: events[0]!.itemId });
+    expect(events[1]).toMatchObject({ ...turn, type: "item.completed", itemType: "tool", ok: true, output: "Action sent. Its effect was not observed.", itemId: events[0]!.itemId });
     expect(events[2]).toMatchObject({ ...turn, type: "item.started", title: "mcp__computer__set_value", input: 'set_value on "Document" in TextEdit' });
+    expect(events[3]).toMatchObject({ ok: true, output: "Verified the field value in the same window." });
     expect(events[2]!.itemId).not.toBe(events[0]!.itemId);
     expect(new Set(events.map((e) => e.eventId)).size).toBe(4);
     for (const event of events) expect(Date.parse(event.createdAt)).not.toBeNaN();
+  });
+
+  it("stops after an unobserved write and never logs the field value or repeats the write", async () => {
+    const stale = computer(tool => tool === "get_window_state" ? { ok: true, structured: completeWindowState(windowState(4)) } : undefined);
+    const outcome = await runSteps({ ...RECIPE, steps: [RECIPE.steps[1]!, RECIPE.steps[0]!] }, TURN, { ...deps, caller: stale });
+    expect(outcome.kind).toBe("unverified");
+    expect(acted.map(([tool]) => tool)).toEqual(["set_value"]);
+    expect(JSON.stringify(events)).not.toContain("hello world");
+    expect(events.at(-1)).toMatchObject({ type: "item.completed", ok: false });
   });
 
   it("stops at a declined step without acting", async () => {

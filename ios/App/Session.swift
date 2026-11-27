@@ -56,6 +56,7 @@ final class Session: ObservableObject {
     // Sensitive input must be cleared when the originating runtime disconnects.
     @Published private(set) var credentialEntryResetGeneration = 0
 
+    @Published var notificationComputer: NotificationTarget?
     @Published private(set) var notificationChat: Chat?
 
     private var client: CompanionClient?
@@ -637,7 +638,7 @@ final class Session: ObservableObject {
                     }
                     state.apply(frame)
                     if case let .notify(notification) = frame.frame {
-                        NotificationCoordinator.shared.deliver(notification, sequence: frame.seq, connectionID: client.connection.id)
+                        NotificationCoordinator.shared.deliver(notification, sequence: frame.seq, connectionID: client.connection.id, computerName: client.connection.name)
                     }
                     NotificationCoordinator.shared.setBadge(state.unreadCount)
                     state.advance(to: frame.seq)
@@ -1776,12 +1777,24 @@ final class Session: ObservableObject {
     }
 
 
+    func confirmNotificationComputer(_ target: NotificationTarget) async {
+        guard let id = target.connectionID, registry.connection(id: id) != nil else { return }
+        switchComputer(to: id)
+        guard connection?.id == id else { return }
+        await openNotification(target)
+    }
+
     func openNotification(_ target: NotificationTarget) async {
         guard let origin = target.connectionID else {
             actionError = AppLanguage.message("This notification has no saved computer. Open the conversation from your computer list.")
             return
         }
+        notificationComputer = nil
         guard origin == connection?.id else {
+            if registry.connection(id: origin) != nil {
+                notificationComputer = target
+                return
+            }
             actionError = AppLanguage.message("This notification is from another computer. Select that computer and open it again.")
             return
         }

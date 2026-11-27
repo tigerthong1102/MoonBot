@@ -1,7 +1,8 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/state/store";
-import { t } from "@/lib/i18n";
+import { formatResetDuration } from "@/lib/plan-reset-duration";
+import { intlLocale, t } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 import { Card, SIMPLE_CARD, SettingsEmptyRow, SettingsGroup, SettingsLook, SettingsRows } from "./SettingsPrimitives";
 import { UsageSummaryCard } from "./CloudUsageMeter";
@@ -41,6 +42,7 @@ interface PlanProvider {
 }
 
 interface PlanUsageReport {
+  computerName?: string | null;
   fetchedAt: string;
   providers: PlanProvider[];
 }
@@ -49,14 +51,10 @@ function formatResetDistance(resetsAt: string | null, now: number): string | nul
   if (!resetsAt) return null;
   const at = Date.parse(resetsAt);
   if (!Number.isFinite(at) || at <= now) return null;
-  const minutes = Math.floor((at - now) / 60_000);
-  if (minutes < 1) return "less than a minute";
-  const days = Math.floor(minutes / 1440);
-  const hours = Math.floor((minutes % 1440) / 60);
-  const mins = minutes % 60;
-  if (days > 0) return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
-  if (hours > 0) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-  return `${mins}m`;
+  const remaining = at - now;
+  if (remaining < 60_000) return new Intl.NumberFormat(intlLocale(), { style: "unit", unit: "second", unitDisplay: "short" }).format(Math.ceil(remaining / 1000));
+  return formatResetDuration(remaining, (n, unit) =>
+    new Intl.NumberFormat(intlLocale(), { style: "unit", unit, unitDisplay: "narrow" }).format(n));
 }
 
 function dueResetDeadlines(report: PlanUsageReport, now: number, seen: Set<string>): string[] {
@@ -252,7 +250,11 @@ export function PlanUsage() {
 
   return (
     <Card title={t("planUsage.title")} subtitle={t("planUsage.subtitle")}>
-      <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="text-[12px] text-ink-secondary">
+          {report?.computerName ?? t("rail.thisComputer")}
+          {report?.fetchedAt && Number.isFinite(Date.parse(report.fetchedAt)) && <> · <time dateTime={report.fetchedAt}>{new Date(report.fetchedAt).toLocaleString(intlLocale())}</time></>}
+        </span>
         <button
           type="button"
           onClick={() => void load(true)}
@@ -275,6 +277,7 @@ export function PlanUsage() {
             <div key={provider.id} className="border-t border-hairline/30 pt-3 first:border-t-0 first:pt-0">
               <div className="mb-2 flex min-w-0 items-baseline gap-2">
                 <span className="truncate text-[14px] font-medium text-ink">{providerLabel(provider)}</span>
+                {report.providers.some(other => other.id !== provider.id && other.name === provider.name) && <code className="text-[12px] text-ink-secondary">{provider.id}</code>}
                 {provider.plan && <span className="truncate text-[12px] text-ink-secondary">{provider.plan}</span>}
               </div>
               {provider.ok ? (

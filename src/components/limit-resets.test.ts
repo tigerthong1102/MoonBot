@@ -285,6 +285,20 @@ describe("the chat", () => {
     await vi.waitFor(() => expect(container.textContent).not.toContain("Continue at"));
   });
 
+  it("keeps recovery scheduled after reloading and reviews an already-active turn before scheduling", () => {
+    const tool = failedTurnTool("quota", { limitResetsAt: RESET });
+    const props = { tool, engine: undefined, botId: "scout", threadId: "t-1", reviewActions: true };
+    const container = mount(createElement(FailedTurnRow, props));
+    expect(container.textContent).toContain("already used tools");
+    flushSync(() => button(container, "Continue at 3:40 PM when your limit resets").click());
+    expect(fixture.api.mock.calls.map(call => call[0])).toContain("/api/limit-resets/continue");
+    root!.unmount();
+    fixture.state = { ...fixture.state, routines: [routine("recover", RESET, {
+      enabled: true, botId: "scout", sourceThreadId: "t-1", schedule: { type: "limit_reset", engine: "claude", repeat: "once", at: RESET },
+    })] };
+    expect(mount(createElement(FailedTurnRow, props)).textContent).not.toContain("Continue at");
+  });
+
   it("offers Retry as before once the reset has passed, or when the engine named no reset", () => {
     const passed = mount(createElement(FailedTurnRow, { tool: failedTurnTool("limit", { limitResetsAt: NOW - 1 }), engine: undefined, botId: "scout", threadId: "t-1", onRetry: vi.fn() }));
     expect(passed.textContent).toContain("Retry");

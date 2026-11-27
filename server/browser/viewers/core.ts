@@ -19,8 +19,9 @@ import { extensionInput, type InstalledExtension } from "../extensions.ts";
 import type { HoldLimits } from "../hold.ts";
 import type { Tab } from "../tabs.ts";
 import { ACCEPT_OF, chooseOption, cursorAt, editableAt, selectAt, type SelectPopup } from "./popups.ts";
+import { elementEvidence, type ElementEvidence } from "./element-evidence.ts";
 import { ViewerHold } from "./hold.ts";
-import { fitsScreen, MIN_WINDOW_WIDTH, requestedSize, VIEWPORT_PRESETS, viewportFor, ZOOM_LIMITS, zoomedLayout, type ViewportSetting } from "./viewport.ts";
+import { fitsScreen, MIN_WINDOW_WIDTH, requestedSize, parseSetting, viewportFor, ZOOM_LIMITS, zoomedLayout, type ViewportSetting } from "./viewport.ts";
 
 /** Chromium keeps three frames unacknowledged, so acking 100 ms after arrival caps a viewer near 30 fps. */
 export const ACK_PACE_MS = { hi: 100, lo: 200 } as const;
@@ -58,6 +59,7 @@ export type ViewerOutput =
   | { type: "nav"; tabId: string; url: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }
   | { type: "status"; connected: boolean; screencasting: boolean; viewportWidth: number; viewportHeight: number }
   | { type: "clipboard"; text: string } | { type: "extensions"; extensions: InstalledExtension[] }
+  | { type: "elementEvidence"; requestId: string; evidence: ElementEvidence | null }
   | { type: "probe"; x: number; y: number; editable: boolean }
   | { type: "pointer"; phase: "move" | "click"; x: number; y: number; sequence: number }
   | { type: "fileChooser"; id: string; multiple: boolean; accept: string }
@@ -803,7 +805,7 @@ export class ViewerHub {
       }
       case "viewport": {
         if (!this.#hold.controls(viewer)) return;
-        const setting = parseSetting(message.setting);
+        const setting = parseSetting(record(message.setting));
         if (!setting) return;
         this.setting = setting;
         await this.#resizeForViewers();
@@ -968,6 +970,13 @@ export class ViewerHub {
         if (message.ignoreCache === true) await tab.page.session.send("Page.reload", { ignoreCache: true });
         else await tab.page.reload({ readiness: "none" });
         return;
+      case "elementEvidence": {
+        const { requestId, x, y } = message;
+        if (typeof requestId !== "string" || requestId.length > 64 || typeof x !== "number" || typeof y !== "number") return;
+        const evidence = tab.id === message.tabId ? await this.paused(tab, () => elementEvidence(tab.page, x, y)).catch(() => null) : null;
+        viewer.push({ type: "elementEvidence", requestId, evidence: this.#hold.controls(viewer) && this.host.active() === tab ? evidence : null });
+        return;
+      }
       case "probe": {
         const x = num(message.x);
         const y = num(message.y);
@@ -982,17 +991,3 @@ const newestChallenge = (tabs: readonly Tab[]) => tabs.reduce<{ tab: Tab; challe
   const challenge = tab.page.auth.pending;
   return challenge && (!newest || challenge.since >= newest.challenge.since) ? { tab, challenge } : newest;
 }, null);
-
-function parseSetting(value: unknown): ViewportSetting | null {
-  const setting = record(value);
-  if (!setting) return null;
-  if (setting.mode === "fill") return { mode: "fill" };
-  if (setting.mode === "preset" && typeof setting.preset === "string" && setting.preset in VIEWPORT_PRESETS) {
-    return { mode: "preset", preset: setting.preset as keyof typeof VIEWPORT_PRESETS, ...(setting.landscape === true ? { landscape: true } : {}) };
-  }
-  if (setting.mode === "fixed") {
-    const size = requestedSize(setting.width, setting.height);
-    return size ? { mode: "fixed", ...size } : null;
-  }
-  return null;
-}

@@ -153,3 +153,16 @@ export function elementPath(elements: readonly WireElement[], element: WireEleme
   return node.depth > 0 ? null : chain.reverse();
 }
 
+
+export type TreeCounts = Map<string, number>;
+
+export function treeCounts(tree: Record<string, unknown>): TreeCounts | undefined {
+  if (treeDegraded(tree) || !wholeTree(tree) || !Array.isArray(tree.elements)) return;
+  const counts = new Map<string, number>();
+  for (const element of tree.elements) {
+    if (!element || typeof element.role !== "string") return;
+    const key = JSON.stringify([element.role, element.depth, element.selected === true, element.focused === true]);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
+}

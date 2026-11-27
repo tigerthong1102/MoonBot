@@ -399,4 +399,5 @@
     <string name="ui_send_failure">Couldn\'t send this message. Try again.</string>
     <string name="ui_switch_thread">Switch thread</string>
     <string name="ui_chat_options">Open %1$s chat options</string>
+    <string name="notification_other_computer">Open on another computer?</string>
 </resources>

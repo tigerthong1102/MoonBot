@@ -9,7 +9,8 @@ final class NotificationPayloadTests: XCTestCase {
         let frame = try JSONDecoder().decode(NotificationFrame.self, from: Data("""
         {"kind":"question","botId":"bot","botName":"Fixture","threadId":"thread","title":"Question","body":"Choose a plan"}
         """.utf8))
-        let first = NotificationCoordinator.request(frame, sequence: 12, connectionID: "computer-a")
+        let first = NotificationCoordinator.request(frame, sequence: 12, connectionID: "computer-a", computerName: " Studio Mac ")
+        XCTAssertEqual(first.content.subtitle, "Studio Mac")
         let replay = NotificationCoordinator.request(frame, sequence: 12, connectionID: "computer-a")
         let other = NotificationCoordinator.request(frame, sequence: 12, connectionID: "computer-b")
         let payload = first.content.userInfo.reduce(into: [String: String]()) { result, entry in

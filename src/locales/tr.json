@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Sayfada bir öğe seç",
+  "browser.evidence.add": "Sohbet taslağına ekle",
+  "browser.evidence.failed": "Bu öğe yakalanamadı.",
   "workflow.controls": "Adım ayarları",
   "workflow.approvalPrompt": "Onay isteği (isteğe bağlı)",
   "workflow.when": "Önceki bir sonuç eşleştiğinde çalıştır",

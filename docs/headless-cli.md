@@ -497,3 +497,110 @@ file (`--token-file`).
 `openmausbot mcp` serves the same operations as MCP tools on stdin and stdout
 ([docs/mcp-server.md](mcp-server.md)): `wait_for_conversation` waits on the
 same job, and returns the same result, as `wait`.
+
+
+### Keep a local Codex terminal open between connections
+
+On macOS or Linux with tmux and the Codex CLI installed, run
+`openmausbot terminal start research codex` from the project folder. Reconnect
+using `openmausbot terminal attach research`. Press Ctrl-B then D or close the
+terminal window to detach. `openmausbot terminal output research` reads recent
+output, `openmausbot terminal list` lists sessions, and
+`openmausbot terminal stop research` ends that process. A machine restart ends
+local processes. Each OS user and StartupBot data directory has its own sessions.
+On Windows the commands run inside a Linux WSL distribution with tmux and Codex installed there.
+
+Use `terminal history FOLDER [QUERY]` to search explicitly selected, uncompressed
+Codex rollout files. It reads each header and shows the ID, branch, directory
+and file in JSON. In the original project directory, `terminal fork NAME FILE`
+opens a new Codex branch of that conversation. For a StartupBot conversation,
+`terminal fork-chat NAME FILE THREAD [INSTANCE]` also checks the selected
+StartupBot thread's recorded engine cursor. The source must be in the active
+Codex home's sessions directory. Both actions start a separate conversation.
+
+Use `openmausbot terminal start NAME cursor` to run the installed Cursor CLI in a persistent terminal. `openmausbot terminal models cursor` prints model IDs from that installation.
+
+On the local macOS or Linux desktop, open **Computer → Files → Local agent terminal**. Select a running session, search or copy the last 2,000 lines, or send one line. The pane uses the selected local profile. In Windows, attach through the CLI inside the matching WSL distribution.
+
+### Read the active host's MCP catalog
+
+`openmausbot mcp-catalog --json` lists configured MCP servers through the same authenticated workspace connection used by Settings. Add `--bot ID` to see whether each server is available to that bot. The command prints names and status only. In Plugins, ClickUp, Airtable, Todoist, Zapier, Granola and Intercom offer direct provider sign-in. Use the Intercom region matching the workspace.
+
+### Review an OpenClaw bot before adding it
+
+Use `openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY` to preview
+its identity and SOUL.md. Add `--skills` to copy ordinary SKILL.md files as
+disabled skills. The importer validates the preview using StartupBot's normal
+team-file reader. Inspect the generated files and run
+`openmausbot team apply NEW_DIRECTORY/team.json --dry-run` to compare with
+the target workspace. Applying that file is a separate choice.
+
+### Review a coding task
+
+`openmausbot dev review --repo DIR --base main --out review.html` opens a
+review snapshot as a local HTML file. Click a diff line to write or remove a
+note, then export the notes with both commits, the file and left/right line.
+Pass `--github OWNER/REPO --pr NUMBER` to include live checks, discussions
+and resolved/outdated thread status. This requires GitHub CLI access and the
+PR's exact head in the selected checkout. The command creates a new file.
+
+Use `dev worktree create --repo DIR --title "Task name" --out NEW_DIR --base main`
+to create a task branch and checkout. Select an issue or PR by adding
+`--github OWNER/REPO --issue N` or `--pr N`. For a PR the exact commit must
+already be available locally. `dev worktree show --repo NEW_DIR` displays
+changes, and `checkpoint --repo NEW_DIR --note TEXT` records progress.
+`setup --repo DIR` previews scripts and shared directories from tracked
+orca.yaml. `remove-clean --repo DIR --target NEW_DIR` preserves the branch
+and refuses changed, untracked, ignored or locked worktrees.
+
+`dev issues --github OWNER/REPO` reads GitHub Issues. Add `--project N` for
+the owner's GitHub Project. `dev stack --github OWNER/REPO --pr N` shows
+open PRs whose base and head branches depend on each other in that repository.
+`dev draft --repo DIR --base main --out draft.md` makes a local PR draft with
+the commit subjects, exact revisions, change summary and repository template.
+
+### Developer hosts and worker attempts
+
+- `dev host status --host ALIAS --folder /repo` reads a remote Git checkout using the operating system's trusted SSH host keys.
+- `dev host forward --host ALIAS --port 3000 --local 4000` previews the route. Add `--connect` to keep it open until interrupted. Both ends bind to loopback.
+- `dev attempt start --repo DIR --host NAME` issues an attempt number. Record the worker's result with `finish --attempt N --exit CODE --host NAME --artifact FILE`. `show` lists receipts stored for that checkout. `--retry` supersedes an unfinished attempt.
+- `dev sandbox start --repo DIR --image LOCAL_IMAGE --minutes 15` creates an expiring Docker container with a copy of committed files, isolated networking and no host mount. The local image must provide sleep. Use `list` or `stop --id FULL_ID` on the same checkout.
+- On Windows, `dev host wsl-list` shows installed user distributions. `dev host wsl-status --distro NAME --folder /repo` reads the exact Git revision in that distribution.
+
+`dev source --repo DIR --file FILE --line N` reports the recorded Git author
+and revision of the selected line. A locally modified line is labelled as such.
+Add `--editor code|cursor|zed --launch` to open it in an installed editor.
+
+Feed a GitHub workflow_run, check_run or pull_request event to
+`dev ci-event --event FILE --github OWNER/REPO --pr N --out NEW_DRAFT`.
+It verifies the repository, source identity, PR head and current run attempt
+against authenticated GitHub reads before writing a local diagnostic draft.
+Identical redeliveries reuse the draft.
+
+On GitHub, setting the repository Actions variable `STARTUPBOT_CI_DRAFTS` to
+`true` enables the **StartupBot CI draft** workflow once installed on the default
+branch. After CI on an open PR, the workflow checks the current head and run
+attempt, then saves the draft as a seven-day workflow artifact. Ambiguous or
+superseded PRs do not receive a draft. The workflow uses read-only repository
+permissions and checks out its own trusted default-branch revision.
+
+From **Computer → Files**, import the Markdown exported by a code review into the selected conversation draft. The exact base, head, paths, sides and line numbers stay visible before sending. A recent file with a recorded bot turn links back to that turn. The recorded change applies to the file, while `dev source` reads line authorship from Git.
+
+For a paired development machine using SSH, `dev host tree --host ALIAS --folder /repo` lists committed paths. `dev host read --host ALIAS --folder /repo --file PATH` reads an ordinary text file at the captured revision and returns its Git blob ID.
+
+`dev issues --github OWNER/REPO --out board.html` saves an offline view with links to the first 100 open issues. For GitLab.com use `--tracker gitlab --scope GROUP/PROJECT` (optional `GITLAB_TOKEN`). For Linear, use `--tracker linear --scope TEAM_KEY` and `LINEAR_API_KEY`. For Jira Cloud, use `--tracker jira --scope PROJECT_KEY --site TENANT.atlassian.net`, with `JIRA_EMAIL` and `JIRA_API_TOKEN`. Each reads the selected account in the CLI environment and writes a new board only if `--out` is supplied.
+
+For Claude Code, `terminal start NAME claude` opens the installed CLI. Use
+`terminal history-claude FOLDER [QUERY]` to list selected primary JSONL
+metadata. From the recorded directory, `terminal fork-claude NAME FILE` uses
+Claude's native `--resume ID --fork-session`, scoped to the active
+`CLAUDE_CONFIG_DIR/projects`. Prompt text is excluded from search results.
+
+On Windows, `dev host wsl-preview --distro NAME --repo LOCAL_REPO --folder /new/folder`
+reports the source HEAD, tracked file count, working-tree changes and destination
+state. `wsl-stage` copies committed history into a new detached checkout and
+returns a receipt. It leaves the original repository in place. Uncommitted or
+untracked changes block staging; ignored files and machine-specific Git settings
+are excluded. `wsl-undo --distro NAME --folder /new/folder --receipt UUID` moves
+the unchanged staged checkout to a recoverable sibling directory. It refuses a
+changed destination. Git and GNU coreutils are required in the chosen distribution.

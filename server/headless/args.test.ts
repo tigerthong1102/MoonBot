@@ -26,8 +26,11 @@ describe("parseCommand", () => {
     expect(parseCommand(["team", "apply", "room.yaml", "--check"])).toMatchObject({ verb: "team apply", positionals: ["room.yaml"], flags: { check: true } });
     expect(parseCommand(["team", "export", "--team", "A", "--team", "B", "--out", "t.yaml"]).flags).toMatchObject({ team: ["A", "B"], out: "t.yaml" });
     expect(parseCommand(["engine", "set", "claude", "--key-env", "ANTHROPIC_API_KEY"])).toMatchObject({ verb: "engine set", positionals: ["claude"] });
+    expect(parseCommand(["team", "import-openclaw", "source", "--out", "result"]).verb).toBe("team import-openclaw");
+    expect(parseCommand(["dev", "review", "--out", "review.html"]).verb).toBe("dev review");
+    expect(parseCommand(["mcp-catalog", "--bot", "worker"]).flags.bot).toBe("worker");
     expect(parseCommand(["engine", "list"]).verb).toBe("engine list");
-    expect(usage(() => parseCommand(["team", "destroy"]))).toEqual({ message: "team needs one of: apply, export", exitCode: EXIT.usage });
+    expect(usage(() => parseCommand(["team", "destroy"]))).toEqual({ message: "team needs one of: apply, export, import-openclaw", exitCode: EXIT.usage });
   });
 
   it("refuses unknown verbs and flags, missing values and extra values, as usage errors (exit 2)", () => {
@@ -42,7 +45,7 @@ describe("parseCommand", () => {
   it("knows which verbs change something", () => {
     for (const verb of ["send", "run", "interrupt", "team apply", "engine set", "token create", "token revoke"]) expect(MUTATING_VERBS.has(verb), verb).toBe(true);
     for (const verb of ["doctor", "bots", "wait", "messages", "export", "events", "team export", "engine list"]) expect(MUTATING_VERBS.has(verb), verb).toBe(false);
-    expect([...HEADLESS_VERBS].sort()).toEqual(["bots", "channels", "connect", "doctor", "edit", "engine", "events", "export", "interrupt", "mcp",
+    expect([...HEADLESS_VERBS].sort()).toEqual(["bots", "channels", "connect", "dev", "doctor", "edit", "engine", "events", "export", "interrupt", "mcp", "mcp-catalog",
       "messages", "models", "new-bot", "new-channel", "run", "send", "send-channel", "set-model", "team", "token", "wait"]);
   });
 });

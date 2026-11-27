@@ -146,6 +146,18 @@ describe("idle engines on a small box", () => {
     expect(a.state.closed).toBe(0);
   });
 
+  it("keeps a process that received a turn just before its idle timer fired", () => {
+    vi.useFakeTimers();
+    try {
+      const a = engine();
+      const timer = armIdleClose("awake", 1_000, a.warm);
+      a.state.busy = true;
+      vi.advanceTimersByTime(1_000);
+      expect(a.state.closed).toBe(0);
+      stopIdleClose("awake", timer);
+    } finally { vi.useRealTimers(); }
+  });
+
   it("closes on its timer like any idle engine", () => {
     vi.useFakeTimers();
     try {

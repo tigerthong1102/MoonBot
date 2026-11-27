@@ -1,3 +1,5 @@
+import { taskPatchFields, type TaskUpdatePatch } from "./task-update-patch";
+export type { TaskUpdatePatch } from "./task-update-patch";
 import { cloudAsleep, onCloudPower } from "../lib/cloud-power";
 import { api, ApiError, retryRequest, snapshotArrays } from "./api";
 import { bumpTranscriptGeneration, clearTranscript, loadOlderPage, MESSAGE_PAGE_SIZE, reduceOlderMessages, switchedTranscript } from "./message-history";
@@ -217,7 +219,7 @@ export interface ModelSelection {
   variant?: string;
 }
 
-export interface Task extends Pick<WireTask, "private" | "shared" | "sharedWith" | "setupRequest" | "inbox" | "openAsks" | "askedBy"> {
+export interface Task extends Pick<WireTask, "dueDate" | "doneWhen" | "private" | "shared" | "sharedWith" | "setupRequest" | "inbox" | "openAsks" | "askedBy"> {
   waitingForTeammates?: boolean; sharedChat?: true;
   threadId: string;
   origin?: import("../../shared/wire").ForkOrigin;
@@ -377,28 +379,6 @@ export function currentTaskBot(bot: Bot, threadId = bot.threadId): Bot {
   };
 }
 
-export type TaskUpdatePatch = Partial<Pick<Task, "modelSelection" | "approvalMode" | "autoApprove" | "pinnedMessageId">> & {
-  acknowledgeLocalAuto?: boolean;
-  updateBotDefault?: boolean;
-  resetApprovalToAsk?: boolean;
-  projectId?: string | null;
-  archivedAt?: number | null;
-  snoozedUntil?: number | null;
-  surface?: Task["surface"] | null;
-  pinned?: boolean;
-  link?: string | null;
-};
-
-function taskPatchFields(patch: TaskUpdatePatch): Partial<Task> {
-  const { acknowledgeLocalAuto: _localAck, updateBotDefault: _modelDefault, resetApprovalToAsk, projectId, archivedAt, snoozedUntil, surface, pinned, link, ...fields } = patch;
-  return { ...fields, ...(resetApprovalToAsk ? { approvalMode: "ask", autoApprove: false, alwaysAllow: [] } : {}),
-    ...(projectId === undefined ? {} : { projectId: projectId ?? undefined }),
-    ...(archivedAt === undefined ? {} : { archivedAt: archivedAt ?? undefined }),
-    ...(snoozedUntil === undefined ? {} : { snoozedUntil: snoozedUntil ?? undefined }),
-    ...(surface === undefined ? {} : { surface: surface ?? undefined, surfaceAuto: undefined }),
-    ...(pinned === undefined ? {} : { pinned: pinned ? true : undefined }),
-    ...(link === undefined ? {} : { link: link ?? undefined }) };
-}
 
 function openedUnreadDivider(state: AppState, threadId: string, unread: boolean, messages: readonly Message[], lastReadMessageId?: string, hasMore?: boolean): AppState["unreadDivider"] {
   return unread ? unreadDividerFor(threadId, messages, lastReadMessageId, hasMore) : placeUnreadDivider(state.unreadDivider?.threadId === threadId ? state.unreadDivider : null, threadId, messages, Boolean(hasMore));

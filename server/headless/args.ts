@@ -90,6 +90,7 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
       jsonl: { type: "boolean" } },
     positionals: 0,
   },
+  "team import-openclaw": { options: { out: { type: "string" }, skills: { type: "boolean" } }, positionals: 1 },
   "team apply": {
     options: { "dry-run": { type: "boolean" }, check: { type: "boolean" }, prune: { type: "boolean" },
       "rotate-secrets": { type: "boolean" }, "wait-idle": { type: "string" } },
@@ -106,6 +107,17 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
     options: { code: { type: "string" }, out: { type: "string" }, label: { type: "string" }, client: { type: "boolean" }, force: { type: "boolean" } },
     positionals: 1,
   },
+  "mcp-catalog": { options: { bot: { type: "string" } }, positionals: 0 },
+  "dev worktree": { options: { github: { type: "string" }, issue: { type: "string" }, pr: { type: "string" }, repo: { type: "string" }, base: { type: "string" }, title: { type: "string" }, out: { type: "string" }, target: { type: "string" }, note: { type: "string" } }, positionals: 1 },
+  "dev issues": { options: { tracker: { type: "string" }, scope: { type: "string" }, site: { type: "string" }, out: { type: "string" }, repo: { type: "string" }, github: { type: "string" }, project: { type: "string" } }, positionals: 0 },
+  "dev stack": { options: { repo: { type: "string" }, github: { type: "string" }, pr: { type: "string" } }, positionals: 0 },
+  "dev draft": { options: { repo: { type: "string" }, base: { type: "string" }, out: { type: "string" } }, positionals: 0 },
+  "dev host": { options: { repo: { type: "string" }, receipt: { type: "string" }, file: { type: "string" }, host: { type: "string" }, config: { type: "string" }, folder: { type: "string" }, distro: { type: "string" }, port: { type: "string" }, local: { type: "string" }, connect: { type: "boolean" } }, positionals: 1 },
+  "dev attempt": { options: { repo: { type: "string" }, host: { type: "string" }, retry: { type: "boolean" }, attempt: { type: "string" }, exit: { type: "string" }, artifact: { type: "string" } }, positionals: 1 },
+  "dev sandbox": { options: { repo: { type: "string" }, image: { type: "string" }, minutes: { type: "string" }, id: { type: "string" } }, positionals: 1 },
+  "dev source": { options: { repo: { type: "string" }, file: { type: "string" }, line: { type: "string" }, editor: { type: "string" }, launch: { type: "boolean" } }, positionals: 0 },
+  "dev ci-event": { options: { repo: { type: "string" }, event: { type: "string" }, github: { type: "string" }, pr: { type: "string" }, out: { type: "string" } }, positionals: 0 },
+  "dev review": { options: { repo: { type: "string" }, base: { type: "string" }, out: { type: "string" }, github: { type: "string" }, pr: { type: "string" } }, positionals: 0 },
   mcp: { options: {}, positionals: 0 },
   "token create": { options: { out: { type: "string" }, scope: { type: "string" }, expires: { type: "string" }, force: { type: "boolean" } }, positionals: 1 },
   "token list": { options: {}, positionals: 0 },
@@ -127,7 +139,7 @@ export interface ParsedCommand {
   positionals: string[];
 }
 
-const SUBCOMMANDS = new Map([["team", ["apply", "export"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]]]);
+const SUBCOMMANDS = new Map([["team", ["apply", "export", "import-openclaw"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]], ["dev", ["review", "worktree", "issues", "stack", "draft", "host", "sandbox", "attempt", "source", "ci-event"]]]);
 
 /** Strict: an unknown flag or a missing value is a usage error (exit 2). */
 export function parseCommand(argv: readonly string[]): ParsedCommand {

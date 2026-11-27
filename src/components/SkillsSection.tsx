@@ -40,11 +40,13 @@ export function filterLibrarySkills(
   });
 }
 
-export function LibrarySkillMeta({ skill }: { skill: SkillsLibrarySkillWire }) {
+export function LibrarySkillMeta({ skill, details = false }: { skill: SkillsLibrarySkillWire; details?: boolean }) {
   return (
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-secondary">
       <span>{skill.version ? t("skills.library.version", { version: skill.version }) : t("skills.library.noVersion")}</span>
       <span>{t("skills.library.importedAt", { date: new Date(skill.importedAt).toLocaleDateString(intlLocale()) })}</span>
+      {details && skill.source && <span className="break-all">{t("skills.source", { source: skill.source })}</span>}
+      {details && skill.compatibility && <span>{t("skills.library.compatibility", { value: skill.compatibility })}</span>}
       {skill.license && <span>{skill.license}</span>}
       {skillTags(skill).map((tag) => (
         <span key={tag} className="rounded bg-control px-1.5 py-0.5 font-mono">{tagLabel(tag)}</span>
@@ -417,7 +419,7 @@ export function SkillsSection({ chat }: { chat?: SkillChatTarget } = {}) {
         </form>
       </Card>}
 
-      {viewing && <Layer modal><SkillSourceDialog viewing={viewing} details={<LibrarySkillMeta skill={viewing.skill} />} error={error} working={Boolean(working)} onClose={() => { if (!working) setViewing(null); }} enableLabel={chat ? t("skills.library.enableAndUse") : t("skills.enableReviewed")} onEnable={() => void (chat ? useInChat(viewing.skill, true) : toggle(viewing.skill, true))} /></Layer>}
+      {viewing && <Layer modal><SkillSourceDialog viewing={viewing} details={<LibrarySkillMeta skill={viewing.skill} details />} error={error} working={Boolean(working)} onClose={() => { if (!working) setViewing(null); }} enableLabel={chat ? t("skills.library.enableAndUse") : t("skills.enableReviewed")} onEnable={() => void (chat ? useInChat(viewing.skill, true) : toggle(viewing.skill, true))} /></Layer>}
     </div>
   );
 }

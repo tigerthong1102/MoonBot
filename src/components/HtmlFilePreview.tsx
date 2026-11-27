@@ -1,3 +1,4 @@
+import { ArtifactLink } from "./ArtifactLink";
 import { Component, lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Code2, Download, ExternalLink, Eye, LoaderCircle, RotateCcw } from "lucide-react";
 import { requestMessageFile, useLocalFileSave, type MessageAttachmentContext } from "./AttachmentPreview";
@@ -140,6 +141,7 @@ function HtmlFileContent({ path, name, message }: { path: string; name: string; 
   if (source === null) return <div role="status" className="flex items-center justify-center gap-2 p-12 text-sm text-ink-secondary"><LoaderCircle size={16} className="animate-spin" />{t("html.loading")}</div>;
   return <div className="flex flex-col gap-2">
     <div className="flex items-center justify-end gap-1">
+      <ArtifactLink key={JSON.stringify([path, message.threadId, message.messageId])} path={path} message={message} />
       <button type="button" className="table-action" aria-pressed={showSource} aria-label={t(showSource ? "html.rendered" : "html.source")} title={t(showSource ? "html.rendered" : "html.source")} onClick={() => setShowSource(!showSource)}>{showSource ? <Eye size={14} /> : <Code2 size={14} />}</button>
       <button type="button" className="table-action" aria-label={t("html.reload")} title={t("html.reload")} onClick={() => setAttempt(attempt + 1)}><RotateCcw size={14} /></button>
       <OpenInBrowserButton source={source} name={name} onError={setOpenFailed} />

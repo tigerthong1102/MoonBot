@@ -140,6 +140,9 @@ export interface WireTask extends InboxTask {
   pinned?: boolean;
   link?: string;
   linkAuto?: boolean;
+  doneWhen?: string;
+  /** A calendar date in YYYY-MM-DD form, independent of the viewer's time zone. */
+  dueDate?: string;
   /** Epoch ms of the newest message, or createdAt when the thread has none.
    * Server-derived. Clients must not write it. */
   updatedAt?: number;

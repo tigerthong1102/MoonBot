@@ -113,6 +113,7 @@ export function ServerList({ saved, busy, sharingOffered, ownServers = [], appVe
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 truncate text-[14px] leading-5 text-ink">{entry.name}</div>
               <div data-server-where className="truncate text-[13px] leading-[18px] text-ink-secondary">{where}</div>
+              {status?.state === "connected" && status.version && <span data-server-version className="text-xs text-ink-secondary">v{status.version}{status.install ? " · " + status.install : ""}</span>}
               <StatusLine status={status} onTryNow={() => void bridge?.retry?.(entry.id)} onPairAgain={() => pairAgain(entry)} onEdit={() => editAddress(entry)} />
             </div>
             {active ? <span className="shrink-0 text-[13px] leading-5 text-ink-secondary">{t("servers.current")}</span> :

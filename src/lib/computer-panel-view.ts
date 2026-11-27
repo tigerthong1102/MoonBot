@@ -19,16 +19,22 @@ function storageKey(botId: string): string {
   return `${STORAGE_PREFIX}:${botId}`;
 }
 
+export function taskPanelScope(botId: string, threadId?: string): string {
+  return threadId ? JSON.stringify([botId, threadId]) : botId;
+}
+
+export function readSavedPanelView(scope: string, storage?: Pick<Storage, "getItem">): ComputerPanelView | undefined {
+  try {
+    const value = (storage ?? localStorage).getItem(storageKey(scope));
+    return value === "computer" || value === "android" || value === "browser" || value === "routines" || value === "files" || value === "data" ? value : undefined;
+  } catch { return undefined; }
+}
+
 export function readComputerPanelView(
   botId: string,
   storage: Pick<Storage, "getItem"> = localStorage,
 ): ComputerPanelView {
-  try {
-    const value = storage.getItem(storageKey(botId));
-    if (value === "android" || value === "browser" || value === "routines" || value === "files" || value === "data") return value;
-  } catch {
-  }
-  return "computer";
+  return readSavedPanelView(botId, storage) ?? "computer";
 }
 
 export function writeComputerPanelView(

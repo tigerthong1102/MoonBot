@@ -31,7 +31,7 @@ jobs:
       - name: Build the preview and test Vietnamese onboarding
         run: |
           export JAVA_HOME="$JAVA_HOME_17_X64"
-          ./gradlew :app:assemblePreview :app:testDebugUnitTest --tests '*OnboardingRoutingTest'
+          ./gradlew :app:assemblePreview :core:test :app:testDebugUnitTest --tests '*OnboardingRoutingTest' --tests '*Notification*Test'
   ios:
     runs-on: macos-26-intel
     timeout-minutes: 35
@@ -47,4 +47,4 @@ jobs:
           xcrun simctl boot "$simulator"
           xcodebuild test -project StartupBot.xcodeproj -scheme StartupBot \
             -destination "platform=iOS Simulator,id=$simulator" -parallel-testing-enabled NO \
-            -only-testing:StartupBotUITests/VietnameseOnboardingTests -only-testing:StartupBotAppTests/VietnameseMessageTests CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=
+            -only-testing:StartupBotUITests/VietnameseOnboardingTests -only-testing:StartupBotAppTests/VietnameseMessageTests -only-testing:StartupBotAppTests/NotificationPayloadTests -only-testing:StartupBotAppTests/SessionRequestTests CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=

@@ -14386,6 +14386,23 @@ describe("message pages", () => {
     expect(res.status).toBe(404);
   });
 
+  it("shares a single output with conversation readers and revokes its link", async () => {
+    const route = "/api/threads/test-linked-file-room-thread/messages/linked-file-message/file";
+    const path = join(home, ".startupbot", "workspaces", "test-bot-a", "phone report.md");
+    const issued = await api("POST", route, { path, shareArtifact: true });
+    expect(issued.status).toBe(200);
+    const url = new URL(issued.body.url, BASE);
+    expect(url.searchParams.get("artifact")).toBe(issued.body.id);
+    expect(url.href).not.toContain("phone");
+    const received = await fetch(url);
+    expect(received.status).toBe(200);
+    expect(received.headers.get("content-disposition")).toContain("attachment");
+    expect(await received.text()).toBeTruthy();
+    expect((await api("POST", route, { path: join(home, "unlisted.md"), shareArtifact: true })).status).toBe(403);
+    expect((await api("POST", route, { revokeArtifact: issued.body.id })).status).toBe(200);
+    expect((await fetch(url)).status).toBe(404);
+  });
+
   it("downloads only a file linked by the exact stored bot message", async () => {
     const threadId = "test-linked-file-room-thread";
     const linkedFile = join(home, ".startupbot", "workspaces", "test-bot-a", "phone report.md");

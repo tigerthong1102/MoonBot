@@ -122,12 +122,28 @@ fun CompanionRoot(
             bondGeneration += 1
         }
     }
-    LaunchedEffect(pendingNotification, status, restoreState) {
+    val otherComputer = pendingNotification?.let { target ->
+        connections.firstOrNull { it.id == target.connectionId && it.id != connection?.id }
+    }
+    LaunchedEffect(pendingNotification, connection?.id, otherComputer?.id, status, restoreState) {
+        if (otherComputer != null) return@LaunchedEffect
         val target = pendingNotification ?: return@LaunchedEffect
         tapCoordinator.onPending(session, target, onPendingTargetConsumed)
     }
 
     CompanionTheme {
+        if (otherComputer != null && pendingNotification != null) {
+            AlertDialog(
+                onDismissRequest = { onPendingTargetConsumed(pendingNotification) },
+                title = { Text(stringResource(R.string.notification_other_computer)) },
+                confirmButton = {
+                    TextButton(onClick = { session.switchComputer(otherComputer.id) }) { Text(otherComputer.name) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { onPendingTargetConsumed(pendingNotification) }) { Text(stringResource(R.string.ui_cancel)) }
+                },
+            )
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
                 Box(modifier = Modifier.fillMaxSize()) {

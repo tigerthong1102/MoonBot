@@ -164,3 +164,19 @@ port and its source are described in public/licenses/agenticos-citation.txt.
 The browser document index uses @noble/hashes for SHA-256 where Web Crypto is
 unavailable. Copyright (c) 2022 Paul Miller. Its MIT license is distributed in
 public/licenses/noble-hashes.txt.
+
+Browser element selector and account reset countdown helpers from stablyai/orca, copyright (c) 2026 Lovecast Inc.,
+used under the MIT License. See public/licenses/orca.txt.
+Codex rollout metadata parsing in server/local-codex-history.ts adapts
+stablyai/orca (Copyright (c) 2026 Lovecast Inc., MIT, public/licenses/orca.txt).
+
+
+The local panel manifest uses the plugin ID validation rules from stablyai/orca,
+copyright (c) 2026 Lovecast Inc. See public/licenses/orca.txt.
+
+The local iOS Simulator inventory parser derives from stablyai/orca,
+copyright (c) 2026 Lovecast Inc., under the MIT license in public/licenses/orca.txt.
+
+Selective JSON member extraction for Claude session headers and the Linear
+open-issue filter are adapted from stablyai/orca, copyright (c) 2026 Lovecast Inc.
+See public/licenses/orca.txt.

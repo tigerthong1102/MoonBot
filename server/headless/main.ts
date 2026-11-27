@@ -1,3 +1,11 @@
+import { importOpenClaw } from "./team-import-local.ts";
+import { hostCommand } from "../dev-workspace/hosts.ts";
+import { attemptCommand } from "../dev-workspace/attempts.ts";
+import { sandboxCommand } from "../dev-workspace/sandbox.ts";
+import { sourceCommand } from "../dev-workspace/source.ts";
+import { ciEventCommand } from "../dev-workspace/ci-event.ts";
+import { worktreeCommand, githubWork, draftPull } from "../dev-workspace/tasks.ts";
+import { reviewCommand } from "../dev-workspace/review.ts";
 import { HEADLESS_USAGE } from "../cli-usage.ts";
 import { EXIT, HeadlessError, MUTATING_VERBS, parseCommand } from "./args.ts";
 import { explain, loadMcp, openClient, type ClientDeps, type HeadlessClient } from "./client.ts";
@@ -83,6 +91,19 @@ openmausbot doctor --host [--data-dir DIR] [--port 8799] [--domain HOST]
   Get a token for a workspace you reach over the network, saved to FILE (only you can read it).
   On this computer's own server the code is made for you; elsewhere, get one from Settings → Phone & devices.
   Then use it: --url URL --token-file FILE (or OPENMAUSBOT_URL and OPENMAUSBOT_TOKEN).`,
+  "mcp-catalog": "openmausbot mcp-catalog [--bot ID] [--json]\n  Inspect the server catalog through the active workspace connection.",
+  "team import-openclaw": "openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY [--skills]\n  Preview an OpenClaw bot as a StartupBot team file.",
+  "dev worktree": "openmausbot dev worktree list|create|show|setup|checkpoint|remove-clean --repo DIR [--base REF --title TITLE --out DIR --note TEXT --target DIR]",
+  "dev issues": "openmausbot dev issues --github OWNER/REPO [--project NUMBER] [--out BOARD.html] or --tracker gitlab|linear|jira --scope PROJECT [--site NAME.atlassian.net]",
+  "dev stack": "openmausbot dev stack --github OWNER/REPO --pr NUMBER",
+  "dev draft": "openmausbot dev draft --repo DIR --base REF --out NEW_FILE",
+  dev: "openmausbot dev review --help\n  Review a local developer workspace.",
+  "dev host": "openmausbot dev host status|tree|read|forward|wsl-list|wsl-status|wsl-preview|wsl-stage|wsl-undo --help",
+  "dev attempt": "openmausbot dev attempt start|show|finish --repo DIR --host HOST [--retry --attempt N --exit CODE --artifact FILE]",
+  "dev sandbox": "openmausbot dev sandbox list|start|stop --repo DIR [--image IMAGE --minutes N --id CONTAINER]",
+  "dev source": "openmausbot dev source --repo DIR --file PATH --line N [--editor code|cursor|zed --launch]",
+  "dev ci-event": "openmausbot dev ci-event --event FILE --github OWNER/REPO --pr N --out DRAFT",
+  "dev review": "openmausbot dev review --repo DIR --base REF --out REVIEW.html [--github OWNER/REPO --pr NUMBER]",
   mcp: "openmausbot mcp\n  Serve the StartupBot MCP tools on stdin and stdout, for an agent (docs/mcp-server.md).",
   token: "openmausbot token create NAME --out FILE … | token list | token revoke ID   (see help token create)",
   "token create": `openmausbot token create NAME --out FILE [--scope client|admin] [--expires 90d] [--force]
@@ -106,6 +127,18 @@ export interface HeadlessOptions {
 }
 
 const VERBS: Record<string, (ctx: VerbContext) => Promise<VerbOutcome>> = {
+  "mcp-catalog": async (ctx) => {
+    const owner = ctx.flags.bot;
+    const endpoint = owner ? "/api/bots/" + encodeURIComponent(String(owner)) + "/mcp-servers" : "/api/mcp/servers";
+    const response = await (await ctx.client()).json(endpoint);
+    const servers = (response.servers as Record<string, unknown>[]).map(({ name, enabled, type, auth, on, offFor }) => ({ name, enabled, type, ...(typeof offFor === "boolean" ? { offFor } : {}), ...(typeof auth === "string" ? { auth } : {}), ...(typeof on === "boolean" ? { on } : {}) }));
+    return { result: { servers }, exitCode: EXIT.done, human: servers.length ? servers.map(server => String(server.name)) : ["No MCP servers."] };
+  },
+  "team import-openclaw": importOpenClaw,
+  "dev worktree": worktreeCommand, "dev issues": githubWork, "dev stack": githubWork, "dev draft": draftPull,
+  "dev host": hostCommand, "dev sandbox": sandboxCommand, "dev attempt": attemptCommand,
+  "dev source": sourceCommand, "dev ci-event": ciEventCommand,
+  "dev review": reviewCommand,
   doctor, bots: list, channels: list, models: list, messages, send, "send-channel": send, run: runVerb, wait: waitVerb,
   interrupt, "new-bot": newBot, "new-channel": newChannel, "set-model": setModel, edit, export: exportVerb, events: eventsVerb,
   "team apply": teamApplyVerb, "team export": teamExportVerb, "engine set": engineVerb, "engine list": engineVerb, connect: connectVerb,

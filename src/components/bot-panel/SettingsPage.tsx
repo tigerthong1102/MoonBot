@@ -1,3 +1,4 @@
+import { SnoozeBotNotifications } from "../SnoozeBotNotifications";
 import { useState } from "react";
 import { AppWindow, AudioLines, Bell, ChevronRight, ExternalLink, Eye, FileText, MessageSquareText, ShieldCheck, Slack, Tag } from "lucide-react";
 
@@ -232,6 +233,7 @@ export function SettingsPage({ bot, derived, onOpen, editingInstructions = false
           checked={bot.notifications}
           onChange={toggleNotifications}
         />
+        {bot.notifications && <SnoozeBotNotifications key={bot.id} id={bot.id} />}
       </Card>
 
       <Card anchor="uses">

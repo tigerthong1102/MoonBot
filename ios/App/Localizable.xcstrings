@@ -1,6 +1,12 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Open on another computer?" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mở trên máy tính khác?" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Abrir em outro computador?" } }
+      }
+    },
     "AI council" : {
       "localizations" : {
         "pt-BR" : {

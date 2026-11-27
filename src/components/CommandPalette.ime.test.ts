@@ -19,6 +19,7 @@ import { CommandPalette, openCommandPalette } from "./CommandPalette";
 
 const bot: Bot = {
   id: "ime-bot", threadId: "ime-thread", name: "Shelby", title: "", description: "",
+  tasks: [{ title: "Quarterly reconciliation", threadId: "private-ledger", createdAt: 1 }, { title: "Archived item", threadId: "archive", createdAt: 1, archivedAt: 3 }],
   color: "blue", notifications: false, unread: false, busy: false, messages: [], section: "",
   modelSelection: { instanceId: "claude", model: "fake" },
 };
@@ -87,4 +88,14 @@ describe("Command palette with an input method", () => {
     expect(fixture.dispatch).toHaveBeenCalledWith({ type: "select", id: room.id });
     expect(dialog()).toBeNull();
   });
+});
+
+it("opens the exact named task and omits archived items", () => {
+  const input = open();
+  type(input, "Archived item");
+  expect(dialog()?.querySelectorAll("button")).toHaveLength(0);
+  type(input, "reconcil");
+  expect(dialog()?.textContent).toContain("Quarterly reconciliation");
+  press(input, "Enter");
+  expect(fixture.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "switchTask", botId: bot.id, threadId: "private-ledger" }));
 });

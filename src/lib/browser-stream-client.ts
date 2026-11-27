@@ -147,6 +147,7 @@ export type PreviewStreamInput =
   | { readonly type: "history"; readonly delta: -1 | 1 }
   | { readonly type: "reload"; readonly ignoreCache?: boolean }
   /** Asks whether the page point takes text. Touch viewers send it on touch start. */
+  | { readonly type: "elementEvidence"; readonly requestId: string; readonly tabId: string; readonly x: number; readonly y: number }
   | { readonly type: "probe"; readonly x: number; readonly y: number }
   | { readonly type: "tabSelect"; readonly tabId: string }
   | { readonly type: "tabNew"; readonly url?: string }

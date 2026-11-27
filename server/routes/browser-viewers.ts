@@ -14,6 +14,7 @@ import { storeUploads } from "../browser-upload.ts";
 import type { BrowserLive } from "../browser-live.ts";
 import type { LiveRouter } from "../browser/engines.ts";
 import { requestedSize } from "../browser/viewers/viewport.ts";
+import { rangeOf } from "../http-byte-range.ts";
 import { messageFileDisposition } from "../message-file.ts";
 import { isSameOrigin, type RequestAuth } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -182,18 +183,28 @@ export function createBrowserViewerRoutes(deps: BrowserViewerRouteDeps): RouteHa
       return json(res, unanswered.status, { error: unanswered.error });
     }
 
-    if (method !== "GET") return json(res, 405, { error: "method not allowed" });
+    if (method !== "GET" && method !== "HEAD") return json(res, 405, { error: "method not allowed" });
     const file = deps.viewers.download(browser, download![2]!);
     if (!file?.path) return json(res, 404, { error: "That download is not available." });
     const saved = file.path;
-    res.writeHead(200, {
+    const size = file.receivedBytes;
+    const part = req.headers.range === undefined ? null : rangeOf(req.headers.range, size);
+    if (req.headers.range !== undefined && !part) {
+      res.writeHead(416, { "content-range": `bytes */${size}`, "accept-ranges": "bytes" });
+      res.end();
+      return;
+    }
+    res.writeHead(part ? 206 : 200, {
+      "accept-ranges": "bytes",
+      ...(part ? { "content-range": `bytes ${part.start}-${part.end}/${size}` } : {}),
       "content-type": "application/octet-stream",
-      "content-length": String(file.receivedBytes),
+      "content-length": String(part ? part.end - part.start + 1 : size),
       "content-disposition": messageFileDisposition(file.fileName),
       "x-content-type-options": "nosniff",
     });
+    if (method === "HEAD") { res.end(); return; }
     await new Promise<void>((resolve) => {
-      const reading = createReadStream(saved);
+      const reading = createReadStream(saved, part ?? undefined);
       reading.once("error", () => { res.destroy(); resolve(); });
       res.once("close", () => { reading.destroy(); resolve(); });
       reading.pipe(res);

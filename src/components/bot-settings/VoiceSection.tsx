@@ -1,3 +1,4 @@
+import { SnoozeBotNotifications } from "../SnoozeBotNotifications";
 import { requestNotificationPermission } from "@/lib/notify";
 import { t } from "@/lib/i18n";
 import type { Bot } from "@/state/store";
@@ -37,6 +38,7 @@ export function VoiceSection({
           }}
         />
       </div>
+      {!draft && bot.notifications && <SnoozeBotNotifications key={bot.id} id={bot.id} />}
     </div>
   );
 }

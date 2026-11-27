@@ -57,7 +57,7 @@ internal class RecordingSink : NotificationSink {
     val delivered = mutableListOf<Pair<NotificationFrame, Int?>>()
     val badges = mutableListOf<Int>()
 
-    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String) {
+    override fun deliver(notification: NotificationFrame, sequence: Int?, connectionId: String, computerName: String) {
         delivered += notification to sequence
     }
 

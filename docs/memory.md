@@ -523,3 +523,11 @@ language of the chat. Unsupported entries are skipped. An outdated note stays
 unchanged when its replacement fails the check. Entries that look like secrets
 are rejected with the existing secret detector. These checks also apply before
 a dream adds a fact to About me. They do not merge notes into summaries.
+
+## Reviewed second brain
+
+Open **Bot panel → Library → Second brain**, or open the document library under Data. Choose **Save to second brain** from a saved chat message's menu or from a selected document passage. A draft appears with the source text. Choose the page type, edit the title and knowledge, then choose **Approve and save**. Cancel leaves no knowledge record. An AI answer from the document library retains its cited primary passages.
+
+Approved pages live in this browser profile and server origin, scoped to the document library viewer. They can be searched across conversations for which that viewer still has access. Customers with the same name can have independent pages. Each approved edit adds a revision and preserves its predecessor. Two tabs editing the same revision cannot both replace it. Pages with a common source link back to each other. Markdown exports include the excerpt, source locator and approval time.
+
+Opening the Brain, approving a revision and exporting check the source. The original conversation or document and the quoted revision must still be readable. Removing a source, replacing its contents or losing access hides dependent pages and their links in subsequent verified reads. A previously exported Markdown file is a separate copy. Signing into a different viewer scope does not migrate the local knowledge store.

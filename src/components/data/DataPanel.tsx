@@ -5,6 +5,7 @@ import { api, useStore, type Bot } from "@/state/store";
 import { t } from "@/lib/i18n";
 import { useColorScheme } from "@/lib/color-scheme";
 import { Select } from "../Select";
+import { openConversationDialog } from "../conversation-share/conversation-share";
 import { SourcesStrip } from "./SourcesStrip";
 import { DataCard, RunningStatus } from "./DataCard";
 import { DataResultFooter } from "./DataGrid";
@@ -233,6 +234,7 @@ function BotDataPanel({ bot, requestedCard }: { bot: Bot; requestedCard?: { id: 
   const empty = sheet && cards.length === 0 && !selection;
   const control = "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[12px] text-ink-secondary hover:bg-inset hover:text-ink";
   const controls = <>
+        <button type="button" className="ui-button ui-button-sm" onClick={() => openConversationDialog({kind:"brain",botId:bot.id,threadId:bot.threadId})}>{t("brain.name")}</button>
         <button type="button" className="ui-button ui-button-sm" onClick={() => { setKnowledgeUsed(true); setKnowledgeOpen(true); }}>{t("knowledge.title")}</button>
         <button type="button" className="ui-button ui-button-sm" onClick={() => setReconcileOpen(true)}>{t("reconcile.title")}</button>
         <details className="relative" data-testid="data-history">

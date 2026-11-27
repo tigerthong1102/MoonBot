@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { Layer } from "../Layer";
+import { lazy, Suspense, useEffect, useId, useRef, useState } from "react";
 import { UserPlus, Users } from "lucide-react";
 
 import { t } from "@/lib/i18n";
@@ -13,6 +14,7 @@ import {
   type ConversationDialog, type Sharing,
 } from "./conversation-share";
 
+const BrainDialog = lazy(() => import("../knowledge/BrainDialog"));
 /** The server keeps one note's worth and says it was shortened; this only keeps a very long message off the wire. */
 const MEMORY_TEXT_SENT = 20_000;
 
@@ -22,7 +24,8 @@ export function ConversationShareDialogs() {
   const teamName = useTeamName();
   const { state } = useStore();
   const bot = dialog ? state.bots.find((candidate) => candidate.id === dialog.botId) : undefined;
-  if (!dialog || !teamName || !bot) return null;
+  if (dialog?.kind === "brain" && bot) return <Suspense><Layer modal><BrainDialog key={JSON.stringify(dialog)} threadId={dialog.threadId} selection={dialog.selection} /></Layer></Suspense>;
+  if (!dialog || dialog.kind === "brain" || !teamName || !bot) return null;
   const key = `${dialog.kind}:${dialog.threadId}:${dialog.kind === "memory" ? dialog.messageId : ""}`;
   if (dialog.kind === "memory") return <SaveToTeamMemory key={key} dialog={dialog} botName={bot.name} />;
   return <ShareConversation key={key} dialog={dialog} botName={bot.name} teamName={teamName} />;

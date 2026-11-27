@@ -152,6 +152,7 @@ const backupSchema = z.object({
     durationMinutes: z.number().finite().positive(),
     timeoutMinutes: z.number().int().min(5).max(1_440).optional(),
     checks: z.array(z.enum(["calendar", "mail", "runs", "gmail-revision"])).max(4).optional(),
+    deliverables: z.literal("reconciliation").optional(),
     access: z.enum(ROUTINE_ACCESS).optional(),
     deliver: z.literal("brief").optional(),
   })).max(2_000),

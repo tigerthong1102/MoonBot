@@ -9,6 +9,7 @@ import { afterEach, expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
 import { AUTOMATION_REPLY_PROMPT } from "./system-prompt.ts";
 import { launchRestartableServer } from "./testing/restartable-server.ts";
+import { buildZip } from "./testing/zip-fixture.ts";
 import { openSse, type SseRecorder } from "./testing/sse.ts";
 
 let fixture: VerificationServer | undefined;
@@ -428,6 +429,35 @@ it("tells the main chat about a run missed while the computer was off, which has
   } finally {
     await restartable.close();
   }
+}, 120_000);
+
+it("posts a reconciliation only with all requested artifacts and opens its scoped download until revoked", async () => {
+  const s = await server();
+  const directory = join(s.dataDir, "workspaces", s.bot.id);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "report.pdf"), "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF");
+  writeFileSync(join(directory, "sources.csv"), "amount,source\n700,invoice-1\n");
+  const workbook = join(directory, "reconciliation.xlsx");
+  writeFileSync(workbook, buildZip(["[Content_Types].xml", "xl/workbook.xml", "xl/worksheets/sheet1.xml"].map(name => ({ name, data: "<xml/>" }))));
+  const steps = ["report.pdf", "reconciliation.xlsx", "sources.csv"].map(name => ({ tool: "attach_file", arguments: { path: join(directory, name) } }));
+  s.script([{ key: "reconciliation", match: [s.header("Reconcile")], steps, reply: "Draft ready.", repeat: true }]);
+  const routine = await s.routine("Reconcile");
+  await s.api("PATCH", `/api/routines/${routine}`, { deliverables: "reconciliation" });
+  const first = await s.runNow(routine);
+  await s.settled(first);
+  await s.reported(first, "posted");
+  const [line] = await s.lines();
+  expect(line.attachments.map((file: { name: string }) => file.name)).toEqual(["report.pdf", "reconciliation.xlsx", "sources.csv"]);
+  const route = `/api/threads/${s.main}/messages/${line.id}/file`;
+  const link = await s.api("POST", route, { shareArtifact: true, path: line.attachments[0].path });
+  expect(link.expiresAt).toBeGreaterThan(Date.now());
+  expect(await (await fetch(s.url + link.url)).text()).toMatch(/^%PDF/);
+  await s.api("POST", route, { revokeArtifact: link.id });
+  expect((await fetch(s.url + link.url)).status).toBe(404);
+  writeFileSync(workbook, "This is not a workbook");
+  const next = await s.runNow(routine);
+  await s.settled(next, "failed");
+  expect((await s.run(next)).error).toContain("reconciliation.xlsx");
 }, 120_000);
 
 it("brings the files a run sent with attach_file into its report", async () => {

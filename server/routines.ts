@@ -42,6 +42,7 @@ import { attachmentPathsOf, cloneRoutine, cloneRun } from "./routine-attachments
 import { loadInstalledPackage, matchingRequestReceipt, rememberRequest } from "./routine-load.ts";
 import { applyHolds, holdCauses, type AppliedHolds } from "./routine-holds.ts";
 import { cancelUnfinishedRuns, interruptRunTurns } from "./routine-stops.ts";
+import { RECONCILIATION_DELIVERY_PROMPT } from "./routine-deliverables.ts";
 import { sanitizeInput } from "./routine-input.ts";
 import { applyCheckResult, clipRunOutput, codedLine, routineLine, runLineFields, type RoutineLine, type RoutineLineCodes, type RoutineTroubleCode } from "./routine-lines.ts";
 import { checkHold, CHECK_BOOT_HOLD_MS, type CheckHold } from "./routine-check-pacing.ts";
@@ -75,6 +76,7 @@ export interface Routine extends RoutineTroubleCode {
   overlap?: "skip" | "queue";
   runOnStartup?: boolean;
   checks?: RoutineCheck[];
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   checkedAt?: number;
@@ -154,6 +156,7 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   cost?: number | null;
   denials?: string[];
   report?: RoutineRunReport;
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   checkKey?: string;
@@ -180,6 +183,7 @@ export interface RoutineInput {
   overlap?: "skip" | "queue";
   runOnStartup?: boolean;
   checks?: RoutineCheck[] | null;
+  deliverables?: "reconciliation" | null;
   access?: RoutineAccess | null;
   deliver?: RoutineDelivery | null;
   resultsThreadId?: string | null;
@@ -243,6 +247,7 @@ export interface RoutineManagerOptions {
   onRunDeferred?: (run: RoutineRun, alert?: RoutineAlert) => void;
   /** A run a restart cut off, before it starts again or fails: its old turn's work must not resume as well. */
   onRunCut?: (run: RoutineRun) => void;
+  incompleteDelivery?(run: RoutineRun, turnId?: string): string | null;
   hasPendingDelegations?: (threadId: string) => boolean; /** Why a run that ended well in this thread must say a hand-off was refused, once; null when none was. */ refusedHandoff?: (threadId: string) => string | null;
   /** The turn in this thread is a routine's own, not one a person started there while its run waits on teammates. */
   routineTurn?: (threadId: string) => boolean; /** The thread's latest turn is one a person started there by typing (false when not known, e.g. after a restart). */ personTurn?: (threadId: string) => boolean;
@@ -577,6 +582,7 @@ export class RoutineManager {
       overlap: Object.hasOwn(patch, "overlap") ? patch.overlap : routine.overlap,
       runOnStartup: patch.runOnStartup ?? routine.runOnStartup,
       checks: Object.hasOwn(patch, "checks") ? patch.checks : routine.checks,
+      deliverables: Object.hasOwn(patch, "deliverables") ? patch.deliverables : routine.deliverables,
       access: Object.hasOwn(patch, "access") ? patch.access : routine.access,
       deliver: Object.hasOwn(patch, "deliver") ? patch.deliver : routine.deliver,
     }, now);
@@ -604,7 +610,7 @@ export class RoutineManager {
         updatedAt: Math.max(now, routine.updatedAt + 1),
       });
       if (patch.enabled !== undefined) delete routine.heldFor;
-      for (const key of ["continuity", "sameConversation", "modelSelection", "overlap", "runOnStartup", "access", "deliver"] as const) if (!clean[key]) delete routine[key];
+      for (const key of ["continuity", "sameConversation", "modelSelection", "overlap", "runOnStartup", "access", "deliver", "deliverables"] as const) if (!clean[key]) delete routine[key];
       if (!clean.checks) for (const key of ["checks", "checkedAt", "checkTrouble", "checkTroubleCode", "checkRepairApp", "wakeAt"] as const) delete routine[key];
       if (Object.hasOwn(patch, "timeoutMinutes") && patch.timeoutMinutes == null) {
         delete routine.timeoutMinutes;
@@ -1180,7 +1186,7 @@ export class RoutineManager {
             await this.options.startTurn(
               run.botId,
               task.threadId,
-              startPrompt(run, prompt, composeExecutionPrompt({ id: run.routineId, name: run.routineName, trigger: triggerSource, runOn: run.runOn ?? "maus" }, prompt, run.attachments, continuityCarry(run, this.routines, this.runs)), (first) => this.options.promptSaid?.(task.threadId, first) === true),
+              startPrompt(run, prompt, composeExecutionPrompt({ id: run.routineId, name: run.routineName, trigger: triggerSource, runOn: run.runOn ?? "maus" }, run.deliverables ? prompt + "\n\n" + RECONCILIATION_DELIVERY_PROMPT : prompt, run.attachments, continuityCarry(run, this.routines, this.runs)), (first) => this.options.promptSaid?.(task.threadId, first) === true),
               run.runOn ?? "maus",
               triggerSource,
               (message) => this.failThread(task.threadId, message, { cause: "refused" }), run.retried === "restarted",
@@ -1291,7 +1297,8 @@ export class RoutineManager {
       }
       this.failureFacts.delete(run.id);
       const waitsOnTeammates = this.options.hasPendingDelegations?.(event.threadId) === true, handoffRefused = waitsOnTeammates ? null : this.options.refusedHandoff?.(event.threadId);
-      if (handoffRefused) { this.failRun(Object.assign(run, { partial: Boolean(run.output) || undefined }), handoffRefused); queueMicrotask(() => this.tickInBackground()); return cloneRun(run); }
+      const deliveryError = !waitsOnTeammates && run.deliverables ? (this.options.incompleteDelivery ? this.options.incompleteDelivery(run, event.turnId) : "Deliverables could not be verified.") : null;
+      if (handoffRefused || deliveryError) { this.failRun(Object.assign(run, { partial: Boolean(run.output) || undefined }), (handoffRefused ?? deliveryError)!); queueMicrotask(() => this.tickInBackground()); return cloneRun(run); }
       if (waitsOnTeammates) this.wait(run, ROUTINE_HANDOFF_WAIT);
       else { Object.assign(run, { status: "completed", attention: undefined, finishedAt: this.now() } satisfies Partial<RoutineRun>); this.ownerNotices = this.ownerNotices.filter((notice) => notice.botId !== run.botId); }
       run.error = undefined;

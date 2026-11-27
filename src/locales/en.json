@@ -5917,6 +5917,7 @@
   "automations.newBox.bot": "Who should do it?",
   "automations.newBox.send": "Set it up",
   "automations.newBox.noBots": "Create a bot first, then come back here.",
+  "routines.requiredReconciliation": "Require report.pdf, reconciliation.xlsx and sources.csv before completion",
   "blueprint.catalog": "Business templates",
   "blueprint.report": "Report",
   "blueprint.source": "Source to read",

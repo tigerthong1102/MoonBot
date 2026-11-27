@@ -166,6 +166,7 @@ export interface Routine {
   /** Also run once each time OpenMausBot starts. */
   runOnStartup?: boolean;
   checks?: RoutineCheck[];
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   /** When its checks last read everything and found nothing for the AI. */
@@ -262,6 +263,7 @@ export interface RoutineRun {
   cost?: number | null;
   denials?: string[];
   report?: RoutineRunReport;
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   /** The items its routine's checks handed this run, so they are kept or released once it ends. */
@@ -293,6 +295,7 @@ export interface RoutineInput {
   runOnStartup?: boolean;
   /** `null` explicitly removes them on updates; omission preserves them. */
   checks?: RoutineCheck[] | null;
+  deliverables?: "reconciliation" | null;
   access?: RoutineAccess | null;
   deliver?: RoutineDelivery | null;
   attachments?: RoutineContextAttachment[];

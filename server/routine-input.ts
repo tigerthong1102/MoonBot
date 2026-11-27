@@ -95,6 +95,9 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
   if (input.access && input.access !== "read-and-draft" && (checks || target !== "bot" || sameConversation || attachments.length)) {
     throw new Error("A single-source routine needs its own bot run with no other inputs.");
   }
+  if (input.deliverables != null && (input.deliverables !== "reconciliation" || checks || input.access || input.deliver || sameConversation || target !== "bot" || schedule.type === "limit_reset")) {
+    throw new Error("A reconciliation delivery needs a separate bot run that can attach files to its results conversation.");
+  }
   if (input.deliver != null && (input.deliver !== "brief" || target !== "bot")) throw userErrorThrown("serverError.routine.deliver");
   return {
     name,
@@ -114,6 +117,7 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
     ...(input.overlap === "queue" ? { overlap: "queue" as const } : {}),
     ...(input.runOnStartup === true && !runsOnce(schedule) ? { runOnStartup: true } : {}),
     ...(checks ? { checks } : {}),
+    ...(input.deliverables ? { deliverables: input.deliverables } : {}),
     ...(input.access ? { access: input.access } : {}),
     ...(input.deliver === "brief" ? { deliver: "brief" as const } : {}),
   };

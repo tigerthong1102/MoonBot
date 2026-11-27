@@ -8083,6 +8083,7 @@
   "automations.newBox.bot": "Ai sẽ làm điều đó?",
   "automations.newBox.send": "Thiết lập nó",
   "automations.newBox.noBots": "Tạo ra một robot trước, rồi quay lại đây.",
+  "routines.requiredReconciliation": "Chỉ hoàn tất khi đủ report.pdf, reconciliation.xlsx và sources.csv",
   "blueprint.catalog": "Mẫu nghiệp vụ",
   "blueprint.report": "Loại báo cáo",
   "blueprint.source": "Nguồn được đọc",

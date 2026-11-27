@@ -35,7 +35,7 @@ export async function runReadBatch(step: AppStep, batch: NonNullable<AppStep["ba
     if (!reply.ok) { audit[index] = "failed"; return { ...reply, error: "Row " + row + ": " + reply.error }; }
     let output = reply.output;
     if (typeof output === "string") {
-      try { output = JSON.parse(output); } catch { /* A non-JSON response has no selectable fields. */ }
+      try { output = JSON.parse(output); } catch { output = undefined; }
     }
     const value = field(output, batch.select);
     audit[index] = scalar(value) ? "read" : "missing_result";

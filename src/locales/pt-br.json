@@ -11688,5 +11688,9 @@
   "knowledge.addSection": "Adicionar seção",
   "knowledge.removeSection": "Remover",
   "knowledge.sectionFailed": "Verifique se você pode gerenciar este relatório e abrir o relatório de origem no mesmo espaço de trabalho.",
-  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente."
+  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente.",
+  "notify.snooze.hour": "Silenciar avisos de conclusão aqui por uma hora",
+  "notify.snooze.resume": "Reativar avisos de conclusão aqui",
+  "notify.snooze.failed": "Não foi possível salvar a configuração neste dispositivo.",
+  "share.host": "Servidor: {host}"
 }

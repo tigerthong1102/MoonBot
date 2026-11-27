@@ -190,7 +190,7 @@ export function todayReport(sources: TodaySources, viewer: TodayViewer, requeste
     const ok = run.status === "completed";
     if (ok) routines.ok += 1;
     else routines.failed += 1;
-    if (ok && run.report?.state === "quiet") continue;
+    if (ok && run.report?.state === "quiet" && !run.emailDeliveries?.length) continue;
     const reported = run.report?.state === "posted" && seen(run.report.threadId) ? run.report.threadId : undefined;
     const outcomes: OutcomeCounts = {};
     for (const event of run.threadId && run.startedAt !== undefined ? byThread.get(run.threadId) ?? [] : []) {

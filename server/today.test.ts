@@ -145,6 +145,14 @@ describe("today's report", () => {
     expect(report.routines).toEqual({ ok: 2, failed: 2 });
   });
 
+  it("keeps an external delivery receipt visible when the internal report is quiet", () => {
+    const w = seededDay();
+    const run = w.runs.find(r => r.id === "run-digest")!;
+    run.report = { state: "quiet" };
+    run.emailDeliveries = [{ destination: "finance@example.test", state: "unconfirmed", at: NOW }];
+    expect(todayReport(w.sources(), ADMIN, MIDNIGHT, NOW).lines.find(line => line.id === run.id)?.emailDeliveries).toEqual(run.emailDeliveries);
+  });
+
   it("reads a longer window back to its start, and never further than eight days", () => {
     const w = seededDay();
     const week = todayReport(w.sources(), ADMIN, MIDNIGHT - 6 * 24 * HOUR, NOW);

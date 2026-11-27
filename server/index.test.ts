@@ -21,6 +21,7 @@ import { z } from "zod";
 
 import type { InspectorPage } from "../shared/inspector.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { startFakeHttpMcp } from "./testing/fake-http-mcp-server.ts";
 import { startFakeOAuth } from "./testing/fake-oauth-server.ts";
 import { freePortBlock, withFreeSignInPort } from "./testing/ports.ts";
@@ -1749,9 +1750,8 @@ describe("harness HTTP API", () => {
 
     try {
       const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
-        // On Windows without wmic the lease reads the other server's start time through Windows PowerShell, whose first
-        // start on a CI runner takes several seconds.
-        const timer = setTimeout(() => reject(new Error("competing server did not exit")), process.platform === "win32" ? 30_000 : 5_000);
+        // The full server cold-starts before the lease check, including a first PowerShell launch on Windows.
+        const timer = setTimeout(() => reject(new Error(`competing server did not exit: ${contenderStderr.slice(-2000)}`)), hostTimeout(15_000));
         timer.unref?.();
         contender.once("close", (code, signal) => {
           clearTimeout(timer);

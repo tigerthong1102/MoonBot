@@ -39,7 +39,6 @@ export function summaryWithToolReferences(summary: string, threadId: string, pat
   return boundedContextText(summary, MAX_SUMMARY_BYTES - Buffer.byteLength(suffix)) + suffix;
 }
 
-/** Preserve the last two turn digests and the saved results available after a native engine compaction. */
 export function nativeCompactionContext(branch: readonly Message[], threadId: string, nameFor: (message: Message) => string, recall: boolean, scope?: ToolScope) {
   const recent = branch.filter(m => m.kind === "digest" && m.digest).slice(-2);
   const text = recent.map(m => digestPromptLine(m.digest!, nameFor(m))).join("\n");
@@ -67,7 +66,6 @@ export function sessionReadPage(text: string, offset: number, limit: number) {
   return { text: page, ...(next < text.length ? { nextOffset: next } : {}) };
 }
 
-/** Page the same privacy-filtered text that the replayed transcript renders. */
 export function sessionReadView(text: string, source: Message | undefined, offset: number) {
   const visible = routedWorkMarker(source ?? {}) ?? text;
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > visible.length) return null;

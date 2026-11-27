@@ -27,8 +27,6 @@ export class TrajectoryCheckpoint {
   }
 
   async run(id: string, hash: string, execute: () => Promise<Trace>): Promise<Trace> {
-    // The transaction is the per-case claim. A killed synthetic run releases it
-    // without publishing a partial trace; a competing process cannot run it.
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const saved = this.db.prepare("SELECT row FROM trajectory WHERE id=?").get(id);

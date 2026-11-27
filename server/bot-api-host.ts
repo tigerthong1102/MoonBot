@@ -212,7 +212,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
       try {
         manager.updateReceipt(botId, receipt, outcome.ok ? { replyHash: hashBotApiKey(replyText(after())) } : { failed: true });
       } catch {
-        // The durable reservation still suppresses redispatch. A restart can return unconfirmed.
+        return;
       }
     }
     if (receipt) activeReceipts.add(receipt);

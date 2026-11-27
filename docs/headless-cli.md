@@ -497,3 +497,12 @@ file (`--token-file`).
 `openmausbot mcp` serves the same operations as MCP tools on stdin and stdout
 ([docs/mcp-server.md](mcp-server.md)): `wait_for_conversation` waits on the
 same job, and returns the same result, as `wait`.
+
+### Review an OpenClaw bot before adding it
+
+Use `openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY` to preview
+its identity and SOUL.md. Add `--skills` to copy ordinary SKILL.md files as
+disabled skills. The importer validates the preview using StartupBot's normal
+team-file reader. Inspect the generated files and run
+`openmausbot team apply NEW_DIRECTORY/team.json --dry-run` to compare with
+the target workspace. Applying that file is a separate choice.

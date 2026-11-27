@@ -90,6 +90,7 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
       jsonl: { type: "boolean" } },
     positionals: 0,
   },
+  "team import-openclaw": { options: { out: { type: "string" }, skills: { type: "boolean" } }, positionals: 1 },
   "team apply": {
     options: { "dry-run": { type: "boolean" }, check: { type: "boolean" }, prune: { type: "boolean" },
       "rotate-secrets": { type: "boolean" }, "wait-idle": { type: "string" } },
@@ -127,7 +128,7 @@ export interface ParsedCommand {
   positionals: string[];
 }
 
-const SUBCOMMANDS = new Map([["team", ["apply", "export"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]]]);
+const SUBCOMMANDS = new Map([["team", ["apply", "export", "import-openclaw"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]]]);
 
 /** Strict: an unknown flag or a missing value is a usage error (exit 2). */
 export function parseCommand(argv: readonly string[]): ParsedCommand {

@@ -11688,5 +11688,6 @@
   "workflow.interrupted": "The run was interrupted after approval. Check the actual result before starting again.",
   "workflow.resume": "Resume",
   "workflow.approve": "Approve and resume",
-  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\"."
+  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\".",
+  "skills.library.compatibility": "Declared compatibility: {value}"
 }

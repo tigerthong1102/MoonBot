@@ -1,3 +1,4 @@
+import { importOpenClaw } from "./team-import-local.ts";
 import { HEADLESS_USAGE } from "../cli-usage.ts";
 import { EXIT, HeadlessError, MUTATING_VERBS, parseCommand } from "./args.ts";
 import { explain, loadMcp, openClient, type ClientDeps, type HeadlessClient } from "./client.ts";
@@ -83,6 +84,7 @@ openmausbot doctor --host [--data-dir DIR] [--port 8799] [--domain HOST]
   Get a token for a workspace you reach over the network, saved to FILE (only you can read it).
   On this computer's own server the code is made for you; elsewhere, get one from Settings → Phone & devices.
   Then use it: --url URL --token-file FILE (or OPENMAUSBOT_URL and OPENMAUSBOT_TOKEN).`,
+  "team import-openclaw": "openmausbot team import-openclaw WORKSPACE --out NEW_DIRECTORY [--skills]\n  Preview an OpenClaw bot as a StartupBot team file.",
   mcp: "openmausbot mcp\n  Serve the StartupBot MCP tools on stdin and stdout, for an agent (docs/mcp-server.md).",
   token: "openmausbot token create NAME --out FILE … | token list | token revoke ID   (see help token create)",
   "token create": `openmausbot token create NAME --out FILE [--scope client|admin] [--expires 90d] [--force]
@@ -106,6 +108,7 @@ export interface HeadlessOptions {
 }
 
 const VERBS: Record<string, (ctx: VerbContext) => Promise<VerbOutcome>> = {
+  "team import-openclaw": importOpenClaw,
   doctor, bots: list, channels: list, models: list, messages, send, "send-channel": send, run: runVerb, wait: waitVerb,
   interrupt, "new-bot": newBot, "new-channel": newChannel, "set-model": setModel, edit, export: exportVerb, events: eventsVerb,
   "team apply": teamApplyVerb, "team export": teamExportVerb, "engine set": engineVerb, "engine list": engineVerb, connect: connectVerb,

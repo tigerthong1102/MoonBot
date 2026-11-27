@@ -581,7 +581,7 @@ const TOOL_DEFINITIONS = [
         },
         thread_id: { type: "string", description: "Instead of searching: the thread id from a hit, with message_id, to read that message in full." },
         message_id: { type: "string", description: "The message id from the same hit." },
-        offset: { type: "integer", minimum: 0, description: "When an exact message read returns nextOffset, continue at that character offset." },
+        offset: { type: "integer", minimum: 0, description: "Continue at the returned nextOffset." },
       },
     },
   },

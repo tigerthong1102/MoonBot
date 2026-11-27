@@ -11718,5 +11718,12 @@
   "apps.localPanels.title": "Local panels",
   "apps.localPanels.open": "Open a panel JSON file for this session",
   "apps.localPanels.invalid": "Could not open this panel. Check its manifest, size, and the limit of eight plugins.",
-  "apps.localPanels.remove": "Remove panel"
+  "apps.localPanels.remove": "Remove panel",
+  "terminal.local.title": "Local agent terminal",
+  "terminal.local.empty": "Start a session with the StartupBot terminal CLI to see it here.",
+  "terminal.local.select": "Terminal session",
+  "terminal.local.search": "Find in terminal output",
+  "terminal.local.input": "One line of input",
+  "terminal.local.send": "Send",
+  "terminal.local.error": "Could not confirm the terminal operation. Check the output before sending again."
 }

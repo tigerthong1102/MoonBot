@@ -11718,5 +11718,12 @@
   "apps.localPanels.title": "Bảng cục bộ",
   "apps.localPanels.open": "Mở tệp JSON cho phiên này",
   "apps.localPanels.invalid": "Không mở được bảng. Hãy kiểm tra định dạng, kích thước tệp và giới hạn tám tiện ích.",
-  "apps.localPanels.remove": "Gỡ bảng"
+  "apps.localPanels.remove": "Gỡ bảng",
+  "terminal.local.title": "Terminal của agent trên máy này",
+  "terminal.local.empty": "Hãy mở phiên bằng CLI terminal của StartupBot để xem tại đây.",
+  "terminal.local.select": "Phiên terminal",
+  "terminal.local.search": "Tìm trong kết quả terminal",
+  "terminal.local.input": "Nhập một dòng",
+  "terminal.local.send": "Gửi",
+  "terminal.local.error": "Chưa xác nhận được thao tác terminal. Hãy kiểm tra kết quả trước khi gửi lại."
 }

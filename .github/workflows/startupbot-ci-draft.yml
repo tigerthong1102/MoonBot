@@ -1,0 +1,43 @@
+name: StartupBot CI draft
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+jobs:
+  draft:
+    if: vars.STARTUPBOT_CI_DRAFTS == 'true' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      # A workflow_run reads its workflow and source from the trusted default branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Find the current PR and prepare its draft
+        id: draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(jq -er '.workflow_run.head_sha | select(test("^[0-9a-f]{40}$"))' "$GITHUB_EVENT_PATH")
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/commits/$head/pulls" | jq 'add // []' > "$RUNNER_TEMP/pulls.json"
+          number=$(node scripts/ci-draft-pr.mjs "$GITHUB_EVENT_PATH" "$RUNNER_TEMP/pulls.json")
+          if [ -z "$number" ]; then exit 0; fi
+          node --experimental-strip-types server/openmausbot.ts dev ci-event --event "$GITHUB_EVENT_PATH" --github "$GITHUB_REPOSITORY" --pr "$number" --out "$RUNNER_TEMP/ci-review.md" --json
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - if: steps.draft.outputs.ready == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: startupbot-ci-draft-${{ github.event.workflow_run.id }}-${{ github.event.workflow_run.run_attempt }}
+          path: ${{ runner.temp }}/ci-review.md
+          retention-days: 7

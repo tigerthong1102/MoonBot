@@ -7,6 +7,7 @@ import { AttachedFileChip, type MessageAttachmentContext } from "./AttachmentPre
 import { prependComposerDraft } from "@/lib/drafts";
 import { shortPath } from "@/lib/short-path";
 import { t } from "@/lib/i18n";
+import { LocalTerminalPane } from "./LocalTerminalPane";
 import { openBotSettings } from "./bot-panel/panel-link";
 
 const MAX_FILES = 20;
@@ -56,7 +57,7 @@ export function sharedFileReferences(bot: Bot): Map<string, SharedFile> {
       const identity = file.private ? file.path : fileIdentity(file.path);
       const reference = {
         file,
-        message: { threadId: bot.threadId, messageId: message.id },
+        message: { threadId: bot.threadId, messageId: message.id, botOutput: true },
       };
       // Security: only an absolute link beneath that exact folder matches; never guess by basename.
       const path = spelling(identity);
@@ -111,6 +112,7 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
         </div>
         {pinned !== undefined && <p className="mt-2 text-[12px] leading-5 text-ink-secondary">{t("computer.files.pinnedFolderHint")}</p>}
       </div>
+      {typeof window !== "undefined" && window.ogb?.localTerminal && !state.config?.cloudHome && !window.ogb.remoteClient?.active && window.ogb.platform !== "win32" && <LocalTerminalPane key={bot.threadId} bridge={window.ogb.localTerminal} />}
       <div className="mt-3 rounded-xl bg-card p-4">
         <div className="text-[13px] font-medium text-ink">{t("computer.files.recent")}</div>
         <input type="search" aria-label={t("computer.files.find")} placeholder={t("computer.files.find")} value={query} onChange={event => setQuery(event.target.value)} className="my-2 w-full rounded-lg bg-inset px-3 py-2 text-sm" />

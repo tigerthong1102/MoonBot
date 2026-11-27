@@ -10,6 +10,7 @@ import { startCua, stopCua, registerCuaIpc, requestComputerUse, setCuaStateListe
 import { createAndroidDeviceController } from "./android-device.mjs";
 import { finishSpeech, speechBusy, startSpeech, stopSpeech } from "./speech.mjs";
 import { installTalk, isTalkPanel } from "./talk-main.mjs";
+import { registerLocalTerminalPane } from "./local-terminal-pane.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
 import { linuxDisablesGpu, SOFTWARE_RENDERING_ARG } from "./linux-gpu.mjs";
 import { pasteMenuItem } from "./paste-menu-item.mjs";
@@ -332,7 +333,6 @@ const serverSupervisor = createServerSupervisor({
   },
   log: slog,
 });
-
 function desktopDataDir() {
   // An empty OMB_DATA_DIR falls back here too; server/config.ts would not, so the child gets this path.
   return startupBotDataDir(app.getPath("home"), process.env.OMB_DATA_DIR);
@@ -2480,7 +2480,7 @@ const workspaceOnly = (handler) => (event, ...args) => {
   return handler(event, ...args);
 };
 const localWorkspaceOnly = (channel, handler) => localOnly(channel, workspaceOnly(handler));
-// No renderer-supplied address, token, paid flag or callback can choose an account or activate Pro.
+registerLocalTerminalPane(ipcMain, localWorkspaceOnly, () => desktopRemoteAccess ? null : runningDataDir ?? startupEnvironmentDir(environmentsState, desktopDataDir()));
 for (const method of ["state", "begin", "signInAgain", "reopen", "cancel", "refresh", "signOut", "openDashboard", "offer"]) {
   ipcMain.handle(`cloud-account:${method}`, localWorkspaceOnly(`cloud-account:${method}`, () => (method === "signOut" ? accounts.signOutActive() : ensureCloudAccount()[method]())));
 }

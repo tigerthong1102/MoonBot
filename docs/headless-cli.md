@@ -520,6 +520,8 @@ Codex home's sessions directory. Both actions start a separate conversation.
 
 Use `openmausbot terminal start NAME cursor` to run the installed Cursor CLI in a persistent terminal. `openmausbot terminal models cursor` prints model IDs from that installation.
 
+On the local macOS or Linux desktop, open **Computer → Files → Local agent terminal**. Select a running session, search or copy the last 2,000 lines, or send one line. The pane uses the selected local profile. In Windows, attach through the CLI inside the matching WSL distribution.
+
 ### Read the active host's MCP catalog
 
 `openmausbot mcp-catalog --json` lists configured MCP servers through the same authenticated workspace connection used by Settings. Add `--bot ID` to see whether each server is available to that bot. The command prints names and status only. In Plugins, ClickUp, Airtable, Todoist, Zapier, Granola and Intercom offer direct provider sign-in. Use the Intercom region matching the workspace.
@@ -574,3 +576,10 @@ Feed a GitHub workflow_run, check_run or pull_request event to
 It verifies the repository, source identity, PR head and current run attempt
 against authenticated GitHub reads before writing a local diagnostic draft.
 Identical redeliveries reuse the draft.
+
+On GitHub, setting the repository Actions variable `STARTUPBOT_CI_DRAFTS` to
+`true` enables the **StartupBot CI draft** workflow once installed on the default
+branch. After CI on an open PR, the workflow checks the current head and run
+attempt, then saves the draft as a seven-day workflow artifact. Ambiguous or
+superseded PRs do not receive a draft. The workflow uses read-only repository
+permissions and checks out its own trusted default-branch revision.

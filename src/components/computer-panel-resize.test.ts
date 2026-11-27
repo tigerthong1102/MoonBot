@@ -10,8 +10,8 @@ let host: HTMLDivElement;
 let root: Root;
 let width = 0;
 
-function Panel() {
-  const { panelWidth, separatorRef, onSeparatorKeyDown } = useComputerPanelResize();
+function Panel({ scope }: { scope?: string }) {
+  const { panelWidth, separatorRef, onSeparatorKeyDown } = useComputerPanelResize(scope);
   width = panelWidth;
   return createElement("aside", null, createElement("div", { ref: separatorRef, role: "separator", tabIndex: 0, onKeyDown: onSeparatorKeyDown }));
 }
@@ -45,6 +45,17 @@ describe("the computer panel's resize edge", () => {
     press("ArrowRight");
     expect(width).toBe(PANEL_MAX_WIDTH - 40);
     expect(localStorage.getItem("omb-computer-panel-width")).toBe(String(PANEL_MAX_WIDTH - 40));
+  });
+
+  it("restores each task independently and inherits the existing width until a task is resized", () => {
+    stored.set("omb-computer-panel-width", "500");
+    act(() => root.render(createElement(Panel, { scope: "alpha" })));
+    press("ArrowLeft");
+    expect(width).toBe(540);
+    act(() => root.render(createElement(Panel, { scope: "beta" })));
+    expect(width).toBe(500);
+    act(() => root.render(createElement(Panel, { scope: "alpha" })));
+    expect(width).toBe(540);
   });
 
   it("ignores a stored width outside the bounds", () => {

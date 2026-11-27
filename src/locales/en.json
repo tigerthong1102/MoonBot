@@ -11689,5 +11689,7 @@
   "workflow.resume": "Resume",
   "workflow.approve": "Approve and resume",
   "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\".",
-  "chat.limit.reviewActions": "This turn already used tools. Review their results before continuing. Schedule this conversation to resume when the limit resets?"
+  "chat.limit.reviewActions": "This turn already used tools. Review their results before continuing. Schedule this conversation to resume when the limit resets?",
+  "today.dueDate": "Due date",
+  "today.criteria": "Completion criteria"
 }

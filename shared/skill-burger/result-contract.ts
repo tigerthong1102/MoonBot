@@ -9,6 +9,16 @@ export const resultContract = z.object({
 }).strict();
 export type ResultContract = z.infer<typeof resultContract>;
 
+export function delegateMessage(message: string, contract?: ResultContract): string {
+  return contract ? message + "\nReturn a JSON object with these scalar fields and a sources array citing one or more listed source references: " + JSON.stringify(contract) : message;
+}
+
+export function handoffFits(input: { botIds: string[]; message: string; doneWhen?: string; rework?: boolean; consult?: boolean }): boolean {
+  return JSON.stringify(input).length <= 4_000;
+}
+
+export const HANDOFF_TOO_LONG = "The handoff exceeds 4,000 characters. Shorten the task, result contract or completion criteria.";
+
 export function resultContractError(contract: ResultContract, value: unknown): string | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "The result must be a JSON object.";
   const row = value as Record<string, unknown>;

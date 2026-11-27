@@ -1,4 +1,4 @@
-import { resultContractError, type ResultContract } from "../../shared/skill-burger/result-contract.ts";
+import { delegateMessage, HANDOFF_TOO_LONG, handoffFits, resultContractError, type ResultContract } from "../../shared/skill-burger/result-contract.ts";
 import type { WorkflowRef, WorkflowStep, WorkflowText } from "../../shared/skill-burger/format.ts";
 import { teammateNames } from "../../shared/skill-burger/format.ts";
 
@@ -88,12 +88,17 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
   for (const task of step.tasks) {
     const to = Object.hasOwn(state.who, task.bot.name) ? state.who[task.bot.name] : undefined;
     if (!to || (fixes && !(task.bot.name in fixes))) continue;
-    const base = textOf(task.message, fill) + (task.resultContract ? `\nReturn a JSON object with these scalar fields and a sources array citing one or more listed source references: ${JSON.stringify(task.resultContract)}` : "");
-    const message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
+    const base = delegateMessage(textOf(task.message, fill), task.resultContract);
+    let message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
     const doneWhen = task.doneWhen ? textOf(task.doneWhen, fill) : undefined;
     if (doneWhen && doneWhen.length > 1_000) return { ok: false, error: "The completed criteria exceed 1,000 characters." };
+    if (task.resultContract) {
+      const input = { botIds: [to.id], message, doneWhen, rework: fixes ? true : undefined, consult: step.consult || undefined };
+      if (fixes && !handoffFits(input)) message = fixes[task.bot.name]!;
+      if (!handoffFits({ ...input, message })) return { ok: false, error: HANDOFF_TOO_LONG };
+    }
     let key = `${message}\u0000${doneWhen ?? ""}`;
-    if (calls.get(key)?.botIds.includes(to.id)) key += `\u0000${task.bot.name}`;
+    if (task.resultContract || calls.get(key)?.botIds.includes(to.id)) key += `\u0000${task.bot.name}`;
     const call = calls.get(key) ?? { parts: [], botIds: [], message, ...(fixes ? { correction: fixes[task.bot.name] } : {}), ...(doneWhen ? { doneWhen } : {}) };
     call.parts.push(task.bot.name); call.botIds.push(to.id);
     calls.set(key, call);
@@ -103,7 +108,7 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
     for (let at = 0; at < call.botIds.length; at += 4) {
       const botIds = call.botIds.slice(at, at + 4);
       const summary = { botIds, message: call.message, doneWhen: call.doneWhen, rework: fixes ? true : undefined, consult: step.consult ? true : undefined };
-      const message = call.correction && JSON.stringify(summary).length > 4_000 ? call.correction : call.message;
+      const message = call.correction && !handoffFits(summary) ? call.correction : call.message;
       const sent = await exec.delegate({ botIds, message, ...(call.doneWhen ? { doneWhen: call.doneWhen } : {}), ...(fixes ? { rework: true } : {}), ...(step.consult ? { consult: true } : {}), signal }).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : String(error), definitive: false }));
       if (!sent.ok) return { ...sent, unsafeToRetry: requests.length > 0 || !sent.definitive };
       if (botIds.some((botId) => !sent.receipts.some((receipt) => receipt.botId === botId && receipt.requestId))) {

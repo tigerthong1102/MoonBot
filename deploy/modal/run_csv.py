@@ -31,7 +31,6 @@ def estimate(result, elapsed, rates):
 def execute(db, job, data, rates, retry, invoke):
     if not data or len(data) > 1024 * 1024:
         raise ValueError("CSV input must fit within 1 MiB.")
-    # Validate assumptions before a billable action.
     estimate({"workerSeconds": 0}, 0, rates)
     digest = hashlib.sha256(data).hexdigest()
     db.execute("""CREATE TABLE IF NOT EXISTS attempts(job TEXT, attempt INTEGER, digest TEXT,

@@ -377,6 +377,25 @@ describe("worker result contracts", () => {
     { bot: { id: "kiwi", name: "Kiwi" }, message: "Read the total.", resultContract: contract },
   ], timeoutMs: 1000 }]);
 
+  it("rejects source contracts that cannot fit the approved handoff when saving", () => {
+    const sources = Array.from({ length: 24 }, (_, index) => `https://example.test/${index}/${"x".repeat(190)}`);
+    expect(() => wf([{ id: "s1", kind: "delegate", label: "Collect", tasks: [
+      { bot: { id: "kiwi", name: "Kiwi" }, message: "Collect totals", resultContract: { ...contract, sources } },
+    ] }])).toThrow("The handoff exceeds 4,000 characters");
+  });
+
+  it("checks expanded contract messages before sending any part of the round", async () => {
+    const t = team();
+    const workflow = wf([{ id: "s1", kind: "delegate", label: "Collect", tasks: [
+      { bot: { id: "kiwi", name: "Kiwi" }, message: "Start here" },
+      { bot: { id: "rio", name: "Rio" }, message: [{ $arg: "subject" }], resultContract: contract },
+    ] }], { subject: {} });
+    const run = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow,
+      args: { subject: '"'.repeat(2_000) } }, harness(t.exec).deps);
+    expect(run.ok).toBe(false);
+    expect(t.sent).toHaveLength(0);
+  });
+
   it.each([
     [JSON.stringify({ amount: 12, sources: ["invoice.pdf#page=2"] }), true],
     [JSON.stringify({ amount: "12", sources: ["invoice.pdf#page=2"] }), false],

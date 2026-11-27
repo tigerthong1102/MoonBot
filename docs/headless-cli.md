@@ -614,3 +614,11 @@ broker checks TLS, refuses redirects and caps each response at 8 MiB.
 `dev sandbox egress-log --id ID` shows recent hosts and status codes.
 `dev sandbox revoke --id ID` disconnects the broker, including its active
 requests. Local files remain available in the task until stop or expiry.
+
+A worker can inspect a changed TypeScript file with
+`dev attempt diagnose --repo DIR --attempt N --host HOST --file src/example.ts`.
+Add `--watch` to report diagnostics after each save. The bundled TypeScript
+language service reads the project's compiler options and compares the file to
+its version at the attempt's commit. It does not start language servers or
+plugins from the project. `dev attempt show` includes diagnostics, line
+numbers, the Git commit, and the exact working-file digest.

@@ -11710,5 +11710,9 @@
   "directMcp.granola": "Tìm ghi chú và biên bản cuộc họp",
   "directMcp.intercom": "Tìm cuộc trò chuyện, liên hệ và bài viết",
   "directMcp.notice": "Đăng nhập trực tiếp với nhà cung cấp để chọn tài khoản và xem quyền yêu cầu. Quyền của bot tuân theo cấu hình MCP của tài khoản đó.",
-  "skills.library.compatibility": "Khả năng tương thích theo tác giả: {value}"
+  "skills.library.compatibility": "Khả năng tương thích theo tác giả: {value}",
+  "notify.snooze.hour": "Tắt thông báo hoàn tất trên thiết bị này trong một giờ",
+  "notify.snooze.resume": "Bật lại thông báo hoàn tất trên thiết bị này",
+  "notify.snooze.failed": "Thiết bị không lưu được cài đặt.",
+  "share.host": "Máy chủ workspace: {host}"
 }

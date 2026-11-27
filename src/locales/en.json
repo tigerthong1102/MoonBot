@@ -11710,5 +11710,9 @@
   "directMcp.granola": "Search meeting notes and transcripts",
   "directMcp.intercom": "Search conversations, contacts and articles",
   "directMcp.notice": "Sign in with the provider to choose an account and review the requested permissions. Bot access follows the MCP settings for that account.",
-  "skills.library.compatibility": "Declared compatibility: {value}"
+  "skills.library.compatibility": "Declared compatibility: {value}",
+  "notify.snooze.hour": "Mute completion alerts here for one hour",
+  "notify.snooze.resume": "Resume completion alerts here",
+  "notify.snooze.failed": "This device could not save the setting.",
+  "share.host": "Server: {host}"
 }

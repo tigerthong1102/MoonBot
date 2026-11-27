@@ -50,6 +50,17 @@ describe("teamSlackPhase", () => {
     const path = [row({ sendId: ID, requestPending: false }), row({ role: "bot", text: "Looking…" }), reply("**Done**, it shipped.")];
     expect(teamSlackPhase(path, ID, idle)).toEqual({ state: "completed", text: "**Done**, it shipped." });
   });
+  it("explains a settled empty reply and distinguishes earlier tool activity without sharing it", () => {
+    const request = row({ sendId: ID, requestPending: false });
+    expect(teamSlackPhase([request], ID, idle)).toMatchObject({ text: expect.stringContaining("no final reply") });
+    const tool = row({ role: "bot", kind: "activity", tool: { name: "private tool details", itemId: "tool-1" } });
+    const received = teamSlackPhase([request, tool], ID, idle);
+    expect(received).toMatchObject({ text: expect.stringContaining("A tool ran") });
+    expect(JSON.stringify(received)).not.toContain("private");
+    const limit = row({ role: "bot", kind: "activity", tool: { name: "quota", ok: false, nameCode: "chat.notice.usageLimit" } });
+    expect(teamSlackPhase([request, limit], ID, idle)).toEqual({ state: "failed", error: "limit" });
+  });
+
   it("waits on an open approval or question, and no longer once it is answered", () => {
     const card = (fields: Record<string, unknown>) => row({ role: "bot", kind: "options", card: { title: "Run it?", subtitle: "", options: ["Allow"], requestId: "r1", ...fields } } as Partial<Message>);
     const line = row({ sendId: ID, requestPending: true }), approval = { requestType: "permission", tool: "Bash" }, question = { requestType: "question" };

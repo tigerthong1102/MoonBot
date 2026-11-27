@@ -1,7 +1,7 @@
 import type { snapshot } from "./review.ts";
 import type { readPull } from "./github.ts";
 const html = (value: unknown) => String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-const link = (url: string, label: string) => /^https:\/\//.test(url) ? '<a rel="noreferrer" href="' + html(url) + '">' + html(label) + '</a>' : html(label);
+const link = (url: string, label: string) => url.startsWith("https://") ? '<a rel="noreferrer" href="' + html(url) + '">' + html(label) + '</a>' : html(label);
 
 export function renderReview(review: ReturnType<typeof snapshot>, pr: ReturnType<typeof readPull> | null) {
   const files = review.files.map(({ path, lines, truncated }) => `<details open><summary>${html(path)}</summary><div class="code">${lines.map(row =>

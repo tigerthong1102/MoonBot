@@ -67,13 +67,14 @@ const replies = (text: string): Script => (fake, _botId, _prompt, opts) => {
   }, 30);
 };
 
-async function harness(script: Script, options: { waitMs?: number; full?: boolean; included?: () => boolean; noConfine?: boolean; owner?: { available(): boolean } } = {}) {
+async function harness(script: Script, options: { file?: string; fake?: Fake; waitMs?: number; full?: boolean; included?: () => boolean; noConfine?: boolean; owner?: { available(): boolean } } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "omb-bot-api-host-"));
   dirs.push(dir);
-  const fake = fakeStore();
+  const fake = options.fake ?? fakeStore();
   const turns: Array<{ botId: string; prompt: string; opts: BotApiTurnOptions }> = [];
   const recorded: unknown[] = [];
-  const manager = new BotApiManager({ file: join(dir, "bot-api.json") });
+  const file = options.file ?? join(dir, "bot-api.json");
+  const manager = new BotApiManager({ file });
   const host = createBotApiHost({
     store: fake.store,
     manager,
@@ -123,7 +124,7 @@ async function harness(script: Script, options: { waitMs?: number; full?: boolea
     });
     return { out, ...answered! };
   };
-  return { fake, host, manager, turns, recorded, base, call, app };
+  return { fake, file, host, manager, turns, recorded, base, call, app };
 }
 
 async function pendingBody(h: Awaited<ReturnType<typeof harness>>, key: string) {
@@ -639,4 +640,22 @@ it("resumes the exact API turn on concurrent retry and after disconnection", asy
   expect((await h.call("b1", key, payload, init)).status).toBe(401);
   expect((await h.call("b1", rotated, payload, init)).status).toBe(202);
   expect(h.turns).toHaveLength(2);
+});
+
+it("keeps a disconnected caller's accepted request unconfirmed after the host restarts", async () => {
+  const before = await harness(() => {}, { waitMs: 100 });
+  const key = before.manager.enable("b1").key;
+  const payload = { message: "ERP invoice 19" };
+  const idempotencyKey = "erp-19";
+  const request = httpRequest(before.base + "/hooks/api/bots/b1/messages", {
+    method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "idempotency-key": idempotencyKey },
+  });
+  request.on("error", () => {});
+  request.end(JSON.stringify(payload));
+  await vi.waitFor(() => expect(before.turns).toHaveLength(1));
+  request.destroy();
+  const thread = before.turns[0]!.opts.threadId;
+  const after = await harness(replies("unexpected"), { file: before.file, fake: before.fake });
+  expect(await after.call("b1", key, payload, { idempotencyKey })).toEqual({ status: 202, body: { thread, status: "unconfirmed" } });
+  expect(after.turns).toHaveLength(0);
 });

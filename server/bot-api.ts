@@ -205,8 +205,14 @@ export class BotApiManager {
   updateReceipt(botId: string, receipt: BotApiReceipt, update: Partial<Pick<BotApiReceipt, "thread" | "message" | "replyHash" | "failed">>) {
     const row = this.bots.find(bot => bot.botId === botId);
     if (!row?.receipts?.includes(receipt)) return;
+    const previous = { ...receipt };
     Object.assign(receipt, update);
-    this.save();
+    try { this.save(); }
+    catch (error) {
+      for (const field of Object.keys(update) as (keyof typeof update)[]) delete receipt[field];
+      Object.assign(receipt, previous);
+      throw error;
+    }
   }
 
   /** Constant-time: a wrong key costs the same as a right one, whatever it shares with it. */

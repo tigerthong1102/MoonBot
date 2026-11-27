@@ -121,6 +121,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
   const waitMs = deps.waitMs ?? BOT_API_DEFAULT_WAIT_MS;
   /** Turns the API started that have not settled, per bot: the pending cap counts these. */
   const running = new Map<string, Set<string>>();
+  const activeReceipts = new WeakSet<BotApiReceipt>();
   deps.store.onChange((change) => { if (change.type === "bot.deleted") manager.removeForBot(change.botId); });
 
   const included = () => deps.included?.() !== false;
@@ -170,7 +171,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
       if (pendingCard(messages)) return { status: 202, body: { status: "needs_approval", thread } };
       const reply = replyText(messages);
       if (row.replyHash && row.replyHash === hashBotApiKey(reply)) return { status: 200, body: { thread, reply } };
-      if (!row.replyHash && running.get(botId)?.has(thread!)) return { status: 202, body: { status: "working", thread } };
+      if (!row.replyHash && activeReceipts.has(row)) return { status: 202, body: { status: "working", thread } };
     }
     return { status: 202, body: thread ? { status: "unconfirmed", thread } : { status: "unconfirmed" } };
   }
@@ -207,12 +208,14 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     let dispatchError: string | undefined;
     function finishReceipt(outcome: TurnOutcome) {
       if (!receipt) return;
+      activeReceipts.delete(receipt);
       try {
         manager.updateReceipt(botId, receipt, outcome.ok ? { replyHash: hashBotApiKey(replyText(after())) } : { failed: true });
       } catch {
         // The durable reservation still suppresses redispatch. A restart can return unconfirmed.
       }
     }
+    if (receipt) activeReceipts.add(receipt);
     markRunning(botId, threadId, true);
     try {
       await deps.startTurn(botId, owned ? botApiOwnerPrompt(message) : botApiPrompt(message, receivedAt), {
@@ -224,6 +227,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         onDispatchError: (message) => { dispatchError = message; markRunning(botId, threadId!, false); finishReceipt({ ok: false, text: message }); },
       });
     } catch (error) {
+      if (receipt) activeReceipts.delete(receipt);
       markRunning(botId, threadId, false);
       if (opened) deps.discard?.(botId, threadId);
       const capped = z.object({ code: z.literal("spend_cap"), message: z.string(), resetsAt: z.number().optional() }).safeParse(error);

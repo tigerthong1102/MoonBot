@@ -9,9 +9,10 @@ import { t } from "@/lib/i18n";
 import type { Bot } from "@/state/store";
 import { api } from "@/state/api";
 import { randomUuid } from "@/lib/random-uuid";
+import { PdfGaps } from "./PdfGaps";
 import { findPassages, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
 
-const issueLabel = { signedOut: "files.signedOut", offline: "files.offline", missing: "files.status.missing", folder: "files.status.problem" } as const;
+const issueLabel = { pdfLocked: "knowledge.pdfLocked", pdfLimit: "knowledge.pdfLimit", pdfRead: "knowledge.errorFile", signedOut: "files.signedOut", offline: "files.offline", missing: "files.status.missing", folder: "files.status.problem" } as const;
 const empty = (): Index => ({ docs: new Map(), changes: [] });
 type UnsavedSelection = { scope: string } & ({ folder: FolderSource; index: Index; manual?: never } | { folder?: never; manual: Index });
 
@@ -280,7 +281,7 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
       }
       const evidence = selected.map(({ path, passage }) => ({
         path, digest: fresh.docs.get(path)!.digest, start: passage.start, page: passage.page,
-        paragraph: passage.paragraph, text: passage.text,
+        paragraph: passage.paragraph, text: passage.text, coverage: fresh.docs.get(path)?.coverage,
       }));
       const payload = JSON.stringify({ threadId: bot.threadId, question: query.trim(), evidence });
       if (submission.current?.payload !== payload) submission.current = { payload, sendId: randomUuid() };
@@ -321,6 +322,7 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
     {cacheFailed && <p role="status">{t("knowledge.cacheFailed")}</p>}
     {error && <p role="alert" className="my-2 text-danger">{t("knowledge.error")}</p>}
     <p role="status" className="my-2 text-xs text-ink-secondary">{busy || starting ? t("knowledge.reading") : t("knowledge.indexed", { count: index.docs.size })} {watching && t("knowledge.watching")}</p>
+    {[...index.docs.values()].filter(doc => doc.coverage?.missing.length).map(doc => <PdfGaps key={doc.path + doc.digest} doc={doc} />)}
     {index.changes.length > 0 && <details className="my-2"><summary>{t("knowledge.changes")}</summary><ul className="max-h-32 overflow-y-auto">{index.changes.slice().reverse().map((c, i) =>
       <li key={i}>{c.at && <time dateTime={new Date(c.at).toISOString()}>{new Date(c.at).toLocaleString()} · </time>}{c.path} · {t(c.issue ? issueLabel[c.issue] : c.state === "error" ? "knowledge.errorFile" : `knowledge.${c.state}`)}</li>)}</ul></details>}
     <label className="block font-medium">{t("knowledge.query")}<input type="search" maxLength={1000} disabled={starting || !renderedOwner} value={starting || !renderedOwner ? "" : query} onChange={e => { setQuery(e.target.value); setSource(null); setSendError(null); }}

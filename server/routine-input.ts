@@ -1,5 +1,6 @@
 // A routine as a person, a bot or an import asked for it, checked and cleaned before RoutineManager keeps it.
 import { approvalModeFor, type ApprovalMode } from "../shared/approval-mode.ts";
+import { isRoutineAccess } from "../shared/routines.ts";
 import { runsOnce } from "../shared/limit-reset.ts";
 import { cleanAttachments, cleanTimeoutMinutes } from "./routine-attachments.ts";
 import { loadChecks, loadModelSelection } from "./routine-load.ts";
@@ -89,7 +90,10 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
   const checks = asked == null ? undefined : loadChecks(asked);
   if (asked != null && (!checks || checks.length !== new Set(asked).size)) throw userErrorThrown("serverError.routine.checks");
   if (checks && (target !== "bot" || runsOnce(schedule))) throw userErrorThrown("serverError.routine.checksRepeat");
-  if (input.access != null && input.access !== "read-and-draft") throw userErrorThrown("serverError.routine.access");
+  if (input.access != null && !isRoutineAccess(input.access)) throw userErrorThrown("serverError.routine.access");
+  if (input.access && input.access !== "read-and-draft" && (checks || target !== "bot" || sameConversation || attachments.length)) {
+    throw new Error("A single-source routine needs its own bot run with no other inputs.");
+  }
   if (input.deliver != null && (input.deliver !== "brief" || target !== "bot")) throw userErrorThrown("serverError.routine.deliver");
   return {
     name,
@@ -109,7 +113,7 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
     ...(input.overlap === "queue" ? { overlap: "queue" as const } : {}),
     ...(input.runOnStartup === true && !runsOnce(schedule) ? { runOnStartup: true } : {}),
     ...(checks ? { checks } : {}),
-    ...(input.access === "read-and-draft" ? { access: "read-and-draft" as const } : {}),
+    ...(input.access ? { access: input.access } : {}),
     ...(input.deliver === "brief" ? { deliver: "brief" as const } : {}),
   };
 }

@@ -25,6 +25,7 @@ import type { Extractor } from "../extractor/index.ts";
 import { createBrief, type BriefDeps, type MorningDeps } from "./brief.ts";
 import { WATCH_EVERY_MINUTES, WATCH_INSTRUCTIONS, WATCH_NAME } from "./default-watch.ts";
 import { createHelperSuggestion } from "./helper-suggestion.ts";
+import { supportsReadOnlyRoutine } from "../../shared/routines.ts";
 import { createInboxTriage } from "./inbox-triage.ts";
 import { mainChief, proactiveOwner } from "./proactive-owner.ts";
 import { createRoutineChecks } from "./routine-checks.ts";
@@ -32,8 +33,7 @@ import type { ValueKind } from "./value-ledger.ts";
 
 export { WATCH_INSTRUCTIONS, WATCH_NAME } from "./default-watch.ts";
 export const WATCH_FILE = "watch.json";
-/** The engines whose every tool use outside a run's allowlist reaches OpenMausBot's answerer and is refused there. */
-const FENCED_ENGINES = new Set(["claudeAgent"]);
+
 const READ_SLUG: Record<ReadApp, string> = { gmail: "GMAIL_FETCH_EMAILS", outlook: OUTLOOK_LIST_TOOL, googlecalendar: "GOOGLECALENDAR_EVENTS_LIST" };
 const ACTIVE = new Set(["queued", "running", "waiting"]);
 const MAX_HANDED = 50;
@@ -118,7 +118,7 @@ export function createProactive(deps: ProactiveDeps) {
   }
   const fenced = (botId: string): boolean => {
     const bot = store.bot(botId);
-    return Boolean(bot && FENCED_ENGINES.has(deps.registry.get(bot.modelSelection.instanceId)?.driverKind ?? ""));
+    return Boolean(bot && supportsReadOnlyRoutine(deps.registry.get(bot.modelSelection.instanceId)?.driverKind));
   };
   const runs = (): RoutineRun[] => [...(deps.routines()?.listRuns() ?? [])].reverse();
   const owner = () => proactiveOwner(store);
@@ -250,7 +250,7 @@ export function createProactive(deps: ProactiveDeps) {
 
   let timer: ReturnType<typeof setInterval> | null = null;
   return {
-    checks: routineChecks, fence, brief,
+    checks: routineChecks, fence, brief, supportsReadOnlyRoutine,
     /** The brief is on: the proactive bot's briefing routine is. */
     briefOn: watching,
     /** Only the owner dreams, and only while its brief is on: at most one model call a night, with no switch of its own. */

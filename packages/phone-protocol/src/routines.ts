@@ -72,7 +72,16 @@ export const ROUTINE_CHECKS: readonly RoutineCheck[] = ["calendar", "mail", "run
 
 /** What a routine's runs may do. `read-and-draft`: read Gmail and Google Calendar and write reply drafts; every other
  * tool is refused outright, never turned into a card. Missing means the bot's own level. */
-export type RoutineAccess = "read-and-draft";
+export const ROUTINE_ACCESS = ["read-and-draft", "read-gmail", "read-outlook", "read-calendar"] as const;
+export type RoutineAccess = typeof ROUTINE_ACCESS[number];
+
+export function isRoutineAccess(value: unknown): value is RoutineAccess {
+  return ROUTINE_ACCESS.some(access => access === value);
+}
+
+export function supportsReadOnlyRoutine(driverKind: string | undefined): boolean {
+  return driverKind === "claudeAgent";
+}
 
 /** Where a routine's results go. `brief`: they become rows of the main agent's brief, not chat lines of their own. */
 export type RoutineDelivery = "brief";

@@ -1,3 +1,4 @@
+import { readSourceLines, SOURCE_FILE_MAX } from "../message-source-lines.ts";
 import { userError } from "../user-errors.ts";
 import { basename, join } from "node:path";
 
@@ -222,6 +223,8 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
       if (body && !visibleTo(viewerFor(auth)).thread(threadId)) return json(res, 404, { error: "no such conversation" });
       const asksMediaLink = body?.media === true;
       const asksArtifact = body?.shareArtifact === true;
+      const sourceLines = body?.sourceLines !== undefined;
+      if (sourceLines && (asksArtifact || asksMediaLink || body.entry !== undefined || body.listFolder || body.revokeArtifact)) return json(res, 400, { error: "Choose one source file." });
       if (asksArtifact && (asksMediaLink || body.entry !== undefined || body.listFolder || body.revokeArtifact)) return json(res, 400, { error: "choose a single file attachment" });
       if (artifactId || asksArtifact || body?.revokeArtifact) {
         if (message.role !== "bot" || !visibleTo(viewerFor(auth)).thread(threadId)) return json(res, 404, { error: "no such artifact" });
@@ -278,7 +281,7 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
           : undefined;
       if (folderEntry === null) return json(res, 400, { error: "entry must be one file name" });
       // An inline image is read whole by the browser; a saved file is streamed below, so it may be larger.
-      const maxBytes = streamsMessageImage ? MESSAGE_FILE_MAX_BYTES : MESSAGE_FILE_DOWNLOAD_MAX_BYTES;
+      const maxBytes = sourceLines ? SOURCE_FILE_MAX : streamsMessageImage ? MESSAGE_FILE_MAX_BYTES : MESSAGE_FILE_DOWNLOAD_MAX_BYTES;
       let file: Awaited<ReturnType<typeof openMessageFile>>;
       try {
         file = folderEntry
@@ -302,6 +305,12 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
           res.setHeader("cache-control", "private, no-store");
           return json(res, 200, listing);
         }
+      }
+      if (sourceLines) {
+        const selected = await readSourceLines(file, body.sourceLines);
+        if (!visibleTo(viewerFor(auth)).thread(threadId)) return json(res, 404, { error: "no such conversation" });
+        res.setHeader("cache-control", "private, no-store");
+        return json(res, 200, selected);
       }
       if ((streamsMessageImage || botAttachment?.kind === "image") && !file.mime.startsWith("image/")) {
         await file.handle.close();

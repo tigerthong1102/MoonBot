@@ -1,3 +1,4 @@
+import type { SourceLineReference } from "./source-line-reference.ts";
 import { useCallback, useEffect, useState, useSyncExternalStore, type SetStateAction } from "react";
 import type { DataContext } from "../../shared/data-context.ts";
 import type { FollowUp } from "../../shared/follow-up.js";
@@ -18,6 +19,7 @@ const channelModeListeners = new Map<string, Set<() => void>>();
 const attachmentPendingCounts = new Map<string, number>();
 const attachmentPendingListeners = new Map<string, Set<() => void>>();
 export interface FailedComposerSend {
+  sourceReferences?: SourceLineReference[];
   dataContext?: DataContext;
   workBotUploadReceipts?: string[];
   id: string;
@@ -433,6 +435,7 @@ export function rememberFailedComposerSend(
 export function recoverFailedComposerSend(sent: ComposerSendSnapshot): "restored" | "outbox" {
   if (draftRevision(sent.draftId) !== sent.revision) {
     rememberFailedComposerSend(sent.draftId, {
+      sourceReferences: sent.sourceReferences,
       dataContext: sent.dataContext,
       workBotUploadReceipts: sent.workBotUploadReceipts,
       sendId: sent.sendId,

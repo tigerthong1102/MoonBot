@@ -29,12 +29,22 @@ def bot_call(endpoint, key, *, message=None, thread=None, request_id=None):
         return res.status, json.loads(res.read(256 * 1024))
 
 
+def file_attachment(att):
+    # Hermes Teams adapter.py skips body mirrors and adaptive cards before caching (MIT).
+    mime = (getattr(att, "content_type", None) or "").lower()
+    if mime in {"text/html", "text/plain"} and not getattr(att, "content_url", None):
+        return False
+    return not mime.startswith("application/vnd.microsoft.card")
+
+
 def message_text(event, cache):
     text = event.text or ""
     files = event.media_urls or []
     if len(files) > 3:
         raise ValueError("Attach at most three UTF-8 text or CSV documents.")
     for filename in files:
+        if not filename:
+            raise ValueError("Teams could not retrieve an attached document. Please attach it again.")
         path = Path(filename)
         if (path.is_symlink() or path.resolve().parent != cache.resolve()
                 or path.suffix.lower() not in {".txt", ".csv", ".md"} or not path.is_file()):
@@ -163,7 +173,20 @@ async def main():
             user = getattr(ctx.activity.from_, "aad_object_id", None)
             if (getattr(conv, "conversation_type", "") == "personal"
                     and getattr(conv, "tenant_id", None) == os.environ["TEAMS_TENANT_ID"] and user and bridge.grant(str(user))):
+                if sum(file_attachment(att) for att in (getattr(ctx.activity, "attachments", None) or [])) > 3:
+                    await self.send(conv.id, "Attach at most three documents.", reply_to=ctx.activity.id)
+                    return
                 await super()._on_message(ctx)
+
+        async def _cache_attachment(self, att):
+            cached = await super()._cache_attachment(att)
+            if not cached and file_attachment(att):
+                # Preserve the evidence gap so the handler never submits a partial document set.
+                return "", "application/octet-stream", "document"
+            return cached
+
+        async def _on_card_action(self, ctx):
+            return self._invoke_message("Open StartupBot to review approvals.")
 
         async def handle_message(self, event):
             await bridge.handle(event, self.send)

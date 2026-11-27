@@ -203,3 +203,7 @@ StartupBot's scripts/verify-hermes-acp.py adapts the local model fixture and
 JSON-RPC exchange from evals/acp_empty_session_wire.py in NousResearch/hermes-agent
 at ab7e19a761e0ef52ef0d1c5f0417c5784c653446. Copyright (c) 2025 Nous Research.
 Distributed under the MIT License (third_party/hermes-agent/LICENSE).
+
+The attachment body-mirror and card filtering in deploy/teams/bridge.py adapts
+plugins/platforms/teams/adapter.py from the Hermes Agent revision identified
+above. See public/licenses/hermes-agent.txt for the MIT notice.

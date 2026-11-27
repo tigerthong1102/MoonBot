@@ -6,7 +6,7 @@ from types import SimpleNamespace as Obj
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from bridge import Bridge, message_text
+from bridge import Bridge, file_attachment, message_text
 
 
 class TestTeams(unittest.IsolatedAsyncioTestCase):
@@ -75,6 +75,15 @@ class TestTeams(unittest.IsolatedAsyncioTestCase):
         await self.open().handle(self.event("3", "/new"), self.send)
         await self.open().handle(self.event("4"), self.send)
         self.assertIsNone(self.calls[1]["thread"])
+
+    async def test_message_is_not_dispatched_with_a_missing_document(self):
+        self.assertFalse(file_attachment(Obj(content_type="text/html")))
+        self.assertTrue(file_attachment(Obj(content_type="application/vnd.microsoft.teams.file.download.info")))
+        event = self.event()
+        event.media_urls = [""]
+        await self.bridge.handle(event, self.send)
+        self.assertFalse(self.calls)
+        self.assertIn("retrieve", self.send.await_args.args[1])
 
     def test_files_and_destinations_are_bounded(self):
         event = self.event()

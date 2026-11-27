@@ -44,6 +44,11 @@ export function AccountPage() {
           : <SettingsLinkRow title={t("settings.account.nameRow")} badge={<PlaceBadge place={place} size={14} />} value={profileLabel(profile)} onClick={() => go("bots", "about-you")} data={{ "data-account-name-row": "" }} />}
       </SettingsRows>
     </SettingsGroup>
+    {import.meta.env.VITE_STARTUPBOT_AI_PILOT === "sandbox" && !ctx.client && !ctx.cloud && !state.config?.team && (
+      <SettingsGroup block="ai-pilot"><SettingsRows><SettingRow title={t("pilot.wallet")}>
+        <a className="ui-button" href="http://127.0.0.1:8537/" target="_blank" rel="noreferrer">{t("pilot.open")}</a>
+      </SettingRow></SettingsRows></SettingsGroup>
+    )}
     {localAiTwinAvailable(state.config) && <SettingsGroup block="ai-twin"><AiTwinSettings /></SettingsGroup>}
     {personal && <SettingsGroup label={t("settings.account.mausbot", { app: productName() })} block="mausbot-account">
       <SettingsRows><SettingRow title={summary.email ?? t("cloudBuy.signIn.email")} leading={<YouAvatar size={32} />}>

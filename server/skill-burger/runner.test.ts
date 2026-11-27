@@ -426,13 +426,17 @@ describe("a bounded connector read batch", () => {
   });
   it("runs 100 source rows, marks missing inputs and results and keeps zero-prefixed identifiers", async () => {
     const calls: unknown[] = [];
-    const h = harness({ app: async input => { calls.push(input.args.query); return { ok: true, output: { result: input.args.query === "0002" ? {} : { total: -123.45 } } }; } });
+    const h = harness({ app: async input => {
+      calls.push(input.args.query);
+      if (input.args.query === "0004") return { ok: true, output: "Unstructured reply" };
+      return { ok: true, output: { result: input.args.query === "0002" ? {} : { total: -123.45 } } };
+    } });
     const rows = Array.from({ length: 100 }, (_, i) => i === 0 ? {} : { invoice: String(i + 1).padStart(4, "0") });
     const result = await h.start(workflowSchema.parse(flow), { records: rows });
-    expect(result).toMatchObject({ status: "ok", output: { count: 100, missing: 2 } });
-    expect((result.output as { rows: unknown[] }).rows.slice(0, 3)).toEqual([
+    expect(result).toMatchObject({ status: "ok", output: { count: 100, missing: 3 } });
+    expect((result.output as { rows: unknown[] }).rows.slice(0, 4)).toEqual([
       { row: 1, status: "missing_input" }, { row: 2, key: "0002", status: "missing_result" },
-      { row: 3, key: "0003", status: "read", value: -123.45 },
+      { row: 3, key: "0003", status: "read", value: -123.45 }, { row: 4, key: "0004", status: "missing_result" },
     ]);
     expect(calls).toHaveLength(99);
     expect(await h.start(workflowSchema.parse(flow), { records: [...rows, {}] })).toMatchObject({ ok: false });

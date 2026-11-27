@@ -118,7 +118,7 @@ export async function syncSource(watch: Watch, read: SourceRead = {}) {
     return request;
   });
   if (latest?.id !== watch.id || latest.scanId !== scanId) return committed?.result;
-  window.dispatchEvent(new CustomEvent(syncEvent, { detail: { key: watch.key, background: !!read.background } }));
+  window.dispatchEvent(new CustomEvent(syncEvent, { detail: { key: watch.key, background: !!read.background, signal: read.signal } }));
   return index;
 }
 

@@ -59,6 +59,7 @@ serve   starts the server without prompts; in a terminal it prints a pairing
 pair    a new pairing code for the running server, with its link and QR
         (--phone: chat and approvals only; --ttl keeps it open up to 24h,
         still single use)
+terminal start|list|attach|output|stop   persistent local Codex sessions (tmux)
 devices lists paired devices; "devices revoke ID" signs one out
 status  the running server, the address others reach it at, and whether
         that address answers as this server

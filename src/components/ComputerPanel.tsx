@@ -45,7 +45,7 @@ import { releaseComputerPanelFocus, useComputerPanelEntry } from "@/lib/computer
 import { PANEL_MAX_WIDTH, PANEL_MIN_WIDTH, useComputerPanelResize } from "./computer-panel-resize";
 import {
   computerPanelTabs,
-  readComputerPanelView, readSavedPanelView, taskPanelScope,
+  readComputerPanelView, readSavedPanelView,
   resolveComputerPanelView,
   writeComputerPanelView,
   type ComputerPanelView,
@@ -124,8 +124,7 @@ export function ComputerPanel({
   onOpenVmWorkspace?: (botId: string) => void;
 }) {
   const { dragProps } = useCaptionChrome();
-  const layoutScope = taskPanelScope(profileBot.id, profileBot.threadId);
-  const { panelWidth, separatorRef, separatorWidth, onSeparatorKeyDown, onResizeStart, onResizeMove, onResizeEnd } = useComputerPanelResize(layoutScope);
+  const { layoutScope, panelWidth, separatorRef, separatorWidth, onSeparatorKeyDown, onResizeStart, onResizeMove, onResizeEnd } = useComputerPanelResize(profileBot.id, profileBot.threadId);
   const { state, dispatch, flushBotPatches } = useStore();
   const liveTask = profileBot.tasks?.find((task) => task.threadId === profileBot.threadId);
   const livePlace = effectivePlace(profileBot, liveTask);

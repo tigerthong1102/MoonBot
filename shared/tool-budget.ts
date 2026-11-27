@@ -5,6 +5,8 @@ export const CHAT_TOOL_LIMIT = 128;
 export interface ToolBudget {
   /** Null when the AI's provider takes any number of tools. */
   limit: number | null;
+  /** Set when the model context limits how many tool definitions are advertised directly. */
+  schemaBudgetBytes?: number;
   /** Tools the model was handed directly, the tool search's own and the built-ins' included. */
   listed: number;
   /** The bot's configured MCP servers, in turn order. `direct: false` is a server reached through the tool search. */

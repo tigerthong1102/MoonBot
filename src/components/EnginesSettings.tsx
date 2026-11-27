@@ -264,6 +264,19 @@ function EngineAdvanced({ instance }: { instance: InstanceInfo }) {
               <span className="break-all font-mono text-[11px] text-ink-secondary">{instance.cliDefault}</span>
             )
           )}
+          {instance.models.hermesCompatibility && (
+            <p className="w-full text-[12px] text-ink-secondary">
+              {t("engines.hermesCompatibility", {
+                stage: instance.models.hermesCompatibility.stage,
+                version: instance.models.hermesCompatibility.version ?? "—",
+                capabilities: [
+                  instance.models.hermesCompatibility.loadSession && "session/load",
+                  instance.models.hermesCompatibility.resumeSession && "session/resume",
+                  instance.models.hermesCompatibility.images && "image",
+                ].filter(Boolean).join(", ") || "—",
+              })}
+            </p>
+          )}
           {instance.snapshot.version && (
             <span className="break-all text-[11px] text-ink-secondary" title={instance.snapshot.version}>
               {instance.snapshot.version}

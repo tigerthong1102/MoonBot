@@ -2,7 +2,8 @@
 // packaged app ships no node_modules. Entry points keep their exact relative
 // paths under dist-server, where the server locates each proxy by path.
 import { build } from "esbuild";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { copyFileSync, readdirSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { serverLocalePlugin } from "./server-locale-plugin.mjs";
@@ -24,6 +25,20 @@ const yamlEsmPlugin = {
 // ws is CommonJS and requires Node's own modules, which an ESM bundle reaches
 // only through a require of its own (esbuild otherwise throws "Dynamic require
 // of "events" is not supported" when it loads).
+const compilerName = "@typescript/typescript6";
+const compilerRequire = createRequire(createRequire(import.meta.url).resolve(compilerName));
+const compilerFile = compilerRequire.resolve("@typescript/old");
+const compilerDest = join(root, "dist-server", "typescript-service");
+mkdirSync(compilerDest, { recursive: true });
+copyFileSync(compilerFile, join(compilerDest, "typescript.cjs"));
+for (const file of readdirSync(dirname(compilerFile))) {
+  if (/^lib[.\w-]*\.d\.ts$/.test(file)) copyFileSync(join(dirname(compilerFile), file), join(compilerDest, file));
+}
+copyFileSync(join(dirname(compilerFile), "..", "LICENSE.txt"), join(compilerDest, "LICENSE.txt"));
+const workerCompiler = { name: "worker-typescript", setup(build) {
+  build.onResolve({ filter: /^@typescript\/typescript6$/ }, () => ({ path: "./typescript-service/typescript.cjs", external: true }));
+} };
+
 const NODE_REQUIRE = {
   js: 'import { createRequire as __ombCreateRequire } from "node:module";\nconst require = __ombCreateRequire(import.meta.url);',
 };
@@ -81,7 +96,7 @@ await build({
   // Written after tsc, replacing its output for these entry points.
   allowOverwrite: true,
   logLevel: "info",
-  plugins: [yamlEsmPlugin, serverLocalePlugin],
+  plugins: [workerCompiler, yamlEsmPlugin, serverLocalePlugin],
   banner: NODE_REQUIRE,
 });
 

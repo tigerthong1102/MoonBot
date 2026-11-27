@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { t } from "./i18n";
 import type { Attachment } from "./composer-attachments.ts";
 import { draftRevision } from "./drafts.ts";
 import { fetchSourceLines, type SourceLineReference } from "./source-line-reference.ts";
@@ -7,7 +8,7 @@ export function useComposerSourceCheck(threadId: string, draftId: string, active
   const busy = useRef(false);
   const verify = async (refs: SourceLineReference[]): Promise<string[] | null> => {
     if (busy.current) return null;
-    if (refs.length > 8) { notice("Choose up to eight source references per message."); return null; }
+    if (refs.length > 8) { notice(t("composer.sourceLimit")); return null; }
     busy.current = true;
     const revision = draftRevision(draftId);
     try {

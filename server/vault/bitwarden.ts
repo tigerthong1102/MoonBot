@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { z } from "zod";
 import type { LoginSummary } from "../../shared/logins.ts";
 import type { VaultProvider } from "./providers.ts";
+import { personKey } from "../person-key.ts";
 import { isJson } from "../routes/logins.ts";
 import { PASS, type RouteHandler } from "../routes/table.ts";
 
@@ -83,7 +84,7 @@ export class BitwardenLogins implements VaultProvider {
       if (!this.binary) return json(res, 409, { error: "Bitwarden CLI is not configured." });
       if (!isJson(req)) return json(res, 415, { error: "Send JSON." });
       const body = await readBody(req, 20_000);
-      const actor = auth.kind === "session" ? auth.session.id : "local-owner";
+      const actor = auth.kind === "session" ? personKey(auth.session) : "local-owner";
       if (method === "DELETE") {
         const parsed = z.object({ item: z.uuid() }).strict().safeParse(body);
         if (!parsed.success) return json(res, 400, { error: "Invalid item ID." });

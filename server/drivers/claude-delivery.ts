@@ -1,4 +1,3 @@
-/** Reconciliation may read its sources and return artifacts through the harness. The CLI confirms this inventory at initialization. */
 export const DELIVERY_TOOLS = ["Read", "Grep", "Glob"];
 export const DELIVERY_DENIED = ["WebSearch", "Edit", "Write"];
 const allowedNative = new Set([...DELIVERY_TOOLS, "ToolSearch", "ReadToolResult"]);

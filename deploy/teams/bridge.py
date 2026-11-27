@@ -145,7 +145,6 @@ class Bridge:
                     self.db.execute("UPDATE conversations SET thread=?,pending=1 WHERE scope=?", (thread, scope))
             if self.grant(source.user_id) != grant:
                 return
-            # Read back with the same confined key: disabling the key suppresses a delayed provider reply.
             status, result = await asyncio.to_thread(self.call, endpoint, key, thread=thread)
             if status == 200 and isinstance(result.get("reply"), str):
                 with self.db:
@@ -181,7 +180,6 @@ async def main():
         async def _cache_attachment(self, att):
             cached = await super()._cache_attachment(att)
             if not cached and file_attachment(att):
-                # Preserve the evidence gap so the handler never submits a partial document set.
                 return "", "application/octet-stream", "document"
             return cached
 

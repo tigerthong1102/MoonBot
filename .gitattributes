@@ -72,6 +72,5 @@ shared/settings-places.ts text eol=lf
 
 skills/catalog/media-use/audio/assets/sfx/*.mp3 binary
 
-# PDF xref offsets and ZIP entries are byte offsets on all platforms.
 server/testing/fixtures/reconciliation/*.pdf binary
 server/testing/fixtures/reconciliation/*.xlsx binary

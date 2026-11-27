@@ -1,4 +1,3 @@
-// A read-only consumer of the runtime ledger. No prompts, event details or assignment JSON are selected.
 import { createHmac } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type { EventKind } from "./types.ts";

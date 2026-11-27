@@ -34,7 +34,6 @@ export function slackReportLookup(runs: () => readonly import("./routines.ts").R
   };
 }
 
-/** Recheck the exact source line after a retry, restart, fork or deletion before sending cached text. */
 export function reportStillPosted(record: TeamSlackRecord, target: ReportThread | undefined, active: (threadId: string) => readonly { id: string }[]): boolean {
   const source = record.reportRef;
   return Boolean(source && target && target.botId === record.botId && target.threadId === record.threadId &&

@@ -286,7 +286,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   const commandsReady = connected && !heldElsewhere;
   const you = control?.controller === "you";
   const activeTab = tabs.find(tab => tab.active)?.tabId;
-  const group = state.groups.find(g => g.id === state.selectedId);
+  const group = state.groups?.find(g => g.id === state.selectedId);
   const draftId = group ? `group:${group.id}:${group.threadId}` : `bot:${bot.id}:${bot.threadId ?? ""}`;
   const pickerScope = stream && connected && you && activeTab && !nav.loading
     ? JSON.stringify([attempt, bot.id, bot.browserProfile, draftId, activeTab, nav.url, control.generation]) : "";

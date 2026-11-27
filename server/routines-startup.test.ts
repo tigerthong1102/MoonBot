@@ -42,10 +42,12 @@ it("recovers queued/due work and a waiting routine's imported hand-off after res
       name: "Due at startup", prompt: "Report after the restart", botId: scheduledBot.id,
       schedule: { type: "once", at: Date.now() + 60 * 60_000 },
     })).routine;
+    const nextCron = new Date(Date.now() - 30 * 60_000);
+    const nextCronAt = Date.UTC(nextCron.getUTCFullYear(), nextCron.getUTCMonth(), nextCron.getUTCDate(), nextCron.getUTCHours(), nextCron.getUTCMinutes());
     const cron = (await api("POST", "/api/routines", {
       name: "Cron due at startup", prompt: "Recover one cron run, not every missed minute", botId: cronBot.id,
       enabled: false,
-      schedule: { type: "cron", expression: "* * * * *", timeZone: "UTC" },
+      schedule: { type: "cron", expression: `${nextCron.getUTCMinutes()} ${nextCron.getUTCHours()} * * *`, timeZone: "UTC" },
     })).routine;
     const manual = (await api("POST", "/api/routines", {
       name: "Queued before restart", prompt: "Finish the queued request", botId: queuedBot.id,
@@ -75,7 +77,7 @@ it("recovers queued/due work and a waiting routine's imported hand-off after res
     const disk = JSON.parse(readFileSync(file, "utf8"));
     disk.startupLaunchId = "previous-desktop-launch";
     const dueAt = Date.now() - 1_000;
-    const cronDueAt = Math.floor(Date.now() / 60_000) * 60_000 - 5 * 60_000;
+    const cronDueAt = nextCronAt - 5 * 24 * 60 * 60_000;
     disk.routines.find((routine: { id: string }) => routine.id === cron.id).enabled = true;
     disk.routines.find((routine: { id: string }) => routine.id === cron.id).nextRunAt = cronDueAt;
     disk.routines.find((routine: { id: string }) => routine.id === scheduled.id).schedule.at = dueAt;

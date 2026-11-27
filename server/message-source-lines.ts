@@ -23,10 +23,9 @@ export async function readSourceLines(file: OpenedMessageFile, raw: unknown) {
     const data = bytes.subarray(0, used);
     const digest = createHash("sha256").update(data).digest("hex");
     if (sha256 && sha256 !== digest) throw refusal(409, "The file changed. Select the current revision again.");
+    if (data.some(byte => byte < 0x20 && byte !== 0x09 && byte !== 0x0a && byte !== 0x0d)) throw refusal(415, "Choose a UTF-8 text file.");
     let text: string;
     try { text = new TextDecoder("utf-8", { fatal: true }).decode(data); } catch { throw refusal(415, "Choose a UTF-8 text file."); }
-    // oxlint-disable-next-line no-control-regex -- binary content is excluded from text excerpts.
-    if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(text)) throw refusal(415, "Choose a UTF-8 text file.");
     const lines = text.split(/\r\n|\r|\n/);
     if (lines.at(-1) === "") lines.pop();
     if (end > lines.length) throw refusal(422, "The source contains " + lines.length + " lines.");

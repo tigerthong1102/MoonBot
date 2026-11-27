@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
+import { readSourceLines } from "./message-source-lines.ts";
 import {
   MESSAGE_FILE_DOWNLOAD_MAX_BYTES,
   MESSAGE_FILE_MAX_BYTES,
@@ -36,6 +37,17 @@ beforeEach(() => {
 afterAll(() => rmSync(suite, { recursive: true, force: true }));
 
 describe("message-linked files", () => {
+  it("preserves UTF-8, tabs and line endings in source excerpts and rejects binary controls", async () => {
+    const path = join(workspace, "invoice.tsv");
+    writeFileSync(path, "Mã\tSố tiền\r\n001\t19,95\r002\t20\n");
+    const read = async (end: number) => readSourceLines(await openMessageFile(path, [workspace]), { start: 1, end });
+    await expect(read(3)).resolves.toMatchObject({ text: "Mã\tSố tiền\n001\t19,95\n002\t20" });
+    for (const code of [0, 8, 11, 12, 14, 31, 255]) {
+      writeFileSync(path, Buffer.from([65, code, 66]));
+      await expect(read(1)).rejects.toMatchObject({ status: 415 });
+    }
+  });
+
   it.skipIf(process.platform === "win32")("rejects a named pipe without waiting for a writer", async () => {
     const fifo = join(workspace, "waiting-pipe");
     execFileSync("mkfifo", [fifo]);

@@ -497,3 +497,12 @@ file (`--token-file`).
 `openmausbot mcp` serves the same operations as MCP tools on stdin and stdout
 ([docs/mcp-server.md](mcp-server.md)): `wait_for_conversation` waits on the
 same job, and returns the same result, as `wait`.
+
+### Review a coding task
+
+`openmausbot dev review --repo DIR --base main --out review.html` opens a
+review snapshot as a local HTML file. Click a diff line to write or remove a
+note, then export the notes with both commits, the file and left/right line.
+Pass `--github OWNER/REPO --pr NUMBER` to include live checks, discussions
+and resolved/outdated thread status. This requires GitHub CLI access and the
+PR's exact head in the selected checkout. The command creates a new file.

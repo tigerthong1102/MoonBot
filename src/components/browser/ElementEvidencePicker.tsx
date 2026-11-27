@@ -1,3 +1,4 @@
+import { randomUuid } from "@/lib/random-uuid";
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
 import { t } from "@/lib/i18n";
 import { prependComposerDraft } from "@/lib/drafts";
@@ -57,7 +58,7 @@ export function ElementEvidencePicker({ ref, draftId, portable, pick, close }: {
     if (event.key === "Escape" && !adding.current) { event.preventDefault(); close(); }
   }}>
     {phase === "pick" && <div className="absolute inset-0 cursor-crosshair touch-none" onClick={event => {
-      const id = crypto.randomUUID();
+      const id = randomUuid();
       pending.current = id;
       if (pick(event.clientX, event.clientY, id)) setPhase("waiting");
       else { pending.current = ""; setPhase("failed"); }

@@ -65,14 +65,14 @@ export function BusinessBlueprintForm({ bot, onBack, onClose }: { bot: Bot; onBa
     </fieldset>
     <ResultsDestination bot={bot} value={destination} onChange={setDestination} team={Boolean(state.config?.team)} />
     <RoutineAudience team={state.config?.team} bot={bot} value={destination} />
-    <button type="button" onClick={() => setShowDemo(true)} className="rounded-lg border border-hairline/50 px-3 py-2 text-ink">{t("blueprint.try")}</button>
+    <button type="button" onClick={() => setShowDemo(true)} className="ui-button">{t("blueprint.try")}</button>
     {showDemo && <section aria-live="polite" className="rounded-lg bg-raised p-3"><h3 className="font-medium text-ink">{t("blueprint.demo")}</h3>
       <ul>{businessDemo(fields).map(row => <li key={row}>{row}</li>)}</ul></section>}
     {!supported && <p role="note">{t("blueprint.engine")}</p>}
     {error && <p role="alert" className="text-warning">{error}</p>}
     <div className="flex items-center justify-between">
-      <button type="button" disabled={busy} className="rounded-lg px-2 py-1.5 hover:bg-raised" onClick={onBack}>{t("automations.newBox.back")}</button>
-      <button type="submit" disabled={busy || !supported} className="rounded-xl bg-accent px-4 py-2 font-medium text-accent-ink disabled:opacity-40">{t("blueprint.install")}</button>
+      <button type="button" disabled={busy} className="ui-button" onClick={onBack}>{t("automations.newBox.back")}</button>
+      <button type="submit" disabled={busy || !supported} className="ui-button ui-button-pill ui-button-primary">{t("blueprint.install")}</button>
     </div>
   </form>;
 }

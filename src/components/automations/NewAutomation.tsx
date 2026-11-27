@@ -86,8 +86,8 @@ export function NewAutomation({ initialText = "", onClose, onSetUpYourself }: {
                 </Select>
               </label>
             )}
-            <div className="mt-4 flex items-center justify-between gap-2">
-              <button type="button" disabled={!bot} onClick={() => setCatalog(true)} className="rounded-lg px-2 py-1.5 text-[13px] text-accent disabled:opacity-40">{t("blueprint.catalog")}</button>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+              <button type="button" disabled={!bot} onClick={() => setCatalog(true)} className="ui-button">{t("blueprint.catalog")}</button>
               <button type="button" onClick={() => setYourself(true)} className="rounded-lg px-2 py-1.5 text-[13px] text-ink-secondary underline-offset-2 hover:text-ink hover:underline">{t("automations.newBox.yourself")}</button>
               <button type="button" disabled={!text.trim() || !bot} onClick={send} className="flex items-center gap-2 rounded-xl bg-accent px-4 py-2 text-[13px] font-medium text-accent-ink hover:brightness-110 disabled:opacity-40"><Send size={14} />{t("automations.newBox.send")}</button>
             </div>

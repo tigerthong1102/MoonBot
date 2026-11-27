@@ -1,7 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { citationLocation } from "./citation";
 import { sourceAnswerIssue, type SourceAnswerIssue } from "./source-answer-issue";
-import { PdfGaps } from "./PdfGaps";
 import { SourcePassage } from "./SourcePassage";
 import { cloudFolders, currentLibrary, observeLibraryOwner, onSourceSync, readSource, readWatch, scanSource, setSource as saveSource, type FolderSource } from "./source-sync";
 import { Select } from "../Select";
@@ -10,6 +9,7 @@ import { t } from "@/lib/i18n";
 import type { Bot } from "@/state/store";
 import { api } from "@/state/api";
 import { randomUuid } from "@/lib/random-uuid";
+import { PdfGaps } from "./PdfGaps";
 import { findPassages, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
 
 const issueLabel = { pdfLocked: "knowledge.pdfLocked", pdfLimit: "knowledge.pdfLimit", pdfRead: "knowledge.errorFile", signedOut: "files.signedOut", offline: "files.offline", missing: "files.status.missing", folder: "files.status.problem" } as const;

@@ -12,7 +12,7 @@ export function SnoozeBotNotifications({ id }: { id: string }) {
     return () => { off(); window.clearTimeout(timer); };
   }, [id, until]);
   return <div className="px-3 py-1.5 text-xs">
-    <button type="button" className="text-accent" onClick={() => {
+    <button type="button" className="ui-button ui-button-md min-h-11" onClick={() => {
       try { setBotSnooze(id, until ? 0 : Date.now() + SNOOZE_HOUR); setFailed(false); } catch { setFailed(true); }
     }}>{t(until ? "notify.snooze.resume" : "notify.snooze.hour")}</button>
     {failed && <span role="alert">{t("notify.snooze.failed")}</span>}

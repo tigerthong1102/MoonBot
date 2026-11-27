@@ -14,13 +14,15 @@ class NoRedirect(request.HTTPRedirectHandler):
         return None
 
 
-def bot_call(endpoint, key, *, message=None, thread=None):
+def bot_call(endpoint, key, *, message=None, thread=None, request_id=None):
     headers = {"Authorization": f"Bearer {key}", "X-StartupBot-Require-Confined": "1"}
     body = None
     if message is None:
         endpoint += "?" + parse.urlencode({"thread": thread})
     else:
         headers["Content-Type"] = "application/json"
+        if request_id:
+            headers["Idempotency-Key"] = request_id
         body = json.dumps({"message": message, "wait": 1, **({"thread": thread} if thread else {})}).encode()
     req = request.Request(endpoint, data=body, headers=headers)
     with request.build_opener(NoRedirect()).open(req, timeout=15) as res:
@@ -124,7 +126,8 @@ class Bridge:
                 # A network failure after dispatch is ambiguous, even if an older thread was known.
                 with self.db:
                     self.db.execute("UPDATE conversations SET pending=2 WHERE scope=?", (scope,))
-                _, result = await asyncio.to_thread(self.call, endpoint, key, message=text, thread=thread)
+                request_id = hashlib.sha256(json.dumps([scope, event.message_id]).encode()).hexdigest()
+                _, result = await asyncio.to_thread(self.call, endpoint, key, message=text, thread=thread, request_id=request_id)
                 if not isinstance(result.get("thread"), str) or not result["thread"]:
                     raise ValueError("missing thread")
                 thread = result["thread"]

@@ -42,6 +42,7 @@ class TestTeams(unittest.IsolatedAsyncioTestCase):
         event = self.event()
         event.media_urls = [str(file)]
         await self.bridge.handle(event, self.send)
+        self.assertRegex(self.calls[0]["request_id"], r"^[a-f0-9]{64}$")
         self.assertIn('data.csv', self.calls[0]["message"])
         self.assertNotIn(str(self.root), self.calls[0]["message"])
         self.assertEqual(self.calls[1], {"thread": "thread-1"})

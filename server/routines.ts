@@ -472,9 +472,13 @@ export class RoutineManager {
     return run ? cloneRun(run) : null;
   }
 
-  noteReport(id: string, report: RoutineRunReport | undefined): RoutineRun | null {
+  noteReport(id: string, report: RoutineRunReport | undefined, deliveryError?: string): RoutineRun | null {
     const run = this.runs.find((candidate) => candidate.id === id);
     if (!run) return null;
+    if (deliveryError && run.deliverables && run.status === "completed") {
+      run.status = "failed";
+      run.error = deliveryError;
+    }
     if (report) run.report = report;
     else delete run.report;
     this.saveLater();

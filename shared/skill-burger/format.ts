@@ -136,6 +136,7 @@ export const workflowSchema = z.object({
       if (problem) issue.addIssue({ code: "custom", message: problem });
     }
     if (step.kind === "app" && step.batch) {
+      if (step.resultContract) issue.addIssue({ code: "custom", message: "A batch returns a row ledger. Apply a scalar result contract to a single read." });
       const { rows, argument } = step.batch;
       if (!KNOWN_READ_SLUGS.has(step.tool) || step.app.toLowerCase() !== step.tool.split("_")[0]?.toLowerCase() || (step.where && step.where !== "app")) {
         issue.addIssue({ code: "custom", message: "A batch requires a known read-only connector tool." });

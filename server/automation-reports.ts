@@ -182,7 +182,7 @@ export function createAutomationReports(deps: AutomationReportDeps) {
     const { run } = line;
     const target = destination(run);
     if (!target) {
-      if (line.kind !== "card") deps.routines()?.noteReport(run.id, undefined);
+      if (line.kind !== "card") deps.routines()?.noteReport(run.id, undefined, line.kind === "reply" && run.deliverables ? "The results conversation is unavailable." : undefined);
       return true;
     }
     if (deps.busy(target.bot.id, target.threadId)) return false;
@@ -197,6 +197,15 @@ export function createAutomationReports(deps: AutomationReportDeps) {
       return true;
     }
     const source = line.kind === "reply" ? replyOf(run, line.messageId) : undefined;
+    const contractedFiles = line.kind === "reply" && run.deliverables && run.threadId
+      ? reconciliationFiles(store.activePath(run.threadId), source && turnOfLine(source)) : undefined;
+    if (contractedFiles) {
+      const problem = incompleteReconciliation(ATTACHMENTS_DIR, contractedFiles);
+      if (problem) {
+        deps.routines()?.noteReport(run.id, { state: "pending" }, problem);
+        line = { kind: "failure", run, detail: problem };
+      }
+    }
     const language = deps.threadLanguage?.(target.threadId);
     const said: RunReply = line.kind === "reply" ? read(run, source)
       : { quiet: false, text: line.detail ? serverLine(language, run.partial ? "server.runs.partlyDoneWhy" : "server.runs.didNotFinishWhy", { detail: line.detail }) : serverLine(language, "server.runs.didNotFinish") };
@@ -206,8 +215,7 @@ export function createAutomationReports(deps: AutomationReportDeps) {
       return true;
     }
     const reply: Extract<RunReply, { quiet: false }> = said.quiet ? { quiet: false, text: recoveredText(run.routineName, run.finishedAt ?? Date.now(), language) } : said;
-    const files = recovered ? [] : run.deliverables && source && run.threadId
-      ? reconciliationFiles(store.activePath(run.threadId), turnOfLine(source)) : sentWith(run, source);
+    const files = recovered || line.kind === "failure" ? [] : contractedFiles ?? sentWith(run, source);
     const posted = store.appendMessage(target.threadId, {
       role: "bot", kind: "text", text: reply.text,
       ...(files.length ? { attachments: files } : {}),

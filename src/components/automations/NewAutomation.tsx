@@ -52,11 +52,12 @@ export function NewAutomation({ initialText = "", onClose, onSetUpYourself }: {
     </button>
   );
 
+  const title = catalog ? t("blueprint.catalog") : yourself ? t("automations.newBox.when") : t("automations.newBox.title");
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-5 pt-[14vh] backdrop-blur-sm" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={t("automations.newBox.title")} tabIndex={-1} className="max-h-[80dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl border border-hairline/60 bg-panel p-5 shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} className="max-h-[80dvh] w-full max-w-[560px] overflow-y-auto rounded-2xl border border-hairline/60 bg-panel p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-[17px] font-semibold text-ink">{catalog ? t("blueprint.catalog") : yourself ? t("automations.newBox.when") : t("automations.newBox.title")}</h2>
+          <h2 className="text-[17px] font-semibold text-ink">{title}</h2>
           <button type="button" onClick={onClose} aria-label={t("automations.newBox.cancel")} className="rounded-full p-1.5 text-ink-secondary hover:bg-raised hover:text-ink"><X size={16} /></button>
         </div>
         {catalog && bot ? <BusinessBlueprintForm bot={bot} onBack={() => setCatalog(false)} onClose={onClose} /> : yourself ? (

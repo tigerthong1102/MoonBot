@@ -749,6 +749,7 @@ function ensureCompanionAccountService() {
 
 // Everything the bug-report bundle needs: config is booleans only and the log is redacted, since it is pasted into public issues.
 async function gatherDiagnostics() {
+  const { packageComponents } = await import("./package-components.mjs");
   const serverStatus = await fetch(`http://127.0.0.1:${SERVER_PORT}/api/config`, {
     signal: AbortSignal.timeout(3_000),
   })
@@ -768,6 +769,7 @@ async function gatherDiagnostics() {
       packaged: app.isPackaged,
       uptimeSeconds: Math.round(process.uptime()),
     },
+    components: app.isPackaged ? packageComponents(process.resourcesPath, process.platform) : [],
     configSummary: serverStatus ?? {}, performance,
     desktopLogTail: desktopLog?.tail ?? "",
     updaterLogTail: updaterLog?.tail ?? "",

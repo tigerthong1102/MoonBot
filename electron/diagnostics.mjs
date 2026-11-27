@@ -274,6 +274,7 @@ function flattenSummary(input, prefix = "", depth = 0, out = {}) {
 export function buildDiagnosticsReport({
   appInfo = {},
   configSummary = {},
+  components = [],
   desktopLogTail,
   updaterLogTail,
   logTail,
@@ -290,6 +291,11 @@ export function buildDiagnosticsReport({
     lines.push(`${key}=${String(appInfo[key])}`);
   }
   lines.push("");
+  if (components.length) {
+    lines.push("## Installed components");
+    for (const { component, status, version } of components) lines.push(component + "=" + status + (version ? " (" + version + ")" : ""));
+    lines.push("");
+  }
   lines.push("## Configuration");
   lines.push("# presence/count/mode only — credentials stay OS-encrypted and are never read");
   const summary = flattenSummary(configSummary);

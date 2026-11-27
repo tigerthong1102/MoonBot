@@ -303,7 +303,10 @@ it("runs the installed OpenAI-compatible engine through the pilot for chat and a
   });
   const recorder = recordEvents(instance.adapter);
   try {
-    await instance.adapter.sendTurn({ threadId: "test-thread", text: "test", model: config.model });
+    expect(instance.adapter.capabilities.images).toBe(false);
+    expect(instance.adapter.capabilities.nativeImageInput).toBe(false);
+    await instance.adapter.sendTurn({ threadId: "test-thread", text: "test", model: config.model,
+      images: [{path:join(dir,"unread.png"),mime:"image/png",bytes:12}] });
     expect(await recorder.until((event) => event.type === "turn.completed", 5000)).toMatchObject({ ok: true });
     expect(await instance.generateText("helper test", { model: config.model })).toBe("ok");
     expect((await summary()).purchased).toBe(999500);
@@ -383,4 +386,39 @@ it("resumes pending checkouts only at the price the same customer actually revie
   expect(pending.amount).toBe(300);
   expect((await summary(b)).pending).toEqual([]);
   expect((await call("/wallet/checkout", a, pending)).status).toBe(200);
+});
+
+it("retries the same unbilled rate-limited request and settles only one generation", async () => {
+  await paidTopup();
+  const id = randomUUID();
+  http.mockImplementationOnce(async () => Response.json({ key:"secret",data:{hash:"key"} }))
+    .mockImplementationOnce(async () => new Response(null,{status:429}));
+  expect((await chat(a,id)).status).toBe(503);
+  expect((await summary()).purchased).toBe(1000000);
+  expect((await summary()).recent[0].state).toBe("retryable");
+  expect((await chat(a,id,{temperature:0})).status).toBe(409);
+  expect((await chat(a,id)).status).toBe(200);
+  expect((await chat(a,id)).status).toBe(409);
+  expect((await summary()).usage.cost).toBe(250);
+  expect(http.mock.calls.filter(([url])=>url.endsWith("/chat/completions"))).toHaveLength(2);
+});
+it("keeps an expired allowance tied to a renewable subscription until Stripe verifies termination", async () => {
+  const original=await order("monthly");
+  const sub={id:"sub_original",status:"past_due",metadata:{order:original.id},livemode:false};
+  Object.assign(original.session,{subscription:sub.id});
+  remote.set("/v1/subscriptions/"+sub.id,sub);
+  const old=ledger.db.prepare("SELECT * FROM orders WHERE id=?").get(original.id);
+  ledger.grant(old,{id:"in_old",payment:"pi_old",start:Date.now()-60000,end:Date.now()-20000});
+  const replace=()=>call("/wallet/checkout",a,{id:randomUUID(),sku:"annual",version:config.version,currency:config.currency,
+    amount:config.offers.annual.amountMinor,credits:config.offers.annual.creditMicros});
+  expect(await summary()).toMatchObject({included:0,expires:null,canCancel:true});
+  expect((await replace()).status).toBe(409);
+  expect((await call("/wallet/cancel-renewal",a,{})).status).toBe(200);
+  expect(http.mock.calls.some(([,init])=>init.body?.get("cancel_at_period_end")==="true")).toBe(true);
+  expect((await notify("customer.subscription.deleted",sub)).status).toBe(200);
+  expect((await replace()).status).toBe(409);
+  sub.status="canceled";
+  expect((await notify("customer.subscription.deleted",sub)).status).toBe(200);
+  expect((await summary()).canCancel).toBe(false);
+  expect((await Promise.all([replace(),replace()])).map(r=>r.status).sort()).toEqual([200,409]);
 });

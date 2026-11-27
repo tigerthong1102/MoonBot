@@ -123,6 +123,8 @@ export function pilotServer(ledger, settings, http = fetch) {
           throw new Fault(409, "price_changed_refresh");
         if (!/^(sk|rk)_test_/.test(settings.stripeKey ?? "") || !settings.webhookSecret?.startsWith("whsec_"))
           throw new Fault(503, "test_checkout_not_configured");
+        if (!existing && (body.sku === "monthly" || body.sku === "annual"))
+          await pay.refreshSubscription(ledger.recurringOrder(owner));
         const order = ledger.order(owner, body.sku, config, body.id);
         return json(200, { url: await pay.checkout(order) });
       }

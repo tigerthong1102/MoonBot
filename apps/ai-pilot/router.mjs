@@ -117,14 +117,14 @@ export function router(ledger, settings, http = fetch) {
     try {
       key = await keyFor(owner, config);
     } catch (e) {
-      ledger.settle(owner, id, "unsent-" + randomUUID(), 0);
+      ledger.settle(owner, id, "unsent-" + randomUUID(), 0, {}, true);
       throw e;
     }
     let result;
     try {
       const response = await api("chat/completions", key, request);
       if ([400, 401, 402, 403, 404, 413, 422, 429].includes(response.status)) {
-        ledger.settle(owner, id, "rejected-" + randomUUID(), 0);
+        ledger.settle(owner, id, "rejected-" + randomUUID(), 0, {}, [402,429].includes(response.status));
         throw new Fault(
           503,
           response.status === 402 ? "supplier_credit_unavailable" : "supplier_rejected_request",
@@ -152,7 +152,7 @@ export function router(ledger, settings, http = fetch) {
     if (!row || !generation) throw new Fault(409, "generation_id_required");
     if (suppliedGeneration && row.generation && suppliedGeneration !== row.generation)
       throw new Fault(409, "generation_conflict");
-    if (row.state === "settled") return;
+    if (row.state !== "held") return;
     const user = db.prepare("SELECT secret FROM users WHERE id=?").get(owner);
     const response = await api("generation?id=" + encodeURIComponent(generation), open(user.secret, master()));
     const data = response.ok ? (await response.json()).data : null;

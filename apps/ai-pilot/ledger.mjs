@@ -43,6 +43,7 @@ export class Ledger {
       CREATE TABLE IF NOT EXISTS orders(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(id), sku TEXT NOT NULL,
         version TEXT NOT NULL, amount INTEGER NOT NULL, currency TEXT NOT NULL, credits INTEGER NOT NULL, session TEXT UNIQUE,
         created INTEGER NOT NULL, url TEXT, state TEXT NOT NULL DEFAULT 'pending');
+      CREATE TABLE IF NOT EXISTS subscriptions(orderId TEXT PRIMARY KEY REFERENCES orders(id), stripeId TEXT UNIQUE NOT NULL, ended INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS grants(id TEXT PRIMARY KEY, payment TEXT UNIQUE NOT NULL, owner TEXT NOT NULL REFERENCES users(id),
         orderId TEXT NOT NULL REFERENCES orders(id), start INTEGER NOT NULL, end INTEGER, credits INTEGER NOT NULL, spent INTEGER DEFAULT 0);
       CREATE UNIQUE INDEX IF NOT EXISTS paid_period ON grants(orderId,start) WHERE end IS NOT NULL;
@@ -100,6 +101,19 @@ export class Ledger {
     if (!row) throw new Fault(401, "invalid_pilot_token");
     return row.id;
   }
+  recurringOrder(owner) {
+    return this.db.prepare(`SELECT o.*,s.stripeId FROM orders o LEFT JOIN subscriptions s ON s.orderId=o.id
+      WHERE o.owner=? AND o.sku!='topup' AND o.state IN ('pending','paid') AND COALESCE(s.ended,0)=0
+      ORDER BY o.created DESC LIMIT 1`).get(owner);
+  }
+  trackSubscription(order, sub) {
+    if (order.sku === "topup" || !sub.id || sub.metadata?.order !== order.id) throw new Fault(409, "subscription_mismatch");
+    const ended = Number(["canceled","incomplete_expired"].includes(sub.status));
+    const update = this.db.prepare(`INSERT INTO subscriptions VALUES (?,?,?)
+      ON CONFLICT(orderId) DO UPDATE SET ended=max(ended,excluded.ended) WHERE stripeId=excluded.stripeId`).run(order.id,sub.id,ended);
+    if (!update.changes) throw new Fault(409, "subscription_mismatch");
+    if (ended) this.db.prepare("UPDATE orders SET state='expired' WHERE id=? AND state='pending'").run(order.id);
+  }
   order(owner, sku, config, id) {
     if (!Object.hasOwn(config.offers, sku)) throw new Fault(400, "unknown_offer");
     const offer = config.offers[sku];
@@ -110,10 +124,7 @@ export class Ledger {
       if (old) return old;
       if (sku !== "topup") {
         const active = this.db.prepare("SELECT 1 FROM grants WHERE owner=? AND end>?").get(owner, Date.now());
-        const pending = this.db
-          .prepare("SELECT 1 FROM orders WHERE owner=? AND sku!='topup' AND state='pending'")
-          .get(owner);
-        if (active || pending) throw new Fault(409, "subscription_active_or_pending");
+        if (active || this.recurringOrder(owner)) throw new Fault(409, "subscription_active_or_pending");
       }
       this.db
         .prepare(
@@ -183,7 +194,9 @@ export class Ledger {
       FROM requests r LEFT JOIN usage_details d ON d.owner=r.owner AND d.requestId=r.id WHERE r.owner=? AND r.state='settled'`,
       )
       .get(owner);
+    const recurring = this.recurringOrder(owner);
     return {
+      canCancel: Boolean(recurring && (recurring.stripeId || recurring.state === "paid")),
       usage,
       pending,
       included: buckets.filter((b) => b.end).reduce((n, b) => n + b.available, 0),
@@ -198,7 +211,13 @@ export class Ledger {
     if (!Number.isSafeInteger(amount) || amount <= 0) throw new Fault(400, "invalid_hold");
     this.tx(() => {
       const old = this.db.prepare("SELECT fingerprint,state FROM requests WHERE id=? AND owner=?").get(id, owner);
-      if (old) throw new Fault(409, old.fingerprint !== fingerprint ? "request_conflict" : "request_" + old.state);
+      if (old) {
+        if (old.fingerprint !== fingerprint) throw new Fault(409,"request_conflict");
+        if (old.state !== "retryable") throw new Fault(409,"request_"+old.state);
+        this.db.prepare("DELETE FROM allocations WHERE owner=? AND request=?").run(owner,id);
+        this.db.prepare("DELETE FROM usage_details WHERE owner=? AND requestId=?").run(owner,id);
+        this.db.prepare("DELETE FROM requests WHERE owner=? AND id=?").run(owner,id);
+      }
       const extras = this.db.prepare("SELECT spendExtras FROM users WHERE id=?").get(owner).spendExtras;
       const buckets = this.balances(owner).filter((b) => b.end || extras || b.available < 0);
       if (buckets.reduce((n, b) => n + b.available, 0) < amount) throw new Fault(402, "personal_credit_exhausted");
@@ -216,12 +235,12 @@ export class Ledger {
       }
     });
   }
-  settle(owner, id, generation, cost, tokens = {}) {
-    if (!Number.isSafeInteger(cost) || cost < 0 || !generation) throw new Fault(503, "reconciliation_required");
+  settle(owner, id, generation, cost, tokens = {}, retryable = false) {
+    if (!Number.isSafeInteger(cost) || cost < 0 || !generation || (retryable && cost !== 0)) throw new Fault(503, "reconciliation_required");
     this.tx(() => {
       const row = this.db.prepare("SELECT * FROM requests WHERE owner=? AND id=?").get(owner, id);
       if (!row || (row.generation && generation !== row.generation)) throw new Fault(409, "generation_conflict");
-      if (row.state === "settled") {
+      if (row.state !== "held") {
         if (row.cost !== cost) throw new Fault(409, "cost_conflict");
         return;
       }
@@ -242,8 +261,8 @@ export class Ledger {
         .prepare("UPDATE usage_details SET input=?,output=? WHERE owner=? AND requestId=?")
         .run(count(tokens.input), count(tokens.output), owner, id);
       this.db
-        .prepare("UPDATE requests SET state='settled',generation=?,cost=? WHERE owner=? AND id=?")
-        .run(generation, cost, owner, id);
+        .prepare("UPDATE requests SET state=?,generation=?,cost=? WHERE owner=? AND id=?")
+        .run(retryable ? "retryable" : "settled",generation, cost, owner, id);
     });
   }
 }

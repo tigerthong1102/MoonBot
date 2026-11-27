@@ -99,6 +99,7 @@ interface RuntimeOptions<Config> {
   tools?: boolean;
   computerUse?: boolean;
   /** A text-only model keeps the computer and browser tools but never receives a screenshot or attachment. */
+  textOnly?: boolean;
   imageInput?: (model: string) => boolean;
   /** Some models list `variants`; the picked one reaches `requestBody`. */ modelVariants?: boolean;
   /** False for a model its server says cannot call tools: its turns go without them instead of being refused. */ toolUse?: (model: string) => boolean;
@@ -460,7 +461,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
   };
 
   const seesImages = (turn: SendTurnInput) =>
-    options.imageInput?.(turn.model || options.models().default) ?? true;
+    !options.textOnly && (options.imageInput?.(turn.model || options.models().default) ?? true);
   const messagesFor = (turn: SendTurnInput): OpenAIChatMessage[] => {
     const halves = promptHalves(turn);
     const transcript = turn.transcript ?? [];
@@ -934,7 +935,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
       provider: options.driverKind,
       capabilities: { requestMetering: true, ...(options.computerUse ? { computerMcp: options.tools !== false,
         localComputerMcp: options.tools !== false,
-        browserMcp: options.tools !== false, nativeImageInput: true, images: true } : {}),
+        browserMcp: options.tools !== false, nativeImageInput: !options.textOnly, images: !options.textOnly } : {}),
         ...(options.modelVariants ? { modelVariants: true } : {}), sessionModelSwitch: "in-session", customMcp: options.tools !== false, agentsMcp: options.tools !== false, composioMcp: options.tools !== false,
         dataMcp: options.tools !== false,
         emailMcp: options.tools !== false,

@@ -80,6 +80,24 @@ export function payments(ledger, settings, http = fetch) {
     ledger.db.prepare("UPDATE orders SET session=?,url=? WHERE id=?").run(session.id, session.url, order.id);
     return session.url;
   }
+  async function refreshSubscription(order, expectedId) {
+    if (!order?.session) {
+      if (expectedId) throw new Fault(503, "awaiting_checkout");
+      return null;
+    }
+    const session = await stripe("checkout/sessions/" + encodeURIComponent(order.session));
+    if (session.id !== order.session || session.client_reference_id !== order.id ||
+        (expectedId && session.subscription !== expectedId)) throw new Fault(409,"subscription_mismatch");
+    if (session.status === "expired") {
+      ledger.db.prepare("UPDATE orders SET state='expired' WHERE id=? AND state='pending'").run(order.id);
+      return null;
+    }
+    if (!session.subscription) return null;
+    const sub = await stripe("subscriptions/" + encodeURIComponent(session.subscription));
+    if (sub.id !== session.subscription) throw new Fault(409,"subscription_mismatch");
+    ledger.trackSubscription(order, sub);
+    return sub;
+  }
   async function webhook(raw, signature) {
     verify(raw, signature, settings.webhookSecret);
     const event = JSON.parse(raw);
@@ -119,6 +137,7 @@ export function payments(ledger, settings, http = fetch) {
       )
         throw new Fault(409, "unexpected_invoice");
       match(line.amount, line.currency, order);
+      ledger.trackSubscription(order,sub);
       ledger.grant(order, {
         id: invoice.id,
         payment: invoice.payment_intent,
@@ -134,6 +153,8 @@ export function payments(ledger, settings, http = fetch) {
         throw new Fault(409, "order_mismatch");
       if (session.status === "expired") {
         ledger.db.prepare("UPDATE orders SET state='expired' WHERE id=? AND state='pending'").run(order.id);
+      } else if (order.sku !== "topup" && session.subscription) {
+        await refreshSubscription(order,session.subscription);
       } else if (order.sku === "topup" && session.payment_status === "paid" && session.mode === "payment") {
         match(session.amount_total, session.currency, order);
         ledger.grant(order, {
@@ -143,6 +164,9 @@ export function payments(ledger, settings, http = fetch) {
           end: null,
         });
       }
+    } else if (["customer.subscription.updated","customer.subscription.deleted"].includes(event.type)) {
+      const order = findOrder(obj?.metadata?.order);
+      if (order) await refreshSubscription(order,obj.id);
     } else if (event.type === "charge.refunded") {
       const charge = await stripe("charges/" + pathId);
       if (charge.payment_intent && Number.isSafeInteger(charge.amount_refunded) && charge.amount_refunded > 0)
@@ -165,20 +189,14 @@ export function payments(ledger, settings, http = fetch) {
     }
   }
   async function cancel(owner) {
-    const order = ledger.db
-      .prepare(
-        `SELECT o.* FROM orders o JOIN grants g ON g.orderId=o.id WHERE o.owner=? AND g.end>? ORDER BY g.end DESC LIMIT 1`,
-      )
-      .get(owner, Date.now());
-    if (!order) throw new Fault(404, "no_subscription");
-    const session = await stripe("checkout/sessions/" + encodeURIComponent(order.session));
-    if (!session.subscription || session.client_reference_id !== order.id)
-      throw new Fault(409, "subscription_mismatch");
+    const order = ledger.recurringOrder(owner);
+    const sub = await refreshSubscription(order);
+    if (!sub || ["canceled","incomplete_expired"].includes(sub.status)) throw new Fault(404, "no_subscription");
     await stripe(
-      "subscriptions/" + encodeURIComponent(session.subscription),
+      "subscriptions/" + encodeURIComponent(sub.id),
       { cancel_at_period_end: "true" },
       order.id + "-cancel",
     );
   }
-  return { checkout, webhook, cancel };
+  return { checkout, webhook, cancel, refreshSubscription };
 }

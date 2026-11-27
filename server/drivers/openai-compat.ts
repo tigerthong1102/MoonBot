@@ -381,6 +381,7 @@ export const OpenAICompatDriver: ProviderDriver<OpenAICompatConfig> = {
       apiUrl: config.url,
       tools: config.tools,
       computerUse: true,
+      textOnly: apiKey.startsWith("sbpilot_engine_"),
       nudgeAnnouncedAction: true,
       models: () => catalog,
       refreshModels: fetchModels,

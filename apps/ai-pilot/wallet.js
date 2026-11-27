@@ -8,6 +8,7 @@ const states = {
   paid: "Đã thanh toán",
   expired: "Đã hết hạn",
   held: "Chờ đối soát",
+  retryable: "Chưa tính phí · có thể thử lại",
   settled: "Đã quyết toán",
 };
 const errors = {
@@ -74,7 +75,7 @@ async function refresh() {
     (wallet.usage.input !== null ? " · Token đầu vào đã báo cáo " + wallet.usage.input : "") +
     (wallet.usage.output !== null ? " · Token đầu ra đã báo cáo " + wallet.usage.output : "");
   el("extras").checked = wallet.spendExtras;
-  el("cancel").hidden = !wallet.expires;
+  el("cancel").hidden = !wallet.canCancel;
   el("offers").replaceChildren();
   el("history").replaceChildren();
   for (const [sku, offer] of Object.entries(wallet.offers)) {
@@ -99,7 +100,6 @@ async function refresh() {
       const id = pending?.id || sessionStorage.getItem(key) || crypto.randomUUID();
       sessionStorage.setItem(key, id);
       const { url } = await api("/wallet/checkout", { ...quote, id });
-      // Clear only after a confirmed handoff. The customer can buy another pack on return.
       sessionStorage.removeItem(key);
       location.assign(url);
     });

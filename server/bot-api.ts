@@ -23,11 +23,18 @@ const SAVE_AFTER_MS = 1_000;
 const KEY_PREFIX = "bak_";
 const REFUSED_BURST_MS = 15 * 60_000;
 
+const RECEIPT_WINDOW = 24 * 60 * 60_000;
+const digest = z.string().regex(/^[a-f0-9]{64}$/);
+const receiptSchema = z.object({ key: digest, input: digest, at: z.number(), owner: z.boolean(),
+  thread: z.string().optional(), message: z.string().optional(), replyHash: digest.optional(), failed: z.boolean().optional() });
+export type BotApiReceipt = z.infer<typeof receiptSchema>;
+
 const recordSchema = z.object({
   botId: z.string().min(1),
   keyHash: z.string().regex(/^[a-f0-9]{64}$/),
   /** Whose key it is, on a Team Cloud: it goes when they leave. */
   mintedBy: z.string().optional(),
+  receipts: z.array(receiptSchema).max(1024).optional(),
   createdAt: z.number().finite().nonnegative(),
   keyCreatedAt: z.number().finite().nonnegative(),
   callCount: z.number().int().nonnegative(),
@@ -121,6 +128,7 @@ export class BotApiManager {
       record.keyCreatedAt = now;
       // A new key is a new token: whoever is given it acts as the owner only once the owner says so again.
       delete record.actsAsOwner;
+      delete record.receipts;
       if (mintedBy) record.mintedBy = mintedBy; else delete record.mintedBy;
     } else {
       this.bots.unshift({ botId, keyHash: hashBotApiKey(key), ...(mintedBy ? { mintedBy } : {}), createdAt: now, keyCreatedAt: now, callCount: 0 });
@@ -172,6 +180,33 @@ export class BotApiManager {
     if (on) record.actsAsOwner = true; else delete record.actsAsOwner;
     this.save();
     return true;
+  }
+
+  receipt(botId: string, key: string) {
+    const row = this.bots.find(bot => bot.botId === botId);
+    const keyHash = hashBotApiKey(key);
+    const cutoff = this.now() - RECEIPT_WINDOW;
+    return row?.receipts?.find(receipt => receipt.key === keyHash && receipt.at > cutoff);
+  }
+
+  reserve(botId: string, key: string, input: string, owner: boolean): BotApiReceipt {
+    this.assertWritable();
+    const row = this.bots.find(bot => bot.botId === botId)!;
+    const current = (row.receipts ?? []).filter(r => r.at > this.now() - RECEIPT_WINDOW);
+    if (current.length >= 1024) throw Object.assign(new Error("Request receipt limit reached. Retry later."), { status: 429, forCaller: true });
+    const receipt: BotApiReceipt = { key: hashBotApiKey(key), input, owner, at: this.now() };
+    const previous = row.receipts;
+    row.receipts = [...current, receipt];
+    try { this.save(); }
+    catch (error) { row.receipts = previous; throw error; }
+    return receipt;
+  }
+
+  updateReceipt(botId: string, receipt: BotApiReceipt, update: Partial<Pick<BotApiReceipt, "thread" | "message" | "replyHash" | "failed">>) {
+    const row = this.bots.find(bot => bot.botId === botId);
+    if (!row?.receipts?.includes(receipt)) return;
+    Object.assign(receipt, update);
+    this.save();
   }
 
   /** Constant-time: a wrong key costs the same as a right one, whatever it shares with it. */

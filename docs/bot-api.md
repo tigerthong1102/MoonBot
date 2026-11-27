@@ -134,3 +134,16 @@ allowances, no tools.
 Each call is kept with the bot's API settings and shown on the card (count, last
 call, recent calls) to those who can manage the key. Refused calls roll up into
 one row per burst. Neither ever holds the key.
+
+### Retrying a request
+
+Send the same optional `Idempotency-Key` on each POST for one logical request.
+Use 1–128 ASCII letters, digits, dots, underscores, colons or hyphens. Keep the
+message and thread identical. The wait duration may change between attempts.
+A retry returns the original turn's reply or its current status. Reusing the
+key with different input returns HTTP 409. HTTP 202 with `status: "unconfirmed"`
+means the host retained the reservation but cannot verify the result. Reconcile
+the request in the named thread or with the operator before submitting it again.
+Receipts survive restarts for 24 hours, scoped to one bot and its current API
+key. Up to 1,024 live receipts can be held per bot. Rotating or disabling an API
+key ends its retry window.

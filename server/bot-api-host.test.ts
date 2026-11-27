@@ -103,10 +103,10 @@ async function harness(script: Script, options: { waitMs?: number; full?: boolea
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as { port: number }).port;
   const base = `http://127.0.0.1:${port}`;
-  const call = async (botId: string, key: string, body: unknown, init: { method?: string; query?: string; contentType?: string } = {}) => {
+  const call = async (botId: string, key: string, body: unknown, init: { method?: string; query?: string; contentType?: string; idempotencyKey?: string } = {}) => {
     const response = await fetch(`${base}/hooks/api/bots/${botId}/messages${init.query ?? ""}`, {
       method: init.method ?? "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": init.contentType ?? "application/json" },
+      headers: { authorization: `Bearer ${key}`, "content-type": init.contentType ?? "application/json", ...(init.idempotencyKey ? { "idempotency-key": init.idempotencyKey } : {}) },
       ...(init.method === "GET" ? {} : { body: typeof body === "string" ? body : JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
@@ -616,4 +616,26 @@ it("rechecks confinement when the selected AI changes during a delayed request b
     expect(h.turns).toHaveLength(0);
     expect(h.fake.bots.get("b1")!.tasks).toHaveLength(0);
   } finally { pending.close(); }
+});
+
+it("resumes the exact API turn on concurrent retry and after disconnection", async () => {
+  const h = await harness(() => {}, { waitMs: 15 });
+  const key = h.manager.enable("b1").key;
+  const payload = { message: "Review invoice" };
+  const init = { idempotencyKey: "erp-invoice-71" };
+  const [first, second] = await Promise.all([h.call("b1", key, payload, init), h.call("b1", key, payload, init)]);
+  expect([first.status, second.status]).toEqual([202, 202]);
+  expect(first.body.thread).toBe(second.body.thread);
+  expect(h.turns).toHaveLength(1);
+  const opts = h.turns[0]!.opts;
+  h.fake.store.appendMessage(opts.threadId, { role: "bot", kind: "text", text: "Invoice 71" });
+  opts.onSettled({ ok: true, text: "Invoice 71" });
+  h.fake.store.appendMessage(opts.threadId, { role: "user", kind: "text", text: "Private" });
+  h.fake.store.appendMessage(opts.threadId, { role: "bot", kind: "text", text: "Private result" });
+  expect(await h.call("b1", key, payload, init)).toEqual({ status: 200, body: { thread: opts.threadId, reply: "Invoice 71" } });
+  expect((await h.call("b1", key, { message: "Other" }, init)).status).toBe(409);
+  const rotated = h.manager.enable("b1").key;
+  expect((await h.call("b1", key, payload, init)).status).toBe(401);
+  expect((await h.call("b1", rotated, payload, init)).status).toBe(202);
+  expect(h.turns).toHaveLength(2);
 });

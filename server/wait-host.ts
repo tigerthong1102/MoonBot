@@ -4,7 +4,7 @@ import type { Notification } from "../shared/notification.ts";
 import { buildNotification } from "./notify.ts";
 import type { RoutineManager, RoutineRun } from "./routines.ts";
 import type { BotRecord, Store } from "./store.ts";
-import type { WaitManager, WaitManagerOptions } from "./waits.ts";
+import type { WaitManager, WaitManagerOptions, WaitRecord } from "./waits.ts";
 
 export interface WaitHostDeps {
   store: Pick<Store, "appendMessage" | "patchMessage" | "patchTask" | "messagesFor" | "bot">;

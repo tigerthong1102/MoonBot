@@ -198,3 +198,8 @@ The Bitwarden CLI environment allowlist and use of a child-scoped BW_SESSION
 in server/vault/bitwarden.ts adapt agent/vault_backends/bitwarden.py from
 NousResearch/hermes-agent, ab7e19a761e0ef52ef0d1c5f0417c5784c653446.
 Copyright (c) 2025 Nous Research, MIT (public/licenses/hermes-agent.txt).
+
+StartupBot's scripts/verify-hermes-acp.py adapts the local model fixture and
+JSON-RPC exchange from evals/acp_empty_session_wire.py in NousResearch/hermes-agent
+at ab7e19a761e0ef52ef0d1c5f0417c5784c653446. Copyright (c) 2025 Nous Research.
+Distributed under the MIT License (third_party/hermes-agent/LICENSE).

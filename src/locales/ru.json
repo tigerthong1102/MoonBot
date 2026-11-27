@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Выбрать элемент страницы",
+  "browser.evidence.add": "Добавить в черновик чата",
+  "browser.evidence.failed": "Не удалось получить данные элемента.",
   "workflow.controls": "Настройки шагов",
   "workflow.approvalPrompt": "Запрос подтверждения (необязательно)",
   "workflow.when": "Выполнить, если предыдущий результат подходит",

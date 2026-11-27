@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "ページの要素を選択",
+  "browser.evidence.add": "チャットの下書きに追加",
+  "browser.evidence.failed": "この要素を取得できませんでした。",
   "workflow.controls": "ステップ設定",
   "workflow.approvalPrompt": "承認依頼（任意）",
   "workflow.when": "前の結果が条件に合う場合に実行",

@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Wybierz element strony",
+  "browser.evidence.add": "Dodaj do szkicu wiadomości",
+  "browser.evidence.failed": "Nie udało się przechwycić tego elementu.",
   "workflow.controls": "Ustawienia kroków",
   "workflow.approvalPrompt": "Prośba o zgodę (opcjonalnie)",
   "workflow.when": "Uruchom, gdy wcześniejszy wynik spełnia warunek",

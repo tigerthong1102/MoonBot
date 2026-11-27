@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Seleziona un elemento della pagina",
+  "browser.evidence.add": "Aggiungi alla bozza della chat",
+  "browser.evidence.failed": "Impossibile acquisire questo elemento.",
   "workflow.controls": "Impostazioni dei passaggi",
   "workflow.approvalPrompt": "Richiesta di approvazione (facoltativa)",
   "workflow.when": "Esegui se un risultato precedente corrisponde",

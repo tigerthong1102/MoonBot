@@ -1,4 +1,7 @@
 {
+  "browser.evidence.pick": "Element auf der Seite auswählen",
+  "browser.evidence.add": "Zum Chatentwurf hinzufügen",
+  "browser.evidence.failed": "Dieses Element konnte nicht erfasst werden.",
   "workflow.controls": "Schritteinstellungen",
   "workflow.approvalPrompt": "Freigabeanfrage (optional)",
   "workflow.when": "Ausführen, wenn ein früheres Ergebnis passt",

@@ -19,6 +19,7 @@ import { extensionInput, type InstalledExtension } from "../extensions.ts";
 import type { HoldLimits } from "../hold.ts";
 import type { Tab } from "../tabs.ts";
 import { ACCEPT_OF, chooseOption, cursorAt, editableAt, selectAt, type SelectPopup } from "./popups.ts";
+import { elementEvidence, type ElementEvidence } from "./element-evidence.ts";
 import { ViewerHold } from "./hold.ts";
 import { fitsScreen, MIN_WINDOW_WIDTH, requestedSize, VIEWPORT_PRESETS, viewportFor, ZOOM_LIMITS, zoomedLayout, type ViewportSetting } from "./viewport.ts";
 
@@ -58,6 +59,7 @@ export type ViewerOutput =
   | { type: "nav"; tabId: string; url: string; loading: boolean; canGoBack: boolean; canGoForward: boolean }
   | { type: "status"; connected: boolean; screencasting: boolean; viewportWidth: number; viewportHeight: number }
   | { type: "clipboard"; text: string } | { type: "extensions"; extensions: InstalledExtension[] }
+  | { type: "elementEvidence"; requestId: string; evidence: ElementEvidence | null }
   | { type: "probe"; x: number; y: number; editable: boolean }
   | { type: "pointer"; phase: "move" | "click"; x: number; y: number; sequence: number }
   | { type: "fileChooser"; id: string; multiple: boolean; accept: string }
@@ -968,6 +970,13 @@ export class ViewerHub {
         if (message.ignoreCache === true) await tab.page.session.send("Page.reload", { ignoreCache: true });
         else await tab.page.reload({ readiness: "none" });
         return;
+      case "elementEvidence": {
+        const { requestId, x, y } = message;
+        if (typeof requestId !== "string" || requestId.length > 64 || typeof x !== "number" || typeof y !== "number") return;
+        const evidence = tab.id === message.tabId ? await elementEvidence(tab.page, x, y).catch(() => null) : null;
+        viewer.push({ type: "elementEvidence", requestId, evidence: this.#hold.controls(viewer) && this.host.active() === tab ? evidence : null });
+        return;
+      }
       case "probe": {
         const x = num(message.x);
         const y = num(message.y);

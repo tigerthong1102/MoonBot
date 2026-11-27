@@ -555,9 +555,12 @@ it("bounds concurrent identity challenges before opening the selection menu", as
     if (input.action === "challenge") { active++; maximum = Math.max(maximum, active); await new Promise(resolve => setTimeout(resolve, 10)); active--; return { ok: true, json: async () => ({ nonce }) }; }
     return { ok: true, json: async () => ({ ok: true }) };
   } }, executeJavaScript: async () => {}, once: (_event, cb) => { fixture.destroyed = cb; } };
+  vi.useFakeTimers();
   const instance = personalInboxBots({ webContents: workspace }, page, "https://fixture.invalid", (endpoint, init) => localFetch(endpoint, init));
   instance.invite("11111111-1111-4111-8111-111111111111");
-  await vi.waitFor(() => expect(fixture.menu).toHaveLength(10));
+  // Allow three 10ms challenge batches to complete before the menu's 1500ms deadline.
+  await vi.advanceTimersByTimeAsync(100);
+  expect(fixture.menu).toHaveLength(10);
   expect(maximum).toBeLessThanOrEqual(4);
   expect(maximum).toBeGreaterThan(1);
   expect(anchors.size).toBe(10);

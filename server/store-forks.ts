@@ -1,3 +1,6 @@
+import { join } from "node:path";
+import { DATA_DIR } from "./config.ts";
+import { copyForkToolResults } from "./tool-result-spill.ts";
 import type { GroupTask as GroupTaskRecord } from "../shared/wire.ts";
 import { newId } from "./contracts.ts";
 import * as mdb from "./message-db.ts";
@@ -12,13 +15,19 @@ function forkHistory(path: Message[], messageId: string): Message[] | null {
   return structuredClone(path.slice(0, anchor + 1));
 }
 
-function registerImportedFork<T extends { threadId: string }>(task: T, history: Message[], messageId: string,
+function registerImportedFork<T extends { threadId: string }>(sourceId: string, task: T, history: Message[], messageId: string,
   register: (task: T) => void): void {
-  mdb.importThread(task.threadId, history, messageId);
+  const removeSpills = copyForkToolResults(join(DATA_DIR, "tool-results"), sourceId, task.threadId, history);
+  let imported = false;
   try {
+    mdb.importThread(task.threadId, history, messageId);
+    imported = true;
     register(task);
   } catch (error) {
-    try { mdb.deleteThread(task.threadId); } catch (cleanupError) {
+    try {
+      removeSpills();
+      if (imported) mdb.deleteThread(task.threadId);
+    } catch (cleanupError) {
       throw new AggregateError([error, cleanupError], "could not roll back the imported fork");
     }
     throw error;
@@ -39,7 +48,7 @@ export function createGroupFork(source: GroupTaskRecord, path: Message[], messag
     lastReadMessageId: messageId,
     ...(source.pinnedCwd !== undefined ? { pinnedCwd: source.pinnedCwd } : {}),
   };
-  registerImportedFork(task, history, messageId, register);
+  registerImportedFork(source.threadId, task, history, messageId, register);
   return task;
 }
 
@@ -59,6 +68,6 @@ export function createBotFork(bot: BotRecord, source: TaskRecord, path: Message[
   if (source.botApiAsOwner) task.botApiAsOwner = true;
   task.origin = { threadId: source.threadId, messageId };
   task.lastReadMessageId = messageId;
-  registerImportedFork(task, history, messageId, register);
+  registerImportedFork(source.threadId, task, history, messageId, register);
   return task;
 }

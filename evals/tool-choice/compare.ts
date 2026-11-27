@@ -46,3 +46,11 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   if (!base || !candidate) throw new Error("Usage: compare.ts BASE.json CANDIDATE.json");
   console.log(JSON.stringify(compareReports(JSON.parse(readFileSync(base, "utf8")), JSON.parse(readFileSync(candidate, "utf8"))), null, 2));
 }
+
+type UsageTotal = { turns: number; unpriced: number; costUsd: number | null };
+
+export function caseCost(before: UsageTotal, after: UsageTotal): number | null {
+  if (!(after.turns > before.turns) || before.unpriced !== after.unpriced || typeof after.costUsd !== "number") return null;
+  const baseline = before.costUsd ?? (before.turns === before.unpriced ? 0 : null);
+  return baseline === null || after.costUsd < baseline ? null : after.costUsd - baseline;
+}

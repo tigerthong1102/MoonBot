@@ -8,6 +8,7 @@ import { api, type Bot, type Task } from "@/state/store";
 export interface ConversationTarget { botId: string; threadId: string }
 export type ConversationDialog =
   | (ConversationTarget & { kind: "team" | "person" })
+  | (ConversationTarget & { kind: "brain"; selection?: import("../knowledge/brain").BrainSelection })
   | (ConversationTarget & { kind: "memory"; messageId: string; text: string });
 
 export interface Sharing { shared: "team" | { email: string; name: string } | null; people: Array<{ email: string; name: string }> }

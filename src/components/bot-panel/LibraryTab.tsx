@@ -16,6 +16,7 @@ import { panelMemoryNotes } from "./memory-notes";
 import { useMemoryDoc } from "./use-memory-doc";
 import { useStoreDispatch } from "@/state/store-select";
 import { allLibraryItems, libraryItems, threadLabel } from "./library-items";
+import { openConversationDialog } from "../conversation-share/conversation-share";
 import { useBotLibrary } from "./use-bot-library";
 
 export const LIBRARY_SHOWN = 20;
@@ -60,6 +61,7 @@ export function LibraryTab({ bot, onOpen }: { bot: Bot; onOpen: (page: SimplePag
     : notes === 1 ? t("botPanel.memory.note") : t("botPanel.memory.notes", { count: notes });
   const keeps = (
     <Card anchor="keeps">
+      <NavRow icon={FileText} title={t("brain.name")} onClick={() => openConversationDialog({kind:"brain",botId:bot.id,threadId:bot.threadId})} />
       <NavRow data-panel-page="memory" icon={Brain} title={t("botPanel.memoryRow")} value={memoryValue} onClick={() => onOpen("memory")} />
       <NavRow
         data-panel-page="skills"

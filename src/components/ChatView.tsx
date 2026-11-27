@@ -422,7 +422,7 @@ const Bubble = memo(function Bubble({
             menu={[
               ...(simple ? replyAndCopy(() => onReply(message), visibleText) : []),
               ...userMessageMenu({
-                messageId: message.id, save: botMenu.filter((item) => item.key === TEAM_MEMORY_ITEM),
+                messageId: message.id, save: botMenu.filter((item) => item.key === TEAM_MEMORY_ITEM || item.key === "save-brain"),
                 onEdit: !speaker && message.kind === "text" && !webhookView && !hasAttachments && !message.id.startsWith("optimistic-")
                   ? () => onStartEdit(message.id) : undefined,
                 pin: remoteClient ? undefined : { pinned, onToggle: togglePin },

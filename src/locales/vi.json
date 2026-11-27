@@ -11714,5 +11714,9 @@
   "notify.snooze.hour": "Tắt thông báo hoàn tất trên thiết bị này trong một giờ",
   "notify.snooze.resume": "Bật lại thông báo hoàn tất trên thiết bị này",
   "notify.snooze.failed": "Thiết bị không lưu được cài đặt.",
-  "share.host": "Máy chủ workspace: {host}"
+  "share.host": "Máy chủ workspace: {host}",
+  "apps.localPanels.title": "Bảng cục bộ",
+  "apps.localPanels.open": "Mở tệp JSON cho phiên này",
+  "apps.localPanels.invalid": "Không mở được bảng. Hãy kiểm tra định dạng, kích thước tệp và giới hạn tám tiện ích.",
+  "apps.localPanels.remove": "Gỡ bảng"
 }

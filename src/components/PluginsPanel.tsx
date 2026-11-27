@@ -41,7 +41,7 @@ import { mergeCompleteConnectorStatus, mergeCurrentConnectorStatus, onlyLatestCo
 import { openBotSettings } from "./bot-panel/panel-link";
 import { openKeySettings } from "./keys/key-focus";
 import { lacksAdminScope } from "@/lib/admin-scope";
-import { SavedKeysReset } from "./SavedKeysReset";
+import { LocalPluginPanels } from "./LocalPluginPanels"; import { SavedKeysReset } from "./SavedKeysReset";
 import { botAppScope } from "@/lib/bot-app-access";
 import { AppGrantPrompt, botsForApps, useAppGrants } from "./AppGrantPrompt";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -726,6 +726,7 @@ export function PluginsPanel() {
             </div>
           )}
 
+          {filter === "all" && category === null && !search && <LocalPluginPanels />}
           {filter !== "connected" && category === null && (
             <div className={cn(filter === "all" && "mt-8 border-t border-hairline/30 pt-6", filter === "mcp" && "pt-1")}>
               <McpServersPanel embedded hideHosted={filter === "all"} />

@@ -11714,5 +11714,9 @@
   "notify.snooze.hour": "Mute completion alerts here for one hour",
   "notify.snooze.resume": "Resume completion alerts here",
   "notify.snooze.failed": "This device could not save the setting.",
-  "share.host": "Server: {host}"
+  "share.host": "Server: {host}",
+  "apps.localPanels.title": "Local panels",
+  "apps.localPanels.open": "Open a panel JSON file for this session",
+  "apps.localPanels.invalid": "Could not open this panel. Check its manifest, size, and the limit of eight plugins.",
+  "apps.localPanels.remove": "Remove panel"
 }

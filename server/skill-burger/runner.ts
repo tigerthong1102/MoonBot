@@ -2,6 +2,7 @@ import { resultContractError } from "../../shared/skill-burger/result-contract.t
 import { createHash, randomUUID } from "node:crypto";
 import { posix, win32 } from "node:path";
 
+import { timed } from "./execution-deadline.ts";
 import { runReadBatch, type BatchRowStatus } from "./read-batch.ts";
 import { parallelProblem, caseOf, teammateNames, type Workflow, type WorkflowRef, type WorkflowStep } from "../../shared/skill-burger/format.ts";
 import { embeddedSourceHas } from "../../shared/skill-burger/embedded-source.ts";
@@ -204,29 +205,6 @@ export function interpolatedActionHash(step: WorkflowStep, args: RunState["args"
   return template === fillPrompt(template, args) ? undefined : createHash("sha256").update(detail).digest("hex");
 }
 
-/** Waits for `run` up to `ms`, aborting what it was given when the time is up. */
-async function timed(ms: number, outer: AbortSignal | undefined, run: (signal: AbortSignal) => Promise<ExecResult>): Promise<ExecResult | "timeout"> {
-  if (outer?.aborted) return { ok: false, error: "The owning turn was stopped." };
-  const controller = new AbortController();
-  let cancelled!: (result: ExecResult) => void;
-  const cancellation = new Promise<ExecResult>(done => { cancelled = done; });
-  const stop = () => { controller.abort(); cancelled({ ok: false, error: "The owning turn was stopped." }); };
-  outer?.addEventListener("abort", stop, { once: true });
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      cancellation,
-      run(controller.signal),
-      new Promise<"timeout">((done) => { timer = setTimeout(() => { controller.abort(); done("timeout"); }, ms); }),
-    ]);
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
-  } finally {
-    clearTimeout(timer);
-    outer?.removeEventListener("abort", stop);
-  }
-}
-
 function checkRule(step: WorkflowStep): { says: string; rule?: { path?: string; op: string; value?: unknown } } | null {
   if (!step.check) return null;
   return step.check === true ? { says: "the result looks right for what the request asked" } : step.check;
@@ -422,9 +400,23 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     }
     const trace = step.kind === "app" && batch ? { tool: step.tool, source: batch.rows, rows: [] as BatchRowStatus[] } : undefined;
     const detail = trace ? { batch: trace } : undefined;
-    const outcome = await timed(limit, deps.signal, signal => step.kind === "app" && batch && trace
-      ? runReadBatch(step, batch, resolve(batch.rows, args, results), resolve(step.args, args, results) as Record<string, unknown>, deps.exec.app, signal, trace.rows)
-      : execute(step, args, results, deps.actionExec ?? deps.exec, signal));
+    const outcome = await timed(limit, deps.signal, (signal, waitForApproval) => {
+      const actions = deps.actionExec ?? deps.exec;
+      if (step.kind !== "app" || !batch || !trace) return execute(step, args, results, actions, signal);
+      const call: StepExecutors["app"] = async input => {
+        const auth = deps.authorizationExec;
+        if (auth) {
+          const startedApproval = now();
+          try {
+            const approved = await waitForApproval(() => auth.app(input));
+            if (!approved.ok) return approved;
+          } finally { approvalTime += now() - startedApproval; }
+        }
+        if (signal.aborted) return { ok: false, error: "The owning turn was stopped." };
+        return actions.app(input);
+      };
+      return runReadBatch(step, batch, resolve(batch.rows, args, results), resolve(step.args, args, results) as Record<string, unknown>, call, signal, trace.rows);
+    });
     if (deps.signal?.aborted) {
       if (detail) end(step, { state: "failed", detail, error: "The owning turn was stopped." });
       return envelope({ status: "cancelled" });

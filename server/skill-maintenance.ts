@@ -3,11 +3,16 @@ import type { NewBotDefaults } from "./new-bot-defaults.ts";
 import { isBurgerSource } from "../shared/skill-burger/saved.ts";
 import { WORKFLOW_TAG } from "../shared/skill-burger/format.ts";
 import { readSkillLibraryIndex } from "./skill-library.ts";
-import { readWorkflowSkill } from "./skill-burger/store.ts";
+import { inspectWorkflowDependencies } from "./skill-burger/store.ts";
 import type { Routine } from "./routines.ts";
 import { listSkills, readSkillFile, maintainLearnedSkill } from "./skills.ts";
 
 type RoutineRef = Pick<Routine, "botId" | "name" | "prompt"> & Pick<Partial<Routine>, "groupId">;
+
+function workflowMentions(value: unknown, matches: (text: string) => boolean): boolean {
+  if (typeof value === "string") return matches(value);
+  return Boolean(value && typeof value === "object" && Object.values(value).some(child => workflowMentions(child, matches)));
+}
 
 export function skillDependencies(name: string, botId: string, routines: RoutineRef[], templates: NewBotDefaults | undefined,
   bots: readonly { id: string; assignedSkills?: string[] }[], groups: readonly { id: string; memberIds: string[] }[] = [],
@@ -22,8 +27,8 @@ export function skillDependencies(name: string, botId: string, routines: Routine
     ...Object.values(readSkillLibraryIndex()).filter(skill => skill.tags?.includes(WORKFLOW_TAG)).map(skill => ({ name: skill.name, place: { everyChat: true as const } })),
   ];
   for (const saved of workflows) {
-    const found = readWorkflowSkill(saved.place, saved.name);
-    if (!found || JSON.stringify(found.workflow).includes("/" + name)) { kinds.add("workflow"); break; }
+    const definition = inspectWorkflowDependencies(saved.place, saved.name);
+    if (!definition || workflowMentions(definition, mentions)) { kinds.add("workflow"); break; }
   }
   return kinds;
 }

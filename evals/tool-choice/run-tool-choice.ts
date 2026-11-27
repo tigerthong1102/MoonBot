@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLiveInstance } from "../live/run-live.ts";
 import { spawnLiveServer } from "../live/live-server.ts";
-import { fixtureHash, type PairedRow } from "./compare.ts";
+import { caseCost, fixtureHash, type PairedRow } from "./compare.ts";
 import { contextSizes } from "./context.ts";
 import { scoreCase, summarize, type CaseScore, type ToolChoiceCase } from "./score.ts";
 
@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   const spent = async () => {
     const usage = await call("GET", `/api/usage?from=${day}&to=${day}`);
     const totals = usage.total ?? usage.totals ?? {};
-    return { cost: typeof totals.costUsd === "number" ? totals.costUsd : null, input: Number(totals.input ?? 0) + Number(totals.cachedInput ?? 0) };
+    return { costUsd: typeof totals.costUsd === "number" ? totals.costUsd : null, turns: Number(totals.turns), unpriced: Number(totals.unpriced), input: Number(totals.input ?? 0) };
   };
   const rows: Trace[] = [];
   let checkpoint: TrajectoryCheckpoint | undefined;
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
         const elapsedMs = Math.round(performance.now() - started);
         const reply = String(messages.filter((message) => message.role === "bot" && message.kind === "text").at(-1)?.text ?? "");
         const after = await spent();
-        const row: Row = { id: item.id, score: scoreCase(item, calls), calls, done, costUsd: before.cost === null || after.cost === null ? null : Math.max(0, after.cost - before.cost), inputTokens: after.input - before.input,
+        const row: Row = { id: item.id, score: scoreCase(item, calls), calls, done, costUsd: caseCost(before, after), inputTokens: after.input - before.input,
           elapsedMs, fixtureHash: fixtureHash(item), answerCorrect: item.answer ? reply.includes(item.answer) : null,
           citationCorrect: item.citation ? reply.includes(item.citation) : null, reply: reply.slice(0, 200) };
         return row;

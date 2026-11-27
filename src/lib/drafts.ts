@@ -1,4 +1,4 @@
-import type { SourceLineReference } from "./source-line-reference.ts";
+import type { SourceLineReference } from "../../shared/source-line-reference.ts";
 import { useCallback, useEffect, useState, useSyncExternalStore, type SetStateAction } from "react";
 import type { DataContext } from "../../shared/data-context.ts";
 import type { FollowUp } from "../../shared/follow-up.js";

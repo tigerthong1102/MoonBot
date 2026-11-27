@@ -47,3 +47,6 @@ node -e 'const r=require("./mobile-artifacts/ios/security-smoke.json"); if(r.sta
 python3 scripts/mobile-command.py 30 xcrun simctl io "$simulator_id" screenshot mobile-artifacts/ios/startupbot-ios.png
 python3 scripts/mobile-command.py 900 xcodebuild test-without-building -project ios/StartupBot.xcodeproj -scheme StartupBot -configuration Debug -destination "id=$simulator_id" -derivedDataPath mobile-artifacts/DerivedData -resultBundlePath mobile-artifacts/ios/Navigation.xcresult CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= CODE_SIGN_LOCAL_EXECUTION_IDENTITY='Ad Hoc'
 printf '{"status":"PASS","scope":"Simulator installation, launch and native navigation UI tests","pairing":"NOT RUN","physicalDevice":"NOT RUN"}\n' > mobile-artifacts/ios/smoke.json
+binary="$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$app/Info.plist")"
+node scripts/mobile-qa-evidence.mjs --platform ios --device "$simulator_id" --runtime "$runtime" \
+  --revision "$(git rev-parse HEAD)" --build "$app/$binary" --directory mobile-artifacts/ios

@@ -32,3 +32,6 @@ if grep -Eqi 'MausBot|OpenMausMobile' mobile-artifacts/android/ui.xml; then exit
 adb exec-out screencap -p > mobile-artifacts/android/startupbot-android.png
 adb logcat -d > mobile-artifacts/android/logcat.txt
 printf '{"status":"PASS","scope":"APK installation, real emulator launch and onboarding branding","pairing":"NOT RUN","liveProvider":"NOT RUN"}\n' > mobile-artifacts/android/smoke.json
+node scripts/mobile-qa-evidence.mjs --platform android --device "$(adb get-serialno)" \
+  --runtime "$(adb shell getprop ro.build.fingerprint | tr -d '\r')" --revision "$(git rev-parse HEAD)" \
+  --build android/app/build/outputs/apk/debug/app-x86_64-debug.apk --directory mobile-artifacts/android

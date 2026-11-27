@@ -2,16 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
 import { pasteAttachment, type PasteAttachment } from "@/lib/composer-attachments";
 import { fetchSourceLines, type SourceLineReference } from "@/lib/source-line-reference";
+import { collectMessageFiles } from "./AttachmentGallery";
 import { Select } from "./Select";
 import type { Message } from "@/state/store";
 
 function sourceEntries(messages: readonly Message[]) {
   const files = messages.filter(m => m.kind === "text" && m.role === "bot").slice(-100).flatMap(message => {
-    const files = (message.attachments ?? []).flatMap(f => f.kind === "file" ? [{ path: f.path, name: f.name }] : []);
-    for (const match of (message.text ?? "").slice(0, 32_768).matchAll(/\[([^\]\n]+)\]\(([^()\n]+)\)/g)) {
-      const path = match[2].trim().replace(/^<|>$/g, "");
-      if (!/^(?:[a-z]+:\/\/|#)/i.test(path)) files.push({ path, name: path.split(/[\\/]/).at(-1) ?? match[1] });
-    }
+    const attached = (message.attachments ?? []).flatMap(f => f.kind === "file" ? [{ path: f.path, name: f.name }] : []);
+    const linked = collectMessageFiles((message.text ?? "").slice(0, 32_768), attached.map(f => f.path));
+    const files = [...attached, ...linked];
     return files.filter(f => /\.(?:txt|md|csv|tsv|json|ya?ml|xml|log|js|ts|py|sql)$/i.test(f.name))
       .slice(0, 24).map(file => ({ ...file, messageId: message.id, id: JSON.stringify([message.id, file.path]) }));
   });

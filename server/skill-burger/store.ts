@@ -6,7 +6,7 @@ import { burgerBotOf, burgerSource, isBurgerSource, type SavedWorkflow } from ".
 import { isSkillName } from "../../shared/skill-md.ts";
 import { caseOf, WORKFLOW_FILE, WORKFLOW_MAX_BYTES, WORKFLOW_TAG, renderWorkflowSkillMd, workflowSchema, workflowSkillName, type Workflow } from "../../shared/skill-burger/format.ts";
 import {
-  installLibrarySkill, librarySkillDirectory, librarySkillFilePath, librarySkillOptOuts, listLibrarySkills, readLibrarySkillFile, readSkillLibraryIndex,
+  installLibrarySkill, libraryContentMatches, librarySkillDirectory, librarySkillFilePath, librarySkillOptOuts, listLibrarySkills, readLibrarySkillFile, readSkillLibraryIndex,
   retireLibrarySkill, setLibrarySkillEveryBot, skillsLibraryRoot,
 } from "../skill-library.ts";
 import { installSkill, listMigratableSkills, listSkills, readSkillFile, removeSkill, setSkillEnabled } from "../skills.ts";
@@ -40,11 +40,14 @@ function parsed(path: string | null): Workflow | null {
 
 const workflowHash = (skillHash: string, workflow: Workflow, audience = "private") => createHash("sha256").update(skillHash).update("\0").update(audience).update("\0").update(JSON.stringify(workflow)).digest("hex");
 
-function readAt(place: BurgerPlace, name: string, root: string): { workflow: Workflow; sha256: string; fileSha256: string; botId?: string } | null {
+function readAt(place: BurgerPlace, name: string, root: string, purpose: "use" | "inspect" = "use"): { workflow: Workflow; sha256: string; fileSha256: string; botId?: string } | null {
   if (!isSkillName(name)) return null;
   if ("everyChat" in place) {
     const entry = readSkillLibraryIndex(root)[name];
-    if (!entry?.tags?.includes(WORKFLOW_TAG) || !listLibrarySkills(root, (skill) => skill.name === name).some((skill) => skill.enabled)) return null;
+    if (entry?.name !== name || !entry.tags?.includes(WORKFLOW_TAG)) return null;
+    if (purpose === "use" && entry.reviewState !== "approved") return null;
+    if (purpose === "inspect" && (!entry.filesSha256 || !entry.files?.includes(WORKFLOW_FILE))) return null;
+    if (!libraryContentMatches(root, entry)) return null;
     const workflow = parsed(join(librarySkillDirectory(root, name), WORKFLOW_FILE));
     return workflow ? { workflow, sha256: workflowHash(entry.sha256, workflow, entry.everyBot ? "all" : "assigned"), fileSha256: entry.sha256, botId: entry.workflowOriginBot ?? burgerBotOf(entry.source) } : null;
   }
@@ -74,6 +77,10 @@ export function listWorkflowSkills(botIds: readonly string[], root: string = ski
       return found ? [listed(skill.name, found.workflow, found.sha256, skill.importedAt, false, botId)] : [];
     }));
   return [...shared, ...own].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}
+
+export function inspectWorkflowDependencies(place: BurgerPlace, name: string, root: string = skillsLibraryRoot()): Workflow | null {
+  return readAt(place, name, root, "inspect")?.workflow ?? null;
 }
 
 export function readWorkflowSkill(place: BurgerPlace, name: string, root: string = skillsLibraryRoot()): { text: string; workflow: Workflow; sha256: string } | null {

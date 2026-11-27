@@ -450,6 +450,26 @@ describe("a bounded connector read batch", () => {
       expect(calls[0]?.aborted).toBe(true);
     } finally { vi.useRealTimers(); }
   });
+  it.each([{ work: 300, expected: "ok" }, { work: 600, expected: "timeout" }])("excludes approval time from both budgets and accumulates row execution time ($expected)", async ({ work, expected }) => {
+    vi.useFakeTimers();
+    try {
+      const delay = (ms: number) => new Promise<void>(done => setTimeout(done, ms));
+      const h = harness();
+      const seen: unknown[] = [];
+      h.deps.authorizationExec = { ...h.deps.exec, app: async input => {
+        seen.push(input.args.query);
+        await delay(10 * 60_000);
+        return { ok: true, output: null };
+      } };
+      h.deps.actionExec = { ...h.deps.exec, app: async () => { await delay(work); return { ok: true, output: { result: { total: 1 } } }; } };
+      const pending = h.start(workflowSchema.parse({ ...flow, steps: [{ ...step, timeoutMs: 1000 }, { id: "next", kind: "shell", label: "Continue", run: "true" }] }),
+        { records: [{ invoice: "A" }, { invoice: "B" }] });
+      await vi.advanceTimersByTimeAsync(21 * 60_000);
+      const result = await pending;
+      expect(seen).toEqual(["A", "B"]);
+      expect(result.error?.type ?? result.status).toBe(expected);
+    } finally { vi.useRealTimers(); }
+  });
   it("checks permission for each row and stops immediately on revocation or cancellation", async () => {
     const controller = new AbortController();
     let reads = 0;

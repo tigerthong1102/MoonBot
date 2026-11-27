@@ -197,6 +197,18 @@ it("applies requested Full Access workflows through MCP without duplicate approv
     await run(chief, chief.activeTaskId, "/monthly-fixture-review reconcile these test invoices", []);
     const listing = await api("GET", `/api/bots/${chief.id}/skills`);
     expect(listing.skills.find((item: any) => item.name === "monthly-fixture-review").usage).toMatchObject({ calls: 1, failed: 0 });
+    const maintenancePath = `/api/bots/${chief.id}/skills/monthly-fixture-review?maintenance=1`;
+    async function disabledShared(name: string, prompt: string) {
+      await api("POST", "/api/skill-burgers", { everyChat: true, name, workflow: {
+        version: 1, summary: name, args: {}, steps: [{ id: "read", label: "Review", kind: "ai", deterministic: false, prompt }],
+      } }, 201);
+      await api("PATCH", `/api/skills-library/${name}`, { enabled: false });
+    }
+    await disabledShared("unrelated-review", "Use /monthly-fixture-review-extra for this task.");
+    expect((await api("GET", maintenancePath)).dependencies).not.toContain("workflow");
+    await disabledShared("related-review", "Use /monthly-fixture-review for this task.");
+    expect((await api("GET", maintenancePath)).dependencies).toContain("workflow");
+
 
     plans[peer.id] = { turns: [{ reply: "Fixture peer verified the reporting instructions." }] };
     await run(chief, chief.activeTaskId, "Have Ada independently verify the fixture reporting instructions and return the result.", [

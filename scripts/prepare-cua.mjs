@@ -1,12 +1,11 @@
 // Stage the macOS CUA executable and native SDK outside ASAR. The npm SDK does
 // not ship the `cua-driver` CLI, so packaging fails loudly without one.
-// CUA_DRIVER_PATH is the CI/release override; otherwise an exact-version
-// installed binary or the checksummed official release asset.
+// Build the pinned CUA source with the checked macOS accessibility patch.
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile, rm, stat, chmod, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, chmod, writeFile } from "node:fs/promises";
 import { existsSync, realpathSync } from "node:fs";
-import { execFile } from "node:child_process";
-import { dirname, join } from "node:path";
+import { execFile, spawn } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { build } from "esbuild";
@@ -25,77 +24,84 @@ const sdkPackage = JSON.parse(await readFile(join(sdkRoot, "package.json"), "utf
 const expectedVersion = String(sdkPackage.version);
 const release = {
   version: "0.45.4",
-  file: "cua-driver-rs-0.45.4-darwin-universal-binary.tar.gz",
-  sha256: "7dff49530847419828770a1737788cd50642026c0d679a9a4ef383259db94ac5",
+  revision: "d96e1bc359b2cc638c7a406aad01a7276b1b416f",
+  sha256: "2617f50e62450f1e249902d958cf3a08fe5c6250ee50523127feea573f21a485",
 };
-if (expectedVersion !== release.version) {
-  throw new Error(
-    `CUA SDK ${expectedVersion} has no pinned executable asset in prepare-cua.mjs; update the release checksum first`,
-  );
-}
+const proofVersion = "startupbot-ax-proof-v1";
+const patchFile = join(root, "third_party", "cua-driver", "macos-saved-steps.patch");
+const patch = await readFile(patchFile);
+const patchDigest = createHash("sha256").update(patch).digest("hex");
+const MAC_ARCHES = resolveCuaMacArches(process.env);
+if (expectedVersion !== release.version) throw new Error(`Unsupported CUA SDK version ${expectedVersion}`);
 
-async function binaryVersion(candidate) {
-  if (!candidate || !existsSync(candidate)) return null;
+async function validBinary(candidate) {
+  if (!candidate || !existsSync(candidate)) return false;
   try {
-    const { stdout } = await run(candidate, ["--version"], { timeout: 5000 });
-    return stdout.match(/cua-driver\s+([\d.]+)/)?.[1] ?? null;
-  } catch {
-    return null;
-  }
+    const version = await run(candidate, ["--version"], { timeout: 5000 });
+    const proof = await run(candidate, ["--startupbot-ax-proof-version"], { timeout: 5000 });
+    return version.stdout.match(/cua-driver\s+([\d.]+)/)?.[1] === expectedVersion && proof.stdout.trim() === proofVersion;
+  } catch { return false; }
 }
 
-async function officialBinary() {
-  const cache = join(root, "node_modules", ".cache", "openmausbot", `cua-driver-${release.version}`);
-  const cachedBinary = join(cache, "cua-driver");
-  if ((await binaryVersion(cachedBinary)) === expectedVersion) return cachedBinary;
-
-  await rm(cache, { recursive: true, force: true });
-  await mkdir(cache, { recursive: true });
-  const url = `https://github.com/trycua/cua/releases/download/cua-driver-rs-v${release.version}/${release.file}`;
-  console.log(`Downloading CUA Driver ${release.version} from the official release…`);
-  const response = await fetch(url, { headers: { "user-agent": "OpenMausBot-packager" } });
-  if (!response.ok) throw new Error(`CUA Driver download failed: HTTP ${response.status}`);
-  const bytes = Buffer.from(await response.arrayBuffer());
-  const digest = createHash("sha256").update(bytes).digest("hex");
-  if (digest !== release.sha256) {
-    throw new Error(`CUA Driver checksum mismatch: expected ${release.sha256}, got ${digest}`);
-  }
-  const archive = join(cache, release.file);
-  await writeFile(archive, bytes);
-  await run("/usr/bin/tar", ["-xzf", archive, "-C", cache, "cua-driver"]);
-  await chmod(cachedBinary, 0o755);
-  if ((await binaryVersion(cachedBinary)) !== expectedVersion) {
-    throw new Error(`downloaded CUA Driver does not report version ${expectedVersion}`);
-  }
-  return cachedBinary;
+async function buildCommand(command, args, cwd) {
+  await new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, stdio: "inherit", env: process.env });
+    child.once("error", reject);
+    child.once("exit", (code, signal) => code === 0 ? resolve() : reject(new Error(`${command} failed (${code ?? signal})`)));
+  });
 }
 
-let binary;
-if (process.env.CUA_DRIVER_PATH) {
-  const suppliedVersion = await binaryVersion(process.env.CUA_DRIVER_PATH);
-  if (suppliedVersion !== expectedVersion) {
-    throw new Error(
-      `CUA_DRIVER_PATH must point to cua-driver ${expectedVersion}; found ${suppliedVersion ?? "an unreadable binary"}`,
-    );
-  }
-  binary = process.env.CUA_DRIVER_PATH;
-} else {
-  // The locally installed app may be a single-arch build; both shipped arches
-  // need it, so fall back to the official universal binary rather than fail.
-  const installed = "/Applications/CuaDriver.app/Contents/MacOS/cua-driver";
-  const installedUniversal = async () => {
-    try {
-      const { stdout } = await run("/usr/bin/lipo", ["-archs", installed]);
-      return stdout.includes("arm64") && stdout.includes("x86_64");
-    } catch {
-      return false;
+async function patchedBinary() {
+  const cacheRoot = join(root, "node_modules", ".cache", "openmausbot");
+  const cache = join(cacheRoot, `cua-${release.version}-${patchDigest}-${MAC_ARCHES.join("-")}`);
+  const candidate = join(cache, "cua-driver");
+  if (await validBinary(candidate)) return candidate;
+  await mkdir(cacheRoot, { recursive: true });
+  const temp = await mkdtemp(join(cacheRoot, "cua-build-"));
+  try {
+    const archive = join(cacheRoot, `cua-source-${release.revision}.tar.gz`);
+    let bytes = await readFile(archive).catch(() => null);
+    if (!bytes || createHash("sha256").update(bytes).digest("hex") !== release.sha256) {
+      const response = await fetch(`https://codeload.github.com/trycua/cua/tar.gz/${release.revision}`, { headers: { "user-agent": "StartupBot-packager" } });
+      if (!response.ok) throw new Error(`CUA source download failed: HTTP ${response.status}`);
+      bytes = Buffer.from(await response.arrayBuffer());
+      if (createHash("sha256").update(bytes).digest("hex") !== release.sha256) throw new Error("CUA source checksum mismatch");
+      const download = join(temp, "source.tar.gz");
+      await writeFile(download, bytes);
+      await rename(download, archive);
     }
-  };
-  binary =
-    (await binaryVersion(installed)) === expectedVersion && (await installedUniversal())
-      ? installed
-      : await officialBinary();
+    const source = join(temp, "source");
+    await mkdir(source);
+    const prefix = `cua-${release.revision}`;
+    await run("/usr/bin/tar", ["-xzf", archive, "--strip-components=1", "-C", source, `${prefix}/libs/cua-driver`, `${prefix}/libs/cua`, `${prefix}/libs/images/sandbox-images.json`]);
+    await run("git", ["init", "--quiet"], { cwd: source });
+    await run("git", ["apply", patchFile], { cwd: source });
+    const cwd = join(source, "libs", "cua-driver", "rust");
+    const targets = MAC_ARCHES.map((arch) => arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin");
+    const rustup = process.env.STARTUPBOT_RUSTUP || "rustup";
+    await buildCommand(rustup, ["toolchain", "install", "1.97.1", "--profile", "minimal", ...targets.flatMap((target) => ["--target", target])], cwd);
+    const binaries = [];
+    for (const target of targets) {
+      await buildCommand(rustup, ["run", "1.97.1", "cargo", "build", "--locked", "--release", "-p", "cua-driver", "--target", target], cwd);
+      const targetDirectory = process.env.CARGO_TARGET_DIR ? resolve(cwd, process.env.CARGO_TARGET_DIR) : join(cwd, "target");
+      binaries.push(join(targetDirectory, target, "release", "cua-driver"));
+    }
+    const built = join(temp, "cua-driver");
+    if (binaries.length === 1) await copyFile(binaries[0], built);
+    else await run("/usr/bin/lipo", ["-create", ...binaries, "-output", built]);
+    await chmod(built, 0o755);
+    if (!(await validBinary(built))) throw new Error("Patched CUA driver capability verification failed");
+    await mkdir(cache, { recursive: true });
+    const staged = join(cache, `cua-driver-${process.pid}`);
+    await copyFile(built, staged);
+    await chmod(staged, 0o755);
+    await rename(staged, candidate);
+    return candidate;
+  } finally { await rm(temp, { recursive: true, force: true }); }
 }
+
+const binary = process.env.CUA_DRIVER_PATH || await patchedBinary();
+if (!(await validBinary(binary))) throw new Error("CUA_DRIVER_PATH must point to a compatible patched CUA driver");
 const details = await stat(binary);
 if (!details.isFile() || (details.mode & 0o111) === 0) {
   throw new Error(`cua-driver is not an executable file: ${binary}`);
@@ -104,8 +110,6 @@ if (!details.isFile() || (details.mode & 0o111) === 0) {
 // Each mac arch's staging dir (picked via ${arch} in extraResources) gets only
 // its own slice of the universal driver and SDK files. The driver is asserted
 // universal, so a non-universal pin fails here rather than on an Intel Mac.
-const MAC_ARCHES = resolveCuaMacArches(process.env);
-
 const { stdout: archList } = await run("/usr/bin/lipo", ["-archs", binary]);
 for (const arch of MAC_ARCHES) {
   const lipoName = LIPO_ARCH[arch];

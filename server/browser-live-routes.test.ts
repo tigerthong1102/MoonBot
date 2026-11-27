@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 
 let fixture: VerificationServer;
 let botId: string;
@@ -34,7 +35,7 @@ beforeAll(async () => {
   const owner = await call("POST", "/api/auth/pair", { code: ownerPairing.body.code, label: "Browser owner fixture", cookie: true }, remote);
   expect(owner.status).toBe(200);
   ownerCookie = owner.headers.get("set-cookie")!.split(";")[0]!;
-}, 30_000);
+}, hostTimeout(30_000));
 
 afterAll(async () => { await fixture?.close(); });
 

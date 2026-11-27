@@ -10,6 +10,7 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { createCloudFilesService } from "../electron/cloud-sync.mjs";
 import { cloudPairingSignature } from "./cloud-home.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { freePortBlock } from "./testing/ports.ts";
 
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
@@ -91,7 +92,7 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
   });
   child.stdout?.on("data", (chunk) => { log += chunk; });
   child.stderr?.on("data", (chunk) => { log += chunk; });
-  const deadline = Date.now() + 20_000;
+  const deadline = Date.now() + hostTimeout(20_000);
   for (;;) {
     if (child.exitCode !== null) throw new Error(`the Cloud home exited:\n${log}`);
     try { if ((await api("GET", "/api/health")).body?.pid === child.pid) break; } catch {}
@@ -99,7 +100,7 @@ await import(${JSON.stringify(pathToFileURL(join(SERVER_DIR, "testing", "fake-cl
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   ownerToken = await ownerPairing();
-}, 30_000);
+}, hostTimeout(30_000));
 
 afterAll(async () => {
   if (child) await waitForExit(child, { signal: "SIGTERM" });

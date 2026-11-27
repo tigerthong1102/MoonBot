@@ -44,6 +44,9 @@ const NODE_REQUIRE = {
 };
 
 // Every file run as its own process.
+mkdirSync(join(root, "dist-server", "licenses"), { recursive: true });
+copyFileSync(join(root, "public", "licenses", "reconciliation-document-parsers.txt"), join(root, "dist-server", "licenses", "reconciliation-document-parsers.txt"));
+
 const ENTRY_POINTS = [
   "index.ts",
   "message-search.worker.ts",
@@ -51,6 +54,7 @@ const ENTRY_POINTS = [
   "openmausbot.ts",
   "pair-cli.ts",
   "workspace-backup.worker.ts",
+  "reconciliation-document.worker.ts",
   // the OMB Cloud Pro home image's entry point
   "cloud-home-start.ts",
   // the container image's entry point

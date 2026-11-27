@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_ELEMENTS, elementPath, slimResponse, type WireElement } from "./driver-wire.ts";
+import { MAX_ELEMENTS, elementPath, slimResponse, windowScopedTree, type WireElement } from "./driver-wire.ts";
 
 describe("slimResponse", () => {
   it("keeps only what replay needs and drops every image and text", () => {
@@ -118,5 +118,41 @@ describe("elementPath", () => {
       { element_index: 1, role: "AXButton", label: "Go", parent_index: 0, depth: 2 },
     ];
     expect(elementPath(cutAbove, cutAbove[1])).toBeNull();
+  });
+});
+
+
+describe("verified macOS window projection", () => {
+  const root = { element_index: 0, element_token: "s00000001:0", role: "AXWindow", label: "Document", depth: 0 };
+  const field = { element_index: 1, element_token: "s00000001:1", role: "AXTextField", label: "Body", parent_index: 0, depth: 1, value: "" };
+  const menu = { element_index: 2, element_token: "s00000001:2", role: "AXMenuBar", depth: 0 };
+  const frame = () => ({ pid: 7, window_id: 8, window_title: "Document", elements_complete: false, truncated: true,
+    elements: [root, field, menu], window_elements_complete: true, window_elements: [root, field] });
+  it("accepts an independently complete window when a separate menu was truncated", () => {
+    const state = windowScopedTree(frame());
+    expect(state.elements).toEqual([root, field]);
+    expect(state.elements_complete).toBe(true);
+    expect(state.truncated).toBe(false);
+    const slim = slimResponse({ result: { structuredContent: frame() } }, "darwin");
+    expect(slim.structured?.elements_complete).toBe(true);
+    expect(slim.structured?.elements).toHaveLength(2);
+    expect(slim.structured?.elements?.[1].value_read).toBe(true);
+  });
+  it("rejects malformed, cyclic, inconsistent or unproven projections", () => {
+    for (const changed of [
+      { window_elements_complete: false },
+      { window_elements: [root, { ...field, value: "different" }] },
+      { window_elements: [root, { ...field, parent_index: 1 }] },
+      { window_elements: [root, field, field] },
+      { window_elements: [root, field, menu] },
+      { window_elements: [{ ...root, role: "AXApplication" }, field] },
+    ]) {
+      const input = { ...frame(), ...changed };
+      expect(windowScopedTree(input)).toBe(input);
+      expect(slimResponse({ result: { structuredContent: input } }, "darwin").structured?.elements_complete).toBeUndefined();
+    }
+  });
+  it("does not apply macOS projection rules to Windows", () => {
+    expect(slimResponse({ result: { structuredContent: frame() } }, "win32").structured?.elements_complete).toBeUndefined();
   });
 });

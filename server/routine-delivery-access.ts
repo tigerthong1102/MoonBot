@@ -24,7 +24,6 @@ export function internalDeliveryTurn(turn: Turn, activeRun: RunOf, coordinator: 
     return run?.botId === botId && run.deliverables === "reconciliation";
   };
   if (isContracted(turn)) return true;
-  // A delegated worker inherits the originating run's delivery target while handling that assignment.
   const assignment = assigned ? coordinator.node(assigned) : undefined;
   return [...coordinator.inThread(turn.threadId, { open: true }), ...(assignment ? [assignment] : [])].some(node => {
     if (node.threadId !== turn.threadId || node.botId !== turn.botId || !node.parentId || (node.status !== "running" && !(node.id === assigned && node.status === "queued"))) return false;
@@ -36,7 +35,6 @@ export function internalDeliveryTurn(turn: Turn, activeRun: RunOf, coordinator: 
 const protocolReads = new Set(["initialize", "ping", "tools/list", "notifications/initialized", "notifications/cancelled"]);
 const discovery = new Set(["COMPOSIO_SEARCH_TOOLS", "COMPOSIO_GET_TOOL_SCHEMAS"]);
 
-/** Opaque, malformed, mixed and unknown calls cannot modify an external service on behalf of this contract. */
 export function isDeliveryConnectorRead(frame: unknown): boolean {
   if (!frame || typeof frame !== "object" || Array.isArray(frame)) return false;
   const { method, params } = frame as { method?: unknown; params?: { name?: unknown } };

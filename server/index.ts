@@ -11044,7 +11044,7 @@ function messageFileRootsForThread(senderId: string, threadId: string): string[]
 /** A bot's own file copied into the attachment store, for attach_file and coordinate_bots' files alike. The store is no source: only the
  * bot's own files are (its conversation's inbox of received files among them), or one saved outside them this turn, never from the data dir. */
 function saveTurnFile(capability: InternalCapability, botId: string, vm: LocalVmTarget | undefined, path: string, name: string | undefined, byContent: boolean) {
-  return saveBotAttachment({ path, name, byContent, roots: messageFileRootsForThread(botId, capability.threadId).filter((root) => root !== ATTACHMENTS_DIR), inbox: inboxRead(botId, capability.threadId),
+  return saveBotAttachment({ path, name, byContent, reconciliation: internalDelivery(capability), roots: messageFileRootsForThread(botId, capability.threadId).filter((root) => root !== ATTACHMENTS_DIR), inbox: inboxRead(botId, capability.threadId),
     ...(vm ? { guest: { root: VM_WORKSPACE_GUEST, host: vm.workspaceDir } } : {}),
     ...(capability.deliversSavedFiles && capability.turnStartedAt !== undefined ? { savedThisTurn: { since: capability.turnStartedAt, refuse: [DATA_DIR] } } : {}) });
 }

@@ -11,6 +11,7 @@ import { createInflateRaw } from "node:zlib";
 export interface ZipMember {
   name: string;
   compression: 0 | 8;
+  crc32: number;
   compressedBytes: number;
   uncompressedBytes: number;
   localHeaderOffset: number;
@@ -79,6 +80,7 @@ export function zipMembers(directory: Buffer, entryCount: number): ZipMember[] {
     entries.push({
       name: directory.subarray(cursor + 46, cursor + 46 + nameBytes).toString("utf8"),
       compression,
+      crc32: directory.readUInt32LE(cursor + 16),
       compressedBytes,
       uncompressedBytes,
       localHeaderOffset,

@@ -1,5 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
-import { elementPath, slimResponse, treeDegraded, wholeTree, type WireElement } from "./driver-wire.ts";
+import { elementPath, slimResponse, treeDegraded, wholeTree, windowScopedTree, type WireElement } from "./driver-wire.ts";
 import { KEY_TOOLS, holdsTypedText, windowButtonClick, type AppIdentity, type ElementIdentity, type RecipeStep } from "./rules.ts";
 
 /** `gate`: the computer's control gate refused the call (a person holds it, another turn has it): the step was not tried. */
@@ -122,6 +122,11 @@ export async function resolveStepSoon(step: RecipeStep, caller: ComputerCaller, 
   }
 }
 
+export function windowStateOptions(platform: NodeJS.Platform, directButton: boolean): Record<string, unknown> {
+  if (directButton) return { tree_format: "elements", timeout_ms: 30000, max_elements: 5000 };
+  return platform === "darwin" ? { tree_format: "elements", full_output: true, timeout_ms: 10000 } : {};
+}
+
 export async function resolveStep(step: RecipeStep, caller: ComputerCaller, signal: AbortSignal, observe?: (tree: Record<string, unknown>) => void): Promise<Resolved> {
   const { app, window, element } = step;
   if (step.tool === "launch_app") return { ok: true, args: step.args };
@@ -149,9 +154,9 @@ export async function resolveStep(step: RecipeStep, caller: ComputerCaller, sign
     return fail("invalid saved Windows button");
   }
   const state = await caller.call("get_window_state", { pid: pid.value, window_id: windowId.value, include_screenshot: false,
-    ...(directButton ? { tree_format: "elements", timeout_ms: 30000, max_elements: 5000 } : {}) }, signal);
+    ...windowStateOptions(process.platform, directButton) }, signal);
   if (!state.ok) return state;
-  const tree = state.structured;
+  const tree = windowScopedTree(state.structured);
   if (tree.pid !== pid.value || tree.window_id !== windowId.value) return fail("the computer answered for a different window");
   if (treeDegraded(tree)) return fail(`${window.title} could not be read reliably`);
   if (!wholeTree(tree)) return fail(`only part of ${window.title} could be read`);

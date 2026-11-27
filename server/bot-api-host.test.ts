@@ -642,6 +642,25 @@ it("resumes the exact API turn on concurrent retry and after disconnection", asy
   expect(h.turns).toHaveLength(2);
 });
 
+it("reserves the key if persisting the terminal receipt fails and does not start another turn on retry", async () => {
+  const h = await harness(() => {}, { waitMs: 15 });
+  const key = h.manager.enable("b1").key;
+  const payload = { message: "Review the invoice" }, init = { idempotencyKey: "erp-receipt-write" };
+  const first = await h.call("b1", key, payload, init);
+  expect(first.status).toBe(202);
+  const opts = h.turns[0]!.opts;
+  h.fake.store.appendMessage(opts.threadId, { role: "bot", kind: "text", text: "Invoice reviewed" });
+  const update = vi.spyOn(h.manager, "updateReceipt").mockImplementationOnce(() => { throw new Error("Fixture could not write the receipt"); });
+  opts.onSettled({ ok: true, text: "Invoice reviewed" });
+  expect(update).toHaveBeenCalledOnce();
+  expect(await h.call("b1", key, payload, init)).toEqual({ status: 202, body: { status: "unconfirmed", thread: opts.threadId } });
+  expect(h.turns).toHaveLength(1);
+
+  const restarted = await harness(() => {}, { fake: h.fake, file: h.file });
+  expect(await restarted.call("b1", key, payload, init)).toEqual({ status: 202, body: { status: "unconfirmed", thread: opts.threadId } });
+  expect(restarted.turns).toHaveLength(0);
+});
+
 it("keeps a disconnected caller's accepted request unconfirmed after the host restarts", async () => {
   const before = await harness(() => {}, { waitMs: 100 });
   const key = before.manager.enable("b1").key;

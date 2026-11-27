@@ -12,12 +12,13 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadLiveInstance } from "../live/run-live.ts";
 import { spawnLiveServer } from "../live/live-server.ts";
+import { fixtureHash, type PairedRow } from "./compare.ts";
 import { contextSizes } from "./context.ts";
 import { scoreCase, summarize, type CaseScore, type ToolChoiceCase } from "./score.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
-interface Row { id: string; score: CaseScore; calls: string[]; reply: string; costUsd?: number; inputTokens?: number; done: boolean }
+interface Row extends PairedRow { score: CaseScore; reply: string; inputTokens?: number }
 
 async function main(): Promise<void> {
   if (process.argv.includes("--context")) {
@@ -47,7 +48,7 @@ async function main(): Promise<void> {
   const spent = async () => {
     const usage = await call("GET", `/api/usage?from=${day}&to=${day}`);
     const totals = usage.total ?? usage.totals ?? {};
-    return { cost: Number(totals.costUsd ?? 0), input: Number(totals.input ?? 0) + Number(totals.cachedInput ?? 0) };
+    return { cost: typeof totals.costUsd === "number" ? totals.costUsd : null, input: Number(totals.input ?? 0) + Number(totals.cachedInput ?? 0) };
   };
   const rows: Row[] = [];
   try {
@@ -55,6 +56,7 @@ async function main(): Promise<void> {
     for (const item of cases) {
       const before = await spent();
       const { task } = await call("POST", `/api/bots/${bot.id}/tasks`, { title: item.id, select: false });
+      const started = performance.now();
       await call("POST", `/api/bots/${bot.id}/messages`, { text: item.text, threadId: task.threadId });
       const deadline = Date.now() + 180_000;
       let messages: any[] = [], done = false;
@@ -65,9 +67,12 @@ async function main(): Promise<void> {
         done = !state?.busy && messages.some((message) => message.role === "bot" && message.kind === "text" && (message.text ?? "").trim());
       }
       const calls = messages.filter((message) => message.kind === "activity" && message.tool?.name).map((message) => String(message.tool.name));
+      const elapsedMs = Math.round(performance.now() - started);
+      const reply = String(messages.filter((message) => message.role === "bot" && message.kind === "text").at(-1)?.text ?? "");
       const after = await spent();
-      const row: Row = { id: item.id, score: scoreCase(item, calls), calls, done, costUsd: Number((after.cost - before.cost).toFixed(4)), inputTokens: after.input - before.input,
-        reply: String(messages.filter((message) => message.role === "bot" && message.kind === "text").at(-1)?.text ?? "").slice(0, 200) };
+      const row: Row = { id: item.id, score: scoreCase(item, calls), calls, done, costUsd: before.cost === null || after.cost === null ? null : Math.max(0, after.cost - before.cost), inputTokens: after.input - before.input,
+        elapsedMs, fixtureHash: fixtureHash(item), answerCorrect: item.answer ? reply.includes(item.answer) : null,
+        citationCorrect: item.citation ? reply.includes(item.citation) : null, reply: reply.slice(0, 200) };
       rows.push(row);
       console.log(`${row.score.pass ? "pass" : "MISS"} ${item.id}: ${row.score.chosen ?? "no tool"}${row.score.searched ? " (looked up)" : ""} $${row.costUsd} [${calls.join(", ")}]`);
     }

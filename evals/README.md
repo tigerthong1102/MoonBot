@@ -105,3 +105,13 @@ The alpha report gives per-arm pass rates, duration and estimated tokens (chars/
 `evals/turn-routing` runs `classifyTurn` (`server/turn-route.ts`) over labelled messages. Each case says the tier a person would pick: `simple` when a quick model answers as well as the full one. A miss is `cautious` (the full model for a simple turn, which costs only money) or `eager` (the quick model for a turn that needed the full one, which costs the answer). The cases lean towards the hard ones: short weighty decisions, tool requests whose verb is not in the action list, and other languages. So the counts are a baseline for a router to beat, not an accuracy rate. The test pins today's misses; a router change updates them in the same PR.
 
     npx vitest run --config evals/vitest.config.ts evals/turn-routing
+
+### Paired tool-choice reports
+
+Run the same selected cases on each model or revision with `--out BASE.json` and
+`--out CANDIDATE.json`. Compare them with
+`node evals/tool-choice/compare.ts BASE.json CANDIDATE.json`. The report checks
+case ids and hashes, counts incomplete turns as failures, and reports accuracy,
+citation accuracy where a case has an oracle, p95 duration, calls, total cost
+and cost per correct result. A missing price is reported as null. The synthetic
+`vn-invoice-citation` case checks the final answer against an amount and source.

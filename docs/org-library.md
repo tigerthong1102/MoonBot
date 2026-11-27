@@ -46,8 +46,8 @@ Compared with a file:
 A bot added from the organization's library shows where it came from in
 **Bot settings → Identity**: "From Sales desk 1.3.0 · Acme Partners". A bot
 imported from a file shows no such line, as before. When the catalog names
-a newer release of an added team, it comes over on its own (see Updates
-below). Until its file is downloaded, the card says "Version X available. It
+a newer release of an added team, its permissions determine whether it updates
+automatically or first asks for review. Until its file is downloaded, the card says "Version X available. It
 comes over on its own once it's downloaded, and keeps your changes."
 
 **Required** is treated as Available in this version, with a "Recommended
@@ -56,9 +56,14 @@ their copies stay.
 
 ## Updates
 
-After each relayed catalog, every added team whose catalog release differs
-from the one it has is brought up to that release, once its file is
-downloaded and readable by this app (`server/org-library-releases.ts`). A
+StartupBot verifies the publisher, package identity, release version, size and
+SHA-256 against the catalog. A newer team release with the same or fewer
+declared permissions can update automatically. New capabilities, app
+requirements, MCP destinations and credential-header names appear under
+**Review update permissions**. Check each addition before approving. The
+approval is bound to both the installed and proposed checksums. When the previous
+verified file is unavailable, StartupBot requests review of the full list.
+The normal connected-app and tool grants continue to apply on use. A
 release listed under `withdrawnReleases` is never moved to, and a withdrawn
 or removed install is left alone.
 

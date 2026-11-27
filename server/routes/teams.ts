@@ -43,7 +43,7 @@ export interface TeamRouteDeps {
   /** The exporting person's name, as a package's author: the server's profile's, or on a Team Cloud the person's own. */
   authorName(auth: RequestAuth): string | undefined;
   routines(): RoutineManager | null;
-  orgLibrary(): Pick<OrgLibrary, "list" | "preview" | "add" | "offeredSkills" | "addOfferedSkill"> | null;
+  orgLibrary(): Pick<OrgLibrary, "list" | "preview" | "add" | "approveUpdate" | "offeredSkills" | "addOfferedSkill"> | null;
   broadcast(payload: Record<string, unknown>): void;
   publicBot(bot: BotRecord): WireBot;
   publicGroupState(record: GroupRecord): WireGroup;
@@ -261,6 +261,15 @@ export function createTeamRoutes(deps: TeamRouteDeps): RouteHandler {
     if (m && method === "GET") {
       const outcome = orgLibrary?.preview(m[1]!);
       if (!outcome) return json(res, 404, { error: "This package is not in your organization's library.", code: "not_listed" });
+      return outcome.ok ? json(res, 200, outcome.value) : json(res, outcome.status, { error: outcome.error, code: outcome.code });
+    }
+    if (method === "POST" && path === "/api/org-library/update") {
+      const body = await readBody(req);
+      if (!orgLibrary) return json(res, 404, { error: "No organization catalog." });
+      if (typeof body?.packageId !== "string" || !/^[a-f0-9-]{36}$/.test(body.packageId) ||
+          typeof body.base !== "string" || typeof body.target !== "string" || !Array.isArray(body.approved) ||
+          body.approved.length > 2048 || !body.approved.every((item: unknown) => typeof item === "string" && item.length <= 4096)) return json(res, 400, { error: "Choose a reviewed release." });
+      const outcome = orgLibrary.approveUpdate(body.packageId, body.base, body.target, body.approved);
       return outcome.ok ? json(res, 200, outcome.value) : json(res, outcome.status, { error: outcome.error, code: outcome.code });
     }
     if (method === "POST" && path === "/api/org-library/add") {

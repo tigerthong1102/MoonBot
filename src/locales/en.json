@@ -11702,5 +11702,12 @@
   "computer.files.noMatches": "No changed files match.",
   "computer.files.reference": "File from this conversation: {path}",
   "computer.files.addDraft": "Add file reference to draft",
-  "computer.files.added": "Added to draft"
+  "computer.files.added": "Added to draft",
+  "directMcp.clickup": "Manage tasks, lists and docs",
+  "directMcp.airtable": "Query and edit bases, tables and records",
+  "directMcp.todoist": "Add, sort and complete tasks",
+  "directMcp.zapier": "Run actions in the apps you set up in Zapier",
+  "directMcp.granola": "Search meeting notes and transcripts",
+  "directMcp.intercom": "Search conversations, contacts and articles",
+  "directMcp.notice": "Sign in with the provider to choose an account and review the requested permissions. Bot access follows the MCP settings for that account."
 }

@@ -106,6 +106,7 @@ const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: numb
     options: { code: { type: "string" }, out: { type: "string" }, label: { type: "string" }, client: { type: "boolean" }, force: { type: "boolean" } },
     positionals: 1,
   },
+  "mcp-catalog": { options: { bot: { type: "string" } }, positionals: 0 },
   mcp: { options: {}, positionals: 0 },
   "token create": { options: { out: { type: "string" }, scope: { type: "string" }, expires: { type: "string" }, force: { type: "boolean" } }, positionals: 1 },
   "token list": { options: {}, positionals: 0 },

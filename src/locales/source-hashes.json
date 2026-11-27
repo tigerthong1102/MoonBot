@@ -75090,7 +75090,14 @@
       "computer.files.noMatches": "685cfe9dc759c7a5e2c582491aaa5ae60fa6894bf0afd3b5cd0257e4a0026973",
       "computer.files.reference": "989440e11a8bb893d3382e986e56a25395536320d7e2c2eeea0af0c0511c4c3d",
       "computer.files.addDraft": "4c0733cad3b7d2ab195562d1e807e1fb08918caf2e6297879fbde50b3aff102c",
-      "computer.files.added": "9c7c7223db8da0fe2c9f6b5f244fd3c40ff7a006ff3e02c54e2e058e5256d710"
+      "computer.files.added": "9c7c7223db8da0fe2c9f6b5f244fd3c40ff7a006ff3e02c54e2e058e5256d710",
+      "directMcp.clickup": "646432934f0e01baca3c5b71b7e05b10246082a32a1c220a14f1ee3864f0a0b1",
+      "directMcp.airtable": "1f5653a3029a8bf61b8c355fab45d571ea3a021740e8d41107158d240e7ad4c7",
+      "directMcp.todoist": "fe13028cbf5fa8a4d4abb4c6b0152d12602723c6583a53cf2d61edb13950a065",
+      "directMcp.zapier": "5973af5e3a30fab31188d7095978241a3bea39b564cfc8fe0c2dc326bf316841",
+      "directMcp.granola": "2e503a28b5072fd445899cfd73b3cd6e378536a7785abc8edf7b21ec0ab38265",
+      "directMcp.intercom": "c4ef610667685743b502996a7fb33ea5e348b48e5a26500ff4c065e261883b2a",
+      "directMcp.notice": "3688c2e64ec3a80cbd2df4f12f0db8318ba780c81338eb19c9423472c7a354f4"
     },
     "tr": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",

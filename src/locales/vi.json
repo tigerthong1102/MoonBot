@@ -11702,5 +11702,12 @@
   "computer.files.noMatches": "Không tìm thấy tệp đã thay đổi phù hợp.",
   "computer.files.reference": "Tệp từ cuộc trò chuyện này: {path}",
   "computer.files.addDraft": "Thêm đường dẫn tệp vào nháp",
-  "computer.files.added": "Đã thêm vào nháp"
+  "computer.files.added": "Đã thêm vào nháp",
+  "directMcp.clickup": "Quản lý công việc, danh sách và tài liệu",
+  "directMcp.airtable": "Tra cứu, chỉnh sửa bảng và bản ghi",
+  "directMcp.todoist": "Thêm, sắp xếp và hoàn tất công việc",
+  "directMcp.zapier": "Chạy các thao tác bạn đã thiết lập trong Zapier",
+  "directMcp.granola": "Tìm ghi chú và biên bản cuộc họp",
+  "directMcp.intercom": "Tìm cuộc trò chuyện, liên hệ và bài viết",
+  "directMcp.notice": "Đăng nhập trực tiếp với nhà cung cấp để chọn tài khoản và xem quyền yêu cầu. Quyền của bot tuân theo cấu hình MCP của tài khoản đó."
 }

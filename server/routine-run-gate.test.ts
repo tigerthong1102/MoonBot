@@ -83,7 +83,7 @@ describe("the scheduler and a run that is being made ready", () => {
       await manager.tick();
       return manager.listRuns().filter((run) => !before.has(run.id));
     };
-    return { manager, started, prepared, release, routine, due };
+    return { manager, started, prepared, release, routine, due, tickAt: (time: number) => { at = time; return manager.tick(); } };
   }
   const runOf = (h: ReturnType<typeof harness>, id: string) => h.manager.listRuns().find((run) => run.id === id)!;
 
@@ -111,6 +111,28 @@ describe("the scheduler and a run that is being made ready", () => {
     expect(h.started).toEqual([]);
     expect(runOf(h, held!.id)).toMatchObject({ status: "failed", error: "The cloud computer did not answer after a restart, so this run did not start." });
     expect(h.manager.listRoutines().find((candidate) => candidate.id === routine.id)).toMatchObject({ enabled: true });
+  });
+
+  it("starts scheduled reconciliation and its retry while the former cloud computer is unavailable", async () => {
+    const h = harness();
+    const routine = h.routine("cloud-bot");
+    h.manager.update(routine.id, { runOn: "cloud" });
+    const [original] = await h.due();
+    h.release.get(original!.id)!("Its computer is unavailable");
+    await settle();
+    await h.manager.tick();
+    expect(runOf(h, original!.id).status).toBe("failed");
+    h.manager.update(routine.id, { deliverables: "reconciliation" });
+    const [report] = await h.due();
+    expect(report).toMatchObject({ deliverables: "reconciliation", status: "running", threadId: expect.any(String) });
+    h.manager.update(routine.id, { deliverables: undefined });
+    h.manager.failThread(report!.threadId!, "Its AI stalled", { stalled: true });
+    const retry = runOf(h, report!.id);
+    expect(retry).toMatchObject({ status: "queued", deliverables: "reconciliation", retried: "stalled" });
+    await h.tickAt(retry.retryAt!);
+    expect(runOf(h, report!.id).status).toBe("running");
+    expect(h.started).toEqual(["cloud-bot", "cloud-bot"]);
+    expect(h.prepared.map(({ runId }) => runId)).toEqual([original!.id]);
   });
 
   it("never holds a run a person started by hand: its conversation opens at once", async () => {

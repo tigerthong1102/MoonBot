@@ -439,10 +439,15 @@ it("posts a reconciliation only with all requested artifacts and opens its scope
   const csv = Buffer.from("source,amount,note\nINV-1,700,=1+2\n");
   const inline = (name: string, mime: string, bytes: Buffer) => ({ tool: "attach_file", arguments: { name, path: "data:" + mime + ";base64," + bytes.toString("base64") } });
   const steps = [inline("report.pdf", "application/pdf", pdf), inline("reconciliation.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", workbook), inline("sources.csv", "text/csv", csv)];
-  s.script([{ key: "reconciliation", match: [s.header("Reconcile")], steps, reply: "Draft ready.", repeat: true }]);
+  s.script([{ key: "reconciliation", match: ['Scheduled routine "Reconcile" — do this now:'], steps, reply: "Draft ready.", repeat: true }]);
   const routine = await s.routine("Reconcile");
-  await s.api("PATCH", `/api/routines/${routine}`, { deliverables: "reconciliation" });
-  const first = await s.runNow(routine);
+  await s.api("PATCH", `/api/routines/${routine}`, {
+    enabled: true, runOn: "cloud", deliverables: "reconciliation",
+    schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 3_000 },
+  });
+  const scheduled = async () => (await s.runs()).find(run => run.routineId === routine && run.triggerSource === "schedule");
+  await expect.poll(scheduled, { timeout: 30_000 }).toMatchObject({ runOn: "cloud", deliverables: "reconciliation" });
+  const first = (await scheduled()).id;
   await s.settled(first);
   await s.reported(first, "posted");
   const [line] = await s.lines();

@@ -1111,7 +1111,7 @@ export class RoutineManager {
           this.failRun(run, blocked.text);
           continue;
         }
-        const gated = triggerSource === "manual" ? false : this.gate.hold(run);
+        const gated = triggerSource === "manual" || run.deliverables === "reconciliation" ? false : this.gate.hold(run);
         if (gated === true) {
           if (this.options.preparing && run.attention !== this.options.preparing) {
             run.attention = this.options.preparing;
@@ -1165,11 +1165,12 @@ export class RoutineManager {
               (message) => this.failThread(task.threadId, message, { cause: "refused" }),
             );
           } else {
+            const runOn = run.deliverables === "reconciliation" ? "maus" : run.runOn ?? "maus";
             await this.options.startTurn(
               run.botId,
               task.threadId,
-              startPrompt(run, prompt, composeExecutionPrompt({ id: run.routineId, name: run.routineName, trigger: triggerSource, runOn: run.runOn ?? "maus" }, run.deliverables ? prompt + "\n\n" + RECONCILIATION_DELIVERY_PROMPT : prompt, run.attachments, continuityCarry(run, this.routines, this.runs)), (first) => this.options.promptSaid?.(task.threadId, first) === true),
-              run.runOn ?? "maus",
+              startPrompt(run, prompt, composeExecutionPrompt({ id: run.routineId, name: run.routineName, trigger: triggerSource, runOn }, run.deliverables ? prompt + "\n\n" + RECONCILIATION_DELIVERY_PROMPT : prompt, run.attachments, continuityCarry(run, this.routines, this.runs)), (first) => this.options.promptSaid?.(task.threadId, first) === true),
+              runOn,
               triggerSource,
               (message) => this.failThread(task.threadId, message, { cause: "refused" }), run.retried === "restarted",
             );

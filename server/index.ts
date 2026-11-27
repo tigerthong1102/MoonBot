@@ -107,6 +107,7 @@ import { cloudComputerRpc } from "./cloud-computer-tools.ts"; import { createBoa
 import { chartRenderer, compileChart, dataEngine, validateVegaLite } from "./data/deps.ts";
 import { BUILT_IN_DATA_SYSTEM_PROMPT } from "./data/instructions.ts";
 import { DATA_INTERNAL_MCP_PATH, dataRpc } from "./data/rpc.ts";
+import { internalDeliveryTurn, INTERNAL_DELIVERY_ONLY, isDeliveryConnectorRead } from "./routine-delivery-access.ts";
 import { removeRetiredAppFiles } from "./retired-apps.ts"; import { createEmailRoutes } from "./routes/email.ts"; import { createEmailHost, EMAIL_INTERNAL_MCP_PATH, emailAccess } from "./email/host.ts"; import { createEmailService } from "./email/service.ts"; import { createPostizRoutes } from "./routes/postiz.ts"; import { createPostiz } from "./postiz/service.ts";
 import { createPhones } from "./host/phones.ts";
 import { NOT_THE_OWNER } from "./phones/owner.ts";
@@ -2867,7 +2868,8 @@ const routineHolds = CLOUD_HOME ? createRoutineHoldsHost({ dataDir: DATA_DIR, st
   appsConnected: async () => composio.configured(cfg) ? Object.values(await composio.connectedServices(cfg)).some((service) => service.connected) : false }) : null;
 const skillsHost = createSkillsLibraryHost({ store, cfg, appendSkillRequestCard, engineConfig: (instanceId) => providerConfigs()[instanceId], instanceOf: (instanceId) => { const instance = registry.get(instanceId); return instance ? { instanceId, driverKind: instance.driverKind } : undefined; } });
 const { listBotSkills, readBotSkillFile } = skillsHost; const cloudConnections = createCloudConnectionsHost({ cloudHome: CLOUD_HOME, ownHome: ownHome.owner, config: () => cfg, environmentId: ENVIRONMENT_ID, mcpOAuth, heldKeys, mcpKeys: (name) => mcpKeys.given(name), dataDir: DATA_DIR, email: { accounts: () => emailService.store.list(), adopt: (accounts) => emailService.adopt(accounts) }, stayedNotices: { bots: () => store.bots, language: (threadId) => threadLanguage(threadId), say: (threadId, text, kind) => { store.appendMessage(threadId, kind === "line" ? { role: "bot", kind: "text", text } : { role: "bot", kind: "activity", tool: { name: `notice: ${text}`, ok: true } }); }, notify: (text, bot, threadId) => notify(buildNoticeNotification(bot, threadId, text)), lent: (runsOn) => { const at = sharedComputers.runsOn(CLOUD_HOME_LENDER, runsOn); return Boolean(at.online ?? at.known?.lent); } }, engines: async () => selectableInstances(await registry.describe()).filter((instance) => readyToRun(instance, selectionContext)).map((instance) => instance.instanceId) }); const lentMcp = createLentMcp({ cfg: () => cfg, keys: mcpKeys, computers: sharedComputers, policy: (servers) => managedPolicy.filterMcp(servers), bot: (id) => store.bot(id), principal: (turn) => (CLOUD_TEAM || !botLending() ? null : sharedComputerPrincipal(turn)), notice: (turn) => (CLOUD_HOME ? cloudLendingRefusalNotice(turn) : null), refusal: (turn) => (CLOUD_HOME ? cloudLendingRefusalForBot(turn) : null), mint: (turn) => mintInternalCapability({ ...turn, kind: "lent", depth: 0, skillAuthoring: false, createdBots: 0, openedThreads: 0 }), active: (turn) => activeInternalGenerationByThread.get(turn.threadId) === turn.generation, origin: `http://127.0.0.1:${PORT}`, personal: CLOUD_PERSONAL, place: CLOUD_HOME ? "My Cloud" : "this server" }); // Security: a team Cloud lends nothing, so nobody's own computer serves its bots.
-const emailHost = createEmailHost({ reportRun: (threadId) => { const run = activeRoutineRunForThread(threadId); return run && routines ? { id: run.id, deliveries: routines.emailDeliveries } : null; }, service: emailService, dataDir: DATA_DIR, bot: (id) => store.bot(id), inRoom: (threadId) => Boolean(store.groupByThread(threadId)), appendMessage: (threadId, message) => { store.appendMessage(threadId, message as Parameters<typeof store.appendMessage>[1]); }, appAllowed: () => managedPolicy.appAllowed("email"), onChange: (listener) => store.onChange(listener as never), markOutside: (threadId) => outsideLineage.mark(threadId) });
+const internalDelivery = (turn: { botId: string; threadId: string }) => internalDeliveryTurn(turn, activeRoutineRunForThread, coordinator);
+const emailHost = createEmailHost({ internalDelivery, reportRun: (threadId) => { const run = activeRoutineRunForThread(threadId); return run && routines ? { id: run.id, deliveries: routines.emailDeliveries } : null; }, service: emailService, dataDir: DATA_DIR, bot: (id) => store.bot(id), inRoom: (threadId) => Boolean(store.groupByThread(threadId)), appendMessage: (threadId, message) => { store.appendMessage(threadId, message as Parameters<typeof store.appendMessage>[1]); }, appAllowed: () => managedPolicy.appAllowed("email"), onChange: (listener) => store.onChange(listener as never), markOutside: (threadId) => outsideLineage.mark(threadId) });
 const phones = createPhones({
   dataDir: DATA_DIR, shared: Boolean(HOSTED_WORKSPACE || CLOUD_TEAM), cloudHome: Boolean(CLOUD_HOME), cloudOwnerKey: CLOUD_OWNER_KEY,
   loopbackTrust: LOOPBACK.trust, sharedMembership, store, sessions, routines: () => routines, ownerOrAdmin, cloudOwnerSession,
@@ -14382,6 +14384,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const connectorCalls = rpc?.method === "tools/call" && typeof rpcParams?.name === "string"
           ? connectorCallsIn(rpcParams.name, rpcParams.arguments)
           : [];
+        const deliveryWrite = !isDeliveryConnectorRead(body);
+        if (deliveryWrite && internalDelivery(internalCapability)) return refuseOutbound(INTERNAL_DELIVERY_ONLY);
         if (proactive.fence.refusesConnectorCall(currentSender, internalCapability.threadId, body)) return refuseOutbound(READ_AND_DRAFT_REFUSAL);
         const scopeRefusal = managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs) ?? await teamConnections.callRefusal(internalCapability, connectorCalls); if (scopeRefusal) return refuseOutbound(scopeRefusal);
         // A room turn can run at a Chief's delegated level, which only the room handoff carries.
@@ -14427,6 +14431,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             requireActiveInternalCapability();
             const checkDispatch = (final = false, record = true) => {
               requireActiveInternalCapability();
+              if (deliveryWrite && internalDelivery(internalCapability)) refuseDispatch(INTERNAL_DELIVERY_ONLY);
               const identityRefusal = teamConnections.relayDispatchRefusal(internalCapability, scopesRevision, actor.access);
               if (identityRefusal) refuseDispatch(identityRefusal);
               const fresh = store.bot(internalCapability.botId);

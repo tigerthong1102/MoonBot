@@ -8,7 +8,7 @@ const required = {
   "reconciliation.xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "sources.csv": "text/csv",
 } as const;
-export const RECONCILIATION_DELIVERY_PROMPT = "Attach report.pdf (report), reconciliation.xlsx (working papers) and sources.csv (a table identifying the source for each result) with attach_file in the final turn. The report is delivered to the routine’s selected conversation.";
+export const RECONCILIATION_DELIVERY_PROMPT = "Attach report.pdf (report), reconciliation.xlsx (working papers) and sources.csv (a table identifying the source for each result) with attach_file in the final turn. The report is delivered to the routine’s selected StartupBot conversation. Keep files there for review. External delivery requires a separate request after verification.";
 
 export function reconciliationFiles(lines: readonly Message[], turnId: string | undefined) {
   return lines.filter(line => line.role === "bot" && line.kind === "text" && Boolean(turnId) && (line.turnId ?? line.sentInTurn) === turnId)

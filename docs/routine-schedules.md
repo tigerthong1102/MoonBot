@@ -291,3 +291,5 @@ use an appropriate event/webhook workflow instead of a fake weekly schedule.
 Cron series are edited through the routine editor rather than calendar dragging,
 which could otherwise ambiguously change an entire expression. Dense calendar
 projections are bounded per day; Run logs remain the source of actual outcomes.
+
+A reconciliation with required artifacts delivers the three verified files to the chosen results conversation. During the run, its native Email and connected-app tools can read inputs. The connector relay permits its allowlisted reads and refuses writes, including mixed batches and opaque workbench calls. The same rule applies to a teammate working on that run. After verification, the person can request external delivery from the results conversation under its ordinary permissions.

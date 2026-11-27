@@ -1,3 +1,4 @@
+import { INTERNAL_DELIVERY_ONLY } from "../routine-delivery-access.ts";
 // What server/index.ts needs from the Email connector, in one object so the host file gains next to nothing: the per-turn
 // mount, the prompt part, the internal MCP handler (per-bot verdict, decision rows, what a read marks) and the Cloud health
 // merge. The tools run here, in the server: the box gets a turn's capability, never the password or a way to a mail server.
@@ -35,6 +36,7 @@ export interface EmailBot {
 
 export interface EmailHostDeps {
   service: EmailService;
+  internalDelivery?(turn: { botId: string; threadId: string }): boolean;
   reportRun?(threadId: string): { id: string; deliveries: RoutineEmailDeliveries } | null;
   dataDir: string;
   bot(id: string): EmailBot | undefined | null;
@@ -120,6 +122,7 @@ export function createEmailHost(deps: EmailHostDeps) {
           threading = { ...(original.messageId ? { inReplyTo: original.messageId } : {}), ...(references.length ? { references: references.join(" ") } : {}) };
         }
         assertActive();
+        if (deps.internalDelivery?.(capability)) return emailError(INTERNAL_DELIVERY_ONLY);
         const send = () => run.sendMessage(mailbox, guard, { to: args.to, subject: args.subject, text: args.text, ...pick(args, ["cc", "bcc", "html", "inline_images"]), ...threading });
         if (!report) return emailText({ account: from, ...await send() });
         const result = await report.deliveries.send(report.id, capability, args.to[0], async () => {
@@ -158,7 +161,11 @@ export function createEmailHost(deps: EmailHostDeps) {
     async handle(body: unknown, capability: { botId: string; threadId: string }, assertActive: () => void): Promise<{ tools: EmailTool[]; instructions: string } | EmailToolResult> {
       const request = (body ?? {}) as { method?: unknown; params?: unknown };
       // Re-read the live bot on every call, so a permission change wins over a request authenticated under the old one.
-      const verdict = (name: string): Verdict => { const bot = deps.bot(capability.botId); return bot ? emailAccess(bot, name) : { ok: false, text: "This bot no longer exists.", rule: "bot" }; };
+      const verdict = (name: string): Verdict => {
+        if (name === "EMAIL_SEND_MESSAGE" && deps.internalDelivery?.(capability)) return { ok: false, text: INTERNAL_DELIVERY_ONLY, rule: "routine-internal-delivery" };
+        const bot = deps.bot(capability.botId);
+        return bot ? emailAccess(bot, name) : { ok: false, text: "This bot no longer exists.", rule: "bot" };
+      };
       if (request.method === "tools/list") {
         assertActive();
         return { tools: EMAIL_TOOLS.filter((tool) => verdict(tool.name).ok), instructions: EMAIL_INSTRUCTIONS };

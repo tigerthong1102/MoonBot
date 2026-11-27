@@ -1120,7 +1120,7 @@ export async function handleToolCall(
           instanceId: instance.instanceId,
           driverKind: instance.driverKind,
           displayName: instance.displayName,
-          snapshot: { state: instance.snapshot?.state },
+          snapshot: { state: instance.snapshot?.state, version: instance.snapshot?.version, authenticated: instance.snapshot?.authenticated },
           models: instance.models,
           capabilities: instance.capabilities,
           access: instance.access,

@@ -67,13 +67,14 @@ const replies = (text: string): Script => (fake, _botId, _prompt, opts) => {
   }, 30);
 };
 
-async function harness(script: Script, options: { waitMs?: number; full?: boolean; included?: () => boolean; noConfine?: boolean; owner?: { available(): boolean } } = {}) {
+async function harness(script: Script, options: { file?: string; fake?: Fake; waitMs?: number; full?: boolean; included?: () => boolean; noConfine?: boolean; owner?: { available(): boolean } } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "omb-bot-api-host-"));
   dirs.push(dir);
-  const fake = fakeStore();
+  const fake = options.fake ?? fakeStore();
   const turns: Array<{ botId: string; prompt: string; opts: BotApiTurnOptions }> = [];
   const recorded: unknown[] = [];
-  const manager = new BotApiManager({ file: join(dir, "bot-api.json") });
+  const file = options.file ?? join(dir, "bot-api.json");
+  const manager = new BotApiManager({ file });
   const host = createBotApiHost({
     store: fake.store,
     manager,
@@ -103,10 +104,10 @@ async function harness(script: Script, options: { waitMs?: number; full?: boolea
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as { port: number }).port;
   const base = `http://127.0.0.1:${port}`;
-  const call = async (botId: string, key: string, body: unknown, init: { method?: string; query?: string; contentType?: string } = {}) => {
+  const call = async (botId: string, key: string, body: unknown, init: { method?: string; query?: string; contentType?: string; idempotencyKey?: string; confined?: boolean } = {}) => {
     const response = await fetch(`${base}/hooks/api/bots/${botId}/messages${init.query ?? ""}`, {
       method: init.method ?? "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": init.contentType ?? "application/json" },
+      headers: { authorization: `Bearer ${key}`, "content-type": init.contentType ?? "application/json", ...(init.confined ? { "x-startupbot-require-confined": "1" } : {}), ...(init.idempotencyKey ? { "idempotency-key": init.idempotencyKey } : {}) },
       ...(init.method === "GET" ? {} : { body: typeof body === "string" ? body : JSON.stringify(body) }),
     });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
@@ -123,7 +124,7 @@ async function harness(script: Script, options: { waitMs?: number; full?: boolea
     });
     return { out, ...answered! };
   };
-  return { fake, host, manager, turns, recorded, base, call, app };
+  return { fake, file, host, manager, turns, recorded, base, call, app };
 }
 
 async function pendingBody(h: Awaited<ReturnType<typeof harness>>, key: string) {
@@ -498,6 +499,7 @@ describe("a key that acts as the owner", () => {
     expect([on.status, on.body.actsAsOwner]).toEqual([200, true]);
     expect(JSON.stringify(on.body)).not.toContain(key);
 
+    expect((await h.call("b1", key, { message: "External caller" }, { confined: true })).status).toBe(403);
     const owned = await h.call("b1", key, { message: "Tidy the build folder" });
     expect(owned.status).toBe(200);
     const ownedThread = owned.body.thread as string;
@@ -616,4 +618,44 @@ it("rechecks confinement when the selected AI changes during a delayed request b
     expect(h.turns).toHaveLength(0);
     expect(h.fake.bots.get("b1")!.tasks).toHaveLength(0);
   } finally { pending.close(); }
+});
+
+it("resumes the exact API turn on concurrent retry and after disconnection", async () => {
+  const h = await harness(() => {}, { waitMs: 15 });
+  const key = h.manager.enable("b1").key;
+  const payload = { message: "Review invoice" };
+  const init = { idempotencyKey: "erp-invoice-71" };
+  const [first, second] = await Promise.all([h.call("b1", key, payload, init), h.call("b1", key, payload, init)]);
+  expect([first.status, second.status]).toEqual([202, 202]);
+  expect(first.body.thread).toBe(second.body.thread);
+  expect(h.turns).toHaveLength(1);
+  const opts = h.turns[0]!.opts;
+  h.fake.store.appendMessage(opts.threadId, { role: "bot", kind: "text", text: "Invoice 71" });
+  opts.onSettled({ ok: true, text: "Invoice 71" });
+  h.fake.store.appendMessage(opts.threadId, { role: "user", kind: "text", text: "Private" });
+  h.fake.store.appendMessage(opts.threadId, { role: "bot", kind: "text", text: "Private result" });
+  expect(await h.call("b1", key, payload, init)).toEqual({ status: 200, body: { thread: opts.threadId, reply: "Invoice 71" } });
+  expect((await h.call("b1", key, { message: "Other" }, init)).status).toBe(409);
+  const rotated = h.manager.enable("b1").key;
+  expect((await h.call("b1", key, payload, init)).status).toBe(401);
+  expect((await h.call("b1", rotated, payload, init)).status).toBe(202);
+  expect(h.turns).toHaveLength(2);
+});
+
+it("keeps a disconnected caller's accepted request unconfirmed after the host restarts", async () => {
+  const before = await harness(() => {}, { waitMs: 100 });
+  const key = before.manager.enable("b1").key;
+  const payload = { message: "ERP invoice 19" };
+  const idempotencyKey = "erp-19";
+  const request = httpRequest(before.base + "/hooks/api/bots/b1/messages", {
+    method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "idempotency-key": idempotencyKey },
+  });
+  request.on("error", () => {});
+  request.end(JSON.stringify(payload));
+  await vi.waitFor(() => expect(before.turns).toHaveLength(1));
+  request.destroy();
+  const thread = before.turns[0]!.opts.threadId;
+  const after = await harness(replies("unexpected"), { file: before.file, fake: before.fake });
+  expect(await after.call("b1", key, payload, { idempotencyKey })).toEqual({ status: 202, body: { thread, status: "unconfirmed" } });
+  expect(after.turns).toHaveLength(0);
 });

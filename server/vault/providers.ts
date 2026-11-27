@@ -38,7 +38,10 @@ export function linkedCandidates(provider: VaultProvider, pageHost: string, bots
   return logins(provider, bots).filter((login) => loginMatchesHost(login, pageHost)).map((login) => ({
     id: login.id, site: login.site, hosts: [...login.hosts], exactHost: login.exactHost, username: login.username, source: login.source,
     secrets: async () => {
+      const stillGranted = () => logins(provider, bots).some(now => now.id === login.id && now.username === login.username && loginMatchesHost(now, pageHost));
+      if (!stillGranted()) throw new Error("Login access changed.");
       const { password, totp } = await provider.read(login.id);
+      if (!stillGranted()) throw new Error("Login access changed.");
       if (!password) throw new Error(`This login is no longer in ${provider.label}, or has no password there.`);
       return { password, totp: totp ?? null };
     },

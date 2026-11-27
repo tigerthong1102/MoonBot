@@ -63,6 +63,8 @@ extraResources:
     to: licenses/Geist-Mono-OFL.txt
   - from: node_modules/@fontsource-variable/inter/LICENSE
     to: licenses/Inter-OFL.txt
+  - from: public/licenses/hermes-agent.txt
+    to: licenses/Hermes-Agent-MIT.txt
   - from: public/licenses/orca.txt
     to: licenses/Orca-MIT.txt
   - from: NOTICE

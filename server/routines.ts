@@ -1,3 +1,5 @@
+import { RoutineEmailDeliveries } from "./routine-email-deliveries.ts";
+import type { ReportDelivery } from "../shared/report-delivery.ts";
 import type { RoutineBlock } from "../shared/routines.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
@@ -14,7 +16,7 @@ import { routineRequestOwnerKey, type RoutineRequestReceipt, type RoutineRequest
 export type { RoutineRequestReceipt, RoutineRequestCommit, RoutineRequestOwner } from "./routine-request-receipt.ts";
 import type { ModelSelection } from "../shared/wire.ts";
 import { intervalAllowsOccurrence, intervalHasRestrictions, isSameLocalDay, latestIntervalOccurrence } from "./routine-intervals.ts";
-import { limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
+import { limitResetOccurrence, mergeScheduleUpdate, nextOccurrence, RoutineScheduleError, type RoutineSchedule } from "./routine-schedules.ts";
 import { runsOnce } from "../shared/limit-reset.ts"; import { limitResetRunOwed } from "./limit-reset-owed.ts";
 import {
   ROUTINE_HANDOFF_WAIT, isRoutineProblemRun, type RoutineAccess, type RoutineCheck, type RoutineContextAttachment, type RoutineDelivery, type RoutineIntervalWindow, type RoutineRetryCause,
@@ -29,7 +31,8 @@ import {
   dispatchRefusal, engineFacts, nextScheduledRun, recoverRun, requeueOnce, startPrompt, weekRuns, type RoutineAlert, type RoutineFailureFacts, type RoutineOwnerMark, type RoutineOwnerNotice,
 } from "./routine-recovery.ts";
 import { askOf, settleAsk, waitingFor, type RoutineRunAsk } from "./routine-waits.ts";
-import { failsLikeLastOutcome, outcomesNewestFirst } from "./routine-outcomes.ts"; import { createRunGate, type RunPreparation } from "./routine-run-gate.ts";
+import { incidentReminderDue } from "./routine-incidents.ts";
+import { outcomesNewestFirst } from "./routine-outcomes.ts"; import { createRunGate, type RunPreparation } from "./routine-run-gate.ts";
 import { busyWait, markStop, RunClock, runOverLimit, SlowStops, withBoundedStops, type StopState } from "./routine-bounds.ts"; import { keepUnreadableAside, readRoutineFile, type RoutineFile, UNREADABLE_RETRY_MS } from "./routine-file.ts";
 import { noStartAlert, noStartSpacing, turnBackOn } from "./routine-no-start.ts"; import { afterRunSpacing, failureSpacingAlert, runSpacing } from "./routine-failure-spacing.ts"; import { blockingRun, recordSkip, type RoutineSkips } from "./routine-skips.ts";
 import { restartRetryAt, startupDecision } from "./routine-restarts.ts"; import { routineHealthOf, type RoutineHealth } from "./routine-health.ts"; import { Occurrences, ROUTINE_TURN_GONE } from "./routine-occurrences.ts"; import type { Occurrence } from "./routine-ledger.ts";
@@ -39,7 +42,9 @@ import { attachmentPathsOf, cloneRoutine, cloneRun } from "./routine-attachments
 import { loadInstalledPackage, matchingRequestReceipt, rememberRequest } from "./routine-load.ts";
 import { applyHolds, holdCauses, type AppliedHolds } from "./routine-holds.ts";
 import { cancelUnfinishedRuns, interruptRunTurns } from "./routine-stops.ts";
-import { sanitizeInput } from "./routine-input.ts";
+import { RECONCILIATION_DELIVERY_PROMPT } from "./routine-deliverables.ts";
+export type { RoutineInput } from "./routine-input.ts";
+import { sanitizeInput, type RoutineInput } from "./routine-input.ts";
 import { applyCheckResult, clipRunOutput, codedLine, routineLine, runLineFields, type RoutineLine, type RoutineLineCodes, type RoutineTroubleCode } from "./routine-lines.ts";
 import { checkHold, CHECK_BOOT_HOLD_MS, type CheckHold } from "./routine-check-pacing.ts";
 import { resolveRoutineResultsThread, routineRunDefinition, type ResultsThreadAllocation } from "./routine-run-definition.ts";
@@ -72,6 +77,7 @@ export interface Routine extends RoutineTroubleCode {
   overlap?: "skip" | "queue";
   runOnStartup?: boolean;
   checks?: RoutineCheck[];
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   checkedAt?: number;
@@ -151,33 +157,14 @@ export interface RoutineRun extends RoutineLineCodes, RoutineOwnerMark {
   cost?: number | null;
   denials?: string[];
   report?: RoutineRunReport;
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   checkKey?: string;
   createdAt: number;
   seenAt?: number;
-}
-
-export interface RoutineInput {
-  name: string;
-  prompt: string;
-  target?: RoutineTarget;
-  botId: string;
-  groupId?: string | null;
-  runOn?: RoutineRunOn;
-  enabled?: boolean;
-  schedule: RoutineScheduleInput;
-  durationMinutes?: number;
-  timeoutMinutes?: number | null;
-  attachments?: RoutineContextAttachment[];
-  continuity?: boolean; sameConversation?: boolean;
-  modelSelection?: ModelSelection | null;
-  overlap?: "skip" | "queue";
-  runOnStartup?: boolean;
-  checks?: RoutineCheck[] | null;
-  access?: RoutineAccess | null;
-  deliver?: RoutineDelivery | null;
-  resultsThreadId?: string | null;
+  incidentReminderAt?: number;
+  emailDeliveries?: ReportDelivery[];
 }
 
 /** What a routine's checks found: items for one AI run, a sentence while an app cannot be read, and the next time they
@@ -238,6 +225,7 @@ export interface RoutineManagerOptions {
   onRunDeferred?: (run: RoutineRun, alert?: RoutineAlert) => void;
   /** A run a restart cut off, before it starts again or fails: its old turn's work must not resume as well. */
   onRunCut?: (run: RoutineRun) => void;
+  incompleteDelivery?(run: RoutineRun, turnId?: string): string | null;
   hasPendingDelegations?: (threadId: string) => boolean; /** Why a run that ended well in this thread must say a hand-off was refused, once; null when none was. */ refusedHandoff?: (threadId: string) => string | null;
   /** The turn in this thread is a routine's own, not one a person started there while its run waits on teammates. */
   routineTurn?: (threadId: string) => boolean; /** The thread's latest turn is one a person started there by typing (false when not known, e.g. after a restart). */ personTurn?: (threadId: string) => boolean;
@@ -410,12 +398,10 @@ export class RoutineManager {
   nextDueAt(): number | null { return nextDueOf(this.planned(this.routines.filter((routine) => routine.target === "room-goal" || !this.options.pausedText?.(routine.botId))), this.runs, this.now()); }
 
   listRuns(from?: number, to?: number): RoutineRun[] {
-    return this.runs
-      .filter((r) => (from == null || r.scheduledFor >= from) && (to == null || r.scheduledFor <= to))
+    return this.runs.filter((r) => (from == null || r.scheduledFor >= from) && (to == null || r.scheduledFor <= to))
       .sort((a, b) => b.scheduledFor - a.scheduledFor)
       .map(cloneRun);
   }
-
   activeRunForBot(botId: string): RoutineRun | null {
     return activeRunFor(this.runs, botId);
   }
@@ -470,11 +456,15 @@ export class RoutineManager {
     return removed;
   }
 
-  isActiveThread(threadId: string): boolean {
-    return this.runs.some(
-      (run) => run.threadId === threadId && ["running", "waiting"].includes(run.status),
-    );
+  waitState(id: string, source: Pick<RoutineRun, "botId" | "threadId">): import("./waits.ts").WaitRunState | undefined {
+    const run = this.runs.find(r => r.id === id && r.botId === source.botId && !!source.threadId && [r.threadId, r.sourceThreadId, r.resultsThreadId].includes(source.threadId));
+    return run && (run.status === "queued" || run.status === "running" || run.status === "waiting" ? "active" : run.status);
   }
+  isActiveThread(threadId: string): boolean {
+    return this.runs.some(run => run.threadId === threadId && ["running", "waiting"].includes(run.status));
+  }
+
+  readonly emailDeliveries = new RoutineEmailDeliveries(() => this.runs, write => { this.assertWritable(); this.commitMutation(write); }, () => this.now());
 
   runForThread(threadId: string): RoutineRun | null {
     const run = this.runs.findLast((candidate) => candidate.threadId === threadId && ["running", "waiting"].includes(candidate.status)) ??
@@ -482,9 +472,13 @@ export class RoutineManager {
     return run ? cloneRun(run) : null;
   }
 
-  noteReport(id: string, report: RoutineRunReport | undefined): RoutineRun | null {
+  noteReport(id: string, report: RoutineRunReport | undefined, deliveryError?: string): RoutineRun | null {
     const run = this.runs.find((candidate) => candidate.id === id);
     if (!run) return null;
+    if (deliveryError && run.deliverables && run.status === "completed") {
+      run.status = "failed";
+      run.error = deliveryError;
+    }
     if (report) run.report = report;
     else delete run.report;
     this.saveLater();
@@ -570,6 +564,7 @@ export class RoutineManager {
       overlap: Object.hasOwn(patch, "overlap") ? patch.overlap : routine.overlap,
       runOnStartup: patch.runOnStartup ?? routine.runOnStartup,
       checks: Object.hasOwn(patch, "checks") ? patch.checks : routine.checks,
+      deliverables: Object.hasOwn(patch, "deliverables") ? patch.deliverables : routine.deliverables,
       access: Object.hasOwn(patch, "access") ? patch.access : routine.access,
       deliver: Object.hasOwn(patch, "deliver") ? patch.deliver : routine.deliver,
     }, now);
@@ -597,7 +592,7 @@ export class RoutineManager {
         updatedAt: Math.max(now, routine.updatedAt + 1),
       });
       if (patch.enabled !== undefined) delete routine.heldFor;
-      for (const key of ["continuity", "sameConversation", "modelSelection", "overlap", "runOnStartup", "access", "deliver"] as const) if (!clean[key]) delete routine[key];
+      for (const key of ["continuity", "sameConversation", "modelSelection", "overlap", "runOnStartup", "access", "deliver", "deliverables"] as const) if (!clean[key]) delete routine[key];
       if (!clean.checks) for (const key of ["checks", "checkedAt", "checkTrouble", "checkTroubleCode", "checkRepairApp", "wakeAt"] as const) delete routine[key];
       if (Object.hasOwn(patch, "timeoutMinutes") && patch.timeoutMinutes == null) {
         delete routine.timeoutMinutes;
@@ -1173,7 +1168,7 @@ export class RoutineManager {
             await this.options.startTurn(
               run.botId,
               task.threadId,
-              startPrompt(run, prompt, composeExecutionPrompt({ id: run.routineId, name: run.routineName, trigger: triggerSource, runOn: run.runOn ?? "maus" }, prompt, run.attachments, continuityCarry(run, this.routines, this.runs)), (first) => this.options.promptSaid?.(task.threadId, first) === true),
+              startPrompt(run, prompt, composeExecutionPrompt({ id: run.routineId, name: run.routineName, trigger: triggerSource, runOn: run.runOn ?? "maus" }, run.deliverables ? prompt + "\n\n" + RECONCILIATION_DELIVERY_PROMPT : prompt, run.attachments, continuityCarry(run, this.routines, this.runs)), (first) => this.options.promptSaid?.(task.threadId, first) === true),
               run.runOn ?? "maus",
               triggerSource,
               (message) => this.failThread(task.threadId, message, { cause: "refused" }), run.retried === "restarted",
@@ -1284,7 +1279,8 @@ export class RoutineManager {
       }
       this.failureFacts.delete(run.id);
       const waitsOnTeammates = this.options.hasPendingDelegations?.(event.threadId) === true, handoffRefused = waitsOnTeammates ? null : this.options.refusedHandoff?.(event.threadId);
-      if (handoffRefused) { this.failRun(Object.assign(run, { partial: Boolean(run.output) || undefined }), handoffRefused); queueMicrotask(() => this.tickInBackground()); return cloneRun(run); }
+      const deliveryError = !waitsOnTeammates && run.deliverables ? (this.options.incompleteDelivery ? this.options.incompleteDelivery(run, event.turnId) : "Deliverables could not be verified.") : null;
+      if (handoffRefused || deliveryError) { this.failRun(Object.assign(run, { partial: Boolean(run.output) || undefined }), (handoffRefused ?? deliveryError)!); queueMicrotask(() => this.tickInBackground()); return cloneRun(run); }
       if (waitsOnTeammates) this.wait(run, ROUTINE_HANDOFF_WAIT);
       else { Object.assign(run, { status: "completed", attention: undefined, finishedAt: this.now() } satisfies Partial<RoutineRun>); this.ownerNotices = this.ownerNotices.filter((notice) => notice.botId !== run.botId); }
       run.error = undefined;
@@ -1375,9 +1371,12 @@ export class RoutineManager {
   private failRun(run: RoutineRun, message: string, status: "failed" | "missed" = "failed", alert?: RoutineAlert | null) {
     Object.assign(run, { status, attention: undefined, error: redactSecretsInText(message).slice(0, 500), finishedAt: this.now() } satisfies Partial<RoutineRun>);
     const routine = this.routines.find((candidate) => candidate.id === run.routineId), spaced = status === "failed" ? noStartAlert(routine, this.runs, run) ?? failureSpacingAlert(routine, this.runs, run) : undefined;
+    const repeat = status === "failed" && !incidentReminderDue(this.runs, run);
+    const quietCheck = run.checkKey !== undefined && outcomesNewestFirst(this.runs, run.routineId, run.id)[0]?.status === "failed";
+    const notice = spaced ?? (alert === undefined && (repeat || quietCheck) ? null : alert);
+    if (status === "failed" && notice !== null) run.incidentReminderAt = run.finishedAt;
     this.saveLater(); this.emitRun(run);
-    const repeat = failsLikeLastOutcome(this.runs, run) || (run.checkKey !== undefined && outcomesNewestFirst(this.runs, run.routineId, run.id)[0]?.status === "failed");
-    this.options.onRunFailed?.(cloneRun(run), spaced ?? (alert === undefined && repeat ? null : alert));
+    this.options.onRunFailed?.(cloneRun(run), notice);
   }
 
   private advancePastOccurrence(routine: Routine, now: number, occurrence: number) {
@@ -1507,11 +1506,7 @@ export class RoutineManager {
 
   /** Rolls memory back when the write fails, so a retry never mistakes an uncommitted action for a durable one. */
   private commitMutation(mutate: () => void, rollback?: () => void): void {
-    const before = {
-      routines: this.routines.map(cloneRoutine),
-      runs: this.runs.map(cloneRun),
-      receipts: this.routineRequestReceipts.map((receipt) => ({ ...receipt })),
-    };
+    const before = { routines: this.routines.map(cloneRoutine), runs: this.runs.map(cloneRun), receipts: this.routineRequestReceipts.map(receipt => ({ ...receipt })) };
     try {
       mutate();
       this.save();

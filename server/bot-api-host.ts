@@ -8,11 +8,11 @@ import { z } from "zod";
 import { redactSecretsInText } from "../shared/redact.ts";
 import { BOT_API_UPGRADE, botApiEndpoint, type BotApiReply } from "../shared/bot-api.ts";
 import type { AdminActionRow } from "./admin-activity.ts";
-import { BOT_API_MAX_MESSAGE_CHARS, BOT_API_MAX_PENDING, BotApiManager, botApiOwnerPrompt, botApiPrompt, withoutAttachedImages, type BotApiAttempt, type BotApiStatus } from "./bot-api.ts";
+import { BOT_API_MAX_MESSAGE_CHARS, BOT_API_MAX_PENDING, BotApiManager, botApiOwnerPrompt, botApiPrompt, withoutAttachedImages, hashBotApiKey, type BotApiReceipt, type BotApiAttempt, type BotApiStatus } from "./bot-api.ts";
 import { personKey } from "./person-key.ts";
 import type { RequestAuth } from "./request-auth.ts";
 import { PASS, type RouteHandler } from "./routes/table.ts";
-import { parseJson, schemaIssue } from "./schema.ts";
+import { parseJson, schemaIssue, type JsonObject } from "./schema.ts";
 import type { Message, Store } from "./store.ts";
 import { bearerSecret, header, json, readRawBody, type IngressDoor } from "./webhook-ingress.ts";
 
@@ -121,6 +121,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
   const waitMs = deps.waitMs ?? BOT_API_DEFAULT_WAIT_MS;
   /** Turns the API started that have not settled, per bot: the pending cap counts these. */
   const running = new Map<string, Set<string>>();
+  const activeReceipts = new WeakSet<BotApiReceipt>();
   deps.store.onChange((change) => { if (change.type === "bot.deleted") manager.removeForBot(change.botId); });
 
   const included = () => deps.included?.() !== false;
@@ -149,7 +150,33 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     return { reply: replyText(after), thread: threadId };
   }
 
-  async function runCall(botId: string, call: z.output<typeof callSchema>, turnStarted: () => void, keyAsOwner: boolean): Promise<{ status: number; body: BotApiReply }> {
+  function receiptMessages(threadId: string, messageId: string) {
+    const lines = deps.store.messagesFor(threadId);
+    const index = lines.findIndex(line => line.id === messageId && line.role === "user" && line.via === "api");
+    if (index < 0) return null;
+    const rest = lines.slice(index + 1);
+    const next = rest.findIndex(line => line.role === "user");
+    return next < 0 ? rest : rest.slice(0, next);
+  }
+
+  function replay(botId: string, row: BotApiReceipt, input: string, owner: boolean): { status: number; body: JsonObject } {
+    if (row.input !== input) return { status: 409, body: { error: "This Idempotency-Key was used for different input." } };
+    if (row.owner && !owner) return { status: 403, body: { error: NO_LONGER_OWNER } };
+    const thread = row.thread;
+    const task = thread ? deps.store.taskByThread(botId, thread) : undefined;
+    if (thread && (!task?.botApi || (task.botApiAsOwner && !owner))) return { status: 404, body: { error: "Request conversation unavailable." } };
+    const messages = thread && row.message ? receiptMessages(thread, row.message) : null;
+    if (row.failed) return { status: 502, body: thread ? { error: COULD_NOT_ANSWER, thread } : { error: COULD_NOT_ANSWER } };
+    if (messages && thread) {
+      if (pendingCard(messages)) return { status: 202, body: { status: "needs_approval", thread } };
+      const reply = replyText(messages);
+      if (row.replyHash && row.replyHash === hashBotApiKey(reply)) return { status: 200, body: { thread, reply } };
+      if (!row.replyHash && activeReceipts.has(row)) return { status: 202, body: { status: "working", thread } };
+    }
+    return { status: 202, body: thread ? { status: "unconfirmed", thread } : { status: "unconfirmed" } };
+  }
+
+  async function runCall(botId: string, call: z.output<typeof callSchema>, turnStarted: () => void, keyAsOwner: boolean, reserve?: (owner: boolean) => BotApiReceipt): Promise<{ status: number; body: BotApiReply }> {
     const store = deps.store;
     let threadId = call.thread;
     let owned = keyAsOwner;
@@ -162,6 +189,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
       if (deps.threadBusy(botId, threadId)) return { status: 409, body: { thread: threadId, status: "working" } };
     }
     if (!deps.canStart(botId, threadId ?? "")) fail(409, BUSY, "The bot already had as many conversations going as it may");
+    const receipt = reserve?.(owned);
     const message = withoutAttachedImages(call.message);
     let opened = false;
     if (threadId === undefined) {
@@ -174,17 +202,32 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     }
     const receivedAt = Date.now();
     const userMessage = store.appendMessage(threadId, { role: "user", kind: "text", text: message, via: "api", ...(owned ? { apiAsOwner: true as const } : {}) });
-    const after = () => { const all = store.messagesFor(threadId!); return all.slice(all.findIndex((line) => line.id === userMessage.id) + 1); };
+    if (receipt) manager.updateReceipt(botId, receipt, { thread: threadId, message: userMessage.id });
+    const after = () => receiptMessages(threadId!, userMessage.id) ?? [];
     let settled: TurnOutcome | undefined;
     let dispatchError: string | undefined;
+    function finishReceipt(outcome: TurnOutcome) {
+      if (!receipt) return;
+      activeReceipts.delete(receipt);
+      try {
+        manager.updateReceipt(botId, receipt, outcome.ok ? { replyHash: hashBotApiKey(replyText(after())) } : { failed: true });
+      } catch {
+        // The durable reservation still suppresses redispatch. A restart can return unconfirmed.
+      }
+    }
+    if (receipt) activeReceipts.add(receipt);
     markRunning(botId, threadId, true);
     try {
       await deps.startTurn(botId, owned ? botApiOwnerPrompt(message) : botApiPrompt(message, receivedAt), {
         threadId, automationSource: "api", unattended: true, userMessage,
-        onSettled: (outcome) => { settled = outcome; markRunning(botId, threadId!, false); },
-        onDispatchError: (message) => { dispatchError = message; markRunning(botId, threadId!, false); },
+        onSettled: (outcome) => {
+          settled = outcome; markRunning(botId, threadId!, false);
+          finishReceipt(outcome);
+        },
+        onDispatchError: (message) => { dispatchError = message; markRunning(botId, threadId!, false); finishReceipt({ ok: false, text: message }); },
       });
     } catch (error) {
+      if (receipt) activeReceipts.delete(receipt);
       markRunning(botId, threadId, false);
       if (opened) deps.discard?.(botId, threadId);
       const capped = z.object({ code: z.literal("spend_cap"), message: z.string(), resetsAt: z.number().optional() }).safeParse(error);
@@ -206,7 +249,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     return { status: 200, body: { reply: replyText(after()), thread: threadId } };
   }
 
-  const accessNow = (botId: string, key: string): { owner: boolean } | { status: 401 | 403; error: string } => {
+  const accessNow = (botId: string, key: string, requireConfined: boolean): { owner: boolean } | { status: 401 | 403; error: string } => {
     const denied = (status: 401 | 403, error: string) => {
       if (deps.store.bot(botId)) manager.recordRefused(botId, status, error);
       return { status, error };
@@ -215,6 +258,7 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     if (!manager.authorize(botId, key)) return denied(401, "Invalid key");
     if (!included()) return denied(403, BOT_API_UPGRADE);
     const owner = asOwner(botId);
+    if (owner && requireConfined) return denied(403, "This integration requires a confined Bot API key");
     return !owner && !deps.canConfine(botId) ? denied(403, CANNOT_CONFINE) : { owner };
   };
 
@@ -233,7 +277,8 @@ export function createBotApiHost(deps: BotApiHostDeps) {
     // A call can wait minutes for its reply: the claim that holds off maintenance ends once the turn has started.
     const release = () => { claim?.(); claim = undefined; };
     try {
-      let access = accessNow(botId, bearerSecret(req));
+      const requireConfined = header(req, "x-startupbot-require-confined") === "1";
+      let access = accessNow(botId, bearerSecret(req), requireConfined);
       if ("error" in access) { json(res, access.status, { error: access.error }); return true; }
       if (req.method === "GET") {
         const threadId = url.searchParams.get("thread") ?? "";
@@ -259,9 +304,19 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         json(res, status, { error: message });
         return true;
       }
-      access = accessNow(botId, bearerSecret(req));
+      access = accessNow(botId, bearerSecret(req), requireConfined);
       if ("error" in access) { json(res, access.status, { error: access.error }); return true; }
       const keyAsOwner = access.owner;
+      const requestKey = header(req, "idempotency-key");
+      if (requestKey !== undefined && !/^[A-Za-z0-9._:-]{1,128}$/.test(requestKey)) {
+        json(res, 400, { error: "Invalid Idempotency-Key." }); return true;
+      }
+      const fingerprint = hashBotApiKey(JSON.stringify([call.thread ?? null, call.message]));
+      const prior = requestKey && manager.receipt(botId, requestKey);
+      if (prior) {
+        const answer = replay(botId, prior, fingerprint, keyAsOwner);
+        json(res, answer.status, answer.body); return true;
+      }
       if (!manager.admit(botId)) {
         manager.record(botId, { outcome: "rejected", statusCode: 429, reason: "Rate limit exceeded", preview: call.message });
         json(res, 429, { error: "Too many calls: this key takes 10 a minute" });
@@ -273,7 +328,13 @@ export function createBotApiHost(deps: BotApiHostDeps) {
         return true;
       }
       try {
-        const answer = await runCall(botId, call, release, keyAsOwner);
+        const reserve = requestKey ? (owner: boolean) => manager.reserve(botId, requestKey, fingerprint, owner) : undefined;
+        const answer = await runCall(botId, call, release, keyAsOwner, reserve);
+        const finalAccess = accessNow(botId, bearerSecret(req), requireConfined);
+        if ("error" in finalAccess) { json(res, finalAccess.status, { error: finalAccess.error }); return true; }
+        if (!finalAccess.owner && deps.store.taskByThread(botId, answer.body.thread)?.botApiAsOwner) {
+          json(res, 403, { error: NO_LONGER_OWNER }); return true;
+        }
         manager.record(botId, { outcome: "accepted", statusCode: answer.status, threadId: answer.body.thread, preview: call.message,
           ...(deps.store.taskByThread(botId, answer.body.thread)?.botApiAsOwner ? { asOwner: true as const } : {}),
           reason: "reply" in answer.body ? "Replied" : answer.body.status === "needs_approval" ? "Stopped at an approval" : "Still working" });

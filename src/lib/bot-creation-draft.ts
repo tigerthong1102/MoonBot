@@ -10,7 +10,7 @@ export const EMPTY_BOT_DEFAULTS: NewBotDefaults = { profile: {}, memory: {}, ski
 
 const routineTemplate = (routine: Routine): BotRoutineTemplate => ({
   name: routine.name, prompt: routine.prompt, schedule: routine.schedule,
-  enabled: routine.enabled, runOn: routine.runOn, durationMinutes: routine.durationMinutes,
+  enabled: routine.enabled, ...(routine.deliverables ? { deliverables: routine.deliverables } : {}), runOn: routine.runOn, durationMinutes: routine.durationMinutes,
   timeoutMinutes: routine.timeoutMinutes, overlap: routine.overlap,
   attachments: routine.attachments,
 });
@@ -101,6 +101,7 @@ export class BotCreationDraft {
     return {
       id: previous?.id ?? `draft-${randomUuid()}`, createdAt: previous?.createdAt ?? Date.now(),
       updatedAt: Date.now(), nextRunAt: null, runOn: "maus", ...previous, ...fields,
+      deliverables: input.deliverables === undefined ? previous?.deliverables : input.deliverables ?? undefined,
       enabled: input.enabled ?? previous?.enabled ?? true, target: "bot", botId: this.id,
       timeoutMinutes: input.timeoutMinutes ?? undefined,
       durationMinutes: input.durationMinutes ?? previous?.durationMinutes ?? 30,

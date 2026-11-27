@@ -30,8 +30,10 @@ export const CHECKS_FILE = "routine-checks.json";
 
 const at = z.number().finite().nonnegative();
 const id = z.string().min(1).max(512);
+const mailboxVersion = z.object({ address: z.string().min(1).max(320), revision: z.string().regex(/^\d{1,32}$/u) });
 const pendingSchema = z.object({
   at,
+  mailboxVersion: mailboxVersion.optional(),
   mailCursor: at.optional(), mail: z.array(id).max(200), prep: z.array(id).max(50), runsCursor: at.optional(),
   /** The threads a draft may answer, each to its own sender: the run's emails, nothing else. */
   replies: z.array(z.object({ threadId: id, to: z.string().max(320) })).max(200),
@@ -39,6 +41,7 @@ const pendingSchema = z.object({
 });
 const failureSchema = z.object({ since: at, count: z.number().int().min(1), signedOut: z.boolean().optional(), lastAt: at });
 const routineStateSchema = z.object({
+  mailboxVersion: mailboxVersion.optional(),
   mailCursor: at.optional(),
   judged: z.array(id).max(MAX_JUDGED).optional(),
   meetings: z.record(id, z.object({ start: at, fingerprint: z.string().max(64), prepStartedAt: at.optional(), preppedAt: at.optional(), remindedAt: at.optional() })).optional(),
@@ -172,6 +175,7 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
     if (!owner) return;
     const [routineId, pending] = owner;
     const entry = of(routineId);
+    if (pending.mailboxVersion) entry.mailboxVersion = pending.mailboxVersion;
     if (pending.replies.length) deps.sorted?.(routineId, pending.replies.length);
     if (pending.mailCursor !== undefined) entry.mailCursor = Math.max(entry.mailCursor ?? 0, pending.mailCursor);
     if (pending.runsCursor !== undefined) entry.runsCursor = Math.max(entry.runsCursor ?? 0, pending.runsCursor);
@@ -209,6 +213,7 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
     const at = now();
     for (const [key, pending] of Object.entries(entry.pending ?? {})) {
       const run = deps.runs().find((candidate) => candidate.checkKey === key);
+      if (pending.mailboxVersion && run?.status === "completed" && run.deliver !== "brief") { commit(key); continue; }
       if ((run && !ACTIVE.has(run.status)) || (!run && at - pending.at > PENDING_MS)) release(key);
     }
     // The first check fixes where mail is watched from, so mail a failed read or run gave back is read again.
@@ -221,13 +226,34 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
     const pending: Omit<Pending, "at"> = { mail: [], prep: [], replies: [] };
     const held = new Set(Object.values(entry.pending ?? {}).flatMap((one) => [...one.mail, ...one.prep]));
     let wakeAt: number | undefined;
-    const apps = checks.includes("calendar") || checks.includes("mail") ? await deps.reads.connected().catch(() => null) : null;
+    const apps = checks.some(c => c !== "runs") ? await deps.reads.connected().catch(() => null) : null;
     const session = deps.reads.session();
     report.session = session;
     const readable = (app: ReadApp): boolean => apps?.[app] === true && deps.mayRead(routine.botId, app) && !trouble.some((one) => one.app === app) &&
       (context.manual || !readsBackOff(entry, app));
-    if (readable("gmail") && entry.address === undefined) {
+    if ((checks.includes("calendar") || checks.includes("mail")) && readable("gmail") && entry.address === undefined) {
       try { entry.address = await session.address(); } catch (error) { trouble.push(failed(entry, "gmail", error)); }
+    }
+
+    if (checks.includes("gmail-revision")) {
+      if (!apps?.gmail || !deps.mayRead(routine.botId, "gmail") || !session.mailboxRevision) {
+        trouble.push({ app: "gmail", signedOut: apps?.gmail === false });
+      } else if (!readable("gmail")) {
+        if (!trouble.some(e => e.app === "gmail")) trouble.push({ app: "gmail", signedOut: entry.failures?.gmail?.signedOut === true });
+      } else if (!Object.values(entry.pending ?? {}).some(p => p.mailboxVersion)) {
+        try {
+          const next = await session.mailboxRevision();
+          succeeded(entry, "gmail");
+          if (entry.mailboxVersion?.address !== next.address) {
+            entry.mailboxVersion = next;
+          } else if (entry.mailboxVersion.revision !== next.revision && aiAllowed) {
+            items.mailboxChanged = true;
+            pending.mailboxVersion = next;
+          }
+        } catch (error) {
+          trouble.push(failed(entry, "gmail", error));
+        }
+      }
     }
 
     if (checks.includes("calendar") && readable("googlecalendar")) {
@@ -349,7 +375,7 @@ export function createRoutineChecks(deps: RoutineChecksDeps): RoutineChecks & {
     if (apps) report.gmail = { connected: apps.gmail === true, ...(entry.address ? { address: entry.address } : {}) };
     if (trouble.length) report.trouble = trouble;
     let run: RoutineCheckResult["run"];
-    const work = brief ? items.mail.length + items.prep.length : items.mail.length + items.prep.length + items.runs.length;
+    const work = brief ? items.mail.length + items.prep.length : items.mail.length + items.prep.length + items.runs.length + Number(!!items.mailboxChanged);
     if (work > 0) {
       const key = `chk-${randomUUID()}`;
       entry.pending = { ...entry.pending, [key]: { at, ...pending } };

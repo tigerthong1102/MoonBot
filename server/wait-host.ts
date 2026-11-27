@@ -4,7 +4,7 @@ import type { Notification } from "../shared/notification.ts";
 import { buildNotification } from "./notify.ts";
 import type { RoutineManager, RoutineRun } from "./routines.ts";
 import type { BotRecord, Store } from "./store.ts";
-import type { WaitManager, WaitManagerOptions } from "./waits.ts";
+import type { WaitManager, WaitManagerOptions, WaitRecord } from "./waits.ts";
 
 export interface WaitHostDeps {
   store: Pick<Store, "appendMessage" | "patchMessage" | "patchTask" | "messagesFor" | "bot">;
@@ -52,6 +52,20 @@ export function cancelWaitFromCard(
 export function createWaitHost(deps: WaitHostDeps): Pick<WaitManagerOptions, "sourceAlive" | "botBusy" | "post" | "followUp" | "showCard" | "settleCard"> {
   const { store } = deps;
   const now = deps.now ?? Date.now;
+  const batches = new Map<string, Array<{ text: string; failed: boolean }>>();
+  function notifyRun(bot: BotRecord, wait: WaitRecord, text: string, failed: boolean) {
+    const key = JSON.stringify([bot.id, wait.threadId]);
+    const batch = batches.get(key);
+    if (batch) { batch.push({ text, failed }); return; }
+    const notices = [{ text, failed }];
+    batches.set(key, notices);
+    queueMicrotask(() => {
+      batches.delete(key);
+      if (!deps.directChat(bot.id, wait.threadId)) return;
+      const detail = notices.sort((a, b) => Number(b.failed) - Number(a.failed)).map(item => item.text).join(" · ");
+      deps.notify(buildNotification("wait", bot, wait.threadId, detail, { avatarUrl: bot.avatarUrl }));
+    });
+  }
   return {
     sourceAlive: (botId, threadId) => store.bot(botId) !== null && deps.directChat(botId, threadId),
     botBusy: (botId) => {
@@ -68,7 +82,8 @@ export function createWaitHost(deps: WaitHostDeps): Pick<WaitManagerOptions, "so
       store.appendMessage(wait.threadId, { role: "bot", kind: "text", text: notice.text, textCode: words?.key, textParams: words?.params && redactParams(words.params), wait: { id: wait.id, status: notice.status } });
       store.patchTask(wait.botId, wait.threadId, { unread: true });
       deps.wrote(bot, wait.threadId);
-      if (notice.status === "fired") deps.notify(buildNotification("wait", bot, wait.threadId, notice.text, { avatarUrl: bot.avatarUrl }));
+      if (notice.runState) notifyRun(bot, wait, notice.text, notice.runState !== "completed");
+      else if (notice.status === "fired") deps.notify(buildNotification("wait", bot, wait.threadId, notice.text, { avatarUrl: bot.avatarUrl }));
       return true;
     },
     followUp(wait) {
@@ -92,7 +107,7 @@ export function createWaitHost(deps: WaitHostDeps): Pick<WaitManagerOptions, "so
         kind: "options",
         card: {
           title: `Waiting: ${wait.label}`,
-          subtitle: `Then ${bot.name} will: ${wait.followUp}`,
+          subtitle: wait.followUp ? `Then ${bot.name} will: ${wait.followUp}` : wait.label,
           options: [],
           answered: "allow",
           dismissed: true,

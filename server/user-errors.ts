@@ -33,7 +33,7 @@ export const USER_ERROR = {
   "serverError.team.signInFirst": "Sign in to {team} in the app first.",
   "serverError.team.ownAppsNeedKey": "Your own apps can't be connected on {team} yet. Ask an admin to add the team's Composio key.",
   "serverError.chat.ownerOrAdmin": "Only the owner or an admin can do that.",
-  "serverError.routine.checks": "Choose checks from calendar, mail and runs",
+  "serverError.routine.checks": "Choose checks from calendar, mail and runs, or gmail-revision",
   "serverError.routine.checksRepeat": "Checks need a bot routine that repeats",
   "serverError.routine.access": "Choose read-and-draft access or none",
   "serverError.routine.deliver": "Only a bot routine can deliver to the brief",

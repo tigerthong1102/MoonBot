@@ -18,13 +18,13 @@ const dirs: string[] = [];
 // The decision log is appended to after a call answers, so a folder may still be written as it goes.
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 }); });
 
-async function fixture(run: EmailHostDeps["run"] = {}, bot: EmailBot | null = { id: "b1", name: "Ada", color: "blue" }, connected = true) {
+async function fixture(run: EmailHostDeps["run"] = {}, bot: EmailBot | null = { id: "b1", name: "Ada", color: "blue" }, connected = true, internalDelivery?: EmailHostDeps["internalDelivery"]) {
   const dataDir = mkdtempSync(join(tmpdir(), "omb-mail-host-")); dirs.push(dataDir);
   const service = createEmailService({ dataDir, publicOnly: false, guard: openGuard, discover: { fetchText: async () => null, mx: async () => [], srv: async () => [], cname: async () => [], reverse: async () => [] }, test: { mailbox: (async () => ({ messages: 1 })) as never, sending: (async () => {}) as never } });
   if (connected) await service.connect({ address: "me@shop.example", password: PASSWORD });
   const marked: string[] = [];
   const rows: Array<Record<string, unknown>> = [];
-  const host = createEmailHost({ service, dataDir, bot: () => bot, inRoom: () => false, appendMessage: (_thread, message) => rows.push(message), markOutside: (threadId) => marked.push(threadId), run });
+  const host = createEmailHost({ internalDelivery, service, dataDir, bot: () => bot, inRoom: () => false, appendMessage: (_thread, message) => rows.push(message), markOutside: (threadId) => marked.push(threadId), run });
   const call = (name: string, args: Record<string, unknown> = {}) => host.handle({ method: "tools/call", params: { name, arguments: args } }, { botId: "b1", threadId: "t1" }, () => {}) as Promise<EmailToolResult>;
   return { host, service, marked, rows, call, dataDir };
 }
@@ -50,6 +50,18 @@ describe("a turn's Email tools", () => {
     expect([existsSync(one), existsSync(two), existsSync(three)]).toEqual([false, true, false]);
     change({ type: "thread.deleted", threadId: "../../secrets" });
     expect(existsSync(two)).toBe(true);
+  });
+
+  it("preserves mailbox reads and refuses external delivery from contracted runs even without a receipt flag", async () => {
+    let sends = 0;
+    const { call } = await fixture({ ...ALL_READS, sendMessage: async () => { sends++; return { messageId: "x", accepted: [], rejected: [], filed: true }; } }, undefined, true, turn => turn.threadId === "t1");
+    expect((await call("EMAIL_LIST_MAILBOXES")).isError).toBeUndefined();
+    for (const flags of [{}, { report_delivery: true }]) {
+      const result = await call("EMAIL_SEND_MESSAGE", { to: ["a@b.example"], subject: "Reconciliation", text: "Preview", ...flags });
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toContain("selected StartupBot conversation");
+    }
+    expect(sends).toBe(0);
   });
 
   it("every read marks the conversation as outside work, before the mail comes back", async () => {

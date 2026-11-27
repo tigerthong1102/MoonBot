@@ -11,6 +11,7 @@ export const PREP_MAX = 1_200;
 const NEVER_ACT = "Never send, forward, reply, book, accept, decline, delete or change anything, and do not search the web or open links: read, and nothing else.";
 
 export interface CheckItems {
+  mailboxChanged?: boolean;
   mail: EmailHeader[];
   prep: Array<{ key: string; event: CalendarEvent; short: boolean }>;
   runs: RoutineRun[];
@@ -82,6 +83,7 @@ export function checkedPrompt(input: { instructions: string; items: CheckItems; 
   return [
     input.instructions.trim(),
     "Since the last check, the routine's checks found:",
+    ...(items.mailboxChanged ? ["The connected Gmail mailbox revision changed."] : []),
     ...(items.mail.length ? ["New emails:", emailRecords(items.mail)] : []),
     ...(items.prep.length ? ["Meetings with other people starting soon:", meetingRecords(items.prep, input.timeZone)] : []),
     ...(items.runs.length ? ["Other routines that finished:", runRecords(items.runs)] : []),

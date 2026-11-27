@@ -274,6 +274,7 @@ function flattenSummary(input, prefix = "", depth = 0, out = {}) {
 export function buildDiagnosticsReport({
   appInfo = {},
   configSummary = {},
+  components = [],
   desktopLogTail,
   updaterLogTail,
   logTail,
@@ -290,6 +291,11 @@ export function buildDiagnosticsReport({
     lines.push(`${key}=${String(appInfo[key])}`);
   }
   lines.push("");
+  if (components.length) {
+    lines.push("## Installed components");
+    for (const { component, status, version } of components) lines.push(component + "=" + status + (version ? " (" + version + ")" : ""));
+    lines.push("");
+  }
   lines.push("## Configuration");
   lines.push("# presence/count/mode only — credentials stay OS-encrypted and are never read");
   const summary = flattenSummary(configSummary);
@@ -372,4 +378,34 @@ export function appendDesktopCrashRecord(file, maxBytes, record) {
   } finally {
     if (handle !== null) { try { fs.closeSync(handle); } catch {} }
   }
+}
+
+// Everything the bug-report bundle needs: config is booleans only and the log is redacted, since it is pasted into public issues.
+export async function gatherDesktopDiagnostics({ app, port, logDir, crashLog }) {
+  const { packageComponents } = await import("./package-components.mjs");
+  const serverStatus = await fetch(`http://127.0.0.1:${port}/api/config`, {
+    signal: AbortSignal.timeout(3_000),
+  })
+    .then((res) => (res.ok ? res.json() : null))
+    .catch(() => null);
+  const performance = await fetch(`http://127.0.0.1:${port}/api/diagnostics/performance`, { signal: AbortSignal.timeout(3_000) }).then((res) => (res.ok ? res.json() : null)).then((body) => (typeof body?.text === "string" ? body.text : "")).catch(() => "");
+  const log = readSafeLogTail(path.join(logDir, "server.log"));
+  const desktopLog = readSafeLogTail(crashLog);
+  const updaterLog = readSafeLogTail(path.join(logDir, "updater.log"));
+  return buildDiagnosticsReport({
+    appInfo: {
+      version: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      electron: process.versions.electron,
+      node: process.versions.node,
+      packaged: app.isPackaged,
+      uptimeSeconds: Math.round(process.uptime()),
+    },
+    components: app.isPackaged ? packageComponents(process.resourcesPath, process.platform) : [],
+    configSummary: serverStatus ?? {}, performance,
+    desktopLogTail: desktopLog?.tail ?? "",
+    updaterLogTail: updaterLog?.tail ?? "",
+    logTail: log?.tail ?? "",
+  });
 }

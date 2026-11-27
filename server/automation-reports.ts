@@ -8,6 +8,8 @@ import { liveCardKind } from "../shared/live-approval.ts";
 import type { AutomationLine } from "../shared/routine-run.ts";
 import { ROUTINE_HANDOFF_WAIT } from "../shared/routines.ts";
 import { signInWaits } from "../shared/sign-in-request.ts";
+import { ATTACHMENTS_DIR } from "./config.ts";
+import { incompleteReconciliation, reconciliationFiles } from "./routine-deliverables.ts";
 import { intlLocale } from "./language.ts";
 import { needsInputQuestion } from "./runtime-coordinator.ts";
 import type { RoutineManager, RoutineRun } from "./routines.ts";
@@ -147,7 +149,7 @@ export function createAutomationReports(deps: AutomationReportDeps) {
     return lines.flatMap((message) => message.attachments ?? []).filter((file) => file.kind !== "image" || !file.fromTool);
   };
 
-  const read = (run: RoutineRun, message: Message | undefined) => readRunReply(message?.text ?? "", sentWith(run, message).length > 0);
+  const read = (run: RoutineRun, message: Message | undefined) => run.deliverables && run.status === "completed" ? { quiet: false as const, text: message?.text || run.routineName } : readRunReply(message?.text ?? "", sentWith(run, message).length > 0);
 
   /** The automation's line before this run's in the chat, written or still waiting ahead of it, says a run failed. */
   const lastSaidFailed = (run: RoutineRun, threadId: string): boolean => {
@@ -180,7 +182,7 @@ export function createAutomationReports(deps: AutomationReportDeps) {
     const { run } = line;
     const target = destination(run);
     if (!target) {
-      if (line.kind !== "card") deps.routines()?.noteReport(run.id, undefined);
+      if (line.kind !== "card") deps.routines()?.noteReport(run.id, undefined, line.kind === "reply" && run.deliverables ? "The results conversation is unavailable." : undefined);
       return true;
     }
     if (deps.busy(target.bot.id, target.threadId)) return false;
@@ -195,6 +197,15 @@ export function createAutomationReports(deps: AutomationReportDeps) {
       return true;
     }
     const source = line.kind === "reply" ? replyOf(run, line.messageId) : undefined;
+    const contractedFiles = line.kind === "reply" && run.deliverables && run.threadId
+      ? reconciliationFiles(store.activePath(run.threadId), source && turnOfLine(source)) : undefined;
+    if (contractedFiles) {
+      const problem = incompleteReconciliation(ATTACHMENTS_DIR, contractedFiles);
+      if (problem) {
+        deps.routines()?.noteReport(run.id, { state: "pending" }, problem);
+        line = { kind: "failure", run, detail: problem };
+      }
+    }
     const language = deps.threadLanguage?.(target.threadId);
     const said: RunReply = line.kind === "reply" ? read(run, source)
       : { quiet: false, text: line.detail ? serverLine(language, run.partial ? "server.runs.partlyDoneWhy" : "server.runs.didNotFinishWhy", { detail: line.detail }) : serverLine(language, "server.runs.didNotFinish") };
@@ -204,7 +215,7 @@ export function createAutomationReports(deps: AutomationReportDeps) {
       return true;
     }
     const reply: Extract<RunReply, { quiet: false }> = said.quiet ? { quiet: false, text: recoveredText(run.routineName, run.finishedAt ?? Date.now(), language) } : said;
-    const files = recovered ? [] : sentWith(run, source);
+    const files = recovered || line.kind === "failure" ? [] : contractedFiles ?? sentWith(run, source);
     const posted = store.appendMessage(target.threadId, {
       role: "bot", kind: "text", text: reply.text,
       ...(files.length ? { attachments: files } : {}),
@@ -265,6 +276,11 @@ export function createAutomationReports(deps: AutomationReportDeps) {
   });
 
   return {
+    incompleteDelivery(run: RoutineRun, turnId?: string): string | null {
+      if (!destination(run)) return "The results conversation is unavailable.";
+      const files = run.threadId ? reconciliationFiles(store.activePath(run.threadId), turnId) : [];
+      return incompleteReconciliation(ATTACHMENTS_DIR, files);
+    },
     flush,
     /** A run's turn ended: once the run is complete, its reply becomes one line in the chat it reports to, or nothing. */
     runSettled(run: RoutineRun, turnId?: string): void {

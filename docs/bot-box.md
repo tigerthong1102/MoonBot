@@ -132,3 +132,20 @@ everything the server reads from the workspaces) which is a slice of its own, an
 sees the box as `maus` anyway. **nftables** rules would add nothing to a box with its own network namespace, and for
 the whole machine they would have to allow Fly's resolver on the private network; left for the separate-user design.
 `OMB_CLOUD_HARDEN=0` skips the two supervisor steps if a machine ever needs that.
+
+## Read-only CSV jobs on Modal
+
+An optional standalone worker reads one UTF-8 CSV up to 1 MiB. It returns the input digest, column count, data row count and number of inconsistent rows. The deployment uses zero minimum containers, one maximum container, a two-second scaledown window, 0.125 CPU, 256 MiB memory and a 30-second function timeout. It has no persistent volume, secrets or outbound network access. See [Modal autoscaling](https://modal.com/docs/guide/scale) for the provider's idle-window behavior.
+
+Install the same Modal SDK version used by Hermes Agent and deploy the function in the intended Modal workspace. The submitting host needs credentials for that workspace.
+
+```sh
+uv venv --python 3.13 .modal-venv
+uv pip install --python .modal-venv/bin/python modal==1.6.2
+.modal-venv/bin/modal deploy deploy/modal/csv_worker.py
+.modal-venv/bin/python deploy/modal/run_csv.py sample.csv --job november-sample --rates ./rates.json --ledger ./jobs.sqlite
+```
+
+Supply rates negotiated for your account, in JSON with numeric fields `containerUsdPerSecond` (CPU and memory for this configuration combined), `egressUsdPerGB`, and `storageUsdPerJob` (the allocated cost for image, logs or other retention). The receipt distinguishes time in the worker from elapsed time, flags the first call in a container and counts logical response bytes. Queue, cold-start and transport time are available only as a combined remainder. The alternate estimate prices that remainder plus the entire idle window. Both estimates exclude provider protocol overhead. Compare receipts to billed compute, storage and network usage before projecting savings against an always-on worker.
+
+Reusing a job ID with identical bytes reads prior receipts. Add `--retry` only to commission another attempt. Every attempt keeps its own cost record. A lost reply keeps the receipt unconfirmed; account usage is needed to reconcile its charge. The CSV itself and its row values stay out of the ledger.

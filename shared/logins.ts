@@ -8,7 +8,7 @@ import { getDomain } from "tldts";
 
 /** Where a login came from: the sign-in card's Save, Settings, or the person's
  * 1Password vault (read-only here). */
-export type LoginSource = "card" | "settings" | "1password";
+export type LoginSource = "card" | "settings" | "1password" | "bitwarden";
 
 /** Which bots may use a login: every bot, or the ones named. */
 export type LoginBots = "all" | string[];

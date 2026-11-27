@@ -1785,7 +1785,7 @@
     },
     {
       "name": "wait_until",
-      "description": "Tell the person in this chat when something happens. No AI runs while you wait, only plain code checks. Ends after hours (default 24, 1-168).",
+      "description": "Notify this chat when the condition holds. No AI runs while you wait. Hours (default 24, 1-168).",
       "inputSchema": {
         "type": "object",
         "additionalProperties": false,
@@ -1805,9 +1805,10 @@
               "file_changed",
               "process_running",
               "process_gone",
-              "bot_idle"
+              "bot_idle",
+              "run_finished"
             ],
-            "description": "url_*: the page at url has or lacks text. file_*: path exists, is gone or changes. process_*: process (name or pid) runs or stops. bot_idle: bot (name or id) finishes its work."
+            "description": "url_*: page text. file_*: path. process_*: name or pid. bot_idle: bot name or id. run_finished: this chat’s automation run_id."
           },
           "url": {
             "type": "string"
@@ -1823,6 +1824,10 @@
           },
           "bot": {
             "type": "string"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 128
           },
           "follow_up": {
             "type": "string",

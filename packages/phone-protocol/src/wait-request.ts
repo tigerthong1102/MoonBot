@@ -13,7 +13,7 @@ export interface WaitLineField {
 export interface WaitCardData {
   waitId: string;
   label: string;
-  followUp: string;
+  followUp?: string;
   settled?: "fired" | "expired" | "cancelled";
 }
 

@@ -1,3 +1,4 @@
+import { resultContractError } from "../../shared/skill-burger/result-contract.ts";
 import { createHash, randomUUID } from "node:crypto";
 import { posix, win32 } from "node:path";
 
@@ -318,6 +319,7 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     const sent = await sendRound(step, delegation, (ref) => resolve(ref, args, results), exec as DelegateExecutors, signal);
     if (!sent.ok) return fail(step, "step_failed", sent.unsafeToRetry ? `Some teammates may already have received work. Check their assignments before trying again: ${clip(redactSecretsInText(sent.error), ERROR_MAX)}` : clip(redactSecretsInText(sent.error), ERROR_MAX), undefined, !sent.unsafeToRetry);
     delegation.requests = sent.requests;
+    if (step.timeoutMs) delegation.deadline = now() + step.timeoutMs;
     const names = [...new Set(sent.requests.map((request) => request.name))];
     results[step.id] = { state: "handed", detail: { waitingOn: names, rounds: 1 } };
     return hand(step, "teammates", undefined, { prompt: TEAMMATES_PROMPT(teammateNames(names.map((one) => ({ bot: { name: one } })), false), id), delegation });
@@ -359,7 +361,9 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
         const out = await timed(read.timeoutMs ?? STEP_TIMEOUT_MS, deps.signal, signal => execute(read, args, results, deps.actionExec ?? deps.exec, signal));
         if (out === "timeout") return { state: "failed" as const, error: "The read timed out." };
         if (!out.ok) return { state: "failed" as const, error: clip(redactSecretsInText(out.error), ERROR_MAX) };
-        return { state: "done" as const, output: parsed(out.output) };
+        const output = parsed(out.output);
+        const issue = read.kind === "app" && read.resultContract && resultContractError(read.resultContract, output);
+        return issue ? { state: "failed" as const, error: issue } : { state: "done" as const, output };
       }));
       for (let n = 0; n < batch.length; n++) end(batch[n]!, reads[n]!);
       if (deps.signal?.aborted) return envelope({ status: "cancelled" });
@@ -428,6 +432,8 @@ export async function runFrom(state: Omit<RunState, "waiting" | "createdAt"> & {
     if (outcome === "timeout") return fail(step, "timeout", `"${step.label}" took longer than ${Math.round(limit / 1000)} s and was stopped. Check the action's result before trying again.`, detail, false);
     if (!outcome.ok) return fail(step, outcome.tooLarge ? "output_too_large" : "step_failed", `${clip(redactSecretsInText(outcome.error), ERROR_MAX)}. Check the action's result before trying again.`, detail, false);
     const output = parsed(outcome.output);
+    const issue = step.kind === "app" && step.resultContract && resultContractError(step.resultContract, output);
+    if (issue) return fail(step, "step_failed", issue, undefined, false);
     const check = checkRule(step);
     if (check?.rule) {
       if (!compare(valueAt(output, check.rule.path), check.rule.op, check.rule.value)) return fail(step, "step_failed", `its check didn't hold: ${check.says}. Check the action's result before trying again.`, { check: { passed: false, says: check.says } }, false);
@@ -556,19 +562,19 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
       const failed = Object.entries(delegation.replies).filter(([, reply]) => !reply.ok).map(([part]) => part);
       if (failed.length) {
         const error = `Teammate assignments did not finish successfully: ${failed.join(", ")}. Check their results before trying again.`;
-        results[step.id] = { state: "failed", error };
+        results[step.id] = { state: "failed", error, detail: { replies: replies.map(({ name, ok, text }) => ({ name, ok, text: text.slice(0, 600) })) } };
         deps.events.ended(state.id, state.name, step, results[step.id]!);
         return { protocolVersion: 1 as const, ok: false, run: state.id, steps: [], error: { type: "step_failed" as const, message: error, step: step.id } };
       }
       const result: StepResult = {
         state: "done",
-        output: { replies: Object.fromEntries(Object.entries(delegation.replies).map(([part, reply]) => [part, reply.text])), text: repliesText(delegation.replies), rounds: delegation.round, ...(unmet.length ? { unmet } : {}) },
+        output: { replies: Object.fromEntries(Object.entries(delegation.replies).map(([part, reply]) => [part, reply.data ?? reply.text])), text: repliesText(delegation.replies), rounds: delegation.round, ...(unmet.length ? { unmet } : {}) },
         detail: { rounds: delegation.round, replies: replies.map((reply) => ({ name: reply.name, ok: reply.ok, text: reply.text.slice(0, 600) })) },
       };
       return finishResult(result);
     };
     if (waiting.type === "teammates") {
-      const got = await collect(delegation, exec, signal);
+      const got = await collect(delegation, exec, signal, deps.now ?? Date.now);
       if ("waiting" in got) return ask("teammates", `Still waiting on ${got.waiting.join(", ")}. End your turn; their replies resume you. Then call run_workflow with resume ${JSON.stringify(state.id)} again.`, { delegation });
       delegation.replies = got.replies;
       const roundsLeft = (step.review?.rounds ?? 0) - (delegation.round - 1);
@@ -589,7 +595,7 @@ export async function resumeRun(state: RunState, response: string, deps: RunDeps
       return { protocolVersion: 1, ok: false, run: state.id, steps: [], error: { type: "step_failed", message: `"${step.label}" couldn't send the work back: ${error}`, step: step.id, ...(token ? { resumeToken: token } : {}) } };
     }
     const { pendingRedo: _pendingRedo, ...prior } = delegation;
-    const next = { ...prior, round: delegation.round + 1, requests: sent.requests };
+    const next = { ...prior, round: delegation.round + 1, requests: sent.requests, ...(step.timeoutMs ? { deadline: (deps.now ?? Date.now)() + step.timeoutMs } : {}) };
     const names = [...new Set(sent.requests.map((request) => request.name))];
     results[step.id] = { state: "handed", detail: { waitingOn: names, rounds: next.round } };
     return ask("teammates", TEAMMATES_PROMPT(names.join(", "), state.id), { delegation: next });

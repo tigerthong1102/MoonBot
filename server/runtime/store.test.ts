@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { readLifecyclePage } from "./observer.ts";
 import { openRuntimeStore, type RuntimeStore } from "./store.ts";
 import { removeTempDir } from "../testing/cleanup.ts";
 import { TERMINAL, type Assignment } from "./types.ts";
@@ -272,4 +273,43 @@ describe("runtime store: evidence fields and the loop guard", () => {
     store.insert(assignment("bad-outward", { evidence: { outward: "git push" as unknown as string[] } }), { kind: "enqueued", at: 4_000 });
     expect(() => store.get("bad-outward")).toThrow(/does not match the record schema/);
   });
+});
+
+
+it("exports private, stable worker turns and pages from a reopened runtime ledger", () => {
+  const dir = mkdtempSync(join(tmpdir(), "observer-"));
+  const path = join(dir, "runtime.db");
+  const key = Buffer.alloc(32, 12);
+  let writer = openRuntimeStore(path);
+  try {
+    const root = assignment("private email", { brief: "customer note" });
+    writer.insert(root, { kind: "enqueued", detail: "private account" });
+    writer.update(root, { kind: "started" });
+    const worker = child("private subcontractor", root);
+    writer.insert(worker, { kind: "enqueued" });
+    writer.update(worker, { kind: "started", detail: "tool credentials" });
+    writer.update(worker, { kind: "parked", detail: "secret question" });
+    const before = readLifecyclePage(path, key);
+    expect(before.events.map(e => e.event)).toEqual(["request.enqueued", "turn.started", "request.enqueued", "turn.started", "interaction.requested"]);
+    const [queued, rootTurn, childQueue, childTurn, parked] = before.events;
+    expect(queued!.turnId).toBeNull();
+    expect(childQueue!.parentAssignmentId).toBe(rootTurn!.assignmentId);
+    expect(childTurn!.turnId).toBe(parked!.turnId);
+    expect(childTurn!.runId).toBe(rootTurn!.runId);
+    expect(childTurn!.workerId).not.toBe(rootTurn!.workerId);
+    expect(childTurn!.sessionId).not.toBe(rootTurn!.sessionId);
+    expect(JSON.stringify(before)).not.toMatch(/private|chief|builder|customer|secret|credentials/);
+    writer.close();
+    writer = openRuntimeStore(path);
+    writer.update(worker, { kind: "restart_reconciled" });
+    writer.update(worker, { kind: "started" });
+    const page = readLifecyclePage(path, key, before.nextCursor, 2);
+    expect(page.events[0]).toMatchObject({ turnId: childTurn!.turnId, runId: childTurn!.runId });
+    expect(page.events[1]!.turnId).not.toBe(childTurn!.turnId);
+    expect(readLifecyclePage(path, key, 0, 5)).toEqual(before);
+    expect(readLifecyclePage(path, Buffer.alloc(32, 3)).events[0]!.runId).not.toBe(queued!.runId);
+  } finally {
+    writer.close();
+    removeTempDir(dir);
+  }
 });

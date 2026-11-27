@@ -57,6 +57,19 @@ describe("the store side of waits", () => {
     cloudHost = createWaitHost(deps(true));
   });
 
+  it("batches six simultaneous run completions by conversation and retains each outcome", async () => {
+    for (let index = 0; index < 7; index++) {
+      const id = String(index), threadId = index === 6 ? "other" : wait.threadId;
+      host.post({ ...wait, id, threadId, condition: { kind: "run_finished", runId: id } },
+        { status: "fired", runState: index === 4 ? "failed" : "completed", text: index === 4 ? "Import failed" : "Import completed" });
+    }
+    await Promise.resolve();
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(store.lines).toHaveLength(7);
+    expect(JSON.stringify(notify.mock.calls[0])).toContain("Import failed");
+    expect(store.lines.filter(line => line.textCode === "chat.notice.waitRun.failed")).toHaveLength(1);
+  });
+
   it("posts a wait's line once, marks the chat unread and notifies only when it fired", () => {
     expect(host.post(wait, { status: "fired", text: "the build: done. /tmp/x is there now." })).toBe(true);
     expect(host.post(wait, { status: "fired", text: "the build: done. /tmp/x is there now." })).toBe(true);

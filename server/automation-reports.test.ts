@@ -89,9 +89,10 @@ function fixture(options: { threadLanguage?: (threadId: string) => string | unde
   const wrote: string[] = [];
   const routines = {
     listRuns: () => [...runs.values()].map((run) => ({ ...run })).reverse(),
-    noteReport: (id: string, report: RoutineRunReport | undefined) => {
+    noteReport: (id: string, report: RoutineRunReport | undefined, deliveryError?: string) => {
       const run = runs.get(id);
       if (!run) return null;
+      if (deliveryError) { run.status = "failed"; run.error = deliveryError; }
       if (report) run.report = report;
       else delete run.report;
       return { ...run };
@@ -137,6 +138,19 @@ function fixture(options: { threadLanguage?: (threadId: string) => string | unde
 describe("automation reports", () => {
   beforeEach(() => {
     rmSync(DATA_DIR, { recursive: true, force: true });
+  });
+
+  it("rechecks a queued reconciliation before publishing the completion card", () => {
+    const f = fixture();
+    const run = f.finished("Package ready", "Reconcile", { deliverables: "reconciliation" });
+    f.busy.add(f.main);
+    f.reports.runSettled(run, `turn-${run.id}`);
+    expect(f.runs.get(run.id)?.report?.state).toBe("pending");
+    f.busy.delete(f.main);
+    f.reports.flush();
+    expect(f.runs.get(run.id)).toMatchObject({ status: "failed", error: expect.stringContaining("report.pdf") });
+    expect(f.lines()).toMatchObject([{ automation: { failed: true } }]);
+    expect(f.notified).toEqual([]);
   });
 
   it("writes a run's reply into the chat it reports to as one bot line named after the automation", () => {

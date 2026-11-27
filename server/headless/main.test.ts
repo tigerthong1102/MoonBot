@@ -89,12 +89,12 @@ describe("the headless command line", () => {
 
 it("reads the bot-scoped host MCP catalog and omits connection secrets from CLI output", async () => {
   const { out, io } = capture();
-  const request = vi.fn(async () => ({ servers: [{ name: "atlas", enabled: true, on: false, url: "private-url", headers: { Authorization: "secret" } }] }));
+  const request = vi.fn(async () => ({ servers: [{ name: "atlas", enabled: true, on: false, offFor: true, url: "private-url", headers: { Authorization: "secret" } }] }));
   const code = await runHeadless(["mcp-catalog", "--bot", "demo", "--json"], {
     io, env: { OPENMAUSBOT_URL: "http://127.0.0.1:19999" }, request,
   });
   expect(code).toBe(0);
   expect(request.mock.calls[0]).toContain("/api/bots/demo/mcp-servers");
-  expect(JSON.parse(out[0]!)).toMatchObject({ servers: [{ name: "atlas", on: false }] });
+  expect(JSON.parse(out[0]!)).toMatchObject({ servers: [{ name: "atlas", on: false, offFor: true }] });
   expect(out.join("")).not.toMatch(/private-url|secret/);
 });

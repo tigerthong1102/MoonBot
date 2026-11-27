@@ -973,7 +973,7 @@ export class ViewerHub {
       case "elementEvidence": {
         const { requestId, x, y } = message;
         if (typeof requestId !== "string" || requestId.length > 64 || typeof x !== "number" || typeof y !== "number") return;
-        const evidence = tab.id === message.tabId ? await elementEvidence(tab.page, x, y).catch(() => null) : null;
+        const evidence = tab.id === message.tabId ? await this.paused(tab, () => elementEvidence(tab.page, x, y)).catch(() => null) : null;
         viewer.push({ type: "elementEvidence", requestId, evidence: this.#hold.controls(viewer) && this.host.active() === tab ? evidence : null });
         return;
       }

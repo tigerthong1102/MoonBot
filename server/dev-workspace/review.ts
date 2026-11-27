@@ -22,15 +22,16 @@ export function reviewLines(diff: string): ReviewLine[] {
 }
 
 export function snapshot(cwd: string, baseRef: string, expectedHead?: string) {
-  const head = commitOf(cwd, "HEAD");
+  const root = run("git", ["rev-parse", "--show-toplevel"], cwd).trimEnd();
+  const head = commitOf(root, "HEAD");
   if (expectedHead && expectedHead !== head) throw new Error("Check out the PR's exact head before generating a review.");
-  const base = run("git", ["merge-base", commitOf(cwd, baseRef), head], cwd).trim();
-  const options = ["--no-ext-diff", "--no-textconv", "--no-renames"];
-  const paths = run("git", ["diff", ...options, "--name-only", "-z", base, head], cwd).split("\0").filter(Boolean);
+  const base = run("git", ["merge-base", commitOf(root, baseRef), head], root).trim();
+  const options = ["--no-color", "--no-ext-diff", "--no-textconv", "--no-renames"];
+  const paths = run("git", ["diff", ...options, "--name-only", "-z", base, head], root).split("\0").filter(Boolean);
   let remaining = 30_000;
   const files = paths.map(path => {
     if (!remaining) return { path, lines: [], truncated: true };
-    const diff = run("git", ["--literal-pathspecs", "diff", ...options, base, head, "--", path], cwd);
+    const diff = run("git", ["--literal-pathspecs", "diff", ...options, base, head, "--", path], root);
     const all = reviewLines(diff);
     const lines = all.slice(0, remaining);
     remaining -= lines.length;

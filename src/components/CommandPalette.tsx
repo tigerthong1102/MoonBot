@@ -101,7 +101,7 @@ export function CommandPalette({ onOpenChange }: { onOpenChange?: (open: boolean
 
   const activate = async (entry: PaletteEntry) => {
     if (entry.kind === "task") {
-      dispatch({ type: "select", id: entry.id });
+      if (entry.group || showThreads || state.bots.find(bot => bot.id === entry.id)?.threadId === entry.threadId) dispatch({ type: "select", id: entry.id });
       if (entry.group) dispatch({ type: "switchGroupTask", groupId: entry.id, threadId: entry.threadId });
       else dispatch({ type: "switchTask", botId: entry.id, threadId: entry.threadId, ...(!showThreads ? { whole: true } : {}) });
     } else if (entry.kind === "message" || entry.kind === "report") {

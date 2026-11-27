@@ -16,7 +16,7 @@ import { threadUpdatedLabel } from "./SidebarThreadRow";
 
 /** The stopped turn's "Continue at 3:40 PM when your limit resets": one click sets up a one-time automation in this
  * conversation that picks up where it stopped. Undefined when there is nothing to offer. */
-export function useLimitResetContinue(botId: string | undefined, threadId: string | undefined, resetsAt: number | undefined, reviewActions = false) {
+export function useLimitResetContinue(botId: string | undefined, threadId: string | undefined, resetsAt: number | undefined) {
   const { state: app, dispatch } = useStore();
   const [state, setState] = useState<"idle" | "working" | "set">("idle");
   const scheduled = app.routines?.some(routine => routine.enabled && routine.botId === botId && routine.sourceThreadId === threadId &&
@@ -25,7 +25,7 @@ export function useLimitResetContinue(botId: string | undefined, threadId: strin
   return {
     label: t("chat.limit.continueAt", { time: resetTime(resetsAt) }),
     onClick: () => {
-      if (state === "working" || (reviewActions && !window.confirm(t("chat.limit.reviewActions")))) return;
+      if (state === "working") return;
       setState("working");
       void api<{ routine?: Routine }>("/api/limit-resets/continue", { method: "POST", body: JSON.stringify({ botId, threadId }) })
         .then((response) => {

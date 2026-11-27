@@ -131,7 +131,7 @@ const VERBS: Record<string, (ctx: VerbContext) => Promise<VerbOutcome>> = {
     const owner = ctx.flags.bot;
     const endpoint = owner ? "/api/bots/" + encodeURIComponent(String(owner)) + "/mcp-servers" : "/api/mcp/servers";
     const response = await (await ctx.client()).json(endpoint);
-    const servers = (response.servers as Record<string, unknown>[]).map(({ name, enabled, type, auth, on }) => ({ name, enabled, type, ...(typeof auth === "string" ? { auth } : {}), ...(typeof on === "boolean" ? { on } : {}) }));
+    const servers = (response.servers as Record<string, unknown>[]).map(({ name, enabled, type, auth, on, offFor }) => ({ name, enabled, type, ...(typeof offFor === "boolean" ? { offFor } : {}), ...(typeof auth === "string" ? { auth } : {}), ...(typeof on === "boolean" ? { on } : {}) }));
     return { result: { servers }, exitCode: EXIT.done, human: servers.length ? servers.map(server => String(server.name)) : ["No MCP servers."] };
   },
   "team import-openclaw": importOpenClaw,

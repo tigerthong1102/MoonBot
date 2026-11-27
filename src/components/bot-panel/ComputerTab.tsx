@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { KeyRound, Monitor } from "lucide-react";
 
-import { writeComputerPanelView, type ComputerPanelView } from "@/lib/computer-panel-view";
+import { taskPanelScope, writeComputerPanelView, type ComputerPanelView } from "@/lib/computer-panel-view";
 import { t } from "@/lib/i18n";
 import type { Place } from "@/lib/place";
 import { placeHasIssue, worksOnSimpleLabel } from "@/lib/place-view";
@@ -29,9 +29,9 @@ interface PlaceOption {
 const OFF_LABEL = () => t("place.off");
 
 export function useOpenComputer(bot: Pick<Bot, "id">) {
-  const { dispatch } = useStore();
+  const { dispatch, state } = useStore();
   return (view: ComputerPanelView = "computer") => {
-    writeComputerPanelView(bot.id, view);
+    writeComputerPanelView(taskPanelScope(bot.id, state.bots.find(item => item.id === bot.id)?.threadId), view);
     dispatch({ type: "toggleSettings", open: false });
     dispatch({ type: "toggleComputer", open: true });
   };

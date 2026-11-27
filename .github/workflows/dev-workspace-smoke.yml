@@ -29,6 +29,7 @@ jobs:
           cp /bin/busybox "$RUNNER_TEMP/task-image/bin/"
           ln -s busybox "$RUNNER_TEMP/task-image/bin/sleep"
           ln -s busybox "$RUNNER_TEMP/task-image/bin/cat"
+          ln -s busybox "$RUNNER_TEMP/task-image/bin/tar"
           tar -C "$RUNNER_TEMP/task-image" -cf - bin | docker import - startupbot-task-qa:local
       - name: Read a Git fixture via SSH, forward a loopback port and inspect the Docker task
         run: STARTUPBOT_QA_IMAGE=startupbot-task-qa:local bash scripts/smoke-task-hosts.sh

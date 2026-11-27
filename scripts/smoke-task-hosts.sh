@@ -62,8 +62,8 @@ JS
   echo "Verified exact remote Git head and a loopback-only SSH preview."
 fi
 if [[ "${1:-all}" != ssh ]]; then
-  image=${STARTUPBOT_QA_IMAGE:?Set STARTUPBOT_QA_IMAGE to a local test image with sleep and cat}
-  "${cli[@]}" sandbox start --repo "$repo" --image "$image" --minutes 1 --json > "$fixture/result"
+  image=${STARTUPBOT_QA_IMAGE:?Set STARTUPBOT_QA_IMAGE to a local test image with sleep, tar and cat}
+  "${cli[@]}" sandbox start --repo "$repo" --image "$image" --minutes 1 --json > "$fixture/result" || { cat "$fixture/result"; exit 1; }
   container=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1])).id)' "$fixture/result")
   test "$(docker exec "$container" cat /workspace/deliverable.txt)" = "committed in fixture"
   test "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$container")" = none

@@ -12,7 +12,7 @@ export async function observeEffect(step: RecipeStep, args: Record<string, unkno
   if (!before || !Number.isSafeInteger(args.pid) || !Number.isSafeInteger(args.window_id)) return unknown;
   const bounded = AbortSignal.any([signal, AbortSignal.timeout(3000)]);
   const state = await caller.call("get_window_state", { pid: args.pid, window_id: args.window_id,
-    include_screenshot: false, tree_format: "elements", full_output: true, timeout_ms: 2500 }, bounded).catch(() => null);
+    include_screenshot: false, tree_format: "elements", ...(process.platform === "darwin" ? { full_output: true } : {}), timeout_ms: 2500 }, bounded).catch(() => null);
   if (bounded.aborted || !state?.ok) return unknown;
   const tree = windowScopedTree(state.structured);
   if (tree.pid !== args.pid || tree.window_id !== args.window_id || tree.window_title !== step.window?.title) return unknown;

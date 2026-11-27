@@ -137,7 +137,7 @@ export function createStatusRoutes(deps: StatusRouteDeps): RouteHandler {
         accounts: planAccountsFromInstances(instanceConfigs(cfg)),
         refresh: url.searchParams.get("refresh") === "1",
       });
-      return json(res, 200, report);
+      return json(res, 200, { ...report, computerName: cfg.computerName || null });
     }
 
     // One read-only request from this server; the verdict never carries the key.

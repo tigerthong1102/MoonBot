@@ -37,10 +37,9 @@ export async function localTerminalPane(dataDir, action, target, input, run = in
   if (action === "read") return cmd(["capture-pane", "-p", "-S", "-2000", "-t", pane]);
   if (action !== "send" || typeof input !== "string" || !input || input.length > 4096 || Array.from(input).some(char => { const code = char.codePointAt(0); return code < 32 || (code >= 127 && code <= 159); })) throw new Error("Enter one line of terminal input.");
   const buffer = "startupbot-ui-" + randomUUID();
-  await cmd(["load-buffer", "-b", buffer, "-"], input);
+  await cmd(["load-buffer", "-b", buffer, "-"], input + "\r");
   try {
     await cmd(["paste-buffer", "-d", "-b", buffer, "-t", pane]);
-    await cmd(["send-keys", "-t", pane, "Enter"]);
   } finally { await cmd(["delete-buffer", "-b", buffer]).catch(() => {}); }
 }
 

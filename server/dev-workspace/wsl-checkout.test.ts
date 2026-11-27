@@ -19,6 +19,12 @@ it.skipIf(process.platform !== "linux")("stages a Git bundle and undoes it witho
     if (!("receipt" in created) || typeof created.receipt !== "string") throw new Error("Missing transfer receipt");
     expect(readFileSync(join(dest,"value"),"utf8")).toBe("fixture");
     expect(()=>wslCheckout("wsl-stage",repo,dest,"",inside)).toThrow();
+    const index = join(dest, ".git", "index");
+    const originalIndex = readFileSync(index);
+    writeFileSync(index, "invalid git index");
+    expect(() => wslCheckout("wsl-undo", repo, dest, created.receipt, inside)).toThrow();
+    expect(readFileSync(join(dest, "value"), "utf8")).toBe("fixture");
+    writeFileSync(index, originalIndex);
     writeFileSync(join(dest,"new"),"keep");expect(()=>wslCheckout("wsl-undo",repo,dest,created.receipt,inside)).toThrow();
     rmSync(join(dest,"new"));const result=wslCheckout("wsl-undo",repo,dest,created.receipt,inside);
     if (!("preservedAt" in result) || typeof result.preservedAt !== "string") throw new Error("Missing retained directory");

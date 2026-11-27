@@ -27,8 +27,11 @@ dest=$1; token=$2
 test -d "$dest/.git" && test ! -L "$dest" && test -f "$dest/.git/startupbot-wsl-checkout" || exit 1
 receipt="$dest/.git/startupbot-wsl-checkout"
 test "$(sed -n '1p' "$receipt")" = "$token" || { echo "Receipt differs." >&2; exit 1; }
-test "$(git -C "$dest" rev-parse HEAD)" = "$(sed -n '2p' "$receipt")" || { echo "Commit changed." >&2; exit 1; }
-test -z "$(git -C "$dest" status --porcelain --untracked-files=all --ignored)" || { echo "Destination changed." >&2; exit 1; }
+current_head=$(git -C "$dest" rev-parse HEAD)
+saved_head=$(sed -n '2p' "$receipt")
+test "$current_head" = "$saved_head" || { echo "Commit changed." >&2; exit 1; }
+changes=$(git -C "$dest" status --porcelain --untracked-files=all --ignored)
+test -z "$changes" || { echo "Destination changed." >&2; exit 1; }
 saved="$dest.startupbot-undo-$token"
 test ! -e "$saved" && test ! -L "$saved" || exit 1
 mv -Tn -- "$dest" "$saved"

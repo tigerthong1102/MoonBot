@@ -16,14 +16,26 @@ index ad29969..0f0d398 100644
      cua_driver_sdk::configure_perception_client_resolver(
          extension_manager::perception_client_resolver(),
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs
-index 300c7e6..56a3f9c 100644
+index 300c7e6..1f15c6c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs
-@@ -170,6 +170,38 @@ impl NodeAttributes {
+@@ -127,6 +127,11 @@ impl Drop for NodeAttributes {
+     }
+ }
+
++fn identity_attribute_error_ok(attr: NodeAttr, error: AXError, textedit_document: bool) -> bool {
++    error == kAXErrorAttributeUnsupported || error == kAXErrorNoValue
++        || (textedit_document && attr == NodeAttr::Description && error == kAXErrorFailure)
++}
++
+ impl NodeAttributes {
+     /// Read every [`NodeAttr`] of `element` in one round trip.
+     ///
+@@ -170,6 +175,40 @@ impl NodeAttributes {
          }
      }
 
-+    pub(crate) unsafe fn identity_read_complete(&self) -> bool {
++    pub(crate) unsafe fn identity_read_complete(&self, textedit_document: bool) -> bool {
 +        let NodeAttributes::Batch(_) = *self else {
 +            return false;
 +        };
@@ -46,8 +58,10 @@ index 300c7e6..56a3f9c 100644
 +                    value as AXValueRef,
 +                    kAXValueAXErrorType,
 +                    (&mut error as *mut AXError).cast(),
-+                ) || (error != kAXErrorAttributeUnsupported && error != kAXErrorNoValue)
-+                {
++                ) {
++                    return false;
++                }
++                if !identity_attribute_error_ok(attr, error, textedit_document) {
 +                    return false;
 +                }
 +            }
@@ -58,6 +72,24 @@ index 300c7e6..56a3f9c 100644
      /// [`copy_string_attr`].
      pub(crate) unsafe fn string(&self, attr: NodeAttr) -> Option<String> {
          match *self {
+@@ -300,3 +339,17 @@ mod tests {
+         assert_eq!(names.len(), NodeAttr::ALL.len());
+     }
+ }
++
++#[cfg(test)]
++mod startupbot_identity_tests {
++    use super::*;
++
++    #[test]
++    fn textedit_description_failure_is_the_only_additional_tolerated_error() {
++        assert!(identity_attribute_error_ok(NodeAttr::Description, kAXErrorFailure, true));
++        assert!(!identity_attribute_error_ok(NodeAttr::Description, kAXErrorFailure, false));
++        assert!(!identity_attribute_error_ok(NodeAttr::Value, kAXErrorFailure, true));
++        assert!(!identity_attribute_error_ok(NodeAttr::Description, AX_ERROR_CANNOT_COMPLETE, true));
++        assert!(identity_attribute_error_ok(NodeAttr::Value, kAXErrorNoValue, false));
++    }
++}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
 index e5c4ddb..d8dd459 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
@@ -187,7 +219,7 @@ index e5c4ddb..d8dd459 100644
      let attr = CFStr::new("AXChildren");
      let mut value: CFTypeRef = std::ptr::null();
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
-index 1578d55..c8172ad 100644
+index 1578d55..08e4114 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 @@ -180,6 +180,9 @@ pub struct TreeWalkResult {
@@ -200,7 +232,32 @@ index 1578d55..c8172ad 100644
      /// Why and where the walk stopped (see [`cua_driver_core::walk_budget`]).
      pub walk: WalkOutcome,
      /// Whether the requested `window_id` actually resolved to an AX surface,
-@@ -282,6 +285,10 @@ fn walk_tree_with_web_content(
+@@ -270,6 +273,19 @@ pub fn walk_tree_budgeted(
+     walk_tree_with_web_content(pid, window_id, query, max_depth, budget, true)
+ }
+
++// On macOS 26.7.3, TextEdit's document text view reports AXErrorFailure for
++// AXDescription. Limit its stable fallback to the system executable and view.
++fn is_system_textedit(pid: i32) -> bool {
++    let mut path = [0u8; 4096];
++    let len = unsafe { libc::proc_pidpath(pid, path.as_mut_ptr().cast(), path.len() as u32) };
++    len > 0 && std::str::from_utf8(&path[..len as usize]).ok()
++        .is_some_and(|path| path.trim_end_matches('\0') == "/System/Applications/TextEdit.app/Contents/MacOS/TextEdit")
++}
++
++fn is_textedit_document(system_textedit: bool, role: Option<&str>, identifier: Option<&str>) -> bool {
++    system_textedit && role == Some("AXTextArea") && identifier == Some("First Text View")
++}
++
+ fn walk_tree_with_web_content(
+     pid: i32,
+     window_id: Option<u32>,
+@@ -278,10 +294,15 @@ fn walk_tree_with_web_content(
+     mut budget: WalkBudget,
+     include_web_content: bool,
+ ) -> TreeWalkResult {
++    let system_textedit = is_system_textedit(pid);
+     let mut nodes: Vec<AXNode> = Vec::new();
      let mut lines: Vec<(usize, String)> = Vec::new(); // (depth, line)
      let mut index_counter = 0usize;
      let mut depth_truncated = false;
@@ -211,7 +268,7 @@ index 1578d55..c8172ad 100644
      let mut window_scope: Option<WindowScope> = None;
 
      unsafe {
-@@ -292,6 +299,9 @@ fn walk_tree_with_web_content(
+@@ -292,6 +313,9 @@ fn walk_tree_with_web_content(
                  nodes,
                  truncated: false,
                  depth_truncated: false,
@@ -221,7 +278,7 @@ index 1578d55..c8172ad 100644
                  walk: budget.outcome(),
                  // No application AX element at all, so a requested window
                  // certainly did not resolve.
-@@ -355,6 +365,12 @@ fn walk_tree_with_web_content(
+@@ -355,6 +379,12 @@ fn walk_tree_with_web_content(
 
          // Walk each top-level child at depth 0.
          for child in walk_these {
@@ -234,7 +291,7 @@ index 1578d55..c8172ad 100644
              walk_element(
                  child,
                  0,
-@@ -364,11 +380,25 @@ fn walk_tree_with_web_content(
+@@ -364,11 +394,26 @@ fn walk_tree_with_web_content(
                  &mut lines,
                  &mut index_counter,
                  &mut budget,
@@ -243,6 +300,7 @@ index 1578d55..c8172ad 100644
 +                &mut root_read_incomplete,
                  max_depth,
                  include_web_content,
++                system_textedit,
              );
 +            depth_truncated |= root_depth_truncated;
 +            read_incomplete |= root_read_incomplete;
@@ -261,7 +319,7 @@ index 1578d55..c8172ad 100644
 
          // Release all top-level elements (copy_children / copy_ax_windows both retain).
          release_all(top_level);
-@@ -395,6 +425,9 @@ fn walk_tree_with_web_content(
+@@ -395,6 +440,9 @@ fn walk_tree_with_web_content(
          nodes,
          truncated: walk.truncated(),
          depth_truncated,
@@ -271,22 +329,27 @@ index 1578d55..c8172ad 100644
          walk,
          window_scope,
      }
-@@ -519,6 +552,7 @@ unsafe fn walk_element(
+@@ -519,8 +567,10 @@ unsafe fn walk_element(
      counter: &mut usize,
      budget: &mut WalkBudget,
      depth_truncated: &mut bool,
 +    read_incomplete: &mut bool,
      max_depth: usize,
      include_web_content: bool,
++    system_textedit: bool,
  ) {
-@@ -539,12 +573,17 @@ unsafe fn walk_element(
+     if depth > max_depth {
+         *depth_truncated = true;
+@@ -539,12 +589,19 @@ unsafe fn walk_element(
      // One round trip for every attribute this node can need (see
      // `super::batch`); the reads below only convert the reply.
      let attrs = NodeAttributes::read(element);
 -    let role = attrs
 -        .string(NodeAttr::Role)
 -        .unwrap_or_else(|| "AXUnknown".into());
-+    if !attrs.identity_read_complete() {
++    let textedit_document = is_textedit_document(system_textedit,
++        attrs.string(NodeAttr::Role).as_deref(), attrs.string(NodeAttr::Identifier).as_deref());
++    if !attrs.identity_read_complete(textedit_document) {
 +        *read_incomplete = true;
 +    }
 +    let role = attrs.string(NodeAttr::Role).unwrap_or_else(|| {
@@ -300,7 +363,7 @@ index 1578d55..c8172ad 100644
          return;
      }
 
-@@ -553,7 +592,13 @@ unsafe fn walk_element(
+@@ -553,7 +610,13 @@ unsafe fn walk_element(
          // Still recurse — children may be interesting. Layout containers
          // collapse, so children inherit the parent's depth AND the same
          // parent_index (no actionable node was emitted here).
@@ -315,15 +378,25 @@ index 1578d55..c8172ad 100644
          drop(attrs);
          for child in children {
              walk_element(
-@@ -566,6 +611,7 @@ unsafe fn walk_element(
+@@ -566,8 +629,10 @@ unsafe fn walk_element(
                  counter,
                  budget,
                  depth_truncated,
 +                read_incomplete,
                  max_depth,
                  include_web_content,
++                system_textedit,
              );
-@@ -592,7 +638,13 @@ unsafe fn walk_element(
+             CFRelease(child as CFTypeRef);
+         }
+@@ -587,12 +652,19 @@ unsafe fn walk_element(
+         .as_ref()
+         .and_then(|copied| copied.string_value.clone());
+     let value = value.filter(|v| !v.trim().is_empty());
+-    let description = attrs.string(NodeAttr::Description);
+     let identifier = attrs.string(NodeAttr::Identifier);
++    let description = attrs.string(NodeAttr::Description)
++        .or_else(|| textedit_document.then(|| "First Text View".to_string()));
      let help = attrs
          .string(NodeAttr::Help)
          .filter(|h| !h.trim().is_empty());
@@ -338,7 +411,7 @@ index 1578d55..c8172ad 100644
 
      // Some native controls expose no AX action names but do expose a writable
      // AXValue. Finder's transient inline-rename field is the important case:
-@@ -602,7 +654,13 @@ unsafe fn walk_element(
+@@ -602,7 +674,13 @@ unsafe fn walk_element(
      // extra AX round trip.
      let value_settable = actions.is_empty()
          && role_supports_value_addressing(&role)
@@ -353,7 +426,7 @@ index 1578d55..c8172ad 100644
      // A disabled control is still indexed and published with `enabled: false`:
      // enablement is state the caller needs to read (a form's Save button, a
      // toolbar item in a window that is not key), not a reason to hide the row.
-@@ -626,7 +684,13 @@ unsafe fn walk_element(
+@@ -626,7 +704,13 @@ unsafe fn walk_element(
          !visible_title.is_empty() || !visible_description.is_empty() || !visible_value.is_empty();
 
      if !is_actionable && !has_content && role != "AXWindow" && role != "AXSheet" {
@@ -368,15 +441,18 @@ index 1578d55..c8172ad 100644
          drop(attrs);
          for child in children {
              walk_element(
-@@ -639,6 +703,7 @@ unsafe fn walk_element(
+@@ -639,8 +723,10 @@ unsafe fn walk_element(
                  counter,
                  budget,
                  depth_truncated,
 +                read_incomplete,
                  max_depth,
                  include_web_content,
++                system_textedit,
              );
-@@ -652,12 +717,16 @@ unsafe fn walk_element(
+             CFRelease(child as CFTypeRef);
+         }
+@@ -652,12 +738,16 @@ unsafe fn walk_element(
      // Structured `elements` only contains actionable nodes. Keep all new AX
      // round-trips behind that same gate so display-only rows pay no cost.
      let control_state = read_control_state_if_actionable(is_actionable, || ControlState {
@@ -399,7 +475,7 @@ index 1578d55..c8172ad 100644
          value_description: attrs
              .string(NodeAttr::ValueDescription)
              .map(|v| v.trim().to_owned())
-@@ -766,10 +835,17 @@ unsafe fn walk_element(
+@@ -766,10 +856,17 @@ unsafe fn walk_element(
      lines.push((depth, line));
      nodes.push(node);
      if collapse_here {
@@ -418,14 +494,32 @@ index 1578d55..c8172ad 100644
      drop(attrs);
      for child in children {
          walk_element(
-@@ -782,6 +858,7 @@ unsafe fn walk_element(
+@@ -782,8 +879,10 @@ unsafe fn walk_element(
              counter,
              budget,
              depth_truncated,
 +            read_incomplete,
              max_depth,
              include_web_content,
++            system_textedit,
          );
+         CFRelease(child as CFTypeRef);
+     }
+@@ -1020,6 +1119,14 @@ fn leading_indent_depth(line: &str) -> usize {
+
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn system_textedit_document_exception_is_narrow() {
++        use super::is_textedit_document;
++        assert!(is_textedit_document(true, Some("AXTextArea"), Some("First Text View")));
++        assert!(!is_textedit_document(false, Some("AXTextArea"), Some("First Text View")));
++        assert!(!is_textedit_document(true, Some("AXSecureTextField"), Some("First Text View")));
++        assert!(!is_textedit_document(true, Some("AXTextArea"), Some("Password")));
++    }
+     use super::*;
+     use std::cell::Cell;
+
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
 index 00776fe..5b1c417 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs

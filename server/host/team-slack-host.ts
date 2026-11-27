@@ -9,6 +9,7 @@
 // checked against the conversation's own, so a channel's message never lands in a private chat and a direct message
 // never in a shared one; a bot the member can't chat with answers as one that doesn't exist; nothing in a report's
 // answer stops or starts anything.
+import { slackReportKey, slackReportReply, type FindReport } from "../slack-report-reply.ts";
 import { isPersistentQuestionCard } from "../../shared/ask-question.ts";
 import { atLeast } from "../../shared/bot-access.ts";
 import { defaultBotPerson } from "../../shared/default-bot.ts";
@@ -43,6 +44,8 @@ interface Timer { unref?(): unknown }
 export interface TeamSlackHostDeps {
   cloudHome: Pick<CloudHomeConfig, "team" | "machineId" | "adminOrigin" | "publicOrigin" | "bootstrapSecret"> | null;
   dataDir: string;
+  findReport?: FindReport;
+  reportSession?(id: string): RequestAuth | undefined;
   /** A personal Cloud's record of the messages taken, made by whoever also reads which conversations came from a channel. */
   messages?: TeamSlackMessages;
   /** On a personal Cloud: its owner's person key when the session is the owner's, else null. A Team Cloud never asks. */
@@ -176,6 +179,15 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
       for (;;) {
         const record = messages.get(id);
         if (!record || teamSlackOver(record) || record.told === teamSlackKey(record)) return;
+        if (record.reportRef) {
+          const auth = deps.reportSession?.(record.reportRef.sessionId);
+          const target = auth && member(auth)?.person === record.person && deps.findReport?.(auth, record.reportRef.runId);
+          if (!target || target.threadId !== record.threadId || (!personal && deps.audienceOf(target.threadId) !== memberAudience(record.person))) {
+            replies.delete(id);
+            messages.patch(id, { closed: true });
+            return;
+          }
+        }
         const key = teamSlackKey(record), final = TEAM_SLACK_FINAL.has(record.state);
         const phase = record.state === "completed" && !replies.has(id) ? phaseOf(record) : null;
         const text = replies.get(id) ?? (phase && phase !== "unsettled" ? phase.text : undefined);
@@ -266,7 +278,11 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
   async function take(auth: RequestAuth, person: string, input: TeamSlackMessage): Promise<TeamSlackAnswer> {
     const canChat = chattable(auth), visible = deps.visibleFor(auth);
     const wanted: Audience = input.audience === "team" ? "team" : memberAudience(person);
-    let bot: BotRecord | null | undefined, threadId = input.conversationId ?? undefined;
+    const report = slackReportReply(input, auth, person, messages.all(), deps.findReport);
+    if (report === null) return NO_SUCH_CONVERSATION;
+    let bot: BotRecord | null | undefined, threadId = report?.threadId ?? input.conversationId ?? undefined;
+    const replyTo = report ? store.activePath(report.threadId).find(row => row.id === report.messageId) : undefined;
+    if (report && !replyTo) return NO_SUCH_CONVERSATION;
     if (threadId) {
       bot = store.botByThread(threadId);
       if (!bot || !store.taskByThread(bot.id, threadId) || !visible.thread(threadId) || !canChat(bot) || (!personal && deps.audienceOf(threadId) !== wanted)) return NO_SUCH_CONVERSATION;
@@ -297,20 +313,21 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
     }
     let receipt: DirectSendReceipt;
     try {
-      receipt = await deps.send({ botId: bot.id, threadId, text: input.text, sendId: input.id, sender: deps.sender(auth), trigger: deps.trigger(auth), personPresent: true, admin: deps.actor(auth).admin, followUp: "queue" });
+      receipt = await deps.send({ botId: bot.id, threadId, text: report?.text ?? input.text, ...(replyTo ? { replyTo } : {}), sendId: input.id, sender: deps.sender(auth), trigger: deps.trigger(auth), personPresent: true, admin: deps.actor(auth).admin, followUp: "queue" });
     } catch (error) {
       if (created) { deps.discard(bot.id, threadId); messages.channel(threadId, false); }
       return sendRefused(error);
     }
     // A line made of stop words ended the run instead of starting one, as it does in the app.
     const stopWords = "message" in receipt && !receipt.steered && isStopCommand(input.text, bot.name) && deps.request(threadId)?.messageId !== receipt.message.id;
-    const record: TeamSlackRecord = { id: input.id, person, botId: bot.id, botName: bot.name, threadId, audience: input.audience, at: now(), state: stopWords ? "stopped" : "running" };
+    const record: TeamSlackRecord = { ...(report ? { reportRef: report.reportRef } : {}), id: input.id, person, botId: bot.id, botName: bot.name, threadId, audience: input.audience, at: now(), state: stopWords ? "stopped" : "running" };
     messages.put(record);
     void flush(record.id);
     soon([record]);
     return { status: 202, body: { ...accepted(record) } };
   }
 
+  const lanes = new Map<string, Promise<TeamSlackAnswer>>();
   const taking = new Map<string, { person: string; answer: Promise<TeamSlackAnswer> }>();
 
   return {
@@ -325,10 +342,16 @@ export function createTeamSlackHost(deps: TeamSlackHostDeps) {
       if (!who) return Promise.resolve(refusal(404, "not_a_member", "Not found."));
       const notYours = refusal(403, "not_yours", "That message is someone else's.");
       const known = messages.get(input.id);
+      if (known?.reportRef && (known.person !== who.person || deps.findReport?.(auth, known.reportRef.runId)?.threadId !== known.threadId)) return Promise.resolve(NO_SUCH_CONVERSATION);
       if (known) return Promise.resolve(known.person === who.person ? { status: 202, body: { ...accepted(known) } } : notYours);
       const running = taking.get(input.id);
       if (running) return running.person === who.person ? running.answer : Promise.resolve(notYours);
-      const answer = take(auth, who.person, input).finally(() => taking.delete(input.id));
+      const key = slackReportKey(input);
+      const lane = key && `${who.person}:${key}`;
+      const prior = lane ? lanes.get(lane) : undefined;
+      const answer = (prior ? prior.then(() => take(auth, who.person, input), () => take(auth, who.person, input)) : take(auth, who.person, input))
+        .finally(() => { taking.delete(input.id); if (lane && lanes.get(lane) === answer) lanes.delete(lane); });
+      if (lane) lanes.set(lane, answer);
       taking.set(input.id, { person: who.person, answer });
       return answer;
     },

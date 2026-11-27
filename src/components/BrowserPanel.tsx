@@ -92,7 +92,6 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
     : state.config?.browserProfiles?.find((profile) => profile.id === bot.browserProfile)?.name ?? t("browser.panel.ownBrowser", { name: bot.name });
   useEffect(() => { if (showProfiles) profilesDialog.current?.showModal(); else profilesDialog.current?.close(); }, [showProfiles]);
   useEffect(() => {
-    browserControl.current?.hold(showTyping);
     if (showTyping) typingDialog.current?.showModal(); else typingDialog.current?.close();
   }, [showTyping]);
 
@@ -290,7 +289,13 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
   const draftId = group ? `group:${group.id}:${group.threadId}` : `bot:${bot.id}:${bot.threadId ?? ""}`;
   const pickerScope = stream && connected && you && activeTab && !nav.loading
     ? JSON.stringify([attempt, bot.id, bot.browserProfile, draftId, activeTab, nav.url, control.generation]) : "";
+  const picking = Boolean(pickerScope && pickScope === pickerScope);
   useEffect(() => { setPickScope(""); }, [pickerScope]);
+  useEffect(() => {
+    const current = browserControl.current;
+    current?.hold(showTyping || picking);
+    return () => current?.hold(false);
+  }, [showTyping, picking]);
   // A page nobody can see keeps the stream off. A viewer holding the browser keeps it: their hold pauses the bot, so
   // closing the view to save frames would hand the browser over while nobody watches.
   const shown = pageVisible || you;

@@ -11725,5 +11725,12 @@
   "terminal.local.search": "Tìm trong kết quả terminal",
   "terminal.local.input": "Nhập một dòng",
   "terminal.local.send": "Gửi",
-  "terminal.local.error": "Chưa xác nhận được thao tác terminal. Hãy kiểm tra kết quả trước khi gửi lại."
+  "terminal.local.error": "Chưa xác nhận được thao tác terminal. Hãy kiểm tra kết quả trước khi gửi lại.",
+  "simulator.local.title": "Trình giả lập iOS",
+  "simulator.local.device": "Thiết bị đang chạy",
+  "simulator.local.refresh": "Làm mới thiết bị",
+  "simulator.local.capture": "Chụp màn hình",
+  "simulator.local.empty": "Hãy mở trình giả lập iOS trong Xcode rồi làm mới.",
+  "simulator.local.error": "Không đọc được trình giả lập. Hãy kiểm tra Xcode rồi làm mới danh sách thiết bị.",
+  "simulator.local.save": "Lưu PNG"
 }

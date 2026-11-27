@@ -75113,7 +75113,14 @@
       "terminal.local.search": "1368f66454d44aa6e2b55fbc78ced761c77ea06e12471e6d44658a13081f1128",
       "terminal.local.input": "04034ef848b5521275765afbab796aa96dd42d8203c1f88789b802765854e395",
       "terminal.local.send": "f6f4688ff23d50c67053963c251fa0ce64a925cf283537cf066b1f362cb9b778",
-      "terminal.local.error": "5bf58b5b35052fcbcd46179916f29947316525d51555b2111f7a72544e111f6a"
+      "terminal.local.error": "5bf58b5b35052fcbcd46179916f29947316525d51555b2111f7a72544e111f6a",
+      "simulator.local.title": "7e9ac7a6ef5e0c3df39effe6bf12cdcb47fc398f3c7ce73fed02c4f70b5db063",
+      "simulator.local.device": "8c7c99688ec5c0b4ed0f1937923db85a8fc0e2bb12934a5edd0efb2edc49f175",
+      "simulator.local.refresh": "67f9239ead4a9b054712087c80f88fd53290cb77295bd9c822871744f03e5db6",
+      "simulator.local.capture": "7e2040526c38014aaf3d5d4442a5647e507219396c6f05eff7571b0dd1ab58ed",
+      "simulator.local.empty": "6c9201cf2546fd8f1cba523cd9f6dda6ae0be6a259823d488e1242db1e7b1b23",
+      "simulator.local.error": "95929537ddb94fdafa7987eb25b7783421cf4d55733a0f658ac24481508f839d",
+      "simulator.local.save": "f38f79763d122bfa76922a03b3f04d653847e220238e71704c9a245c59e21e7c"
     },
     "tr": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",

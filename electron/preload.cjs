@@ -430,6 +430,10 @@ const bridge = {
   permOpenSettings: (pane) => ipcRenderer.invoke("perm:open-settings", pane),
   relaunch: () => ipcRenderer.invoke("desktop:relaunch"),
 
+  localSimulator: {
+    list: () => ipcRenderer.invoke("simulator:inspect", "list"),
+    capture: (id) => ipcRenderer.invoke("simulator:inspect", "capture", id),
+  },
   localTerminal: {
     list: () => ipcRenderer.invoke("terminal:pane", "list"),
     read: (pane) => ipcRenderer.invoke("terminal:pane", "read", pane),

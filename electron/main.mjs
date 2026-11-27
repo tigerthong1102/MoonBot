@@ -10,7 +10,7 @@ import { startCua, stopCua, registerCuaIpc, requestComputerUse, setCuaStateListe
 import { createAndroidDeviceController } from "./android-device.mjs";
 import { finishSpeech, speechBusy, startSpeech, stopSpeech } from "./speech.mjs";
 import { installTalk, isTalkPanel } from "./talk-main.mjs";
-import { registerLocalTerminalPane } from "./local-terminal-pane.mjs";
+import { registerLocalDeveloperPanes } from "./local-terminal-pane.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
 import { linuxDisablesGpu, SOFTWARE_RENDERING_ARG } from "./linux-gpu.mjs";
 import { pasteMenuItem } from "./paste-menu-item.mjs";
@@ -2480,7 +2480,7 @@ const workspaceOnly = (handler) => (event, ...args) => {
   return handler(event, ...args);
 };
 const localWorkspaceOnly = (channel, handler) => localOnly(channel, workspaceOnly(handler));
-registerLocalTerminalPane(ipcMain, localWorkspaceOnly, () => desktopRemoteAccess ? null : runningDataDir ?? startupEnvironmentDir(environmentsState, desktopDataDir()));
+registerLocalDeveloperPanes(ipcMain, localWorkspaceOnly, () => desktopRemoteAccess ? null : runningDataDir ?? startupEnvironmentDir(environmentsState, desktopDataDir()));
 for (const method of ["state", "begin", "signInAgain", "reopen", "cancel", "refresh", "signOut", "openDashboard", "offer"]) {
   ipcMain.handle(`cloud-account:${method}`, localWorkspaceOnly(`cloud-account:${method}`, () => (method === "signOut" ? accounts.signOutActive() : ensureCloudAccount()[method]())));
 }

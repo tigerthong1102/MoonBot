@@ -173,3 +173,6 @@ stablyai/orca (Copyright (c) 2026 Lovecast Inc., MIT, public/licenses/orca.txt).
 
 The local panel manifest uses the plugin ID validation rules from stablyai/orca,
 copyright (c) 2026 Lovecast Inc. See public/licenses/orca.txt.
+
+The local iOS Simulator inventory parser derives from stablyai/orca,
+copyright (c) 2026 Lovecast Inc., under the MIT license in public/licenses/orca.txt.

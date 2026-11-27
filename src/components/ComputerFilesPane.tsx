@@ -7,6 +7,7 @@ import { AttachedFileChip, type MessageAttachmentContext } from "./AttachmentPre
 import { prependComposerDraft } from "@/lib/drafts";
 import { shortPath } from "@/lib/short-path";
 import { t } from "@/lib/i18n";
+import { LocalSimulatorPane } from "./LocalSimulatorPane";
 import { LocalTerminalPane } from "./LocalTerminalPane";
 import { openBotSettings } from "./bot-panel/panel-link";
 
@@ -112,6 +113,7 @@ export function ComputerFilesPane({ bot }: { bot: Bot }) {
         </div>
         {pinned !== undefined && <p className="mt-2 text-[12px] leading-5 text-ink-secondary">{t("computer.files.pinnedFolderHint")}</p>}
       </div>
+      {typeof window !== "undefined" && window.ogb?.platform === "darwin" && window.ogb.localSimulator && !state.config?.cloudHome && !window.ogb.remoteClient?.active && <LocalSimulatorPane key={"sim-" + bot.threadId} bridge={window.ogb.localSimulator} />}
       {typeof window !== "undefined" && window.ogb?.localTerminal && !state.config?.cloudHome && !window.ogb.remoteClient?.active && window.ogb.platform !== "win32" && <LocalTerminalPane key={bot.threadId} bridge={window.ogb.localTerminal} />}
       <div className="mt-3 rounded-xl bg-card p-4">
         <div className="text-[13px] font-medium text-ink">{t("computer.files.recent")}</div>

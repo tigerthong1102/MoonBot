@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { resolve } from "node:path";
+import { registerSimulatorInspector } from "./local-simulator.mjs";
 import { commandPath } from "./shell-path.mjs";
 
 async function invoke(args, input) {
@@ -41,6 +42,11 @@ export async function localTerminalPane(dataDir, action, target, input, run = in
     await cmd(["paste-buffer", "-d", "-b", buffer, "-t", pane]);
     await cmd(["send-keys", "-t", pane, "Enter"]);
   } finally { await cmd(["delete-buffer", "-b", buffer]).catch(() => {}); }
+}
+
+export function registerLocalDeveloperPanes(ipc, guard, folder) {
+  registerSimulatorInspector(ipc, guard, () => Boolean(folder()));
+  registerLocalTerminalPane(ipc, guard, folder);
 }
 
 export function registerLocalTerminalPane(ipc, guard, folder) {

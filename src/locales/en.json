@@ -11725,5 +11725,12 @@
   "terminal.local.search": "Find in terminal output",
   "terminal.local.input": "One line of input",
   "terminal.local.send": "Send",
-  "terminal.local.error": "Could not confirm the terminal operation. Check the output before sending again."
+  "terminal.local.error": "Could not confirm the terminal operation. Check the output before sending again.",
+  "simulator.local.title": "iOS Simulator",
+  "simulator.local.device": "Booted simulator",
+  "simulator.local.refresh": "Refresh devices",
+  "simulator.local.capture": "Capture screen",
+  "simulator.local.empty": "Open an iOS Simulator in Xcode, then refresh.",
+  "simulator.local.error": "Could not read the selected simulator. Check Xcode and refresh the device list.",
+  "simulator.local.save": "Save PNG"
 }

@@ -294,6 +294,9 @@ export class SavedStepsDispatch {
         while (this.answered.size > REMEMBERED_REPLIES) this.answered.delete(this.answered.keys().next().value!);
         this.reply(run, replayedReply(run.recipe));
         this.emit(run, { type: "turn.completed", ok: true, stopReason: "end_turn" });
+      } else if (outcome.kind === "unverified") {
+        this.reply(run, outcome.message);
+        this.emit(run, { type: "turn.completed", ok: false, stopReason: outcome.message });
       } else if (outcome.kind === "declined") {
         this.reply(run, declinedReply(outcome));
         this.emit(run, { type: "turn.completed", ok: true, stopReason: "end_turn", denials: [`mcp__computer__${outcome.tool}`] });

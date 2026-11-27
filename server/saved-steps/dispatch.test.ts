@@ -84,7 +84,7 @@ let dispatch: SavedStepsDispatch;
 function computer(): ComputerCaller {
   let snapshot = 2;
   return {
-    async call(tool) {
+    async call(tool, args) {
       if (tool === throwAt) throw new Error("the fixture computer broke");
       if (tool === failAt) return { ok: false, error: "Fixture failure." } satisfies CallOutcome;
       if (tool === gateAt) return { ok: false, error: CONTROL_BUSY, gate: true } satisfies CallOutcome;
@@ -92,6 +92,7 @@ function computer(): ComputerCaller {
       if (tool === "list_windows") return { ok: true, structured: { windows: [{ window_id: 7, pid: 4242, title: "Untitled", app_name: "TextEdit" }] } };
       if (tool === "get_window_state") return { ok: true, structured: completeWindowState(windowState(snapshot++), documentText) };
       if (OBSERVATIONS.has(tool)) throw new Error(`unexpected ${tool}`);
+      if (tool === "set_value") documentText = String(args.value);
       acted.push(tool);
       return { ok: true, structured: {} };
     },

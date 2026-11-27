@@ -100,7 +100,7 @@ export function matchWindowButton(elements: readonly WireElement[], label: strin
   return (platform === "win32" ? match.value.uia_window_child : match.value.linux_window_child) === true ? match : NONE;
 }
 
-function heldValue(elements: unknown, index: number): string | undefined {
+export function heldValue(elements: unknown, index: number): string | undefined {
   const live = Array.isArray(elements) ? elements.find((item) => isRecord(item) && item.element_index === index) : undefined;
   return isRecord(live) && typeof live.value === "string" ? live.value : undefined;
 }
@@ -113,16 +113,16 @@ export const RETRY_MS = 3_000;
 export const POLL_MS = 250;
 const REAL_TIME: Patience = { now: Date.now, sleep: (ms, signal) => delay(ms, undefined, { signal }).catch(() => {}) };
 
-export async function resolveStepSoon(step: RecipeStep, caller: ComputerCaller, signal: AbortSignal, patience: Patience = REAL_TIME): Promise<Resolved> {
+export async function resolveStepSoon(step: RecipeStep, caller: ComputerCaller, signal: AbortSignal, patience: Patience = REAL_TIME, observe?: (tree: Record<string, unknown>) => void): Promise<Resolved> {
   const deadline = patience.now() + RETRY_MS;
   for (;;) {
-    const target = await resolveStep(step, caller, signal);
+    const target = await resolveStep(step, caller, signal, observe);
     if (target.ok || !target.missing || signal.aborted || patience.now() + POLL_MS > deadline) return target;
     await patience.sleep(POLL_MS, signal);
   }
 }
 
-export async function resolveStep(step: RecipeStep, caller: ComputerCaller, signal: AbortSignal): Promise<Resolved> {
+export async function resolveStep(step: RecipeStep, caller: ComputerCaller, signal: AbortSignal, observe?: (tree: Record<string, unknown>) => void): Promise<Resolved> {
   const { app, window, element } = step;
   if (step.tool === "launch_app") return { ok: true, args: step.args };
   if (!app) return fail("the saved step does not name its app");
@@ -170,6 +170,7 @@ export async function resolveStep(step: RecipeStep, caller: ComputerCaller, sign
     if (held === undefined) return fail(`could not read what ${target} holds`);
     if (held !== "" && held !== step.args.value) return fail(`${target} already holds other text`);
   }
+  observe?.(tree);
   return { ok: true, args: { ...args, element_token: token } };
 }
 

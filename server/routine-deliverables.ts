@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { ATTACHMENTS_DIR, deleteAttachment, saveFile } from "./attachments.ts";
 import type { SavedBotAttachment } from "./bot-attachment.ts";
+import { reconciliationCsv, RECONCILIATION_CSV_MAX_BYTES } from "./reconciliation-csv.ts";
 import type { Message } from "./store.ts";
 import { zipDirectoryLocation, zipMembers } from "./zip-archive.ts";
 
@@ -23,7 +24,8 @@ export async function saveReconciliationBytes(path: string, name?: string): Prom
   if (!encoded || encoded.length > Math.ceil(256 * 1024 / 3) * 4) throw invalid();
   const bytes = Buffer.from(encoded, "base64");
   if (bytes.length > 256 * 1024 || bytes.toString("base64") !== encoded) throw invalid();
-  const saved = await saveFile(Readable.from([bytes]), name, mime, { expectedBytes: bytes.length });
+  const output = artifact === "sources.csv" ? reconciliationCsv(bytes).bytes : bytes;
+  const saved = await saveFile(Readable.from([output]), name, mime, { expectedBytes: output.length });
   if (!usable(ATTACHMENTS_DIR, saved.path, artifact)) {
     deleteAttachment(saved.path);
     throw invalid();
@@ -51,11 +53,7 @@ function usable(root: string, path: string, name: keyof typeof required): boolea
       return buffer;
     }
     if (name === "report.pdf") return read(0, 5).toString("ascii") === "%PDF-" && read(Math.max(0, stat.size - 1024), Math.min(stat.size, 1024)).includes("%%EOF");
-    if (name === "sources.csv") {
-      const preview = read(0, Math.min(stat.size, 65536));
-      const rows = new TextDecoder("utf-8", { fatal: true }).decode(preview, { stream: preview.length < stat.size }).trim().split(/\r?\n/);
-      return !preview.includes(0) && rows.length > 1 && /[,;\t]/.test(rows[0]!);
-    }
+    if (name === "sources.csv") return stat.size <= RECONCILIATION_CSV_MAX_BYTES && !reconciliationCsv(read(0, stat.size)).changed;
     const start = Math.max(0, stat.size - 65557);
     const { directoryOffset, directoryBytes, entryCount } = zipDirectoryLocation(read(start, stat.size - start), start, 2048);
     if (directoryBytes > 1024 * 1024 || read(0, 4).readUInt32LE() !== 0x04034b50) return false;

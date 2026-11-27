@@ -436,7 +436,7 @@ it("posts a reconciliation only with all requested artifacts and opens its scope
   await s.api("PATCH", `/api/bots/${s.bot.id}`, { approvalMode: "full" });
   const pdf = readFileSync(new URL("./testing/fixtures/reconciliation/report.pdf", import.meta.url));
   const workbook = readFileSync(new URL("./testing/fixtures/reconciliation/reconciliation.xlsx", import.meta.url));
-  const csv = Buffer.from("source,amount\nINV-1,700\n");
+  const csv = Buffer.from("source,amount,note\nINV-1,700,=1+2\n");
   const inline = (name: string, mime: string, bytes: Buffer) => ({ tool: "attach_file", arguments: { name, path: "data:" + mime + ";base64," + bytes.toString("base64") } });
   const steps = [inline("report.pdf", "application/pdf", pdf), inline("reconciliation.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", workbook), inline("sources.csv", "text/csv", csv)];
   s.script([{ key: "reconciliation", match: [s.header("Reconcile")], steps, reply: "Draft ready.", repeat: true }]);
@@ -464,7 +464,7 @@ it("posts a reconciliation only with all requested artifacts and opens its scope
     expect(xml).toContain("<t>INV-1</t>");
     expect(xml).toContain("<v>700</v>");
   } finally { await xlsx.close(); }
-  expect((await artifact(2)).toString()).toEqual("source,amount\nINV-1,700\n");
+  expect((await artifact(2)).toString()).toEqual('"source","amount","note"\n"INV-1","700","\'=1+2"\n');
   const evidence = JSON.parse(readFileSync(join(s.dataDir, "room-plan.json.evidence.jsonl"), "utf8").trim().split("\n").find(row => JSON.parse(row).planKey === "reconciliation")!);
   expect(evidence).toMatchObject({ restricted: true, permissionMode: "default" });
   await s.api("POST", route, { revokeArtifact: link.id });

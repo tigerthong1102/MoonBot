@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,6 +35,20 @@ it("returns the same upload receipt, per-turn quota and expired-turn response fo
     expect(await reply(2, true)).toEqual({ status: 429, body: { error: "You already attached 2 files this turn. Put the rest in one document or archive summary instead." } });
     expect(await reply(0, false)).toEqual({ status: 409, body: { error: "This turn ended before the file could be attached, so nothing was posted." } });
   }
+});
+
+it("stores the same inert source CSV from a file or inline bytes and hashes the delivered copy", async () => {
+  const name = "sources.csv", path = join(WORK, name), raw = Buffer.from("id,note\nINV-1,=1+2\n");
+  writeFileSync(path, raw);
+  const local = await saveBotAttachment({ path, roots: [WORK], reconciliation: true, byContent: true });
+  const inline = await saveReconciliationBytes("data:text/csv;base64," + raw.toString("base64"), name);
+  const bytes = readFileSync(local.attachment.path);
+  expect(bytes.equals(readFileSync(inline.attachment.path))).toBe(true);
+  expect(bytes.toString()).toContain("'=1+2");
+  expect(local.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+  expect(readFileSync(path)).toEqual(raw);
+  const ordinary = await saveBotAttachment({ path, roots: [WORK] });
+  expect(readFileSync(ordinary.attachment.path)).toEqual(raw);
 });
 
 describe("guestWorkspaceToHost", () => {

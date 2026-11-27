@@ -97,7 +97,7 @@ export function assertRestoreDatabasesIdle(root: string, names: readonly string[
       windowsHide: true, timeout: 10_000, env: { ...process.env, STARTUPBOT_RESTORE_PATHS: JSON.stringify(files) },
     });
     if (probe.status === 2) throw new Error("Another process has a workspace SQLite file open. Close it before restoring.");
-    if (probe.status !== 0) throw new Error("Cannot access SQLite files for the restore preflight.");
+    if (probe.status !== 0) throw new Error("Cannot access SQLite files for the restore preflight. Native status=" + probe.status + " error=" + ((probe.error as NodeJS.ErrnoException | undefined)?.code ?? "none") + " signal=" + (probe.signal ?? "none") + " stderr=" + probe.stderr?.toString().replaceAll(/\s+/g, " ").slice(0, 160));
     return;
   }
   let holders: number[];

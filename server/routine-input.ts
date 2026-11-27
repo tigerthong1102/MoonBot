@@ -89,6 +89,7 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
   const asked = Array.isArray(input.checks) && input.checks.length === 0 ? null : input.checks;
   const checks = asked == null ? undefined : loadChecks(asked);
   if (asked != null && (!checks || checks.length !== new Set(asked).size)) throw userErrorThrown("serverError.routine.checks");
+  if (checks?.includes("gmail-revision") && input.deliver === "brief") throw new Error("A mailbox revision check delivers the report to its routine conversation.");
   if (checks && (target !== "bot" || runsOnce(schedule))) throw userErrorThrown("serverError.routine.checksRepeat");
   if (input.access != null && !isRoutineAccess(input.access)) throw userErrorThrown("serverError.routine.access");
   if (input.access && input.access !== "read-and-draft" && (checks || target !== "bot" || sameConversation || attachments.length)) {

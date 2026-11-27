@@ -10457,7 +10457,7 @@
   "serverError.team.signInFirst": "Đăng nhập vào ứng dụng {team} trước.",
   "serverError.team.ownAppsNeedKey": "Các ứng dụng riêng của bạn chưa thể kết nối trên {team}. Hãy yêu cầu quản trị viên thêm khóa Composio của nhóm.",
   "serverError.chat.ownerOrAdmin": "Chỉ có chủ sở hữu hoặc quản trị viên mới có thể làm điều đó.",
-  "serverError.routine.checks": "Chọn séc từ lịch, thư và chạy",
+  "serverError.routine.checks": "Chọn điều kiện kiểm tra lịch, thư, lần chạy hoặc phiên bản hộp thư Gmail",
   "serverError.routine.checksRepeat": "Kiểm tra cần một chương trình bot lặp lại",
   "serverError.routine.access": "Chọn quyền truy cập đọc và soạn thảo hoặc không",
   "serverError.routine.deliver": "Chỉ có một chương trình bot mới có thể cung cấp tóm tắt",

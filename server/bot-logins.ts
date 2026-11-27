@@ -59,10 +59,10 @@ export class BotLogins {
 
   /** `hold` masks a value read from a linked manager wherever text crosses to a bot or a transcript. */
   constructor(store: VaultStore, onePassword: OnePasswordLogins, bots: () => ReadonlyArray<{ id: string; browserProfile?: string | null }> = () => [],
-    hold: (value: string) => void = () => {}) {
+    hold: (value: string) => void = () => {}, extra: readonly VaultProvider[] = []) {
     this.store = store;
     this.onePassword = onePassword;
-    this.providers = [onePassword];
+    this.providers = [onePassword, ...extra];
     this.bots = bots;
     this.hold = hold;
   }
@@ -150,7 +150,7 @@ export class BotLogins {
 
   routes(botExists: (id: string) => boolean): LoginRouteDeps {
     return {
-      list: () => this.store.list(),
+      list: () => [...this.store.list(), ...this.providers.filter(provider => provider !== this.onePassword).flatMap(provider => provider.items().flatMap(item => item.kind === "login" ? [item] : []))],
       create: (input) => this.store.create(input),
       update: (id, patch) => this.store.update(id, patch),
       remove: (id) => this.store.remove(id),

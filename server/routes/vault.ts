@@ -12,6 +12,7 @@ export interface VaultRouteDeps {
   secrets: Pick<VaultStore, "listSecrets" | "saveSecret" | "receiveSecret" | "updateSecret" | "removeSecret">;
   /** A linked password manager's secrets, listed beside the saved ones and changed only in the manager. */
   linked?: () => LinkedSecret[];
+  bitwarden?: boolean;
   /** Which MCP servers lose their key when a secret is deleted. */
   keys?: Pick<McpKeys, "usedBy">;
   /** Whose secrets this caller sees; absent: the team's, as an admin's. */
@@ -50,7 +51,7 @@ export function createVaultRoutes(deps: VaultRouteDeps): RouteHandler {
     if (path === "/api/vault") {
       if (method !== "GET") return json(res, 405, { error: "method not allowed" });
       if (!reader.team) return json(res, 200, { logins: [], secrets: deps.secrets.listSecrets(reader), onePassword: { connected: false } });
-      return json(res, 200, { logins: [...deps.logins.list(), ...deps.logins.onePassword.list()], secrets: [...deps.secrets.listSecrets(reader), ...(deps.linked?.() ?? [])], onePassword: deps.logins.onePassword.status() });
+      return json(res, 200, { ...(deps.bitwarden && { bitwarden: true }), logins: [...deps.logins.list(), ...deps.logins.onePassword.list()], secrets: [...deps.secrets.listSecrets(reader), ...(deps.linked?.() ?? [])], onePassword: deps.logins.onePassword.status() });
     }
     if (path !== SECRETS && !path.startsWith(`${SECRETS}/`)) return json(res, 404, { error: "not found" });
     if (!reader.team && method !== "DELETE") return json(res, 403, { error: "Only an admin can add or change a secret in the Vault." });

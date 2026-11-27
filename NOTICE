@@ -164,3 +164,6 @@ port and its source are described in public/licenses/agenticos-citation.txt.
 The browser document index uses @noble/hashes for SHA-256 where Web Crypto is
 unavailable. Copyright (c) 2022 Paul Miller. Its MIT license is distributed in
 public/licenses/noble-hashes.txt.
+
+Codex rollout metadata parsing in server/local-codex-history.ts adapts
+stablyai/orca (Copyright (c) 2026 Lovecast Inc., MIT, public/licenses/orca.txt).

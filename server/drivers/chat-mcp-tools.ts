@@ -88,6 +88,7 @@ export function mcpStartupMs(env: Record<string, string | undefined> = process.e
 }
 
 export interface ChatToolMountOptions {
+  contextWindow?: number;
   startupMs?: number;
   hostComputerMs?: number;
   conversation?: string;
@@ -491,14 +492,18 @@ function uniqueName(base: string, taken: (name: string) => boolean): string {
 
 /** The configured servers a turn lists whole within `room` tools. When not all fit, the tool search's own tools take their
  * place in the room first, and the smallest servers are listed whole, so the fewest are reached through it. */
-export function directServers(servers: ReadonlyArray<{ name: string; tools: number }>, room: number): Set<string> {
-  if (servers.reduce((sum, server) => sum + server.tools, 0) <= room) return new Set(servers.map((server) => server.name));
+export function directServers(servers: ReadonlyArray<{ name: string; tools: number; bytes?: number }>, room: number, schemaBytes = Infinity): Set<string> {
+  const count = servers.reduce((sum, server) => sum + server.tools, 0);
+  const bytes = servers.reduce((sum, server) => sum + (server.bytes ?? 0), 0);
+  if (count <= room && bytes <= schemaBytes) return new Set(servers.map(server => server.name));
   let left = room - DIRECTORY_TOOL_COUNT;
+  let remaining = schemaBytes;
   const direct = new Set<string>();
-  for (const server of [...servers].sort((a, b) => a.tools - b.tools)) {
-    if (server.tools > left) continue;
+  for (const server of [...servers].sort((a, b) => a.tools - b.tools || (a.bytes ?? 0) - (b.bytes ?? 0))) {
+    if (server.tools > left || (server.bytes ?? 0) > remaining) continue;
     direct.add(server.name);
     left -= server.tools;
+    remaining -= server.bytes ?? 0;
   }
   return direct;
 }
@@ -634,8 +639,12 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
     trimmed.length = 0;
     Object.assign(budget, { limit, listed: 0, servers: [] });
     const room = limit === null ? Infinity : Math.max(0, limit - RUNTIME_TOOLS - (standIn ? 1 : 0));
+    const schemaBudget = options.contextWindow && options.contextWindow > 0 ? Math.max(2048, Math.floor(options.contextWindow * 0.4)) : Infinity;
+    const sizes = configured.map(({ origin, tools }) => ({ name: origin.server, tools: tools.length,
+      bytes: Number.isFinite(schemaBudget) ? tools.reduce((sum, { tool }) => sum + Buffer.byteLength(JSON.stringify(tool)), 0) : 0 }));
+    const schemasNeedSearch = sizes.reduce((sum, server) => sum + server.bytes, 0) > schemaBudget;
     const wanted = [...offeredTools, ...configured].reduce((sum, server) => sum + server.tools.length, 0);
-    const searchRoom = configured.some((server) => server.tools.length) && wanted > room ? DIRECTORY_TOOL_COUNT : 0;
+    const searchRoom = configured.some((server) => server.tools.length) && (wanted > room || schemasNeedSearch) ? DIRECTORY_TOOL_COUNT : 0;
     // The agents server keeps its whole list first; configured servers fit in what the built-ins leave.
     const shares = limit === null ? undefined : shareToolBudget(offeredTools.map(({ origin, tools }, index) => ({ name: String(index), tools: tools.length, agents: origin.agents }))
       .sort((a, b) => Number(b.agents) - Number(a.agents)), room - searchRoom);
@@ -648,7 +657,7 @@ export async function mountChatTools(integrations: SendTurnInput["integrations"]
       register(origin, tools);
     }
     if (standIn) definitions.push(standIn.definition);
-    const direct = directServers(configured.map(({ origin, tools }) => ({ name: origin.server, tools: tools.length })), room - definitions.length);
+    const direct = directServers(sizes, room - definitions.length, schemaBudget);
     const searched: typeof configured = [];
     for (const server of configured) {
       if (signal.aborted || closed) throw aborted();

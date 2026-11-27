@@ -27,7 +27,7 @@ describe("parseCommand", () => {
     expect(parseCommand(["team", "export", "--team", "A", "--team", "B", "--out", "t.yaml"]).flags).toMatchObject({ team: ["A", "B"], out: "t.yaml" });
     expect(parseCommand(["engine", "set", "claude", "--key-env", "ANTHROPIC_API_KEY"])).toMatchObject({ verb: "engine set", positionals: ["claude"] });
     expect(parseCommand(["engine", "list"]).verb).toBe("engine list");
-    expect(usage(() => parseCommand(["team", "destroy"]))).toEqual({ message: "team needs one of: apply, export", exitCode: EXIT.usage });
+    expect(usage(() => parseCommand(["team", "destroy"]))).toEqual({ message: "team needs one of: apply, export, import-openclaw", exitCode: EXIT.usage });
   });
 
   it("refuses unknown verbs and flags, missing values and extra values, as usage errors (exit 2)", () => {

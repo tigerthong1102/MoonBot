@@ -635,6 +635,7 @@ describe("staged skill writes", () => {
     expect(skillDependencies(name, bot, [{ botId: bot, name: "Invoices", prompt: "/alpha-report" }], undefined, [])).toContain("routine");
     expect(skillDependencies(name, bot, [{ botId: "", groupId: "finance", name: "Weekly", prompt: "/alpha-report" }], undefined, [], [{ id: "finance", memberIds: [bot] }])).toContain("routine");
     expect(skillDependencies(name, bot, [], undefined, [], [], [{ skills: [name] }])).toContain("template");
+    expect(skillDependencies(name, bot, [], undefined, [name])).toContain("team");
     expect(maintain("pin")).toHaveProperty("maintenancePinned", true);
     expect(maintain("archive")).toHaveProperty("error");
     maintain("unpin");

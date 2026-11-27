@@ -108,7 +108,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
         const skill = listSkills(bot.id).find(one => one.name === m![2]);
         if (!skill?.reviewedRevision) return json(res, 404, { error: "No reviewed skill." });
         return json(res, 200, { text, revision: skill.reviewedRevision,
-          dependencies: [...skillDependencies(skill.name, bot.id, deps.routines?.() ?? [], cfg.newBotDefaults, store.bots, store.groups, deps.presets?.())],
+          dependencies: [...skillDependencies(skill.name, bot.id, deps.routines?.() ?? [], cfg.newBotDefaults, bot.assignedSkills, store.groups, deps.presets?.())],
           similar: similarLearnedSkills(bot.id, skill.name) });
       }
       return json(res, 200, { text });
@@ -124,7 +124,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
         const bot = store.bot(m[1]!);
         if (!bot || !input.success) return json(res, 400, { error: "Choose a reviewed skill revision." });
         const name = m[2]!;
-        const referenced = (input.data.maintenance === "archive" || input.data.maintenance === "consolidate") && (!deps.routines || skillDependencies(name, bot.id, deps.routines(), cfg.newBotDefaults, store.bots, store.groups, deps.presets?.()).size > 0);
+        const referenced = (input.data.maintenance === "archive" || input.data.maintenance === "consolidate") && (!deps.routines || skillDependencies(name, bot.id, deps.routines(), cfg.newBotDefaults, bot.assignedSkills, store.groups, deps.presets?.()).size > 0);
         const result = input.data.maintenance === "consolidate"
           ? consolidateLearnedSkill(bot.id, name, input.data.revision, input.data.keep, input.data.keepRevision, referenced)
           : maintainLearnedSkill(bot.id, name, input.data.revision, input.data.maintenance, referenced);

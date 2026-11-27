@@ -198,6 +198,17 @@ it("applies requested Full Access workflows through MCP without duplicate approv
     const listing = await api("GET", `/api/bots/${chief.id}/skills`);
     expect(listing.skills.find((item: any) => item.name === "monthly-fixture-review").usage).toMatchObject({ calls: 1, failed: 0 });
     const maintenancePath = `/api/bots/${chief.id}/skills/monthly-fixture-review?maintenance=1`;
+    const skillName = "monthly-fixture-review";
+    await api("POST", "/api/skills-library", { text: skill(skillName, "Check the separately maintained library version.") }, 201);
+    await api("PATCH", `/api/skills-library/${skillName}`, { enabled: true });
+    await api("PATCH", `/api/bots/${peer.id}/skills-library`, { name: skillName, assigned: true });
+    const peerSkills = await api("GET", `/api/bots/${peer.id}/skills`);
+    expect(peerSkills.skills).toContainEqual(expect.objectContaining({ name: skillName, origin: "library" }));
+    expect((await api("GET", maintenancePath)).dependencies).not.toContain("team");
+    const revision = listing.skills.find((item: any) => item.name === skillName).reviewedRevision;
+    await api("PATCH", `/api/bots/${chief.id}/skills/${skillName}`, { maintenance: "archive", revision });
+    expect((await api("GET", `/api/bots/${peer.id}/skills/${skillName}`)).text).toContain("separately maintained");
+    await api("PATCH", `/api/bots/${chief.id}/skills/${skillName}`, { maintenance: "restore", revision });
     async function disabledShared(name: string, prompt: string) {
       await api("POST", "/api/skill-burgers", { everyChat: true, name, workflow: {
         version: 1, summary: name, args: {}, steps: [{ id: "read", label: "Review", kind: "ai", deterministic: false, prompt }],

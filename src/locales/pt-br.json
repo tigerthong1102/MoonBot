@@ -11688,5 +11688,13 @@
   "knowledge.addSection": "Adicionar seção",
   "knowledge.removeSection": "Remover",
   "knowledge.sectionFailed": "Verifique se você pode gerenciar este relatório e abrir o relatório de origem no mesmo espaço de trabalho.",
-  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente."
+  "server.roomCouncil.textOnly": "O conselho aceita apenas texto. Remova os anexos e envie a pergunta novamente.",
+  "palette.resources": "Tarefas e relatórios",
+  "browser.context.connection": "Computador: {host} · Perfil: {profile} · Conexão: {transport}",
+  "browser.context.live": "Visualização ao vivo v1",
+  "computer.files.find": "Buscar um arquivo alterado por nome ou pasta",
+  "computer.files.noMatches": "Nenhum arquivo alterado corresponde à busca.",
+  "computer.files.reference": "Arquivo desta conversa: {path}",
+  "computer.files.addDraft": "Adicionar referência ao arquivo no rascunho",
+  "computer.files.added": "Adicionado ao rascunho"
 }

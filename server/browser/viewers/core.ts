@@ -21,7 +21,7 @@ import type { Tab } from "../tabs.ts";
 import { ACCEPT_OF, chooseOption, cursorAt, editableAt, selectAt, type SelectPopup } from "./popups.ts";
 import { elementEvidence, type ElementEvidence } from "./element-evidence.ts";
 import { ViewerHold } from "./hold.ts";
-import { fitsScreen, MIN_WINDOW_WIDTH, requestedSize, VIEWPORT_PRESETS, viewportFor, ZOOM_LIMITS, zoomedLayout, type ViewportSetting } from "./viewport.ts";
+import { fitsScreen, MIN_WINDOW_WIDTH, requestedSize, parseSetting, viewportFor, ZOOM_LIMITS, zoomedLayout, type ViewportSetting } from "./viewport.ts";
 
 /** Chromium keeps three frames unacknowledged, so acking 100 ms after arrival caps a viewer near 30 fps. */
 export const ACK_PACE_MS = { hi: 100, lo: 200 } as const;
@@ -805,7 +805,7 @@ export class ViewerHub {
       }
       case "viewport": {
         if (!this.#hold.controls(viewer)) return;
-        const setting = parseSetting(message.setting);
+        const setting = parseSetting(record(message.setting));
         if (!setting) return;
         this.setting = setting;
         await this.#resizeForViewers();
@@ -991,17 +991,3 @@ const newestChallenge = (tabs: readonly Tab[]) => tabs.reduce<{ tab: Tab; challe
   const challenge = tab.page.auth.pending;
   return challenge && (!newest || challenge.since >= newest.challenge.since) ? { tab, challenge } : newest;
 }, null);
-
-function parseSetting(value: unknown): ViewportSetting | null {
-  const setting = record(value);
-  if (!setting) return null;
-  if (setting.mode === "fill") return { mode: "fill" };
-  if (setting.mode === "preset" && typeof setting.preset === "string" && setting.preset in VIEWPORT_PRESETS) {
-    return { mode: "preset", preset: setting.preset as keyof typeof VIEWPORT_PRESETS, ...(setting.landscape === true ? { landscape: true } : {}) };
-  }
-  if (setting.mode === "fixed") {
-    const size = requestedSize(setting.width, setting.height);
-    return size ? { mode: "fixed", ...size } : null;
-  }
-  return null;
-}

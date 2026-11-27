@@ -11688,5 +11688,12 @@
   "workflow.interrupted": "The run was interrupted after approval. Check the actual result before starting again.",
   "workflow.resume": "Resume",
   "workflow.approve": "Approve and resume",
-  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\"."
+  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\".",
+  "directMcp.clickup": "Manage tasks, lists and docs",
+  "directMcp.airtable": "Query and edit bases, tables and records",
+  "directMcp.todoist": "Add, sort and complete tasks",
+  "directMcp.zapier": "Run actions in the apps you set up in Zapier",
+  "directMcp.granola": "Search meeting notes and transcripts",
+  "directMcp.intercom": "Search conversations, contacts and articles",
+  "directMcp.notice": "Sign in with the provider to choose an account and review the requested permissions. Bot access follows the MCP settings for that account."
 }

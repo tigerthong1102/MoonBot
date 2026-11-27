@@ -1,4 +1,4 @@
-import { CreditCard, Mail, PhoneCall, RadioTower, Smartphone, type LucideIcon } from "lucide-react";
+import { ListChecks, Table2, ListTodo, Workflow, Notebook, MessagesSquare, CreditCard, Mail, PhoneCall, RadioTower, Smartphone, type LucideIcon } from "lucide-react";
 
 import bubblavLogo from "@/assets/bubblav/logo.png";
 import whopLogo from "@/assets/whop/logo.png";
@@ -94,6 +94,21 @@ export const HOSTED_MCP_APPS = [
     notice: "bubblav.notice",
     keywords: "bubblav chatbot chat widget website customer support service knowledge base conversations leads analytics",
   },
+  // Provider definitions adapted from stablyai/orca src/shared/bots/bot-mcp-apps.ts (MIT, public/licenses/orca.txt).
+  { id: "clickup", label: "ClickUp", url: "https://mcp.clickup.com/mcp", icon: { glyph: ListChecks },
+    description: "directMcp.clickup", notice: "directMcp.notice", keywords: "clickup mcp oauth" },
+  { id: "airtable", label: "Airtable", url: "https://mcp.airtable.com/mcp", icon: { glyph: Table2 },
+    description: "directMcp.airtable", notice: "directMcp.notice", keywords: "airtable mcp oauth" },
+  { id: "todoist", label: "Todoist", url: "https://ai.todoist.net/mcp", icon: { glyph: ListTodo },
+    description: "directMcp.todoist", notice: "directMcp.notice", keywords: "todoist mcp oauth" },
+  { id: "zapier", label: "Zapier", url: "https://mcp.zapier.com/api/v1/connect", icon: { glyph: Workflow },
+    description: "directMcp.zapier", notice: "directMcp.notice", keywords: "zapier mcp oauth" },
+  { id: "granola", label: "Granola", url: "https://mcp.granola.ai/mcp", icon: { glyph: Notebook },
+    description: "directMcp.granola", notice: "directMcp.notice", keywords: "granola mcp oauth" },
+  { id: "intercom", label: "Intercom (US)", url: "https://mcp.intercom.com/mcp", icon: { glyph: MessagesSquare },
+    description: "directMcp.intercom", notice: "directMcp.notice", keywords: "intercom mcp oauth" },
+  { id: "intercom-eu", label: "Intercom (EU)", url: "https://mcp.eu.intercom.com/mcp", icon: { glyph: MessagesSquare },
+    description: "directMcp.intercom", notice: "directMcp.notice", keywords: "intercom mcp oauth" },
 ] as const satisfies readonly HostedMcpApp[];
 
 /** A row of the table, with its own literal id. */

@@ -497,3 +497,7 @@ file (`--token-file`).
 `openmausbot mcp` serves the same operations as MCP tools on stdin and stdout
 ([docs/mcp-server.md](mcp-server.md)): `wait_for_conversation` waits on the
 same job, and returns the same result, as `wait`.
+
+### Read the active host's MCP catalog
+
+`openmausbot mcp-catalog --json` lists configured MCP servers through the same authenticated workspace connection used by Settings. Add `--bot ID` to see whether each server is available to that bot. The command prints names and status only. In Plugins, ClickUp, Airtable, Todoist, Zapier, Granola and Intercom offer direct provider sign-in. Use the Intercom region matching the workspace.

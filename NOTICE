@@ -180,3 +180,7 @@ copyright (c) 2026 Lovecast Inc., under the MIT license in public/licenses/orca.
 Selective JSON member extraction for Claude session headers and the Linear
 open-issue filter are adapted from stablyai/orca, copyright (c) 2026 Lovecast Inc.
 See public/licenses/orca.txt.
+
+The PDF page coverage range logic is adapted from NousResearch/hermes-agent
+tools/read_extract.py at ab7e19a761e0ef52ef0d1c5f0417c5784c653446.
+Copyright (c) 2025 Nous Research. MIT license: public/licenses/hermes-agent.txt.

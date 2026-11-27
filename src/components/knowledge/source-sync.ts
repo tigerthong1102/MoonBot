@@ -83,7 +83,10 @@ export async function scanSource(source: FolderSource, old: Index, read: SourceR
     index = { docs: new Map(), changes: [{ path: source.name, state: "error", issue }] };
   }
   const now = Date.now();
-  const newChanges = index.changes.filter(c => c.state !== "error" || old.changes.findLast(p => p.path === c.path)?.state !== "error");
+  const newChanges = index.changes.filter(c => {
+    const last = old.changes.findLast(p => p.path === c.path);
+    return c.state !== "error" || last?.state !== "error" || c.issue !== last.issue;
+  });
   index.changes = [...old.changes, ...newChanges.map(c => ({ ...c, at: now }))].slice(-300);
   return index;
 }

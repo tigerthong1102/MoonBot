@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import { Fragment, type ReactNode } from "react";
 import { parseSourceLink } from "./source-cache";
 import { SourceCitation } from "./SourceCitation";
@@ -11,6 +12,7 @@ function plain(text: string) {
 }
 
 function paragraphContent(text: string, threadId?: string) {
+  text = text.replace(/^No text extracted on pages ([0-9–, ]+) · (?=\[\d+\]\(#startupbot-source-)/, (_, pages: string) => t("knowledge.pdfGaps", { pages }) + " · ");
   const parts: ReactNode[] = [];
   let start = 0;
   for (const match of text.matchAll(/\[(\d+)\]\((#startupbot-source-[^\s)]+)\)/g)) {

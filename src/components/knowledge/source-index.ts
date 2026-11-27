@@ -1,3 +1,4 @@
+import type { PdfCoverage } from "../../../shared/source-evidence";
 import { sha256Hex } from "../../lib/sha256";
 
 export const accepts = /\.(txt|md|markdown|csv|tsv|pdf)$/i;
@@ -6,8 +7,8 @@ const MAX_LIBRARY = 16 * 1024 * 1024;
 const MAX_FILES = 300;
 export type SourceFile = { path: string; file: File } | { path: string; file?: undefined };
 export interface Passage { page: number; paragraph: number; text: string; start: number }
-export interface SourceDocument { path: string; digest: string; file: File; passages: Passage[] }
-export type SourceChange = { path: string; state: "added" | "changed" | "removed" | "error"; at?: number; issue?: "missing" | "signedOut" | "offline" | "folder" };
+export interface SourceDocument { path: string; digest: string; file: File; passages: Passage[]; coverage?: PdfCoverage }
+export type SourceChange = { path: string; state: "added" | "changed" | "removed" | "error"; at?: number; issue?: "missing" | "signedOut" | "offline" | "folder" | "pdfLocked" | "pdfLimit" | "pdfRead" };
 export interface Index { docs: Map<string, SourceDocument>; changes: SourceChange[] }
 export interface Directory {
   name: string;
@@ -57,6 +58,12 @@ export function splitPassages(text: string): Passage[] {
   return passages;
 }
 
+function pdfIssue(error: unknown) {
+  if (error instanceof Error && error.name === "PasswordException") return "pdfLocked";
+  if (error instanceof Error && ["file limit", "page limit", "text limit", "passage limit", "index limit"].includes(error.message)) return "pdfLimit";
+  return "pdfRead";
+}
+
 export async function indexSources(files: SourceFile[], previous: Index, signal?: AbortSignal): Promise<Index> {
   signal?.throwIfAborted();
   const supported = files.filter(entry => accepts.test(entry.path));
@@ -70,9 +77,9 @@ export async function indexSources(files: SourceFile[], previous: Index, signal?
     signal?.throwIfAborted();
     if (paths.has(path)) throw new Error("duplicate file");
     paths.add(path);
+    const pdf = /\.pdf$/i.test(path);
     try {
       if (!file) throw new Error("file unavailable");
-      const pdf = /\.pdf$/i.test(path);
       if (file.size > (pdf ? 12 * 1024 * 1024 : MAX_FILE)) throw new Error("file limit");
       const bytes = await file.arrayBuffer();
       signal?.throwIfAborted();
@@ -80,17 +87,22 @@ export async function indexSources(files: SourceFile[], previous: Index, signal?
       signal?.throwIfAborted();
       const saved = previous.docs.get(path);
       let doc = saved;
-      if (!doc || doc.digest !== digest) {
-        const text = pdf ? await (await import("./pdf-text")).pdfText(bytes) : new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (!doc || doc.digest !== digest || (pdf && !doc.coverage)) {
+        const extracted = pdf ? await (await import("./pdf-text")).pdfText(bytes) : undefined;
+        const text = extracted?.text ?? new TextDecoder("utf-8", { fatal: true }).decode(bytes);
         if (text.includes("\0")) throw new Error("binary file");
-        doc = { path, digest, file, passages: splitPassages(text) };
+        doc = { path, digest, file, passages: splitPassages(text), ...(extracted && { coverage: extracted.coverage }) };
       }
       const size = doc.passages.reduce((total, p) => total + p.text.length, 0);
       if (textSize + size > 12 * 1024 * 1024 || passageCount + doc.passages.length > 40_000) throw new Error("index limit");
       textSize += size; passageCount += doc.passages.length;
       docs.set(path, doc);
       if (doc !== saved) changes.push({ path, state: saved ? "changed" : "added" });
-    } catch { signal?.throwIfAborted(); changes.push({ path, state: "error" }); }
+    } catch (error) {
+      signal?.throwIfAborted();
+      const issue = pdf && file ? pdfIssue(error) : undefined;
+      changes.push({ path, state: "error", ...(issue && { issue }) });
+    }
   }
   for (const path of previous.docs.keys()) if (!paths.has(path)) changes.push({ path, state: "removed" });
   return { docs, changes };

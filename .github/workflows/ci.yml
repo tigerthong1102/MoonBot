@@ -205,11 +205,6 @@ jobs:
     # the box does not start, so they run unboxed or skip, as they always
     # have here. Move to 26.04 once those suites pass with a real box.
     runs-on: ${{ matrix.os == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os }}
-    # scripts/testing/duration-sequencer.ts splits each platform's files by
-    # their recorded seconds on that platform, about 6 minutes a Linux shard
-    # (four files at once); a Windows shard runs two files at once. The cap
-    # catches a hang, not normal suite growth; Windows runners are about 1.45x
-    # slower and vary more.
     timeout-minutes: ${{ matrix.os == 'ubuntu-latest' && 25 || 30 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

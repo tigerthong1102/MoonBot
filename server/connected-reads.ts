@@ -465,6 +465,7 @@ export interface ReadSession {
   thread(threadId: string): Promise<ThreadMessage[]>;
   /** The connected Gmail account's own address. */
   address(): Promise<string>;
+  mailboxRevision?(): Promise<{ address: string; revision: string }>;
   outlookEmails?(sinceMs: number, limit: number, judged?: ReadonlySet<string>): Promise<EmailPage>;
   /** Null only when Outlook says the message is gone. */
   outlookMessage?(messageId: string): Promise<EmailHeader | null>;
@@ -640,6 +641,15 @@ export function createConnectedReads(deps: ConnectedReadDeps): Omit<ConnectedRea
       async address() {
         const data = await call(GMAIL_PROFILE_TOOL, { user_id: "me" });
         return parsed("gmail", () => profileFromData(data));
+      },
+      async mailboxRevision() {
+        const data = await call(GMAIL_PROFILE_TOOL, { user_id: "me" });
+        return parsed("gmail", () => {
+          const profile = [record(data), record(record(data)?.response_data)].find(body => typeof body?.emailAddress === "string");
+          const revision = profile?.historyId;
+          if (typeof revision !== "string" || !/^\d{1,32}$/u.test(revision)) throw new Error("the Gmail profile had no history id");
+          return { address: profileFromData(profile), revision };
+        });
       },
       async outlookEmails(sinceMs, limit, judged) {
         requireFinite("outlook", sinceMs);

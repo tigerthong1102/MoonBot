@@ -23,5 +23,15 @@ it("records attempts per Git checkout and rejects old, mismatched and conflictin
     const receipt = recordAttempt(root,"finish",args);
     expect(recordAttempt(root,"finish",args)).toEqual(receipt);
     expect(() => recordAttempt(root,"finish",{...args,exit:1})).toThrow(/different/);
+    const next = { host: "validator", afterApproved: 2 };
+    expect(() => recordAttempt(root, "start", next)).toThrow(/approved/);
+    const head = run("git", ["rev-parse", "HEAD"], root).trim();
+    const review = { attempt: 2, head, reviewer: "reviewer" };
+    expect(() => recordAttempt(root, "approve", { ...review, head: "wrong" })).toThrow(/revision/);
+    const accepted = recordAttempt(root, "approve", review);
+    expect(recordAttempt(root, "approve", review)).toEqual(accepted);
+    expect(recordAttempt(root, "start", next)).toMatchObject({ attempt: 3, afterApproved: 2, head });
+    expect(() => recordAttempt(root, "start", next)).toThrow(/latest/);
+    expect(() => recordAttempt(root, "finish", args)).toThrow(/current attempt/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

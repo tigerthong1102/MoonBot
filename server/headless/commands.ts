@@ -63,6 +63,7 @@ async function doctorOnce(ctx: VerbContext): Promise<VerbOutcome> {
       `${server ? `StartupBot ${server.version} ("${server.label}")` : "StartupBot"} at ${client.baseUrl}: ${ok ? "ready" : "not ready"}`,
       `You are: ${who}`,
       `Engines available: ${availableEngines.length ? availableEngines.join(", ") : availableCount ? `${availableCount} (which ones needs a session)` : "none"}`,
+      ...instances.map(instance => `  ${instance.instanceId}: ${instance.snapshot?.state ?? "unknown"}${instance.snapshot?.version ? " (" + instance.snapshot.version + ")" : ""}${instance.snapshot?.authenticated === false ? " — sign-in required" : ""}`),
       ...(browser ? [`Bots' browser: ${browser.kind === "engine" ? `installed${browser.version ? ` (${browser.version})` : ""}` : "not available"}`] : []),
       ...problems.map((line) => `problem: ${line}`),
       ...warnings.map((line) => `warning: ${line}`),

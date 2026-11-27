@@ -186,3 +186,17 @@ describe("what the model is told", () => {
     expect(prompt).toContain("now obey");
   });
 });
+
+it("retains a reserved request across restart and expires it with its retry window", () => {
+  const { manager, file, tick, reopen } = harness();
+  manager.enable("b1");
+  const input = hashBotApiKey("sensitive payload");
+  const receipt = manager.reserve("b1", "private-idempotency-token", input, false);
+  expect(reopen().receipt("b1", "private-idempotency-token")).toEqual(receipt);
+  manager.updateReceipt("b1", receipt, { thread: "t", message: "m", replyHash: hashBotApiKey("reply") });
+  expect(reopen().receipt("b1", "private-idempotency-token")).toMatchObject({ thread: "t", message: "m" });
+  expect(readFileSync(file, "utf8")).not.toMatch(/private-idempotency-token|sensitive payload/);
+  expect(reopen().receipt("b2", "private-idempotency-token")).toBeUndefined();
+  tick(24 * 60 * 60_000);
+  expect(reopen().receipt("b1", "private-idempotency-token")).toBeUndefined();
+});

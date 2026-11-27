@@ -513,6 +513,15 @@ describe("cloud computer power", () => {
       expect(sleeps()).toEqual(["bot-a", "bot-a"]);
     });
 
+    it("lets the computer sleep when a scheduled routine switches to reconciliation delivery", async () => {
+      fake.states.set("bot-a", "ready");
+      const routine = due("bot-a", 20 * MINUTE);
+      power.used("bot-a");
+      Object.assign(routine, { deliverables: "reconciliation" });
+      await vi.advanceTimersByTimeAsync(10 * MINUTE);
+      expect(sleeps()).toEqual(["bot-a"]);
+    });
+
     it("paused, with no next run it can work out, or for a bot that uses no cloud computer, it keeps nothing on", async () => {
       for (const owner of ["paused", "unscheduled", "elsewhere"]) fake.states.set(owner, "ready");
       due("paused", 20 * MINUTE).enabled = false;

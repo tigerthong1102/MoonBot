@@ -66,6 +66,7 @@ const recordSchema = z.object({
   error: z.enum(["limit", "model"]).optional(),
   /** The last state the Admin answered for; a message is over here once this is its final state. */
   told: z.string().optional(),
+  reportRef: z.object({ key: z.string().regex(/^[a-f0-9]{64}$/u), runId: z.string().min(1).max(128), messageId: z.string().min(1).max(160).optional(), sessionId: z.string().min(1).max(160) }).optional(),
   /** The Admin no longer wants reports for it (already over there, or not this team's). */
   closed: z.literal(true).optional(),
 });

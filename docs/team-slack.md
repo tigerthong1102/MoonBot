@@ -149,3 +149,13 @@ and telling `model` and `limit` apart in a `failed`. A card asked by another bot
 person's inbox, and Slack keeps showing the run as working.
 
 See [Verifying Slack for Team Clouds](verification/team-slack.md).
+
+### Continue a posted automation report
+
+In a Slack direct-message thread, send `report RUN_ID: your question` with
+the completed run's ID from the routine history. The Cloud replies to the
+published report message in its original conversation. Follow-up messages in
+the same Slack thread stay bound to that run for the message history retention
+period. Use a new Slack thread for a different run. Each reply requires the
+member's current access to the run and its chat. A report whose source has been
+deleted or access withdrawn cannot be continued there.

@@ -1,3 +1,4 @@
+import { delegateMessage, HANDOFF_TOO_LONG, handoffFits, resultContract } from "./result-contract.ts";
 import { z } from "zod";
 
 import { KNOWN_READ_SLUGS } from "../outbound.ts";
@@ -23,6 +24,7 @@ export const workflowCondition = z.object({
  * string, so a value can't change the words around it. */
 const text = z.union([z.string().min(1).max(8_000), z.array(z.union([z.string().max(8_000), ref])).min(1).max(40)]);
 export type WorkflowText = z.infer<typeof text>;
+const literalText = (value: WorkflowText) => typeof value === "string" ? value : value.filter(part => typeof part === "string").join("");
 
 /** What "done" means for a step: `says` in words, and, where a rule on the step's own output can tell, that rule. A step
  * with a rule fails when the rule doesn't hold; one with words only is checked by the bot. `true` means "does this look right". */
@@ -70,7 +72,7 @@ export const WORKFLOW_BATCH_LIMIT = 100;
 
 export const workflowStepSchema = z.discriminatedUnion("kind", [
   z.object({ ...common, kind: z.literal("shell"), run: z.string().min(1).max(20_000), cwd: z.string().max(1_000).optional(), stdin: ref.optional(), shell: z.enum(["bash", "unknown"]).optional() }).strict(),
-  z.object({ ...common, kind: z.literal("app"), app: z.string().min(1).max(64), tool: z.string().min(1).max(200), args: z.record(z.string(), z.unknown()), batch: readBatchSchema.optional(), account: z.string().max(200).optional() }).strict(),
+  z.object({ ...common, kind: z.literal("app"), resultContract: resultContract.optional(), app: z.string().min(1).max(64), tool: z.string().min(1).max(200), args: z.record(z.string(), z.unknown()), batch: readBatchSchema.optional(), account: z.string().max(200).optional() }).strict(),
   z.object({ ...common, kind: z.literal("browser"), action: z.literal("open"), url: z.union([z.string().url(), ref]) }).strict(),
   z.object({ ...common, kind: z.literal("file"), path: z.string().min(1).max(1_000), content: z.union([z.string(), ref]) }).strict(),
   z.object({
@@ -84,7 +86,7 @@ export const workflowStepSchema = z.discriminatedUnion("kind", [
   // asked last time.
   z.object({
     ...common, kind: z.literal("delegate"),
-    tasks: z.array(z.object({ bot: teammate, message: text, doneWhen: text.or(z.literal("")).refine((value) => typeof value === "string" ? value.length <= 1_000 : value.reduce((size, part) => size + (typeof part === "string" ? part.length : 0), 0) <= 1_000).optional() }).strict()).min(1).max(8).refine((tasks) => new Set(tasks.map((task) => task.bot.name.trim().toLowerCase().replace(/^@/, ""))).size === tasks.length, "Each delegated task needs a distinct teammate name."),
+    tasks: z.array(z.object({ bot: teammate, message: text, resultContract: resultContract.optional(), doneWhen: text.or(z.literal("")).refine((value) => literalText(value).length <= 1_000).optional() }).strict()).min(1).max(8).refine((tasks) => new Set(tasks.map((task) => task.bot.name.trim().toLowerCase().replace(/^@/, ""))).size === tasks.length, "Each delegated task needs a distinct teammate name."),
     consult: z.boolean().optional(),
     review: z.object({ rounds: z.number().int().min(1).max(DELEGATE_MAX_ROUNDS), example: z.string().max(2_000).optional() }).strict().optional(),
   }).strict(),
@@ -134,7 +136,16 @@ export const workflowSchema = z.object({
       const problem = parallelProblem(workflow.steps.slice(index, end));
       if (problem) issue.addIssue({ code: "custom", message: problem });
     }
+    if (step.kind === "delegate") {
+      for (const [taskIndex, task] of step.tasks.entries()) {
+        if (task.resultContract && !handoffFits({ botIds: [task.bot.id ?? ""], message: delegateMessage(literalText(task.message), task.resultContract),
+          doneWhen: task.doneWhen ? literalText(task.doneWhen) : undefined, consult: step.consult || undefined })) {
+          issue.addIssue({ code: "custom", path: ["steps", index, "tasks", taskIndex], message: HANDOFF_TOO_LONG });
+        }
+      }
+    }
     if (step.kind === "app" && step.batch) {
+      if (step.resultContract) issue.addIssue({ code: "custom", message: "A batch returns a row ledger. Apply a scalar result contract to a single read." });
       const { rows, argument } = step.batch;
       if (!KNOWN_READ_SLUGS.has(step.tool) || step.app.toLowerCase() !== step.tool.split("_")[0]?.toLowerCase() || (step.where && step.where !== "app")) {
         issue.addIssue({ code: "custom", message: "A batch requires a known read-only connector tool." });

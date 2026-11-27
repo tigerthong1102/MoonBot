@@ -139,6 +139,8 @@ export interface SendTurnInput {
   toolScope?: ToolScope;
   /** A guest turn: no shell or command execution, no reads outside its folder. Sent only to drivers whose guestTurns is "confined". */
   guestConfined?: boolean;
+  /** Restrict this reconciliation to reading its sources and returning files through the turn-scoped bridge. */
+  internalDeliveryOnly?: boolean;
   /** Why this turn is confined, in the owner's words, for a refusal to end with. */
   confinedWhy?: string;
   /** Images for this user turn only; kept out of replay transcripts. */

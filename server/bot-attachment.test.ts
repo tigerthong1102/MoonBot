@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, truncateSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,8 +8,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 // attachments.ts reads DATA_DIR at import time.
 const DATA_ROOT = mkdtempSync(join(tmpdir(), "omb-bot-attachment-"));
 process.env.OMB_DATA_DIR = join(DATA_ROOT, "data");
-const { attachForTurn, contentUploadId, deliveredCopy, guestWorkspaceToHost, saveBotAttachment } = await import("./bot-attachment.ts");
-const { ATTACHMENTS_DIR, FILE_MAX_BYTES, PREVIEW_MAX_BYTES } = await import("./attachments.ts");
+const { attachForTurn, attachmentResponse, contentUploadId, deliveredCopy, guestWorkspaceToHost, saveBotAttachment } = await import("./bot-attachment.ts");
+const { incompleteReconciliation, saveReconciliationBytes } = await import("./routine-deliverables.ts");
+const { ATTACHMENTS_DIR, deleteAttachment, FILE_MAX_BYTES, PREVIEW_MAX_BYTES } = await import("./attachments.ts");
 
 const WORK = join(DATA_ROOT, "work");
 const VM_HOME = join(DATA_ROOT, "vm-home");
@@ -19,6 +21,49 @@ beforeAll(() => {
   mkdirSync(join(VM_HOME, "reports"), { recursive: true });
 });
 afterAll(() => rmSync(DATA_ROOT, { recursive: true, force: true }));
+
+it("returns the same upload receipt, per-turn quota and expired-turn response for workspace and generated files", async () => {
+  const bytes = Buffer.from("source,amount\nINV-1,700\n");
+  const name = "sources.csv", file = join(WORK, name), inline = "data:text/csv;base64," + bytes.toString("base64");
+  writeFileSync(file, bytes);
+  for (const path of [file, inline]) {
+    const save = () => path === file ? saveBotAttachment({ path, roots: [WORK] }) : saveReconciliationBytes(path, name);
+    const reply = (used: number, live: boolean) => attachmentResponse(path, name, 2, () => attachForTurn({ attachedFiles: used }, 2, {
+      save, stillLive: () => live, publish: () => {}, discard: saved => deleteAttachment(saved.attachment.path),
+    }));
+    expect(await reply(0, true)).toEqual({ status: 200, body: { ok: true, name, bytes: bytes.length } });
+    expect(await reply(2, true)).toEqual({ status: 429, body: { error: "You already attached 2 files this turn. Put the rest in one document or archive summary instead." } });
+    expect(await reply(0, false)).toEqual({ status: 409, body: { error: "This turn ended before the file could be attached, so nothing was posted." } });
+  }
+});
+
+it("stores the same inert source CSV from a file or inline bytes and hashes the delivered copy", async () => {
+  const name = "sources.csv", path = join(WORK, name), raw = Buffer.from("id,note\nINV-1,=1+2\n");
+  writeFileSync(path, raw);
+  const local = await saveBotAttachment({ path, roots: [WORK], reconciliation: true, byContent: true });
+  const inline = await saveReconciliationBytes("data:text/csv;base64," + raw.toString("base64"), name);
+  const bytes = readFileSync(local.attachment.path);
+  expect(bytes.equals(readFileSync(inline.attachment.path))).toBe(true);
+  expect(bytes.toString()).toContain("'=1+2");
+  expect(local.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
+  expect(readFileSync(path)).toEqual(raw);
+  const ordinary = await saveBotAttachment({ path, roots: [WORK] });
+  expect(readFileSync(ordinary.attachment.path)).toEqual(raw);
+});
+
+it("rechecks a queued workbook after its bytes change and leaves ordinary workspace uploads independent", async () => {
+  const name = "reconciliation.xlsx", path = join(WORK, name);
+  const original = readFileSync(new URL("./testing/fixtures/reconciliation/reconciliation.xlsx", import.meta.url));
+  writeFileSync(path, original);
+  const saved = await saveBotAttachment({ path, roots: [WORK], reconciliation: true });
+  expect(incompleteReconciliation(ATTACHMENTS_DIR, [saved.attachment])).not.toContain(name);
+  writeFileSync(saved.attachment.path, "not a workbook");
+  expect(incompleteReconciliation(ATTACHMENTS_DIR, [saved.attachment])).toContain(name);
+  writeFileSync(path, "not a workbook");
+  await expect(saveBotAttachment({ path, roots: [WORK], reconciliation: true })).rejects.toThrow(/value-only/);
+  const ordinary = await saveBotAttachment({ path, roots: [WORK] });
+  expect(readFileSync(ordinary.attachment.path, "utf8")).toBe("not a workbook");
+});
 
 describe("guestWorkspaceToHost", () => {
   const guest = "/home/cua/workspace";

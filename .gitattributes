@@ -71,3 +71,6 @@ skills/catalog/hyperframes/assets/frame-presets/code-editorial/fonts/*.woff2 bin
 shared/settings-places.ts text eol=lf
 
 skills/catalog/media-use/audio/assets/sfx/*.mp3 binary
+
+server/testing/fixtures/reconciliation/*.pdf binary
+server/testing/fixtures/reconciliation/*.xlsx binary

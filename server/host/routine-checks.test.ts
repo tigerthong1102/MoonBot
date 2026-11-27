@@ -25,9 +25,11 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; con
   const runs: RoutineRun[] = [];
   const reports: CheckReport[] = [];
   const connected: Partial<Record<ReadApp, boolean>> = options.connected ?? { gmail: true, googlecalendar: true };
+  const mailbox = { address: "a@fixture.test", revision: "123" };
   const reads: ConnectedReads = {
     connected: async () => connected,
     session: () => ({
+      async mailboxRevision() { if (failing.gmail) throw new SourceError("gmail", failing.gmail); return { ...mailbox }; },
       async address() { calls.push("address"); if (failing.gmail) throw new SourceError("gmail", failing.gmail, several.has("gmail")); return "me@x.test"; },
       async events() { calls.push("events"); if (failing.googlecalendar) throw new SourceError("googlecalendar", failing.googlecalendar, several.has("googlecalendar")); return events; },
       async emails(since, limit) {
@@ -48,7 +50,7 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; con
     }),
   };
   const sorted: Array<[string, number]> = [];
-  const checks = createRoutineChecks({
+  const reopen = () => createRoutineChecks({
     dataDir: dir, reads, now: () => now, mayRead: (_bot, app) => options.may?.(app) ?? true, fenced: () => options.fenced ?? true,
     timeZone: () => "UTC", runs: () => runs, dismissedFrom: () => [], report: (report) => { reports.push(report); },
     sorted: (routineId, count) => sorted.push([routineId, count]),
@@ -74,7 +76,7 @@ function setup(options: { fenced?: boolean; may?: (app: ReadApp) => boolean; con
     events.push(event);
     return event;
   };
-  return { checks, routine, mail, outlookMail, meeting, failing, several, calls, runs, reports, inbox, outlookInbox, limits, sorted, advance: (ms: number) => { now += ms; }, now: () => now, file: join(dir, CHECKS_FILE) };
+  return { checks: reopen(), reopen, mailbox, routine, mail, outlookMail, meeting, failing, several, calls, runs, reports, inbox, outlookInbox, limits, sorted, advance: (ms: number) => { now += ms; }, now: () => now, file: join(dir, CHECKS_FILE) };
 }
 
 const run = (key: string, status: RoutineRun["status"], deliver?: "brief"): RoutineRun => ({
@@ -83,6 +85,25 @@ const run = (key: string, status: RoutineRun["status"], deliver?: "brief"): Rout
 });
 
 describe("a routine's checks", () => {
+  it("wakes on mailbox revisions, preserves the cursor on failure, and resumes after restart", async () => {
+    const s = setup(), routine = s.routine({ checks: ["gmail-revision"], deliver: undefined });
+    const tick = { manual: true };
+    expect(await s.checks.check(routine, tick)).toEqual({});
+    expect(await s.checks.check(routine, tick)).toEqual({});
+    s.failing.gmail = "401 revoked";
+    expect(await s.checks.check(routine, tick)).toMatchObject({ trouble: expect.stringContaining("Reconnect") });
+    delete s.failing.gmail;
+    s.mailbox.revision = "9007199254740993123";
+    const update = await s.checks.check(routine, tick);
+    expect(update.run?.prompt).toContain("mailbox revision changed");
+    expect(await s.reopen().check(routine, tick)).toEqual({});
+    s.runs.push(run(update.run!.key, "completed"));
+    expect(await s.reopen().check(routine, tick)).toEqual({});
+    s.mailbox.address = "b@fixture.test";
+    s.mailbox.revision = "1";
+    expect(await s.reopen().check(routine, tick)).toEqual({});
+  });
+
   it("nothing new means no run, and the brief still hears what needs no AI", async () => {
     const s = setup();
     const result = await s.checks.check(s.routine(), { manual: false });

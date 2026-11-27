@@ -141,3 +141,15 @@ One PR at a time, each to `main`, each green on the suite before merge:
 4. **Every turn a root** (this PR): every person, routine, webhook and peer-delivered direct turn is a root; the card-resume lanes (team setup, connector, computer park, credential, sign-in) and `Continue:` tasks fold into park/answer and in-place continuation; Stop settles cards as stopped; a cut turn reruns once unless it already acted outward (§5); long work continues until it stops making progress (§2, §6).
 5. **Rooms as roots** (this PR): every room member's turn is a root (chat responders, chained @mentions, goal steps, card and seat continuations); cards park room members and Stop in a room settles them; the computer ceiling in a room is admission; the room card-resume remnant, `queueRoomComputerResume` and `sourceSettled` go; the one-release aliases of §9 are removed and the catalog baselines lowered. Before it: room scenarios in the live Codex runs.
 6. **What remains**: `parkedSeats` is memory-only (after a restart a root queued on a seat dispatches on a free slot and waits for the seat inside the turn); the legacy watchdog still owns per-turn stalls (`turnStallMs` is set out of the way, not read from host progress); a room goal run still routes its steps outside the runtime (the step roots record it, the run decides); the `source` status of the host's node view goes once `server/index.ts` reads `Assignment` rows directly.
+
+### Internal lifecycle observer
+
+On a host with filesystem access to the runtime ledger, export a versioned page for diagnostics:
+
+```sh
+node --experimental-strip-types scripts/runtime-observer.ts --database /path/to/runtime.db --after 0 --limit 200
+```
+
+Reuse `nextCursor` as `--after` for the next page. Each event contains its persisted timestamp, type and cursor, and keyed identifiers for the request tree (run), assignment, parent assignment, worker and conversation. Each actual execution begins a new turn ID at `turn.started`; pre-dispatch events have a null turn ID. The root run ID and prior turn IDs survive restarts. The runtime's existing pruning policy bounds the available history.
+
+The default key is created alongside the database with owner-only permissions. Use `--key /path/to/observer-key` to choose a private location. Keep the same key with that installation to correlate separate exports. Rotating it changes exported identifiers. Event types describe the runtime's recorded transitions. Briefs, replies, tool arguments, credentials, paths and raw actor IDs are omitted. The reader opens the database read-only and grants no access to run, release or approve a request.

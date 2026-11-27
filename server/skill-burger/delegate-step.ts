@@ -1,17 +1,19 @@
+import { delegateMessage, HANDOFF_TOO_LONG, handoffFits, resultContractError, type ResultContract } from "../../shared/skill-burger/result-contract.ts";
 import type { WorkflowRef, WorkflowStep, WorkflowText } from "../../shared/skill-burger/format.ts";
 import { teammateNames } from "../../shared/skill-burger/format.ts";
 
 type DelegateStep = Extract<WorkflowStep, { kind: "delegate" }>;
 export type Teammate = { id: string; name: string; title?: string };
-export type Settled = { status: string; result: string };
+export type Settled = { status: string; result: string; finishedAt?: number };
 
 /** Where a delegation is between pauses: who each part went to, the hand-offs out now, and the replies so far. */
 export interface DelegationState {
   round: number;
+  deadline?: number;
   /** A saved teammate's name → who does its part now; null when the bot left that part out. */
   who: Record<string, { id: string; name: string } | null>;
-  requests: Array<{ part: string; botId: string; name: string; requestId: string }>;
-  replies: Record<string, { name: string; ok: boolean; text: string; round: number }>;
+  requests: Array<{ part: string; botId: string; name: string; requestId: string; resultContract?: ResultContract }>;
+  replies: Record<string, { name: string; ok: boolean; text: string; round: number; data?: unknown }>;
   pendingRedo?: Record<string, string>;
 }
 
@@ -86,12 +88,17 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
   for (const task of step.tasks) {
     const to = Object.hasOwn(state.who, task.bot.name) ? state.who[task.bot.name] : undefined;
     if (!to || (fixes && !(task.bot.name in fixes))) continue;
-    const base = textOf(task.message, fill);
-    const message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
+    const base = delegateMessage(textOf(task.message, fill), task.resultContract);
+    let message = fixes ? `${fixes[task.bot.name]}\n\nThe work, as first asked:\n${base}` : base;
     const doneWhen = task.doneWhen ? textOf(task.doneWhen, fill) : undefined;
     if (doneWhen && doneWhen.length > 1_000) return { ok: false, error: "The completed criteria exceed 1,000 characters." };
+    if (task.resultContract) {
+      const input = { botIds: [to.id], message, doneWhen, rework: fixes ? true : undefined, consult: step.consult || undefined };
+      if (fixes && !handoffFits(input)) message = fixes[task.bot.name]!;
+      if (!handoffFits({ ...input, message })) return { ok: false, error: HANDOFF_TOO_LONG };
+    }
     let key = `${message}\u0000${doneWhen ?? ""}`;
-    if (calls.get(key)?.botIds.includes(to.id)) key += `\u0000${task.bot.name}`;
+    if (task.resultContract || calls.get(key)?.botIds.includes(to.id)) key += `\u0000${task.bot.name}`;
     const call = calls.get(key) ?? { parts: [], botIds: [], message, ...(fixes ? { correction: fixes[task.bot.name] } : {}), ...(doneWhen ? { doneWhen } : {}) };
     call.parts.push(task.bot.name); call.botIds.push(to.id);
     calls.set(key, call);
@@ -101,7 +108,7 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
     for (let at = 0; at < call.botIds.length; at += 4) {
       const botIds = call.botIds.slice(at, at + 4);
       const summary = { botIds, message: call.message, doneWhen: call.doneWhen, rework: fixes ? true : undefined, consult: step.consult ? true : undefined };
-      const message = call.correction && JSON.stringify(summary).length > 4_000 ? call.correction : call.message;
+      const message = call.correction && !handoffFits(summary) ? call.correction : call.message;
       const sent = await exec.delegate({ botIds, message, ...(call.doneWhen ? { doneWhen: call.doneWhen } : {}), ...(fixes ? { rework: true } : {}), ...(step.consult ? { consult: true } : {}), signal }).catch((error: unknown) => ({ ok: false as const, error: error instanceof Error ? error.message : String(error), definitive: false }));
       if (!sent.ok) return { ...sent, unsafeToRetry: requests.length > 0 || !sent.definitive };
       if (botIds.some((botId) => !sent.receipts.some((receipt) => receipt.botId === botId && receipt.requestId))) {
@@ -109,7 +116,8 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
       }
       for (const [index, botId] of botIds.entries()) {
         const receipt = sent.receipts.find((one) => one.botId === botId);
-        if (receipt?.requestId) requests.push({ part: call.parts[at + index]!, botId, name: receipt.name, requestId: receipt.requestId });
+        const contract = step.tasks.find(task => task.bot.name === call.parts[at + index])?.resultContract;
+        if (receipt?.requestId) requests.push({ ...(contract ? { resultContract: contract } : {}), part: call.parts[at + index]!, botId, name: receipt.name, requestId: receipt.requestId });
       }
     }
   }
@@ -117,12 +125,23 @@ export async function sendRound(step: DelegateStep, state: DelegationState, fill
 }
 
 /** The replies, once every hand-off of the round has settled; the names still working while some haven't. */
-export async function collect(state: DelegationState, exec: DelegateExecutors, signal: AbortSignal): Promise<{ waiting: string[] } | { replies: DelegationState["replies"] }> {
+export async function collect(state: DelegationState, exec: DelegateExecutors, signal: AbortSignal, now = Date.now): Promise<{ waiting: string[] } | { replies: DelegationState["replies"] }> {
   const replies = { ...state.replies };
   const waiting: string[] = [];
   for (const request of state.requests) {
     const got = await exec.assignment(request.requestId, signal);
-    if (!got || !SETTLED.has(got.status)) { waiting.push(request.name); continue; }
+    const settled = got !== null && SETTLED.has(got.status);
+    const deadline = state.deadline;
+    const late = deadline !== undefined && (settled ? got.finishedAt !== undefined && got.finishedAt > deadline : now() >= deadline);
+    if (late) { replies[request.part] = { name: request.name, ok: false, text: "The worker result deadline passed.", round: state.round }; continue; }
+    if (!settled) { waiting.push(request.name); continue; }
+    if ((got.status === "completed" || got.status === "done") && request.resultContract) {
+      let data: unknown;
+      if (got.result.length <= REPLY_MAX * 4) { try { data = JSON.parse(got.result); } catch { data = undefined; } }
+      const issue = resultContractError(request.resultContract, data);
+      replies[request.part] = { name: request.name, ok: !issue, text: issue ?? got.result, round: state.round, ...(issue ? {} : { data }) };
+      continue;
+    }
     replies[request.part] = { name: request.name, ok: got.status === "completed" || got.status === "done", text: got.result.slice(0, REPLY_MAX * 4), round: state.round };
   }
   return waiting.length ? { waiting } : { replies };

@@ -28,7 +28,7 @@ export const CLOUD_COMPUTER_NOT_ANSWERING_YET = "the cloud computer is awake but
 export const CLOUD_COMPUTER_DISK_NOT_BACK_YET = "the cloud computer is awake but still restoring its disk";
 const REMOVAL_POLL_MS = 3_000;
 
-type ScheduledRoutine = Pick<Routine, "botId" | "runOn" | "enabled" | "nextRunAt">;
+type ScheduledRoutine = Pick<Routine, "botId" | "runOn" | "enabled" | "nextRunAt" | "deliverables">;
 
 export interface CloudComputerPowerDeps {
   cfg: AppConfig;
@@ -59,7 +59,7 @@ export function createCloudComputerPower(deps: CloudComputerPowerDeps) {
   let closed = false;
 
   /** A paused routine, or one whose next run cannot be worked out, has no next run and keeps nothing on. */
-  const routineDueSoon = (owner: string) => deps.routines().some(routine => routine.enabled && routine.nextRunAt !== null &&
+  const routineDueSoon = (owner: string) => deps.routines().some(routine => routine.enabled && routine.deliverables !== "reconciliation" && routine.nextRunAt !== null &&
     routine.nextRunAt - Date.now() <= ROUTINE_DUE_SOON_MS && deps.routineComputer(routine) === owner);
   const busy = (owner: string) => (starting.get(owner) ?? 0) > 0 || deps.busy(owner) || routineDueSoon(owner);
 

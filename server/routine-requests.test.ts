@@ -998,6 +998,8 @@ describe("RoutineRequestService", () => {
     const routine = routines.create({ botId: "bot-a", name: "Owned cloud", prompt: "Work",
       runOn: "cloud", enabled: false, schedule: { type: "daily", time: "10:00", weekdays: [1] } });
     await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: { action: "run_now", routineId: routine.id } });
+    routines.update(routine.id, { deliverables: "reconciliation" });
+    await service.propose({ botId: "bot-a", threadId: "thread-a", proposal: { action: "resume", routineId: routine.id } });
     expect(checked).toEqual(["bot-a", "bot-b", "bot-a"]);
   });
 

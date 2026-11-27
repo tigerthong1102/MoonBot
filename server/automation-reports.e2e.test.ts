@@ -9,6 +9,7 @@ import { afterEach, expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb, type VerificationServer } from "../scripts/control-omb.ts";
 import { AUTOMATION_REPLY_PROMPT } from "./system-prompt.ts";
 import { launchRestartableServer } from "./testing/restartable-server.ts";
+import { ZipReader, Uint8ArrayReader, TextWriter } from "@zip.js/zip.js";
 import { openSse, type SseRecorder } from "./testing/sse.ts";
 
 let fixture: VerificationServer | undefined;
@@ -29,8 +30,8 @@ type ScriptEntry = {
   steps?: Array<{ tool: string; arguments: Record<string, unknown> }>;
 };
 
-async function server(env: NodeJS.ProcessEnv = {}) {
-  fixture = await launchVerificationServer({ ...process.env, ...env }, undefined, undefined, undefined, undefined, { scripted: true });
+async function server(env: NodeJS.ProcessEnv = {}, providers: Array<"codex"> = []) {
+  fixture = await launchVerificationServer({ ...process.env, ...env }, undefined, undefined, undefined, undefined, { scripted: true }, providers);
   const { url, dataDir } = fixture.info;
   const api = async (method: string, path: string, body?: unknown, status?: number) => {
     const response = await fetch(`${url}${path}`, {
@@ -428,6 +429,74 @@ it("tells the main chat about a run missed while the computer was off, which has
   } finally {
     await restartable.close();
   }
+}, 120_000);
+
+it("posts a reconciliation only with all requested artifacts and opens its scoped download until revoked", async () => {
+  const s = await server({ FAKE_CLAUDE_VERSION: "2.1.284" });
+  await s.api("PATCH", `/api/bots/${s.bot.id}`, { approvalMode: "full" });
+  const pdf = readFileSync(new URL("./testing/fixtures/reconciliation/report.pdf", import.meta.url));
+  const workbook = readFileSync(new URL("./testing/fixtures/reconciliation/reconciliation.xlsx", import.meta.url));
+  const csv = Buffer.from("source,amount,note\nINV-1,700,=1+2\n");
+  const inline = (name: string, mime: string, bytes: Buffer) => ({ tool: "attach_file", arguments: { name, path: "data:" + mime + ";base64," + bytes.toString("base64") } });
+  const steps = [inline("report.pdf", "application/pdf", pdf), inline("reconciliation.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", workbook), inline("sources.csv", "text/csv", csv)];
+  s.script([{ key: "reconciliation", match: ['Scheduled routine "Reconcile" — do this now:'], steps, reply: "Draft ready.", repeat: true }]);
+  const routine = await s.routine("Reconcile");
+  await s.api("PATCH", `/api/routines/${routine}`, {
+    enabled: true, runOn: "cloud", deliverables: "reconciliation",
+    schedule: { type: "interval", everyMinutes: 60, anchorAt: Date.now() + 3_000 },
+  });
+  const scheduled = async () => (await s.runs()).find(run => run.routineId === routine && run.triggerSource === "schedule");
+  await expect.poll(scheduled, { timeout: 30_000 }).toMatchObject({ runOn: "cloud", deliverables: "reconciliation" });
+  const first = (await scheduled()).id;
+  await s.settled(first);
+  await s.reported(first, "posted");
+  const [line] = await s.lines();
+  expect(line.attachments.map((file: { name: string }) => file.name)).toEqual(["report.pdf", "reconciliation.xlsx", "sources.csv"]);
+  const route = `/api/threads/${s.main}/messages/${line.id}/file`;
+  const link = await s.api("POST", route, { shareArtifact: true, path: line.attachments[0].path });
+  expect(link.expiresAt).toBeGreaterThan(Date.now());
+  const downloadedPdf = Buffer.from(await (await fetch(s.url + link.url)).arrayBuffer());
+  expect(downloadedPdf.equals(pdf)).toBe(true);
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const printed = getDocument({ data: new Uint8Array(downloadedPdf), useSystemFonts: false });
+  try {
+    const document = await printed.promise;
+    const content = await (await document.getPage(1)).getTextContent();
+    const text = content.items.map(item => "str" in item ? item.str : "").join(" ");
+    expect(text).toContain("INV-1");
+    expect(text).toContain("700");
+  } finally { await printed.destroy(); }
+  const artifact = async (index: number) => {
+    const granted = await s.api("POST", route, { shareArtifact: true, path: line.attachments[index].path });
+    return Buffer.from(await (await fetch(s.url + granted.url)).arrayBuffer());
+  };
+  const xlsx = new ZipReader(new Uint8ArrayReader(await artifact(1)));
+  try {
+    const sheet = (await xlsx.getEntries()).find(entry => entry.filename === "xl/worksheets/sheet1.xml");
+    const xml = sheet && !sheet.directory ? await sheet.getData(new TextWriter()) : "";
+    expect(xml).toContain("<t>INV-1</t>");
+    expect(xml).toContain("<v>700</v>");
+  } finally { await xlsx.close(); }
+  expect((await artifact(2)).toString()).toEqual('"source","amount","note"\n"INV-1","700","\'=1+2"\n');
+  const evidence = JSON.parse(readFileSync(join(s.dataDir, "room-plan.json.evidence.jsonl"), "utf8").trim().split("\n").find(row => JSON.parse(row).planKey === "reconciliation")!);
+  expect(evidence).toMatchObject({ restricted: true, permissionMode: "default" });
+  await s.api("POST", route, { revokeArtifact: link.id });
+  expect((await fetch(s.url + link.url)).status).toBe(404);
+  s.script([{ key: "missing-worksheet", match: [s.header("Reconcile")], steps: [steps[0]!, steps[2]!], reply: "Incomplete draft." }]);
+  const next = await s.runNow(routine);
+  await s.settled(next, "failed");
+  expect((await s.run(next)).error).toContain("reconciliation.xlsx");
+}, 120_000);
+
+it("explains how to run a reconciliation when the selected engine cannot confine its tools", async () => {
+  const s = await server({}, ["codex"]);
+  const instance = (await s.cli("models")).instances.find((item: any) => item.instanceId === "codex");
+  await s.cli("set-model", "--bot", s.bot.id, "--instance", "codex", "--model", instance.models.options[0].id);
+  const routine = await s.routine("Reconcile on another engine");
+  await s.api("PATCH", `/api/routines/${routine}`, { deliverables: "reconciliation" });
+  const id = await s.runNow(routine);
+  await s.settled(id, "failed");
+  expect((await s.run(id)).error).toContain("Choose Claude Agent");
 }, 120_000);
 
 it("brings the files a run sent with attach_file into its report", async () => {

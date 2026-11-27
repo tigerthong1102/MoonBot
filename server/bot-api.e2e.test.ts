@@ -33,8 +33,8 @@ function appApi(url: string) {
   };
 }
 
-const call = async (endpoint: string, key: string, body: unknown) => {
-  const response = await fetch(endpoint, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(body) });
+const call = async (endpoint: string, key: string, body: unknown, requestKey?: string) => {
+  const response = await fetch(endpoint, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json", ...(requestKey ? { "idempotency-key": requestKey } : {}) }, body: JSON.stringify(body) });
   return { status: response.status, body: await response.json() as any };
 };
 
@@ -76,7 +76,10 @@ it("answers the card's own curl with the bot's reply, and refuses a wrong key, a
   const read = await fetch(`${on.url}?thread=${answered.thread}`, { headers: { authorization: `Bearer ${on.key}` } });
   expect(await read.json()).toEqual({ reply: "hello from fake claude", thread: answered.thread });
   expect((await call(on.url, `${on.key}x`, { message: "Hi" })).status).toBe(401);
-  expect((await call(on.url, on.key, { message: "Again", thread: answered.thread })).body).toMatchObject({ reply: "hello from fake claude", thread: answered.thread });
+  const repeated = { message: "Again", thread: answered.thread };
+  const reply = await call(on.url, on.key, repeated, "integration-retry");
+  expect(reply.body).toMatchObject({ reply: "hello from fake claude", thread: answered.thread });
+  expect(await call(on.url, on.key, repeated, "integration-retry")).toEqual(reply);
   for (let i = 0; i < 8; i += 1) expect((await call(on.url, on.key, { message: `call ${i}`, thread: answered.thread })).status).toBe(200);
   const eleventh = await call(on.url, on.key, { message: "one more", thread: answered.thread });
   expect(eleventh.status).toBe(429);

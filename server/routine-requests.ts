@@ -1163,11 +1163,11 @@ export class RoutineRequestService {
     if (!this.cloudReady || operation.action === "pause" || operation.action === "delete") return;
     const definition = effectiveDefinition(operation, this.routines);
     if (definition?.runOn !== "cloud") return;
+    const existing = operation.action === "create" ? undefined : this.routines.listRoutines().find(routine => routine.id === operation.routineId);
+    if (existing?.deliverables === "reconciliation") return;
+    const targetBotId = (operation.action === "create" ? operation.forBot?.botId : existing?.botId) ?? proposerBotId;
     let readiness: { ready: boolean; reason?: string };
     try {
-      const targetBotId = operation.action === "create"
-        ? operation.forBot?.botId ?? proposerBotId
-        : this.routines.listRoutines().find(routine => routine.id === operation.routineId)?.botId ?? proposerBotId;
       readiness = await this.cloudReady(targetBotId);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);

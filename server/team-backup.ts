@@ -131,6 +131,7 @@ export function createTeamBackup(store: Store, routines: Routine[], name: string
       name: routine.name, prompt: routine.prompt, target: routine.target, botId: routine.botId,
       groupId: routine.groupId, runOn: routine.runOn, schedule: routine.schedule,
       durationMinutes: routine.durationMinutes, timeoutMinutes: routine.timeoutMinutes,
+      ...(routine.deliverables ? { deliverables: routine.deliverables } : {}),
       ...(routine.checks ? { checks: routine.checks } : {}), ...(routine.access ? { access: routine.access } : {}), ...(routine.deliver ? { deliver: routine.deliver } : {}),
     })),
   });

@@ -1,13 +1,36 @@
 // A routine as a person, a bot or an import asked for it, checked and cleaned before RoutineManager keeps it.
 import { approvalModeFor, type ApprovalMode } from "../shared/approval-mode.ts";
-import { isRoutineAccess } from "../shared/routines.ts";
+import { isRoutineAccess, type RoutineAccess, type RoutineCheck, type RoutineDelivery, type RoutineContextAttachment } from "../shared/routines.ts";
 import { runsOnce } from "../shared/limit-reset.ts";
 import { cleanAttachments, cleanTimeoutMinutes } from "./routine-attachments.ts";
 import { loadChecks, loadModelSelection } from "./routine-load.ts";
-import { cleanSchedule } from "./routine-schedules.ts";
+import { cleanSchedule, type RoutineScheduleInput } from "./routine-schedules.ts";
 import type { ModelSelection } from "../shared/wire.ts";
-import type { Routine, RoutineInput } from "./routines.ts";
+import type { Routine, RoutineTarget, RoutineRunOn } from "./routines.ts";
 import { userErrorThrown } from "./user-errors.ts";
+
+export interface RoutineInput {
+  name: string;
+  prompt: string;
+  target?: RoutineTarget;
+  botId: string;
+  groupId?: string | null;
+  runOn?: RoutineRunOn;
+  enabled?: boolean;
+  schedule: RoutineScheduleInput;
+  durationMinutes?: number;
+  timeoutMinutes?: number | null;
+  attachments?: RoutineContextAttachment[];
+  continuity?: boolean; sameConversation?: boolean;
+  modelSelection?: ModelSelection | null;
+  overlap?: "skip" | "queue";
+  runOnStartup?: boolean;
+  checks?: RoutineCheck[] | null;
+  deliverables?: "reconciliation" | null;
+  access?: RoutineAccess | null;
+  deliver?: RoutineDelivery | null;
+  resultsThreadId?: string | null;
+}
 
 type Refusal = { status: number; error: string };
 
@@ -89,10 +112,14 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
   const asked = Array.isArray(input.checks) && input.checks.length === 0 ? null : input.checks;
   const checks = asked == null ? undefined : loadChecks(asked);
   if (asked != null && (!checks || checks.length !== new Set(asked).size)) throw userErrorThrown("serverError.routine.checks");
+  if (checks?.includes("gmail-revision") && input.deliver === "brief") throw new Error("A mailbox revision check delivers the report to its routine conversation.");
   if (checks && (target !== "bot" || runsOnce(schedule))) throw userErrorThrown("serverError.routine.checksRepeat");
   if (input.access != null && !isRoutineAccess(input.access)) throw userErrorThrown("serverError.routine.access");
   if (input.access && input.access !== "read-and-draft" && (checks || target !== "bot" || sameConversation || attachments.length)) {
     throw new Error("A single-source routine needs its own bot run with no other inputs.");
+  }
+  if (input.deliverables != null && (input.deliverables !== "reconciliation" || checks || input.access || input.deliver || sameConversation || target !== "bot" || schedule.type === "limit_reset")) {
+    throw new Error("A reconciliation delivery needs a separate bot run that can attach files to its results conversation.");
   }
   if (input.deliver != null && (input.deliver !== "brief" || target !== "bot")) throw userErrorThrown("serverError.routine.deliver");
   return {
@@ -113,6 +140,7 @@ export function sanitizeInput(input: RoutineInput, after: number): Omit<Routine,
     ...(input.overlap === "queue" ? { overlap: "queue" as const } : {}),
     ...(input.runOnStartup === true && !runsOnce(schedule) ? { runOnStartup: true } : {}),
     ...(checks ? { checks } : {}),
+    ...(input.deliverables ? { deliverables: input.deliverables } : {}),
     ...(input.access ? { access: input.access } : {}),
     ...(input.deliver === "brief" ? { deliver: "brief" as const } : {}),
   };

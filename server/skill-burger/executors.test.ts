@@ -11,6 +11,12 @@ const folder = () => mkdtempSync(join(tmpdir(), "burger-exec-"));
 const signal = () => new AbortController().signal;
 
 describe("where a Skill Burger's steps run", () => {
+  it("keeps the completion timestamp from the assignment status route", async () => {
+    const assignment = { status: "completed", result: "done", finishedAt: 2040 };
+    const exec = createExecutors({ botId: "lead", cwd: folder(), internal: async () => ({ ok: true, body: { assignment } }) });
+    expect(await exec.assignment!("work-id", signal())).toEqual(assignment);
+  });
+
   it.skipIf(process.platform === "win32")("uses each conversation's isolated engine home for saved shell commands", async () => {
     const root = folder();
     const home = join(root, "server-home");

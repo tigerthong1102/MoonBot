@@ -42,7 +42,7 @@ describe("wait tools", () => {
     expect([...WAIT_TOOL_NAMES]).toEqual(["wait_until", "list_waits", "cancel_wait"]);
     const waitUntil = WAIT_TOOL_DEFINITIONS.find((tool) => tool.name === "wait_until")!;
     const properties = (waitUntil.inputSchema as unknown as { properties: Record<string, { enum?: string[] }> }).properties;
-    expect(Object.keys(properties)).toEqual(["label", "kind", "url", "text", "path", "process", "bot", "follow_up", "hours"]);
+    expect(Object.keys(properties)).toEqual(["label", "kind", "url", "text", "path", "process", "bot", "run_id", "follow_up", "hours"]);
     expect(properties.kind!.enum).toEqual([...WAIT_KINDS]);
     expect(JSON.stringify(WAIT_TOOL_DEFINITIONS)).not.toMatch(/"then"|with then|give then/);
   });

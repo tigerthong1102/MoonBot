@@ -93,6 +93,7 @@ export function cloneRun(run: RoutineRun): RoutineRun {
   return {
     ...run,
     attachments: cloneAttachments(run.attachments),
+    ...(run.emailDeliveries ? { emailDeliveries: run.emailDeliveries.map(row => ({ ...row })) } : {}),
     denials: run.denials ? [...run.denials] : undefined,
   };
 }

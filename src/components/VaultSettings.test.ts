@@ -57,6 +57,20 @@ async function submit() {
 }
 
 describe("Settings → Vault: logins", () => {
+  it("opens and closes the Bitwarden grant form using its labelled disclosure button", async () => {
+    fixture.api.mockResolvedValueOnce({ logins: [], onePassword: OFF, bitwarden: true });
+    await render();
+    const toggle = button("Bitwarden");
+    const panel = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+    expect(panel.querySelector('input[name="session"]')).not.toBeNull();
+    expect(panel.hidden).toBe(true);
+    for (const expanded of [true, false]) {
+      await click("Bitwarden");
+      expect(toggle.getAttribute("aria-expanded")).toBe(String(expanded));
+      expect(panel.hidden).toBe(!expanded);
+    }
+  });
+
   it("lists each login by site, the sign-in hosts it also fills on, username, 2FA, source, who may use it and last use", async () => {
     fixture.api.mockResolvedValueOnce({ logins: [CARD_LOGIN, SHARED_LOGIN, TENANT_LOGIN], onePassword: OFF });
     await render();

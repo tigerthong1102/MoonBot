@@ -48,7 +48,9 @@ test("the desktop holds its address on demand, read from the running companion",
     managedEndpointNeed,
     companionE2E: { prime: async () => { primed.push(1); } },
   });
-  vm.runInContext(`${slice("function ensureCompanionAccountService()", "// Everything the bug-report bundle needs")}
+  const service = source.match(/^function ensureCompanionAccountService\(\) \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(service, "main.mjs must declare ensureCompanionAccountService");
+  vm.runInContext(`${service}
     globalThis.ensure = ensureCompanionAccountService;`, context);
   context.ensure();
 

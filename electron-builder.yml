@@ -63,8 +63,12 @@ extraResources:
     to: licenses/Geist-Mono-OFL.txt
   - from: node_modules/@fontsource-variable/inter/LICENSE
     to: licenses/Inter-OFL.txt
+  - from: public/licenses/hermes-agent.txt
+    to: licenses/Hermes-Agent-MIT.txt
   - from: public/licenses/orca.txt
     to: licenses/Orca-MIT.txt
+  - from: public/licenses/reconciliation-document-parsers.txt
+    to: licenses/Reconciliation-Document-Parsers.txt
   - from: NOTICE
     to: licenses/OpenMausBot-NOTICE.txt
   # Cua Driver and its JS SDK are bundled from the 0.45.4 release.

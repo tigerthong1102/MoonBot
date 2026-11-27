@@ -6,6 +6,7 @@ import { api } from "@/state/store";
 // A saved value is sent once and never comes back: every answer here is names, sites and who may use them.
 
 export interface VaultList {
+  bitwarden?: true;
   logins: LoginSummary[];
   secrets: Array<VaultSecret | LinkedSecret>;
   onePassword: OnePasswordStatus;

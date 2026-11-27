@@ -80,6 +80,18 @@ describe("additive portable team backups", () => {
     }
   });
 
+  it("restores the report output requirements on a paused imported routine", () => {
+    const { store, routines, chief } = fixture();
+    routines.create({ name: "Account reconciliation", prompt: "Reconcile the ledger", botId: chief.id,
+      schedule: { type: "daily", time: "09:00", weekdays: [1] }, enabled: true, deliverables: "reconciliation" });
+    const backup = createTeamBackup(store, routines.listRoutines(), "My team");
+    expect(backup.routines.find(routine => routine.name === "Account reconciliation")?.deliverables).toBe("reconciliation");
+    const imported = importTeamBackup(store, routines, JSON.parse(JSON.stringify(backup)), selection());
+    expect(imported.routines.find(routine => routine.name === "Account reconciliation")).toMatchObject({
+      deliverables: "reconciliation", enabled: false, botId: imported.bots.find(bot => bot.name === "Mira 2")!.id,
+    });
+  });
+
   it("carries tool restrictions through backup and import without restoring execution grants", () => {
     const { store, routines, chief, scout } = fixture();
     const scope = { allow: ["native:read", "mcp:notes:read"], deny: ["mcp:notes:write"] };

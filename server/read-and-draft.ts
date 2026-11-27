@@ -166,6 +166,7 @@ export function createReadAndDraft(deps: ReadAndDraftDeps) {
     const route = `${method} ${path}`;
     const run = runOf(threadId);
     if (!run) return false;
+    if (route === "POST /api/internal/attach-file" && run.botId === bot.id && run.deliverables === "reconciliation" && (run.status === "running" || run.status === "waiting")) return false;
     const otherConversation = run.access !== "read-and-draft" && (path === "/api/internal/session-search" || path === "/api/internal/session-read");
     return (!ROUTES.has(route) || otherConversation) && refuse(bot, threadId, route);
   }

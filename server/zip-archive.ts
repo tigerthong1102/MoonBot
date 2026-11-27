@@ -11,6 +11,7 @@ import { createInflateRaw } from "node:zlib";
 export interface ZipMember {
   name: string;
   compression: 0 | 8;
+  crc32: number;
   compressedBytes: number;
   uncompressedBytes: number;
   localHeaderOffset: number;
@@ -25,6 +26,72 @@ const UNIX_TYPE_MASK = 0o170000;
 const UNIX_FILE = 0o100000;
 const UNIX_DIRECTORY = 0o040000;
 
+export function zipDirectoryLocation(tail: Buffer, tailOffset: number, maxEntries: number) {
+  let eocd = -1;
+  for (let cursor = tail.length - 22; cursor >= 0; cursor -= 1) {
+    if (
+      tail.readUInt32LE(cursor) === EOCD_SIGNATURE
+      && cursor + 22 + tail.readUInt16LE(cursor + 20) === tail.length
+    ) {
+      eocd = cursor;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error("The verified archive has no valid ZIP directory.");
+  const disk = tail.readUInt16LE(eocd + 4);
+  const directoryDisk = tail.readUInt16LE(eocd + 6);
+  const diskEntries = tail.readUInt16LE(eocd + 8);
+  const entryCount = tail.readUInt16LE(eocd + 10);
+  const directoryBytes = tail.readUInt32LE(eocd + 12);
+  const directoryOffset = tail.readUInt32LE(eocd + 16);
+  const eocdOffset = tailOffset + eocd;
+  if (
+    disk !== 0 || directoryDisk !== 0 || diskEntries !== entryCount || entryCount > maxEntries
+    || directoryBytes === 0xffffffff || directoryOffset === 0xffffffff
+    || directoryOffset + directoryBytes > eocdOffset
+  ) throw new Error("The verified archive uses an unsupported ZIP layout.");
+  return { directoryOffset, directoryBytes, entryCount };
+}
+
+export function zipMembers(directory: Buffer, entryCount: number): ZipMember[] {
+  const entries: ZipMember[] = [];
+  let cursor = 0;
+  while (cursor < directory.length) {
+    if (cursor + 46 > directory.length || directory.readUInt32LE(cursor) !== CENTRAL_SIGNATURE) {
+      throw new Error("The verified archive directory is invalid.");
+    }
+    const flags = directory.readUInt16LE(cursor + 8);
+    const compression = directory.readUInt16LE(cursor + 10);
+    const compressedBytes = directory.readUInt32LE(cursor + 20);
+    const uncompressedBytes = directory.readUInt32LE(cursor + 24);
+    const nameBytes = directory.readUInt16LE(cursor + 28);
+    const extraBytes = directory.readUInt16LE(cursor + 30);
+    const commentBytes = directory.readUInt16LE(cursor + 32);
+    const startDisk = directory.readUInt16LE(cursor + 34);
+    const externalAttributes = directory.readUInt32LE(cursor + 38);
+    const localHeaderOffset = directory.readUInt32LE(cursor + 42);
+    const next = cursor + 46 + nameBytes + extraBytes + commentBytes;
+    if (
+      next > directory.length || startDisk !== 0 || (flags & 1) !== 0
+      || (compression !== 0 && compression !== 8)
+      || compressedBytes === 0xffffffff || uncompressedBytes === 0xffffffff
+      || localHeaderOffset === 0xffffffff
+    ) throw new Error("The verified archive contains an unsupported ZIP member.");
+    entries.push({
+      name: directory.subarray(cursor + 46, cursor + 46 + nameBytes).toString("utf8"),
+      compression,
+      crc32: directory.readUInt32LE(cursor + 16),
+      compressedBytes,
+      uncompressedBytes,
+      localHeaderOffset,
+      externalAttributes,
+    });
+    cursor = next;
+  }
+  if (entries.length !== entryCount) throw new Error("The verified archive member count is invalid.");
+  return entries;
+}
+
 /** The members a ZIP's central directory lists; more than `maxEntries` is refused. */
 export async function readZipDirectory(path: string, maxEntries: number): Promise<ZipMember[]> {
   const handle = await open(path, "r");
@@ -36,69 +103,12 @@ export async function readZipDirectory(path: string, maxEntries: number): Promis
     if ((await handle.read(tail, 0, tailBytes, tailOffset)).bytesRead !== tailBytes) {
       throw new Error("The verified archive was truncated.");
     }
-    let eocd = -1;
-    for (let cursor = tail.length - 22; cursor >= 0; cursor -= 1) {
-      if (
-        tail.readUInt32LE(cursor) === EOCD_SIGNATURE
-        && cursor + 22 + tail.readUInt16LE(cursor + 20) === tail.length
-      ) {
-        eocd = cursor;
-        break;
-      }
-    }
-    if (eocd < 0) throw new Error("The verified archive has no valid ZIP directory.");
-    const disk = tail.readUInt16LE(eocd + 4);
-    const directoryDisk = tail.readUInt16LE(eocd + 6);
-    const diskEntries = tail.readUInt16LE(eocd + 8);
-    const entryCount = tail.readUInt16LE(eocd + 10);
-    const directoryBytes = tail.readUInt32LE(eocd + 12);
-    const directoryOffset = tail.readUInt32LE(eocd + 16);
-    const eocdOffset = tailOffset + eocd;
-    if (
-      disk !== 0 || directoryDisk !== 0 || diskEntries !== entryCount || entryCount > maxEntries
-      || directoryBytes === 0xffffffff || directoryOffset === 0xffffffff
-      || directoryOffset + directoryBytes > eocdOffset
-    ) throw new Error("The verified archive uses an unsupported ZIP layout.");
-
+    const { directoryOffset, directoryBytes, entryCount } = zipDirectoryLocation(tail, tailOffset, maxEntries);
     const directory = Buffer.alloc(directoryBytes);
     if ((await handle.read(directory, 0, directoryBytes, directoryOffset)).bytesRead !== directoryBytes) {
       throw new Error("The verified archive directory was truncated.");
     }
-    const entries: ZipMember[] = [];
-    let cursor = 0;
-    while (cursor < directory.length) {
-      if (cursor + 46 > directory.length || directory.readUInt32LE(cursor) !== CENTRAL_SIGNATURE) {
-        throw new Error("The verified archive directory is invalid.");
-      }
-      const flags = directory.readUInt16LE(cursor + 8);
-      const compression = directory.readUInt16LE(cursor + 10);
-      const compressedBytes = directory.readUInt32LE(cursor + 20);
-      const uncompressedBytes = directory.readUInt32LE(cursor + 24);
-      const nameBytes = directory.readUInt16LE(cursor + 28);
-      const extraBytes = directory.readUInt16LE(cursor + 30);
-      const commentBytes = directory.readUInt16LE(cursor + 32);
-      const startDisk = directory.readUInt16LE(cursor + 34);
-      const externalAttributes = directory.readUInt32LE(cursor + 38);
-      const localHeaderOffset = directory.readUInt32LE(cursor + 42);
-      const next = cursor + 46 + nameBytes + extraBytes + commentBytes;
-      if (
-        next > directory.length || startDisk !== 0 || (flags & 1) !== 0
-        || (compression !== 0 && compression !== 8)
-        || compressedBytes === 0xffffffff || uncompressedBytes === 0xffffffff
-        || localHeaderOffset === 0xffffffff
-      ) throw new Error("The verified archive contains an unsupported ZIP member.");
-      entries.push({
-        name: directory.subarray(cursor + 46, cursor + 46 + nameBytes).toString("utf8"),
-        compression,
-        compressedBytes,
-        uncompressedBytes,
-        localHeaderOffset,
-        externalAttributes,
-      });
-      cursor = next;
-    }
-    if (entries.length !== entryCount) throw new Error("The verified archive member count is invalid.");
-    return entries;
+    return zipMembers(directory, entryCount);
   } finally {
     await handle.close();
   }

@@ -43,7 +43,7 @@ function team(roster: Array<{ id: string; name: string; title?: string }> = [{ i
     },
     assignment: async (id) => status.get(id) ?? null,
   };
-  const reply = (bot: string, result: string) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: "completed", result }); };
+  const reply = (bot: string, result: string, finishedAt?: number) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: "completed", result, finishedAt }); };
   const fail = (bot: string, outcome: string) => { for (const one of status.values()) if (one.bot === bot && one.status === "running") Object.assign(one, { status: outcome, result: "failed" }); };
   return { exec, sent, reply, fail };
 }
@@ -368,5 +368,69 @@ describe("the run_workflow tool", () => {
     const result = await callWorkflowTool("workflow_edit", { name: "sales", action: "set_when" }, context as never);
     expect(result.text).toContain('name "sales", action "undo"');
     expect(result.text).toContain('undo "token-1"');
+  });
+});
+
+describe("worker result contracts", () => {
+  const contract = { fields: { amount: "number" }, sources: ["invoice.pdf#page=2"] };
+  const workflow = wf([{ id: "s1", kind: "delegate", label: "Read invoice", tasks: [
+    { bot: { id: "kiwi", name: "Kiwi" }, message: "Read the total.", resultContract: contract },
+  ], timeoutMs: 1000 }]);
+
+  it("rejects source contracts that cannot fit the approved handoff when saving", () => {
+    const sources = Array.from({ length: 24 }, (_, index) => `https://example.test/${index}/${"x".repeat(190)}`);
+    expect(() => wf([{ id: "s1", kind: "delegate", label: "Collect", tasks: [
+      { bot: { id: "kiwi", name: "Kiwi" }, message: "Collect totals", resultContract: { ...contract, sources } },
+    ] }])).toThrow("The handoff exceeds 4,000 characters");
+  });
+
+  it("checks expanded contract messages before sending any part of the round", async () => {
+    const t = team();
+    const workflow = wf([{ id: "s1", kind: "delegate", label: "Collect", tasks: [
+      { bot: { id: "kiwi", name: "Kiwi" }, message: "Start here" },
+      { bot: { id: "rio", name: "Rio" }, message: [{ $arg: "subject" }], resultContract: contract },
+    ] }], { subject: {} });
+    const run = await startRun({ name: "qa", botId: "lead", threadId: "t1", sha256: "x", workflow,
+      args: { subject: '"'.repeat(2_000) } }, harness(t.exec).deps);
+    expect(run.ok).toBe(false);
+    expect(t.sent).toHaveLength(0);
+  });
+
+  it.each([
+    [JSON.stringify({ amount: 12, sources: ["invoice.pdf#page=2"] }), true],
+    [JSON.stringify({ amount: "12", sources: ["invoice.pdf#page=2"] }), false],
+    [JSON.stringify({ amount: 12, sources: ["another invoice"] }), false],
+    ["not JSON", false],
+  ])("accepts only a typed result with declared evidence", async (text, ok) => {
+    const t = team(), h = harness(t.exec);
+    await startRun({ name: "report", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    expect(t.sent[0]?.message).toContain("invoice.pdf#page=2");
+    t.reply("kiwi", text);
+    const result = await h.resume("returned");
+    expect(result.ok).toBe(ok);
+    if (ok) expect(result.output).toMatchObject({ replies: { Kiwi: JSON.parse(text) } });
+  });
+
+  it.each([
+    { finishedAt: 2100, ok: true },
+    { finishedAt: 2200, ok: true },
+    { finishedAt: 2201, ok: false },
+  ])("applies the saved deadline to completion at $finishedAt even when collection happens later", async ({ finishedAt, ok }) => {
+    let clock = 1200;
+    const t = team(), h = harness(t.exec);
+    h.deps.now = () => clock;
+    await startRun({ name: "report", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    t.reply("kiwi", JSON.stringify({ amount: 12, sources: contract.sources }), finishedAt);
+    clock = 3300;
+    expect((await h.resume("collect after the deadline")).ok).toBe(ok);
+  });
+
+  it("expires an unfinished assignment when collection reaches the deadline", async () => {
+    let clock = 1200;
+    const t = team(), h = harness(t.exec);
+    h.deps.now = () => clock;
+    await startRun({ name: "report", botId: "lead", threadId: "t1", sha256: "x", workflow }, h.deps);
+    clock = 2200;
+    expect((await h.resume("collect")).ok).toBe(false);
   });
 });

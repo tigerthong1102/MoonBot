@@ -81,13 +81,18 @@ export class ManagedDesktopPolicy {
   setFreshness(fresh: () => boolean): void { this.fresh = fresh; }
 
   apply(raw: unknown): void {
-    const next = parseManagedPolicy(raw, this.now());
+    const parsed = raw === null ? null : policySchema.safeParse(raw);
+    if (parsed && !parsed.success) throw new Error("Invalid organisation policy from the desktop parent.");
+    const incoming = parsed?.data ?? null;
+    const current = this.current();
+    if (current && incoming?.organizationId === current.organizationId && incoming.version < current.version) return;
+    const next = incoming?.expiresAt != null && incoming.expiresAt <= this.now() ? null : incoming;
     const changed = JSON.stringify(next) !== JSON.stringify(this.policy);
     this.policy = next;
     clearTimeout(this.timer);
     // The last applied policy holds only as long as the device credential; a Team Cloud's rules have none to outlive.
     if (next?.expiresAt) {
-      this.timer = setTimeout(() => this.apply(null), Math.min(2_147_483_647, Math.max(1, next.expiresAt - this.now())));
+      this.timer = setTimeout(() => this.apply(next), Math.min(2_147_483_647, Math.max(1, next.expiresAt - this.now())));
       this.timer.unref?.();
     }
     if (changed) this.onChange();

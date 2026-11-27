@@ -67,8 +67,8 @@ export type RoutineRunTrigger = "schedule" | "manual" | "webhook" | "startup" | 
 
 /** A check a routine runs on each tick before any AI turn, in plain code: `calendar` reads the next 36 hours, `mail`
  * new inbox mail since the last check, `runs` other routines' finished runs. Nothing new means no AI turn. */
-export type RoutineCheck = "calendar" | "mail" | "runs";
-export const ROUTINE_CHECKS: readonly RoutineCheck[] = ["calendar", "mail", "runs"];
+export type RoutineCheck = "calendar" | "mail" | "runs" | "gmail-revision";
+export const ROUTINE_CHECKS: readonly RoutineCheck[] = ["calendar", "mail", "runs", "gmail-revision"];
 
 /** What a routine's runs may do. `read-and-draft`: read Gmail and Google Calendar and write reply drafts; every other
  * tool is refused outright, never turned into a card. Missing means the bot's own level. */
@@ -161,11 +161,13 @@ export interface Routine {
   overlap?: "skip" | "queue";
   /** Each run starts with the previous run's report. */
   continuity?: boolean;
+  sameConversation?: boolean;
   /** The model each run's thread uses instead of its bot's. Missing means the bot's model. */
   modelSelection?: ModelSelection;
   /** Also run once each time OpenMausBot starts. */
   runOnStartup?: boolean;
   checks?: RoutineCheck[];
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   /** When its checks last read everything and found nothing for the AI. */
@@ -200,7 +202,16 @@ export interface Routine {
 
 export type RoutineBlock = "connection" | "model" | "permission" | "approval" | "usage" | "computer" | "target";
 
+/** Provider acceptance concerns the outgoing server. An unconfirmed send requires reconciliation before another send. */
+export interface ReportDelivery {
+  destination: string;
+  state: "unconfirmed" | "accepted" | "rejected";
+  at: number;
+  messageId?: string;
+}
+
 export interface RoutineRun {
+  emailDeliveries?: ReportDelivery[];
   id: string;
   routineId: string;
   routineName: string;
@@ -253,6 +264,7 @@ export interface RoutineRun {
   cost?: number | null;
   denials?: string[];
   report?: RoutineRunReport;
+  deliverables?: "reconciliation";
   access?: RoutineAccess;
   deliver?: RoutineDelivery;
   /** The items its routine's checks handed this run, so they are kept or released once it ends. */
@@ -284,6 +296,7 @@ export interface RoutineInput {
   runOnStartup?: boolean;
   /** `null` explicitly removes them on updates; omission preserves them. */
   checks?: RoutineCheck[] | null;
+  deliverables?: "reconciliation" | null;
   access?: RoutineAccess | null;
   deliver?: RoutineDelivery | null;
   attachments?: RoutineContextAttachment[];

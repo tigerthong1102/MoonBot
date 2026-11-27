@@ -3,6 +3,10 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, posix } from "node:path";
+import { Readable } from "node:stream";
+import { buffer } from "node:stream/consumers";
+import { reconciliationCsv, RECONCILIATION_CSV_MAX_BYTES } from "./reconciliation-csv.ts";
+import { DOCUMENT_BYTES, verifyReconciliationDocument } from "./reconciliation-document.ts";
 import { DATA_DIR } from "./config.ts";
 import { openInboxFile, type InboxRead } from "./host/handoff-inbox.ts";
 import {
@@ -62,6 +66,7 @@ export interface SaveBotAttachmentInput {
   savedThisTurn?: { since: number; refuse: readonly string[] };
   /** Store the copy under a name made from its bytes, so the same file passed between bots again is kept once. */
   byContent?: boolean;
+  reconciliation?: boolean;
   /** The conversation's inbox of files other bots passed it: a place the bot may also send from, read without
    * following any link (server/host/handoff-inbox.ts). */
   inbox?: InboxRead;
@@ -155,7 +160,15 @@ export async function saveBotAttachment(input: SaveBotAttachmentInput): Promise<
     }
     if (!imageExtension && file.bytes > FILE_MAX_BYTES) throw statusError(413, `file exceeds ${FILE_MAX_BYTES} bytes`);
     const extension = (imageExtension ?? fileExtension)!;
-    const sha256 = input.byContent ? await sha256Of(file) : undefined;
+    let output: Buffer | undefined;
+    if (input.reconciliation && fileExtension === ".csv") {
+      const source = file.handle.createReadStream({ start: 0, end: RECONCILIATION_CSV_MAX_BYTES, autoClose: false });
+      output = reconciliationCsv(await buffer(source)).bytes;
+    } else if (input.reconciliation && (fileExtension === ".xlsx" || fileExtension === ".pdf")) {
+      output = await buffer(file.handle.createReadStream({ start: 0, end: DOCUMENT_BYTES, autoClose: false }));
+      await verifyReconciliationDocument(fileExtension === ".pdf" ? "pdf" : "xlsx", output);
+    }
+    const sha256 = input.byContent ? (output ? createHash("sha256").update(output).digest("hex") : await sha256Of(file)) : undefined;
     const uploadId = sha256 ? contentUploadId(sha256, extension) : undefined;
     const store = async (): Promise<SavedBotAttachment> => {
       const content = sha256 ? { sha256, fresh: !existsSync(join(ATTACHMENTS_DIR, `${uploadId}${extension}`)) } : {};
@@ -163,8 +176,8 @@ export async function saveBotAttachment(input: SaveBotAttachmentInput): Promise<
         const saved = saveImage(await file.handle.readFile(), mime, uploadId);
         return { attachment: { kind: "image", path: saved.path, mime: saved.mime, name, source: file.path }, bytes: saved.bytes, ...content };
       }
-      const saved = await saveFile(file.handle.createReadStream({ start: 0, autoClose: false }), name || basename(file.name), mime, {
-        expectedBytes: file.bytes, ...(uploadId ? { uploadId } : {}),
+      const saved = await saveFile(output ? Readable.from([output]) : file.handle.createReadStream({ start: 0, autoClose: false }), name || basename(file.name), mime, {
+        expectedBytes: output?.length ?? file.bytes, ...(uploadId ? { uploadId } : {}),
       });
       return { attachment: { kind: "file", path: saved.path, mime: saved.mime, name: saved.name, source: file.path }, bytes: saved.bytes, ...content };
     };
@@ -252,5 +265,23 @@ export async function attachForTurn<S>(
       turn.attachedFiles = Math.max(0, (turn.attachedFiles ?? 1) - 1);
       if (saved !== undefined) hooks.discard(saved);
     }
+  }
+}
+
+export async function attachmentResponse(path: string, name: string | undefined, max: number, attach: () => Promise<AttachForTurnOutcome<SavedBotAttachment>>) {
+  try {
+    const outcome = await attach();
+    if (outcome.status === "limit") return { status: 429, body: { error: `You already attached ${max} files this turn. Put the rest in one document or archive summary instead.` } };
+    if (outcome.status === "ended") return { status: 409, body: { error: "This turn ended before the file could be attached, so nothing was posted." } };
+    const { saved } = outcome;
+    const label = saved.attachment.kind === "file" ? saved.attachment.name : name?.trim() || path.split(/[\\/]/).at(-1) || "image";
+    return { status: 200, body: { ok: true, name: label, bytes: saved.bytes } };
+  } catch (error) {
+    const code = (error as { status?: unknown } | null)?.status;
+    const status = typeof code === "number" ? code : 500;
+    const message = status === 404
+      ? `No file was found at ${path}. Save it under /home/cua/workspace (or your working folder) and pass its exact path.`
+      : error instanceof Error ? error.message : "could not attach that file";
+    return { status, body: { error: message } };
   }
 }

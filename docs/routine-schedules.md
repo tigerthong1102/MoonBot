@@ -11,6 +11,13 @@ matching time; no model runs in the background to check the date.
 
 A routine can also name **checks** (calendar, mail, other routines' runs): plain
 code that runs on each tick before any AI turn, so a quiet tick costs nothing.
+A repeating bot routine can set `checks: ["gmail-revision"]` to run its instructions
+when its connected Gmail mailbox changes. The first successful read establishes
+the baseline for that account. An unchanged Gmail history ID costs no model turn.
+A failed read leaves the checkpoint in place and reports trouble. A changed ID
+advances after the report run succeeds. A newly connected account establishes
+its own baseline. Use a conversation destination for this check.
+
 See [Proactive routines](proactive-routines.md).
 
 In **Automations → Schedule**, choose **Monthly**, **Yearly**, or **Custom cron
@@ -284,3 +291,5 @@ use an appropriate event/webhook workflow instead of a fake weekly schedule.
 Cron series are edited through the routine editor rather than calendar dragging,
 which could otherwise ambiguously change an entire expression. Dense calendar
 projections are bounded per day; Run logs remain the source of actual outcomes.
+
+A reconciliation with required artifacts delivers the three verified files to the chosen results conversation. During the run, its native Email and connected-app tools can read inputs. The connector relay permits its allowlisted reads and refuses writes, including mixed batches and opaque workbench calls. The same rule applies to a teammate working on that run. After verification, the person can request external delivery from the results conversation under its ordinary permissions.

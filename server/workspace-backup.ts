@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { isAbsolute, join, parse, posix, relative, resolve, sep, win32 } from "node:path";
 import { homedir } from "node:os";
+import { assertRestoreDatabasesIdle } from "./workspace-restore-holders.ts";
 import { backup, DatabaseSync } from "node:sqlite";
 import { pipeline } from "node:stream/promises";
 import { Worker } from "node:worker_threads";
@@ -14,7 +15,7 @@ import { writeFileAtomic } from "./atomic.ts";
 import { appEventRoot, assertNoDestinationEventFence, assertOmittedAppEventDestination, assertPortableAppEvents, clearBlockedAppEventRestore, omitTeamAppEvents, prepareOrCancelAppEventRestore, TEAM_APP_EVENT_OMISSION } from "./workspace-backup-app-events.ts";
 import { userErrorFields, userErrorThrown } from "./user-errors.ts";
 import { WORKSPACE_BACKUP_CLIENT_KEYS } from "../shared/workspace-backup-client.ts";
-import { INSTRUCTION_FILE, restorePaths, validRelative } from "./workspace-backup-paths.ts";
+import { ensurePrivateBackupFolder as folder, INSTRUCTION_FILE, restorePaths, validRelative } from "./workspace-backup-paths.ts";
 import { cjkSearchText } from "./cjk-search.ts";
 import { ephemeralWorkspaceTokenPath, excludedWorkspaceAuthPath, EXCLUSION_NOTES, liveDataEnginePath, managedTaskSkillLink, portableWorkspaceConfig, redownloadedOrgLibraryPath, restoredWorkspaceConfig, RESTORE_WARNING } from "./workspace-backup-policy.ts";
 import { assertTeamAttachmentInventory, teamAttachmentInventory, omittedAsTeamPrivate, routinesWithoutTeamPrivate, stripTeamPrivate, TEAM_PRIVATE_NOTE, readPrivateTeamAppEvents, teamPrivateAttachments, teamPrivateThreads, withoutTeamPrivate } from "./workspace-backup-team-private.ts";
@@ -102,12 +103,6 @@ const SNAPSHOT_DATABASES: Record<string, string> = { "messages.db": "messages-sn
 const LIVE_DATABASE_SIDECARS = new Set(Object.keys(SNAPSHOT_DATABASES).flatMap((name) => [`${name}-wal`, `${name}-shm`]));
 function keptInPlace(name: string): boolean {
   return preserved(name) || name.toLowerCase() === "sessions.json.open";
-}
-function folder(path: string): void {
-  mkdirSync(path, { recursive: true, mode: 0o700 });
-  const stat = lstatSync(path);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("The backup directory must be a real directory, not a symbolic link.");
-  chmodSync(path, 0o700);
 }
 function backupRoot(dataDir: string): string {
   const root = resolve(dataDir);
@@ -919,6 +914,8 @@ export function applyPendingWorkspaceRestore(dataDir: string): WorkspaceRestoreR
   if (existsSync(journalFile)) {
     const previous = readJournal(journalFile);
     if (previous.phase === "applying") {
+      assertRestoreDatabasesIdle(dataDir, Object.keys(SNAPSHOT_DATABASES));
+      assertRestoreDatabasesIdle(join(root, `safety-${previous.id}`, "data"), Object.keys(SNAPSHOT_DATABASES));
       rollback(dataDir, previous);
       writeJson(journalFile, { ...previous, phase: "rolled-back" });
       rmSync(pendingFile, { force: true });
@@ -953,6 +950,7 @@ export function applyPendingWorkspaceRestore(dataDir: string): WorkspaceRestoreR
   });
   if ("result" in preparation) return preparation.result;
   const prepared = preparation.prepared;
+  assertRestoreDatabasesIdle(dataDir, Object.keys(SNAPSHOT_DATABASES));
   folder(join(safetyCopyPath, "data"));
   const journal: RestoreJournal = {
     id: pending.id, phase: "applying",

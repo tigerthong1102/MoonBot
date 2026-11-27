@@ -14,6 +14,7 @@ import { Segmented } from "./bot-panel/rows";
 import { LoginBotPicker, LoginForm } from "./LoginForm";
 import { Card, LearnMore, SETTINGS_INPUT, SettingsEmptyRow, SettingsField, SettingsGroup, SettingsLinkRow, SettingsRows } from "./SettingsPrimitives";
 import { SettingsDialog } from "./settings/SettingsDialog";
+import { BitwardenGrantForm } from "./BitwardenGrantForm";
 import { EnvImportForm, SecretForm } from "./VaultSecretForms";
 
 // Security: a row never shows a password or a secret, which no route returns. A saved value can only be replaced.
@@ -49,6 +50,7 @@ export function VaultSettings() {
   const bots = state.bots.map((bot) => ({ id: bot.id, name: bot.name }));
   const [logins, setLogins] = useState<LoginSummary[] | null>(null);
   const [secrets, setSecrets] = useState<Array<VaultSecret | LinkedSecret>>([]);
+  const [bitwarden, setBitwarden] = useState(false);
   const [onePassword, setOnePassword] = useState<OnePasswordStatus>({ connected: false });
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -72,6 +74,7 @@ export function VaultSettings() {
       const answer = await listVault();
       setLogins(answer.logins ?? []);
       setSecrets(answer.secrets ?? []);
+      setBitwarden(answer.bitwarden === true);
       setOnePassword(answer.onePassword ?? { connected: false });
       setError(null);
     }
@@ -155,7 +158,7 @@ export function VaultSettings() {
           <div dir="auto" className="truncate text-[12px] text-ink-secondary">{login.username || t("settings.logins.noUsername")}</div>
           {signInHostsLine(login) && <div dir="ltr" className="truncate text-[12px] text-ink-tertiary" data-login-hosts>{signInHostsLine(login)}</div>}
           <div className="mt-0.5 text-[12px] leading-snug text-ink-tertiary">
-            {[t(SOURCE_KEYS[login.source]), whoLine(login.bots, login.onePassword), used(login.lastUsedAt)].join(" · ")}
+            {[login.source === "bitwarden" ? "Bitwarden" : t(SOURCE_KEYS[login.source]), whoLine(login.bots, login.onePassword), used(login.lastUsedAt)].join(" · ")}
           </div>
           {loginHeldBackFor(login, state.bots).length > 0 && (
             <div className="mt-0.5 text-[12px] leading-snug text-warning" data-login-held-back>
@@ -163,7 +166,7 @@ export function VaultSettings() {
             </div>
           )}
         </div>
-        {login.source !== "1password" && rowButtons(login.id, "login", login.site, () => startEdit(login.id, login))}
+        {login.source !== "1password" && login.source !== "bitwarden" && rowButtons(login.id, "login", login.site, () => startEdit(login.id, login))}
         {login.onePassword && itemButton(login.id, login.site)}
       </div>
       {editing === login.id && login.onePassword && itemEditor(login.onePassword, login.bots)}
@@ -276,6 +279,7 @@ export function VaultSettings() {
           <div data-vault-keys className="contents">
             <SettingsLinkRow title={t("settings.vault.keys.title")} subtitle={t("settings.vault.keys.hintShort", { app: productName() })} onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: "connections" })} />
           </div>
+          {bitwarden && <BitwardenGrantForm bots={bots} grants={(logins ?? []).filter(login => login.source === "bitwarden")} reload={load} />}
           <OnePasswordConnection status={onePassword} disabled={logins === null} bots={bots} botNames={botNames}
             onChange={async (next) => { setOnePassword(next); await load(); }} />
         </SettingsRows>

@@ -107,6 +107,7 @@ import { cloudComputerRpc } from "./cloud-computer-tools.ts"; import { createBoa
 import { chartRenderer, compileChart, dataEngine, validateVegaLite } from "./data/deps.ts";
 import { BUILT_IN_DATA_SYSTEM_PROMPT } from "./data/instructions.ts";
 import { DATA_INTERNAL_MCP_PATH, dataRpc } from "./data/rpc.ts";
+import { confineDeliveryIntegrations, deliveryRouteAllowed, DELIVERY_ENGINE_REFUSAL, internalDeliveryTurn, INTERNAL_DELIVERY_ONLY, isDeliveryConnectorRead } from "./routine-delivery-access.ts";
 import { removeRetiredAppFiles } from "./retired-apps.ts"; import { createEmailRoutes } from "./routes/email.ts"; import { createEmailHost, EMAIL_INTERNAL_MCP_PATH, emailAccess } from "./email/host.ts"; import { createEmailService } from "./email/service.ts"; import { createPostizRoutes } from "./routes/postiz.ts"; import { createPostiz } from "./postiz/service.ts";
 import { createPhones } from "./host/phones.ts";
 import { NOT_THE_OWNER } from "./phones/owner.ts";
@@ -153,7 +154,8 @@ import {
   type Runtime,
 } from "./container-computer.ts";
 import { containerComputerMcp } from "./local-vm-box.ts";
-import { attachedFileLine, attachForTurn, saveBotAttachment } from "./bot-attachment.ts";
+import { saveReconciliationBytes } from "./routine-deliverables.ts";
+import { attachedFileLine, attachForTurn, attachmentResponse, saveBotAttachment } from "./bot-attachment.ts";
 import {
   cacheUntilConfigChanges,
   ensureDirs,
@@ -465,7 +467,7 @@ import { createFillLoginTurn } from "./host/fill-login-turn.ts";
 import { BotLogins, cardLoginPlace, cardSignInElsewhere, observeSignInPage, type ObservedPage } from "./bot-logins.ts";
 import { relayFrame } from "./browser-relay.ts";
 import { browserEvidence, stepContext } from "./browser-steps.ts";
-import { parseLoginFields, parseTotpField, createLoginRoutes } from "./routes/logins.ts"; import { createVaultRoutes } from "./routes/vault.ts"; import { createVaultReaders } from "./host/vault-readers.ts"; import { createSignInVaultChoices } from "./vault/choices.ts";
+import { parseLoginFields, parseTotpField, createLoginRoutes } from "./routes/logins.ts"; import { BitwardenLogins } from "./vault/bitwarden.ts"; import { createVaultRoutes } from "./routes/vault.ts"; import { createVaultReaders } from "./host/vault-readers.ts"; import { createSignInVaultChoices } from "./vault/choices.ts";
 import { loginSite } from "../shared/logins.ts";
 import { browserRestartRefusal } from "./browser-live.ts";
 import { browserEngineStatus } from "./browser-engine.ts";
@@ -608,6 +610,7 @@ import { inboxBotTextRoutes } from "./routes/inbox-bot-text.ts"; import { create
 import { applyDesktopMutationTokenMessage } from "./host/desktop-owner.ts";
 import { createInstructionStudio } from "./routes/instruction-studio.ts";
 import { createAiTwinRoutes } from "./routes/ai-twin.ts";
+import { slackReportLookup } from "./slack-report-reply.ts";
 import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
 import { createBotPresetRoutes } from "./routes/bot-presets.ts"; import { createWorkspaceBannerRoutes, workspaceBannerStore, workspaceBannerSummary } from "./routes/workspace-banner.ts";
 import { createBotMemoryRoutes } from "./routes/bot-memory.ts"; import { createBotLibraryRoutes } from "./routes/bot-library.ts";
@@ -771,7 +774,8 @@ const onePassword = new OnePasswordLogins({
   },
 });
 if (logins.onePasswordToken()) void onePassword.refresh();
-const botLogins = new BotLogins(logins, onePassword, () => store.bots, (value) => heldSecrets.remember(value, "password")); const mcpKeys = createMcpKeys({ store: logins, linked: { fresh: () => botLogins.fresh(), byId: (id) => botLogins.linkedById(id) } });
+const bitwarden = new BitwardenLogins(process.env.STARTUPBOT_BITWARDEN_CLI ?? "");
+const botLogins = new BotLogins(logins, onePassword, () => store.bots, (value) => heldSecrets.remember(value, "password"), [bitwarden]); const mcpKeys = createMcpKeys({ store: logins, linked: { fresh: () => botLogins.fresh(), byId: (id) => botLogins.linkedById(id) } });
 const SESSION_COOKIE = sessionCookieName(PORT, ENVIRONMENT_ID);
 const HOSTED_WORKSPACE = hostedWorkspaceConfigured();
 let workspaceAccess: WorkspaceAccess | null = null;
@@ -1024,6 +1028,7 @@ function cloudGuestOpened(threadId: string): boolean {
   return Boolean(CLOUD_HOME) && cloudThreadStarters(threadId).some((person) => person !== undefined && !cloudOwnerPerson(person));
 }
 
+const deliveryGenerations = new Map<string, { botId: string; generation: string }>();
 const guestDrivenTurns = new Map<string, string>();
 
 
@@ -1741,6 +1746,7 @@ function revokeInternalCapabilityGeneration(threadId: string, generation: string
   gmailDrafts.endTurn(generation);
   if (standInRoots.delete(generation)) coordinator.endTurn(generation, { ok: true, text: "" });
   endForeignTurns(threadId, generation);
+  if (deliveryGenerations.get(threadId)?.generation === generation) deliveryGenerations.delete(threadId);
   if (guestDrivenTurns.get(threadId) === generation) guestDrivenTurns.delete(threadId);
   for (const [token, capability] of internalCapabilities) {
     if (capability.threadId === threadId && capability.generation === generation) internalCapabilities.delete(token);
@@ -2865,7 +2871,8 @@ const routineHolds = CLOUD_HOME ? createRoutineHoldsHost({ dataDir: DATA_DIR, st
   appsConnected: async () => composio.configured(cfg) ? Object.values(await composio.connectedServices(cfg)).some((service) => service.connected) : false }) : null;
 const skillsHost = createSkillsLibraryHost({ store, cfg, appendSkillRequestCard, engineConfig: (instanceId) => providerConfigs()[instanceId], instanceOf: (instanceId) => { const instance = registry.get(instanceId); return instance ? { instanceId, driverKind: instance.driverKind } : undefined; } });
 const { listBotSkills, readBotSkillFile } = skillsHost; const cloudConnections = createCloudConnectionsHost({ cloudHome: CLOUD_HOME, ownHome: ownHome.owner, config: () => cfg, environmentId: ENVIRONMENT_ID, mcpOAuth, heldKeys, mcpKeys: (name) => mcpKeys.given(name), dataDir: DATA_DIR, email: { accounts: () => emailService.store.list(), adopt: (accounts) => emailService.adopt(accounts) }, stayedNotices: { bots: () => store.bots, language: (threadId) => threadLanguage(threadId), say: (threadId, text, kind) => { store.appendMessage(threadId, kind === "line" ? { role: "bot", kind: "text", text } : { role: "bot", kind: "activity", tool: { name: `notice: ${text}`, ok: true } }); }, notify: (text, bot, threadId) => notify(buildNoticeNotification(bot, threadId, text)), lent: (runsOn) => { const at = sharedComputers.runsOn(CLOUD_HOME_LENDER, runsOn); return Boolean(at.online ?? at.known?.lent); } }, engines: async () => selectableInstances(await registry.describe()).filter((instance) => readyToRun(instance, selectionContext)).map((instance) => instance.instanceId) }); const lentMcp = createLentMcp({ cfg: () => cfg, keys: mcpKeys, computers: sharedComputers, policy: (servers) => managedPolicy.filterMcp(servers), bot: (id) => store.bot(id), principal: (turn) => (CLOUD_TEAM || !botLending() ? null : sharedComputerPrincipal(turn)), notice: (turn) => (CLOUD_HOME ? cloudLendingRefusalNotice(turn) : null), refusal: (turn) => (CLOUD_HOME ? cloudLendingRefusalForBot(turn) : null), mint: (turn) => mintInternalCapability({ ...turn, kind: "lent", depth: 0, skillAuthoring: false, createdBots: 0, openedThreads: 0 }), active: (turn) => activeInternalGenerationByThread.get(turn.threadId) === turn.generation, origin: `http://127.0.0.1:${PORT}`, personal: CLOUD_PERSONAL, place: CLOUD_HOME ? "My Cloud" : "this server" }); // Security: a team Cloud lends nothing, so nobody's own computer serves its bots.
-const emailHost = createEmailHost({ service: emailService, dataDir: DATA_DIR, bot: (id) => store.bot(id), inRoom: (threadId) => Boolean(store.groupByThread(threadId)), appendMessage: (threadId, message) => { store.appendMessage(threadId, message as Parameters<typeof store.appendMessage>[1]); }, appAllowed: () => managedPolicy.appAllowed("email"), onChange: (listener) => store.onChange(listener as never), markOutside: (threadId) => outsideLineage.mark(threadId) });
+const internalDelivery = (turn: { botId: string; threadId: string }, assigned?: string) => deliveryGenerations.get(turn.threadId)?.botId === turn.botId || internalDeliveryTurn(turn, activeRoutineRunForThread, coordinator, assigned);
+const emailHost = createEmailHost({ internalDelivery, reportRun: (threadId) => { const run = activeRoutineRunForThread(threadId); return run && routines ? { id: run.id, deliveries: routines.emailDeliveries } : null; }, service: emailService, dataDir: DATA_DIR, bot: (id) => store.bot(id), inRoom: (threadId) => Boolean(store.groupByThread(threadId)), appendMessage: (threadId, message) => { store.appendMessage(threadId, message as Parameters<typeof store.appendMessage>[1]); }, appAllowed: () => managedPolicy.appAllowed("email"), onChange: (listener) => store.onChange(listener as never), markOutside: (threadId) => outsideLineage.mark(threadId) });
 const phones = createPhones({
   dataDir: DATA_DIR, shared: Boolean(HOSTED_WORKSPACE || CLOUD_TEAM), cloudHome: Boolean(CLOUD_HOME), cloudOwnerKey: CLOUD_OWNER_KEY,
   loopbackTrust: LOOPBACK.trust, sharedMembership, store, sessions, routines: () => routines, ownerOrAdmin, cloudOwnerSession,
@@ -6028,6 +6035,7 @@ function providerOperationConflict(provider: RemoteComputerProvider): string | n
 
 /** `chosen`: the place the person set, so the browser's tools are handed the same way on every turn. */
 function turnSurfacePlan(bot: BotRecord, runOn?: RoutineRunOn, threadId?: string, chosen = false) {
+  if (threadId && internalDelivery({ botId: bot.id, threadId })) return resolveSurface({ destination: "off", browserOn: false });
   const instance = registry.get(bot.modelSelection.instanceId), forcedBoat = runOn === "cloud" || Boolean(inheritedTeamComputer(bot));
   const task = forcedBoat || !threadId ? undefined : store.taskByThread(bot.id, threadId);
   return resolveSurface({
@@ -6038,6 +6046,7 @@ function turnSurfacePlan(bot: BotRecord, runOn?: RoutineRunOn, threadId?: string
 }
 
 function turnProvider(bot: BotRecord, runOn?: RoutineRunOn, threadId?: string): RemoteComputerProvider | null {
+  if (threadId && internalDelivery({ botId: bot.id, threadId })) return null;
   if (runOn === "cloud" || inheritedTeamComputer(bot)) return "box";
   const wants = turnSurfacePlan(bot, runOn, threadId).computer;
   if (wants !== undefined && wants !== "cloud") return null;
@@ -7694,6 +7703,8 @@ async function beginTurn(
   if (policyRefusal) throw Object.assign(new Error(policyRefusal), { status: 409, code: "managed_policy" });
   const toolScope = toolScopeForTurn(bot.id);
   guestDrivenTurns.delete(threadId);
+  const delivery = internalDelivery({ botId: bot.id, threadId }, opts?.coordination?.id);
+  if (delivery && instance.driverKind !== "claudeAgent") throw Object.assign(new Error(DELIVERY_ENGINE_REFUSAL), { status: 409, code: "reconciliation_engine" });
   const guestConfined = cloudGuestDriven(threadId) || cloudGuestDrivenHandoff(opts?.coordination?.id) || botApiThread(threadId);
   if (guestConfined && instance.adapter.capabilities.guestTurns !== "confined") {
     throw Object.assign(new Error(botApiThread(threadId) ? serverLine(threadLanguage(threadId), "server.botApi.engineRefusal") : guestEngineRefusal(threadId)), { status: 409, code: "guest_engine" });
@@ -7799,6 +7810,7 @@ async function beginTurn(
   const dispatchClaimId = randomUUID();
   const resourceOwner: TurnOwner = { threadId, generation: dispatchClaimId };
   try {
+  if (delivery) deliveryGenerations.set(threadId, { botId: bot.id, generation: dispatchClaimId });
   if (guestConfined) guestDrivenTurns.set(threadId, dispatchClaimId);
   if (guestConfined && personLine) outsideLineage.personLineConfined(threadId);
   turnResourceOwners.set(threadId, resourceOwner);
@@ -8025,7 +8037,7 @@ async function beginTurn(
       const checkpointCwd = cwd && cwd !== privateWorkspace ? cwd : undefined;
       const dwebUrl = process.env.DWEB_URL?.trim();
       if (dwebUrl) integrations.dweb = { url: dwebUrl };
-      let teamComputer = computerSkipped || proactive.fence.confines(threadId) || botApiThread(threadId) ? undefined : inheritedTeamComputer(bot);
+      let teamComputer = delivery || computerSkipped || proactive.fence.confines(threadId) || botApiThread(threadId) ? undefined : inheritedTeamComputer(bot);
       const cloudBackend = teamComputer || opts?.runOn === "cloud" || bot.cloudBackend !== "vps" ? "box" : "vps";
       const mountsComputerMcp = instance.adapter.capabilities.computerMcp === true;
       const mountsLocalComputer = instance.adapter.capabilities.localComputerMcp === true;
@@ -8446,6 +8458,7 @@ async function beginTurn(
       // The tool bridge is decided here: the folder the turn is launched in is known, and the prompt is not built yet.
       applyAgentsBridge(threadId, integrations, cfg, bot, turnEngine(instance, providerConfigs(), registry.lastSnapshot(instance.instanceId), cwd));
       const confined = proactive.fence.confines(threadId), apiFenced = botApiThread(threadId); if (confined || apiFenced) for (const key of Object.keys(integrations) as Array<keyof typeof integrations>) if (!(apiFenced ? BOT_API_TOOLS : READ_AND_DRAFT_TOOLS).has(key)) delete integrations[key];
+      if (delivery) confineDeliveryIntegrations(integrations);
       const prompt = buildSystemPrompt(persona, liveBot?.soul ?? bot.soul ?? "", [
         { id: "user-profile", label: "About the user", text: userProfileSystemPrompt(teamHost.profileFor(threadId, cfg.profile)) }, { id: "people", label: "People", text: teamMessages.prompt(bot.id, threadId, Boolean(integrations.agents)) }, { id: "long-waits", label: "Waiting on the person", text: teammatePrompts.personBehind(bot.id, threadId) ? teamMessages.longWaits(threadId) : "" },
         { id: "setup", label: "Setup", text: setupSystemPrompt(setupMode, {
@@ -8526,8 +8539,8 @@ async function beginTurn(
         text: withTurnClock(clock, withRecalled(recalled, (posted?.text ?? "") + attachmentsForBox(dispatchContext.turnText, cwd) + shareNote.text + devsReports.note(threadId, Boolean(integrations.agents)) + settingNudges.note(threadId, { tools: Boolean(integrations.agents) && personLine && !opts?.unattended, owner: phones.turnOwner({ botId: bot.id, threadId, generation: dispatchClaimId }) !== null && !cloudGuestDriven(threadId), model: `${instanceId}/${model}` }))),
         ...(recalled ? { recalled } : {}),
         images: dispatchContext.images,
-        approvalMode: approvalModeForTurn(bot, commsDepth > 0, threadId),
-        approvalModeNow: () => liveApprovalMode(bot, threadId, commsDepth > 0),
+        approvalMode: delivery ? "ask" : approvalModeForTurn(bot, commsDepth > 0, threadId),
+        approvalModeNow: () => delivery ? "ask" : liveApprovalMode(bot, threadId, commsDepth > 0),
         toolScope,
         ...(guestConfined ? { guestConfined: true, confinedWhy: botApiThread(threadId) ? serverLine(threadLanguage(threadId), "server.botApi.confinedWhy") : confinedWhy(threadId) } : {}),
         model,
@@ -8544,6 +8557,7 @@ async function beginTurn(
         integrations,
         ...(integrations.browser && browserIsThePlace(turnSurfacePlan(bot, undefined, threadId, true)) ? { preloadBrowserTools: true } : {}),
         ...skillsHost.turnSettings(bot, threadId, instance, managedPolicy.restrictsMcp()),
+        ...(delivery ? { guestConfined: true, internalDeliveryOnly: true, confinedWhy: INTERNAL_DELIVERY_ONLY, mcpFromUserConfig: false, userSkillsDir: undefined, sessionReset: true, resumeCursor: undefined } : {}),
         cwd, ...(worksInWorkspace || guestConfined || cloudGuestOpened(threadId) ? {} : { toolResultFolder: messageFileRootsForThread(bot.id, threadId).find((root) => root !== ATTACHMENTS_DIR) }),
         botSettingsFile: botSettingsFile(bot),
       }, (input) => quickFallback.sendTurn(instance, input, route.quickModel ? { model, own: bot.modelSelection, onFallback: () => store.patchMessage(threadId, userMessage.id, { quickModel: undefined }) } : undefined))), () => companyShutdown || !directTurnClaimExists(bot.id, dispatchClaimId, threadId), async () => {
@@ -8886,7 +8900,7 @@ routines = new RoutineManager({
     return null;
   },
   skipStartupRuns: (startedFromSleep = Boolean(CLOUD_HOME) && wokeFromSleep(DATA_DIR)), prepareRun: (run, signal) => runComputers.prepare(run, signal), preparing: RUN_COMPUTER_LINES.waking, // a Cloud home waking from a sleep it was stopped for
-  hasPendingDelegations: runtimeWorkPending, refusedHandoff: refusedHandoffs.take, handedOffWorkLive: (threadId) => coordinator.outstandingFor(threadId).length > 0,
+  incompleteDelivery: automationReports.incompleteDelivery, hasPendingDelegations: runtimeWorkPending, refusedHandoff: refusedHandoffs.take, handedOffWorkLive: (threadId) => coordinator.outstandingFor(threadId).length > 0,
   routineTurn: (threadId) => directRequestOwners.get(threadId)?.automation !== undefined, personTurn: (threadId) => directRequestOwners.get(threadId)?.origin?.kind === "user", home: { machine: CLOUD_HOME?.machineId, cloud: CLOUD_HOME !== null }, turnLive: (run) => runTurnLive(run, (threadId) => ({ busy: threadBusy(run.botId, threadId), settling: settlingTurns.has(threadId), queued: queuedThreadPosition(run.botId, threadId) !== null, pending: runtimeWorkPending(threadId), parked: store.taskByThread(run.botId, threadId)?.activity === "parked.computer" })),
   botState: unattendedDispatchState, pausedText: (botId) => botHolds.text(botId, threadLanguage(store.bot(botId)?.threadId ?? "")) ?? starterCaps.pausedText(botId, threadLanguage(store.bot(botId)?.threadId ?? "")), held: (botId) => botHolds.held(botId), capSkip: (botId, routineId) => usageCapGate.routineSkip(botId, routineId), capText: (botId, trigger) => usageCapGate.runText(botId, trigger, threadLanguage(store.bot(botId)?.threadId ?? "")),
   goalState: (groupId, coordinatorBotId) => {
@@ -9040,7 +9054,7 @@ calendarCalls = new CalendarCallManager({
   botExists: (botId) => Boolean(store.bot(botId)),
   onDue: deliverCalendarCall,
 });
-const botWaits = new WaitManager(createWaitHost({ store, directChat: directChatOf, threadBusy, wrote: markTaskContextExternallyUpdated, notify, enqueue: (input) => routines!.enqueueWebhook(input), cloudHome: Boolean(CLOUD_HOME) })); store.onChange((change) => { if (change.type === "bot" && store.bot(change.botId)?.busy) botWaits.noteBotBusy(change.botId); });
+const botWaits = new WaitManager({ runState: (id, source) => routines?.waitState(id, source), ...createWaitHost({ store, directChat: directChatOf, threadBusy, wrote: markTaskContextExternallyUpdated, notify, enqueue: (input) => routines!.enqueueWebhook(input), cloudHome: Boolean(CLOUD_HOME) }) }); store.onChange((change) => { if (change.type === "bot" && store.bot(change.botId)?.busy) botWaits.noteBotBusy(change.botId); });
 const recoveryOwners = routines.routineRequestReceiptOwners();
 if (recoveryOwners.length > 0) {
   const recoveryThreads = [...new Set(recoveryOwners.map((owner) => owner.threadId))];
@@ -9667,7 +9681,8 @@ async function runClaimedGroupMemberTurn(
   const roomPolicyRefusal = instance ? policyModelRefusal(instance) : undefined;
   if (!groupSpeakers.has(threadId)) guestDrivenTurns.delete(threadId);
   const roomGuestConfined = cloudGuestDriven(threadId) || cloudGuestDrivenHandoff(orchestration?.roomHandoffId);
-  const roomGuestRefusal = roomGuestConfined && instance?.adapter.capabilities.guestTurns !== "confined" ? guestEngineRefusal(threadId) : undefined;
+  const roomDelivery = internalDelivery({ botId: bot.id, threadId }, orchestration?.roomHandoffId);
+  const roomGuestRefusal = roomDelivery && instance?.driverKind !== "claudeAgent" ? DELIVERY_ENGINE_REFUSAL : roomGuestConfined && instance?.adapter.capabilities.guestTurns !== "confined" ? guestEngineRefusal(threadId) : undefined;
   if (!instance || roomPolicyRefusal || roomGuestRefusal) {
     const message = roomPolicyRefusal ?? roomGuestRefusal ?? `${bot.name}'s model is unavailable`;
     store.appendMessage(threadId, {
@@ -9698,6 +9713,7 @@ async function runClaimedGroupMemberTurn(
   const internalGeneration = beginInternalCapabilityGeneration(threadId);
   if (orchestration?.roomHandoffId) gmailDrafts.forRoomTurn(internalGeneration, orchestration.roomHandoffId);
   if (operation) roomTurnStarted(internalGeneration, operation);
+  if (roomDelivery) deliveryGenerations.set(threadId, { botId: bot.id, generation: internalGeneration });
   if (roomGuestConfined) guestDrivenTurns.set(threadId, internalGeneration);
   // Only a personal Cloud's owner answering their own line in a room they alone wrote in is theirs.
   if (CLOUD_HOME && (!CLOUD_PERSONAL || cloudHomeLendingRefusal(cloudLendingTurn({ botId: bot.id, threadId, generation: internalGeneration })) !== null)) {
@@ -10293,7 +10309,7 @@ async function runClaimedGroupMemberTurn(
     runningTurnEngines.set(threadId, instance);
     // A private chat reaches a room only through the explicit, disclosed session_search, never automatically.
     const roomRecalled = cardContinuation ? "" : autoRecallPrompt(bot, threadId, resolvedLatestImages.text, { conversations: false, userName });
-    const turnApprovalMode = roomTurnApprovalMode(readyBot, threadId, orchestration);
+    const turnApprovalMode = roomDelivery ? "ask" : roomTurnApprovalMode(readyBot, threadId, orchestration);
     if (!done) releaseTurnLevel = roomTurnLevels.dispatched(threadId, readyBot.id, turnApprovalMode);
     const { reset: roomReset, displaced } = roomMemberContexts.dispatch(threadId, readyBot.id, instance.instanceId, cfg.context);
     if (roomReset) {
@@ -10306,6 +10322,7 @@ async function runClaimedGroupMemberTurn(
     const roomShareNote = skillsHost.shareNote(bot, threadId, Boolean(workspace));
     const clock = turnClockLine(Date.now(), hostTimeZone()), roomPick = cardContinuation ? "" : takeRoomPick(operation, readyBot.id);
     const roomToolScope = toolScopeForTurn(readyBot.id), roomUserMcp = claudeUserMcpEnabled(cfg) && !managedPolicy.restrictsMcp();
+    if (roomDelivery) confineDeliveryIntegrations(integrations);
     const roomSession = roomSessions.dispatch({
       threadId, botId: readyBot.id, claimId: internalGeneration, instance, guestConfined: roomGuestConfined, reset: Boolean(roomReset), hooks: Boolean(integrations.hooks),
       context: () => ({ ...roomMemberContexts.forThread(threadId)?.[readyBot.id], compactAt: nativeCompactTokens(instance) }),
@@ -10330,6 +10347,7 @@ async function runClaimedGroupMemberTurn(
         integrations,
         ...(integrations.browser && browserIsThePlace(roomPlan) ? { preloadBrowserTools: true } : {}),
         ...skillsHost.turnSettings(readyBot, threadId, instance, managedPolicy.restrictsMcp()),
+        ...(roomDelivery ? { guestConfined: true, internalDeliveryOnly: true, confinedWhy: INTERNAL_DELIVERY_ONLY, mcpFromUserConfig: false, userSkillsDir: undefined, sessionReset: true, resumeCursor: undefined } : {}),
         botSettingsFile: botSettingsFile(readyBot),
         ...(instance.instanceId === readyBot.modelSelection.instanceId
           ? memberTurnSelection(readyBot.modelSelection)
@@ -11026,7 +11044,7 @@ function messageFileRootsForThread(senderId: string, threadId: string): string[]
 /** A bot's own file copied into the attachment store, for attach_file and coordinate_bots' files alike. The store is no source: only the
  * bot's own files are (its conversation's inbox of received files among them), or one saved outside them this turn, never from the data dir. */
 function saveTurnFile(capability: InternalCapability, botId: string, vm: LocalVmTarget | undefined, path: string, name: string | undefined, byContent: boolean) {
-  return saveBotAttachment({ path, name, byContent, roots: messageFileRootsForThread(botId, capability.threadId).filter((root) => root !== ATTACHMENTS_DIR), inbox: inboxRead(botId, capability.threadId),
+  return saveBotAttachment({ path, name, byContent, reconciliation: internalDelivery(capability), roots: messageFileRootsForThread(botId, capability.threadId).filter((root) => root !== ATTACHMENTS_DIR), inbox: inboxRead(botId, capability.threadId),
     ...(vm ? { guest: { root: VM_WORKSPACE_GUEST, host: vm.workspaceDir } } : {}),
     ...(capability.deliversSavedFiles && capability.turnStartedAt !== undefined ? { savedThisTurn: { since: capability.turnStartedAt, refuse: [DATA_DIR] } } : {}) });
 }
@@ -12272,7 +12290,7 @@ const taskRoutes = createTaskRoutes({
   revokeInternalCapabilitiesForThread,
   stagedSkillCleanupsForThread,
   rejectDeletedThreadSkillStages,
-}); ROUTES.push(taskRoutes); const leaveTeam = CLOUD_TEAM ? createTeamMemberLeft({ dataDir: DATA_DIR, store, openedBy: (person) => threadStarters.threadsOf(person, 50_000), privateTo: teamHost.privateTo, sharesLeft: conversationSharing.personLeft, revokeSessions: (email) => sessions.revokeMember(email), busy: threadBusy, stop: (botId, threadId) => interruptDirectThread(botId, threadId, "The person left the team"), deleteTasks: taskRoutes.deleteTasks, stopBot: (botId) => memberOwnBot.stopWork(botId, "The person left the team"), deleteBot: memberOwnBot.remove, threadsReferencing, deleteAttachment: (name) => deleteAttachment(join(ATTACHMENTS_DIR, name)), eraseBrowsers: eraseAudienceBrowsers, forgetConnections: (person) => { connectionHealth.forgetPerson(person); personRooms.reads?.forgetPerson(person); return teamConnections.forgetPerson(person); }, forgetSecrets: (person) => { logins.forgetPerson(person); }, ...teamRoutines.leaving, forgetOnBots: (email) => forgetMember(store, email, (bot, access) => writeAccess({ store, publicGroupState, broadcast, audienceChanged }, bot, access)).length, ownerOf: (botId) => { const bot = store.bot(botId); return bot ? botOwner(bot) : null; }, record: (row) => appendAdminAction(DATA_DIR, { ...row, actor: { kind: "session", sessionId: "", label: "StartupBot Cloud" } }) }) : null; const teamSlack = createTeamSlackHost({ cloudHome: CLOUD_HOME, dataDir: DATA_DIR, ...(personalSlackMessages ? { messages: personalSlackMessages } : {}), owner: (auth) => (cloudOwnerSession(auth) ? CLOUD_OWNER_KEY : null), store, visibleFor: (auth) => visibleTo(viewerFor(auth)), sender: messageSender, trigger: usageTriggerFor, actor: runActor, audienceOf: teamHost.audienceOf, starters: threadStarters, shareFromSlack: (threadId, person) => void conversationShares.share(threadId, person, "team", Date.now(), "slack"), discard: (botId, threadId) => void taskRoutes.deleteTasks(botId, [threadId]), send: (input) => acceptDirectSend(input), busy: threadBusy, handedOn: directRootPending, request: (threadId) => directRequestOwners.get(threadId), stopRefusal: (threadId, by) => runOwners.stopRefusal(threadId, by), removeRefusal: (threadId, sender, by) => runOwners.removeRefusal(threadId, sender, by), stopThread: stopThreadForPerson, language: personLanguages.forLine }); ROUTES.push(createTeamSlackRoutes({ host: teamSlack }));
+}); ROUTES.push(taskRoutes); const leaveTeam = CLOUD_TEAM ? createTeamMemberLeft({ dataDir: DATA_DIR, store, openedBy: (person) => threadStarters.threadsOf(person, 50_000), privateTo: teamHost.privateTo, sharesLeft: conversationSharing.personLeft, revokeSessions: (email) => sessions.revokeMember(email), busy: threadBusy, stop: (botId, threadId) => interruptDirectThread(botId, threadId, "The person left the team"), deleteTasks: taskRoutes.deleteTasks, stopBot: (botId) => memberOwnBot.stopWork(botId, "The person left the team"), deleteBot: memberOwnBot.remove, threadsReferencing, deleteAttachment: (name) => deleteAttachment(join(ATTACHMENTS_DIR, name)), eraseBrowsers: eraseAudienceBrowsers, forgetConnections: (person) => { connectionHealth.forgetPerson(person); personRooms.reads?.forgetPerson(person); return teamConnections.forgetPerson(person); }, forgetSecrets: (person) => { logins.forgetPerson(person); }, ...teamRoutines.leaving, forgetOnBots: (email) => forgetMember(store, email, (bot, access) => writeAccess({ store, publicGroupState, broadcast, audienceChanged }, bot, access)).length, ownerOf: (botId) => { const bot = store.bot(botId); return bot ? botOwner(bot) : null; }, record: (row) => appendAdminAction(DATA_DIR, { ...row, actor: { kind: "session", sessionId: "", label: "StartupBot Cloud" } }) }) : null; const teamSlack = createTeamSlackHost({ cloudHome: CLOUD_HOME, dataDir: DATA_DIR, findReport: slackReportLookup(() => routines?.listRuns() ?? [], auth => visibleTo(viewerFor(auth))), reportSession: id => { const session = sessions.record(id); return session ? { kind: "session", session, scopes: session.scopes, via: "bearer" } : undefined; }, ...(personalSlackMessages ? { messages: personalSlackMessages } : {}), owner: (auth) => (cloudOwnerSession(auth) ? CLOUD_OWNER_KEY : null), store, visibleFor: (auth) => visibleTo(viewerFor(auth)), sender: messageSender, trigger: usageTriggerFor, actor: runActor, audienceOf: teamHost.audienceOf, starters: threadStarters, shareFromSlack: (threadId, person) => void conversationShares.share(threadId, person, "team", Date.now(), "slack"), discard: (botId, threadId) => void taskRoutes.deleteTasks(botId, [threadId]), send: (input) => acceptDirectSend(input), busy: threadBusy, handedOn: directRootPending, request: (threadId) => directRequestOwners.get(threadId), stopRefusal: (threadId, by) => runOwners.stopRefusal(threadId, by), removeRefusal: (threadId, sender, by) => runOwners.removeRefusal(threadId, sender, by), stopThread: stopThreadForPerson, language: personLanguages.forLine }); ROUTES.push(createTeamSlackRoutes({ host: teamSlack }));
 ROUTES.push(createTeamRoutes({
   store,
   cfg,
@@ -12295,7 +12313,7 @@ ROUTES.push(createBrowserSiteRoutes({
   signOut: (target, site) => signOutOfSites(target, site),
 }));
 ROUTES.push(createBrowserEvidenceRoutes({ evidence: browserEvidence.attach({ onChange: (listener) => store.onChange(listener), threadExists: (id) => Boolean(threadOwner(id)) }), threadExists: (id) => Boolean(threadOwner(id)) }));
-const loginRoutes = botLogins.routes((id) => Boolean(store.bot(id))); ROUTES.push(createLoginRoutes(loginRoutes), createVaultRoutes({ logins: loginRoutes, secrets: logins, linked: () => botLogins.linkedSecrets(), keys: mcpKeys, reader: vaultReaders.viewer }));
+const loginRoutes = botLogins.routes((id) => Boolean(store.bot(id))); ROUTES.push(bitwarden.routes(id => Boolean(store.bot(id))), createLoginRoutes(loginRoutes), createVaultRoutes({ bitwarden: !!process.env.STARTUPBOT_BITWARDEN_CLI, logins: loginRoutes, secrets: logins, linked: () => botLogins.linkedSecrets(), keys: mcpKeys, reader: vaultReaders.viewer }));
 const privateRecords = createPrivateRecords({ visibleFor: (auth) => visibleTo(viewerFor(auth)), botExists: (id) => Boolean(store.bot(id)), routine: (id) => routines?.listRoutines().find((routine) => routine.id === id) }); const includedHosting = createIncludedHosting({ credential: () => hostingCredential(), dataDir: DATA_DIR, warn: (line) => console.warn(line) }), appPublisher = createAppPublisher({ hosting: includedHosting, botName: (id) => store.bot(id)?.name ?? "", botFolder: workspaceDir, home: homedir(), env: process.env }); ROUTES.push(createPublishedAppsRoutes({ visibleFor: (auth) => visibleTo(viewerFor(auth)), apps: createPublishedApps({ included: { hosting: includedHosting, publisher: appPublisher }, bots: () => store.bots, rooms: () => store.groups, messages: (threadId) => store.messagesFor(threadId), folders: (bot) => [...new Set([bot.threadId, ...(bot.tasks ?? []).map((task) => task.threadId)].flatMap((threadId) => liveRoots(threadId, bot.id) ?? []))], ownFolder: (botId, threadId) => join(TASK_WORKSPACES_DIR, botId, threadId), pages: () => publishedPages.store.list(), unpublishPage: (pageId) => publishedPages.publisher.unpublish({ pageId }), netlifyToken: (botId, auth, threadId) => savedNetlifyToken(logins, botId, CLOUD_TEAM && !threadId ? null : vaultReaders.turn(threadId ?? ""), auth.kind === "session" ? actorKey(auth) : null), ownChat: (auth, threadId) => auth.kind === "session" && teamHost.privateTo(threadId) === personKey(auth.session), home: homedir(), env: process.env }) })); ROUTES.push(createUsageRoutes({
   dataDir: DATA_DIR, prices: operatorPrices,
   budget: () => spendState(cfg, DATA_DIR), caps: (auth) => (auth.scopes.includes("admin") ? usageCapGate.view() : null), onPlan: (instanceId) => registry.lastSnapshot(instanceId)?.billing === "subscription",
@@ -12865,6 +12883,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
       }
       if (proactive.fence.refusesRoute(internalSender, internalCapability.threadId, method, path)) return json(res, 403, { error: READ_AND_DRAFT_REFUSAL }); if (botApiThread(internalCapability.threadId) && botApiRouteRefused(method, path)) return json(res, 403, { error: BOT_API_REFUSAL });
       if (cloudGuestDriven(internalCapability.threadId) && outsideRouteRefused(method, path)) return json(res, 403, { error: OUTSIDE_REFUSAL });
+      if (internalDelivery(internalCapability) && !deliveryRouteAllowed(method, path)) return json(res, 403, { error: INTERNAL_DELIVERY_ONLY });
       const requiredCapabilityKind = path === "/api/internal/hook"
         ? "hooks"
         : path === "/api/internal/browser/mcp"
@@ -13174,34 +13193,19 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const body = await readInternalBody();
         const requestedPath = typeof body.path === "string" ? body.path : "";
         const requestedName = typeof body.name === "string" ? body.name : undefined;
-        try {
-          const vm = await attachmentVmForTurn(internalCapability);
-          const outcome = await attachForTurn(internalCapability, MAX_ATTACHED_FILES_PER_TURN, {
-            save: () => saveTurnFile(internalCapability, from.id, vm, requestedPath, requestedName, Boolean(internalCapability.roomHandoffId)),
+        const reply = await attachmentResponse(requestedPath, requestedName, MAX_ATTACHED_FILES_PER_TURN, async () => {
+          const inline = internalDelivery(internalCapability) && (requestedPath.startsWith("data:") || proactive.fence.confines(threadId));
+          const vm = inline ? undefined : await attachmentVmForTurn(internalCapability);
+          return attachForTurn(internalCapability, MAX_ATTACHED_FILES_PER_TURN, {
+            save: () => inline ? saveReconciliationBytes(requestedPath, requestedName) : saveTurnFile(internalCapability, from.id, vm, requestedPath, requestedName, Boolean(internalCapability.roomHandoffId)),
             stillLive: () => internalCapabilityIsActive({ ...internalCapability, ...(vm ? { localVmTarget: vm } : {}) }) &&
               connectorThread(from.id, threadId) !== null,
             publish: (saved) => { store.appendMessage(threadId, attachedFileLine(saved.attachment, liveTurnByThread.get(threadId),
               source.group ? { botId: from.id, name: from.name, color: from.color } : undefined)); handoffFiles.attached(internalCapability.roomHandoffId, saved.attachment, saved.bytes); },
             discard: (saved) => saved.fresh === undefined ? deleteAttachment(saved.attachment.path) : handoffFiles.drop(saved.fresh ? [saved.attachment.path] : []),
           });
-          if (outcome.status === "limit") {
-            return json(res, 429, { error: `You already attached ${MAX_ATTACHED_FILES_PER_TURN} files this turn. Put the rest in one document or archive summary instead.` });
-          }
-          if (outcome.status === "ended") {
-            return json(res, 409, { error: "This turn ended before the file could be attached, so nothing was posted." });
-          }
-          const { saved } = outcome;
-          const label = saved.attachment.kind === "file"
-            ? saved.attachment.name
-            : (requestedName?.trim() || requestedPath.split(/[\\/]/).at(-1) || "image");
-          return json(res, 200, { ok: true, name: label, bytes: saved.bytes });
-        } catch (error) {
-          const status = typeof (error as { status?: unknown }).status === "number" ? (error as { status: number }).status : 500;
-          const message = status === 404
-            ? `No file was found at ${requestedPath}. Save it under /home/cua/workspace (or your working folder) and pass its exact path.`
-            : error instanceof Error ? error.message : "could not attach that file";
-          return json(res, status, { error: message });
-        }
+        });
+        return json(res, reply.status, reply.body);
       }
       if (method === "POST" && path === "/api/internal/vm-exec") {
         const threadId = internalCapability.threadId;
@@ -14380,6 +14384,8 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
         const connectorCalls = rpc?.method === "tools/call" && typeof rpcParams?.name === "string"
           ? connectorCallsIn(rpcParams.name, rpcParams.arguments)
           : [];
+        const refusesExternalDelivery = () => internalDelivery(internalCapability) && !isDeliveryConnectorRead(body);
+        if (refusesExternalDelivery()) return refuseOutbound(INTERNAL_DELIVERY_ONLY);
         if (proactive.fence.refusesConnectorCall(currentSender, internalCapability.threadId, body)) return refuseOutbound(READ_AND_DRAFT_REFUSAL);
         const scopeRefusal = managedPolicy.appsCallRefusal(connectorCalls, serviceSlugs) ?? await teamConnections.callRefusal(internalCapability, connectorCalls); if (scopeRefusal) return refuseOutbound(scopeRefusal);
         // A room turn can run at a Chief's delegated level, which only the room handoff carries.
@@ -14425,6 +14431,7 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
             requireActiveInternalCapability();
             const checkDispatch = (final = false, record = true) => {
               requireActiveInternalCapability();
+              if (refusesExternalDelivery()) refuseDispatch(INTERNAL_DELIVERY_ONLY);
               const identityRefusal = teamConnections.relayDispatchRefusal(internalCapability, scopesRevision, actor.access);
               if (identityRefusal) refuseDispatch(identityRefusal);
               const fresh = store.bot(internalCapability.botId);

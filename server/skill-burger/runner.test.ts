@@ -420,6 +420,10 @@ describe("a bounded connector read batch", () => {
   const batch = { rows: { $arg: "records" }, column: "invoice", argument: "query", select: "result.total" };
   const step = app("reconcile", "GMAIL_FETCH_EMAILS", {}, { batch });
   const flow = { version: 1 as const, summary: "Read invoice totals", args: { records: {} }, steps: [step] };
+  it("rejects a scalar result contract on a batch before any reads", () => {
+    const invalid = { ...step, resultContract: { fields: { amount: "number" }, sources: ["invoices"] } };
+    expect(workflowSchema.safeParse({ ...flow, steps: [invalid] }).success).toBe(false);
+  });
   it("runs 100 source rows, marks missing inputs and results and keeps zero-prefixed identifiers", async () => {
     const calls: unknown[] = [];
     const h = harness({ app: async input => {

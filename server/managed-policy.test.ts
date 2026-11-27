@@ -169,3 +169,17 @@ describe("claim-time computer refusal in bindTurnComputer", () => {
     await expect(bind(managed)({}, "computer:vm:shared")).resolves.toBe("claimed");
   });
 });
+
+it("keeps current organization rules through stale syncs and long offline credential lifetimes", () => {
+  vi.useFakeTimers();
+  const ttl = 40 * 86_400_000;
+  const until = Date.now() + ttl;
+  const { managed } = overlay(policy({ remoteAccess: false, expiresAt: until, version: 7 }));
+  managed.apply(policy({ version: 6, remoteAccess: true, expiresAt: Date.now() - 1 }));
+  vi.advanceTimersByTime(30 * 86_400_000);
+  expect(managed.summary()).toMatchObject({ version: 7, remoteAccess: false, organizationName: "Fixture Agency" });
+  managed.apply(policy({ version: 6, remoteAccess: true }));
+  expect(managed.remoteAccessRefusal()).toContain("Fixture Agency");
+  vi.advanceTimersByTime(10 * 86_400_000);
+  expect(managed.summary()).toBeNull();
+});

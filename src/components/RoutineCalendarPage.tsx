@@ -1,3 +1,4 @@
+import { RunDiagnostics } from "./routines/RunDiagnostics";
 import { boatCapableEngine } from "@/lib/remote-desktop";
 import {
   useEffect,
@@ -35,6 +36,7 @@ import {
 import { BotAvatar } from "@/components/Avatar";
 import { useBotEditor } from "./bot-settings/BotEditorContext";
 import { pathForFile } from "@/components/ComposerAttachments";
+import { AttachmentChips } from "./routines/AttachmentChips";
 import { ResultsDestination, resultsOfPlace, RoutineAudience } from "@/components/routines/ResultsDestination";
 import { CronScheduleFields, CronSchedulePreview } from "@/components/routines/CronScheduleFields";
 import { cronChoiceFor, cronDraftFor, cronEditorValue, isCronChoice, type CronChoice } from "@/components/routines/cron-editor";
@@ -207,27 +209,6 @@ function makeRoutineSchedule(
   return makeCalendarSchedule(choice, at, weekdays);
 }
 
-function AttachmentChips({
-  attachments,
-  onRemove,
-}: {
-  attachments: Array<RoutineContextAttachment | CalendarCallAttachment>;
-  onRemove?: (id: string) => void;
-}) {
-  if (!attachments.length) return null;
-  return (
-    <div className="flex flex-wrap gap-2">
-      {attachments.map((attachment) => (
-        <div key={attachment.id} className="flex max-w-[260px] items-center gap-2 rounded-lg border border-hairline/50 bg-inset px-2.5 py-2 text-[12px] text-ink">
-          <FileText size={14} className="shrink-0 text-accent" />
-          <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
-          {onRemove && <button type="button" onClick={() => onRemove(attachment.id)} className="rounded p-0.5 text-ink-secondary hover:bg-raised hover:text-ink" aria-label={t("routines.attachment.remove", { name: attachment.name })}><X size={12} /></button>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function BotPicker({
   bots,
   selected,
@@ -354,6 +335,9 @@ export function EventEditor({
     setBotIds(ids);
   };
   const [routineTarget, setRoutineTarget] = useState<RoutineTarget>(existingRoutine?.target ?? "bot");
+  const canRequireDelivery = kind === "routine" && routineTarget === "bot" && recurrence !== "limit_reset"
+    && !existingRoutine?.checks?.length && !existingRoutine?.access && !existingRoutine?.deliver && !existingRoutine?.sameConversation;
+  const [requireDelivery, setRequireDelivery] = useState(existingRoutine?.deliverables === "reconciliation");
   const [groupId, setGroupId] = useState(existingRoutine?.groupId ?? "");
   const [runOn, setRunOn] = useState<RoutineRunOn>(existingRoutine?.runOn ?? defaultRunOn ?? "maus");
   const [attachments, setAttachments] = useState<Array<RoutineContextAttachment | CalendarCallAttachment>>(
@@ -493,6 +477,7 @@ export function EventEditor({
         const input: RoutineInput = {
           name,
           prompt: description,
+          deliverables: canRequireDelivery && requireDelivery ? "reconciliation" : null,
           target: routineTarget,
           botId: lockedBotId ?? botIds[0] ?? "",
           groupId: routineTarget === "room-goal" && groupId ? groupId : null,
@@ -831,6 +816,8 @@ export function EventEditor({
                     ? t("routines.attachment.callSharedHelp")
                     : t("routines.attachment.callKeptHelp")}
               </div>
+              {canRequireDelivery &&
+                <label className="flex items-center gap-2 text-[13px] text-ink-secondary"><input type="checkbox" checked={requireDelivery} onChange={event => setRequireDelivery(event.target.checked)} />{t("routines.requiredReconciliation")}</label>}
               {attachmentNotice && <div className="text-[12px] text-warning">{attachmentNotice}</div>}
             </div>}
           </div>
@@ -1476,6 +1463,7 @@ export function EventDetails({
               : <div className="space-y-1">{recentRuns.map((recent) => <RecentRunRow key={recent.id} run={recent} current={recent.id === run?.id} onOpen={() => onOpenRun?.(recent)} />)}</div>}
           </DrawerField>
         )}
+        {advanced && run && <RunDiagnostics run={run} />}
         {error && <div role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-[12px] text-danger">{error}</div>}
       </div>
 

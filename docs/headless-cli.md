@@ -511,3 +511,13 @@ disabled skills. The importer validates the preview using StartupBot's normal
 team-file reader. Inspect the generated files and run
 `openmausbot team apply NEW_DIRECTORY/team.json --dry-run` to compare with
 the target workspace. Applying that file is a separate choice.
+
+Use `terminal history FOLDER [QUERY]` to search explicitly selected, uncompressed
+Codex rollout files. It reads each header and shows the ID, branch, directory
+and file in JSON. In the original project directory, `terminal fork NAME FILE`
+opens a new Codex branch of that conversation. For a StartupBot conversation,
+`terminal fork-chat NAME FILE THREAD [INSTANCE]` also checks the selected
+StartupBot thread's recorded engine cursor. The source must be in the active
+Codex home's sessions directory. Both actions start a separate conversation.
+
+Use `openmausbot terminal start NAME cursor` to run the installed Cursor CLI in a persistent terminal. `openmausbot terminal models cursor` prints model IDs from that installation.

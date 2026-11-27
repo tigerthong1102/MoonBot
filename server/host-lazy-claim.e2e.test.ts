@@ -97,11 +97,10 @@ describe("lazy host claim and pin on use (issue #1650)", () => {
     });
     child = proc;
     const bootTimeout = hostTimeout(20_000);
-    const signal = AbortSignal.timeout(bootTimeout);
     await until(async () => {
       if (proc.exitCode !== null || proc.signalCode !== null) throw new Error(`Fixture server exited before /api/health (exit ${proc.exitCode}, signal ${proc.signalCode}).`);
       try {
-        const response = await fetch(base + "/api/health", { signal });
+        const response = await fetch(base + "/api/health", { signal: AbortSignal.timeout(2_000) });
         return response.ok ? "ready" : `/api/health returned HTTP ${response.status}`;
       } catch { return "No response from /api/health"; }
     }, status => status === "ready", bootTimeout);

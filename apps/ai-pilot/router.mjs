@@ -112,7 +112,7 @@ export function router(ledger, settings, http = fetch) {
     const reserve = Math.ceil(
       upperInput * config.maxPromptUsdPerMillion + request.max_tokens * config.maxOutputUsdPerMillion,
     );
-    ledger.reserve(owner, id, digest(JSON.stringify(request)), reserve);
+    ledger.reserve(owner, id, digest(JSON.stringify(request)), reserve, request.model);
     let key;
     try {
       key = await keyFor(owner, config);
@@ -135,23 +135,38 @@ export function router(ledger, settings, http = fetch) {
       if (!result.id || !result.choices?.length) throw new Error();
       db.prepare("UPDATE requests SET generation=? WHERE owner=? AND id=?").run(result.id, owner, id);
       if (!Number.isFinite(result.usage?.cost) || result.usage.cost < 0) await reconcile(owner, id);
-      else ledger.settle(owner, id, result.id, Math.ceil(result.usage.cost * 1000000));
+      else
+        ledger.settle(owner, id, result.id, Math.ceil(result.usage.cost * 1000000), {
+          input: result.usage.prompt_tokens,
+          output: result.usage.completion_tokens,
+        });
     } catch (e) {
       if (e instanceof Fault) throw e;
       throw new Fault(503, "reconciliation_required");
     }
     return result;
   }
-  async function reconcile(owner, id) {
+  async function reconcile(owner, id, suppliedGeneration) {
     const row = db.prepare("SELECT generation,state FROM requests WHERE owner=? AND id=?").get(owner, id);
-    if (!row?.generation) throw new Fault(409, "generation_id_required");
+    const generation = row?.generation || suppliedGeneration;
+    if (!row || !generation) throw new Fault(409, "generation_id_required");
+    if (suppliedGeneration && row.generation && suppliedGeneration !== row.generation)
+      throw new Fault(409, "generation_conflict");
     if (row.state === "settled") return;
     const user = db.prepare("SELECT secret FROM users WHERE id=?").get(owner);
-    const response = await api("generation?id=" + encodeURIComponent(row.generation), open(user.secret, master()));
+    const response = await api("generation?id=" + encodeURIComponent(generation), open(user.secret, master()));
     const data = response.ok ? (await response.json()).data : null;
-    if (data?.id !== row.generation || !Number.isFinite(data.total_cost) || data.total_cost < 0)
+    if (
+      data?.id !== generation ||
+      (data.user != null && data.user !== digest(owner)) ||
+      !Number.isFinite(data.total_cost) ||
+      data.total_cost < 0
+    )
       throw new Fault(503, "reconciliation_required");
-    ledger.settle(owner, id, row.generation, Math.ceil(data.total_cost * 1000000));
+    ledger.settle(owner, id, generation, Math.ceil(data.total_cost * 1000000), {
+      input: data.native_tokens_prompt ?? data.tokens_prompt,
+      output: data.native_tokens_completion ?? data.tokens_completion,
+    });
   }
   return { run, reconcile };
 }

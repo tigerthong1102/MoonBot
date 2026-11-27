@@ -38,6 +38,8 @@ export class Ledger {
       PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, spendExtras INTEGER DEFAULT 1,
         engineToken TEXT UNIQUE, keyState TEXT, keyName TEXT, keyHash TEXT, secret TEXT);
+      CREATE TABLE IF NOT EXISTS invites(owner TEXT PRIMARY KEY REFERENCES users(id),email TEXT NOT NULL UNIQUE);
+      CREATE TABLE IF NOT EXISTS wallet_sessions(token TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS orders(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(id), sku TEXT NOT NULL,
         version TEXT NOT NULL, amount INTEGER NOT NULL, currency TEXT NOT NULL, credits INTEGER NOT NULL, session TEXT UNIQUE,
         created INTEGER NOT NULL, url TEXT, state TEXT NOT NULL DEFAULT 'pending');
@@ -45,9 +47,13 @@ export class Ledger {
         orderId TEXT NOT NULL REFERENCES orders(id), start INTEGER NOT NULL, end INTEGER, credits INTEGER NOT NULL, spent INTEGER DEFAULT 0);
       CREATE UNIQUE INDEX IF NOT EXISTS paid_period ON grants(orderId,start) WHERE end IS NOT NULL;
       CREATE TABLE IF NOT EXISTS reversals(event TEXT PRIMARY KEY, payment TEXT NOT NULL, amount INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS disputes(id TEXT PRIMARY KEY, payment TEXT NOT NULL, held INTEGER NOT NULL, final INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS disputed_payments ON disputes(payment);
       CREATE INDEX IF NOT EXISTS by_payment ON reversals(payment);
       CREATE TABLE IF NOT EXISTS requests(id TEXT NOT NULL, owner TEXT NOT NULL REFERENCES users(id), fingerprint TEXT NOT NULL,
         state TEXT NOT NULL, generation TEXT UNIQUE, cost INTEGER, created INTEGER NOT NULL, PRIMARY KEY(owner,id));
+      CREATE TABLE IF NOT EXISTS usage_details(owner TEXT NOT NULL, requestId TEXT NOT NULL, model TEXT, input INTEGER, output INTEGER,
+        PRIMARY KEY(owner,requestId), FOREIGN KEY(owner,requestId) REFERENCES requests(owner,id));
       CREATE TABLE IF NOT EXISTS allocations(owner TEXT NOT NULL, request TEXT NOT NULL, grantId TEXT NOT NULL REFERENCES grants(id),
         held INTEGER NOT NULL, PRIMARY KEY(owner,request,grantId), FOREIGN KEY(owner,request) REFERENCES requests(owner,id));
       CREATE INDEX IF NOT EXISTS by_owner ON grants(owner,end);
@@ -81,6 +87,13 @@ export class Ledger {
   }
   authenticate(token, inference = false) {
     const hash = digest(token);
+    if (token.startsWith("sbpilot_session_")) {
+      const session = this.db
+        .prepare("SELECT owner FROM wallet_sessions WHERE token=? AND expires>?")
+        .get(hash, Date.now());
+      if (!session) throw new Fault(401, "invalid_pilot_token");
+      return session.owner;
+    }
     const row = inference
       ? this.db.prepare("SELECT id FROM users WHERE token=? OR engineToken=?").get(hash, hash)
       : this.db.prepare("SELECT id FROM users WHERE token=?").get(hash);
@@ -134,7 +147,7 @@ export class Ledger {
   balances(owner, now = Date.now()) {
     const rows = this.db
       .prepare(
-        `SELECT g.*, o.amount, COALESCE((SELECT max(r.amount) FROM reversals r WHERE r.payment=g.payment),0) reversed
+        `SELECT g.*, o.amount, COALESCE((SELECT max(r.amount) FROM reversals r WHERE r.payment=g.payment),0) + COALESCE((SELECT sum(d.held) FROM disputes d WHERE d.payment=g.payment),0) reversed
       FROM grants g JOIN orders o ON o.id=g.orderId WHERE g.owner=? ORDER BY g.end IS NULL,g.end,g.start,g.id`,
       )
       .all(owner);
@@ -149,14 +162,30 @@ export class Ledger {
     const buckets = this.balances(owner);
     const spendExtras = !!this.db.prepare("SELECT spendExtras FROM users WHERE id=?").get(owner).spendExtras;
     const recent = this.db
-      .prepare("SELECT id,state,cost,created FROM requests WHERE owner=? ORDER BY created DESC LIMIT 20")
+      .prepare(
+        `SELECT r.id,r.state,r.cost,r.created,d.model,d.input,d.output FROM requests r
+        LEFT JOIN usage_details d ON d.owner=r.owner AND d.requestId=r.id WHERE r.owner=? ORDER BY r.created DESC LIMIT 20`,
+      )
       .all(owner);
     const orders = this.db
       .prepare(
         "SELECT id,sku,state,amount,currency,created FROM orders WHERE owner=? ORDER BY created DESC LIMIT 10",
       )
       .all(owner);
+    const pending = this.db
+      .prepare(
+        "SELECT id,sku,amount,credits,version,currency FROM orders WHERE owner=? AND state='pending' ORDER BY created DESC",
+      )
+      .all(owner);
+    const usage = this.db
+      .prepare(
+        `SELECT coalesce(sum(r.cost),0) cost,sum(d.input) input,sum(d.output) output
+      FROM requests r LEFT JOIN usage_details d ON d.owner=r.owner AND d.requestId=r.id WHERE r.owner=? AND r.state='settled'`,
+      )
+      .get(owner);
     return {
+      usage,
+      pending,
       included: buckets.filter((b) => b.end).reduce((n, b) => n + b.available, 0),
       purchased: buckets.filter((b) => !b.end).reduce((n, b) => n + b.available, 0),
       expires: buckets.find((b) => b.end > Date.now())?.end ?? null,
@@ -165,7 +194,7 @@ export class Ledger {
       orders,
     };
   }
-  reserve(owner, id, fingerprint, amount) {
+  reserve(owner, id, fingerprint, amount, model = null) {
     if (!Number.isSafeInteger(amount) || amount <= 0) throw new Fault(400, "invalid_hold");
     this.tx(() => {
       const old = this.db.prepare("SELECT fingerprint,state FROM requests WHERE id=? AND owner=?").get(id, owner);
@@ -176,6 +205,7 @@ export class Ledger {
       this.db
         .prepare("INSERT INTO requests(id,owner,fingerprint,state,created) VALUES (?,?,?,'held',?)")
         .run(id, owner, fingerprint, Date.now());
+      this.db.prepare("INSERT INTO usage_details(owner,requestId,model) VALUES (?,?,?)").run(owner, id, model);
       for (const b of buckets) {
         const held = Math.min(amount, Math.max(0, b.available));
         if (!held) continue;
@@ -186,7 +216,7 @@ export class Ledger {
       }
     });
   }
-  settle(owner, id, generation, cost) {
+  settle(owner, id, generation, cost, tokens = {}) {
     if (!Number.isSafeInteger(cost) || cost < 0 || !generation) throw new Fault(503, "reconciliation_required");
     this.tx(() => {
       const row = this.db.prepare("SELECT * FROM requests WHERE owner=? AND id=?").get(owner, id);
@@ -207,6 +237,10 @@ export class Ledger {
         this.db.prepare("UPDATE grants SET spent=spent+? WHERE id=?").run(used - p.held, p.grantId);
         remaining -= used;
       }
+      const count = (n) => (Number.isSafeInteger(n) && n >= 0 ? n : null);
+      this.db
+        .prepare("UPDATE usage_details SET input=?,output=? WHERE owner=? AND requestId=?")
+        .run(count(tokens.input), count(tokens.output), owner, id);
       this.db
         .prepare("UPDATE requests SET state='settled',generation=?,cost=? WHERE owner=? AND id=?")
         .run(generation, cost, owner, id);

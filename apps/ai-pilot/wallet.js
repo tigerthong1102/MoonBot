@@ -11,6 +11,7 @@ const states = {
   settled: "Đã quyết toán",
 };
 const errors = {
+  invalid_pilot_sign_in: "Mã xác nhận không hợp lệ hoặc tài khoản chưa được mời.",
   personal_credit_exhausted: "Hết hạn mức khả dụng. Bạn có thể mua thêm credit hoặc bật dùng credit đã mua.",
   supplier_credit_unavailable: "Quỹ nhà cung cấp đang thiếu. Vui lòng liên hệ quản trị viên.",
   price_changed_refresh: "Giá vừa thay đổi. Vui lòng cập nhật số dư và xem lại giá.",
@@ -52,8 +53,10 @@ function action(fn) {
 }
 async function refresh() {
   wallet = await api("/wallet");
-  const fmt = new Intl.NumberFormat("vi", { style: "currency", currency: wallet.currency });
-  const price = (n) => fmt.format(n / 10 ** fmt.resolvedOptions().maximumFractionDigits);
+  const price = (n, currency) => {
+    const fmt = new Intl.NumberFormat("vi", { style: "currency", currency });
+    return fmt.format(n / 10 ** fmt.resolvedOptions().maximumFractionDigits);
+  };
   el("account").textContent = "Tài khoản " + wallet.account;
   el("balance").textContent =
     "Còn trong gói " +
@@ -65,26 +68,37 @@ async function refresh() {
         new Date(wallet.expires).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) +
         " (giờ Việt Nam)"
       : "");
+  el("usage").textContent =
+    "Tổng chi phí AI đã quyết toán " +
+    credits(wallet.usage.cost) +
+    (wallet.usage.input !== null ? " · Token đầu vào đã báo cáo " + wallet.usage.input : "") +
+    (wallet.usage.output !== null ? " · Token đầu ra đã báo cáo " + wallet.usage.output : "");
   el("extras").checked = wallet.spendExtras;
   el("cancel").hidden = !wallet.expires;
   el("offers").replaceChildren();
   el("history").replaceChildren();
   for (const [sku, offer] of Object.entries(wallet.offers)) {
     const button = document.createElement("button");
-    button.textContent = labels[sku] + " · " + price(offer.amountMinor) + " · " + credits(offer.creditMicros);
+    const pending = wallet.pending.find((o) => o.sku === sku);
+    const quote = pending ?? {
+      sku,
+      version: wallet.version,
+      amount: offer.amountMinor,
+      credits: offer.creditMicros,
+      currency: wallet.currency,
+    };
+    button.textContent =
+      (pending ? "Tiếp tục đơn · " : "") +
+      labels[sku] +
+      " · " +
+      price(quote.amount, quote.currency) +
+      " · " +
+      credits(quote.credits);
     button.onclick = action(async () => {
-      const key = JSON.stringify([wallet.account, sku, wallet.version]);
-      const resume = sku === "topup" ? null : wallet.orders.find((o) => o.sku === sku && o.state === "pending");
-      const id = resume?.id || sessionStorage.getItem(key) || crypto.randomUUID();
+      const key = JSON.stringify([wallet.account, sku, quote.version]);
+      const id = pending?.id || sessionStorage.getItem(key) || crypto.randomUUID();
       sessionStorage.setItem(key, id);
-      const { url } = await api("/wallet/checkout", {
-        sku,
-        id,
-        version: wallet.version,
-        amount: offer.amountMinor,
-        credits: offer.creditMicros,
-        currency: wallet.currency,
-      });
+      const { url } = await api("/wallet/checkout", { ...quote, id });
       // Clear only after a confirmed handoff. The customer can buy another pack on return.
       sessionStorage.removeItem(key);
       location.assign(url);
@@ -95,22 +109,46 @@ async function refresh() {
     const item = document.createElement("li");
     item.textContent = [
       new Date(entry.created).toLocaleString("vi-VN"),
-      labels[entry.sku] || "AI",
+      labels[entry.sku] || entry.model || "AI",
       states[entry.state],
       entry.cost != null ? credits(entry.cost) : "",
     ].join(" · ");
     el("history").append(item);
   }
 }
-el("login").onsubmit = action(async () => {
-  token = el("token").value;
+async function openWallet(credential) {
+  token = credential;
   await refresh();
   el("token").value = "";
   document.querySelector("main").hidden = false;
   el("login").hidden = true;
+  el("accountLogin").hidden = true;
+}
+el("login").onsubmit = action(() => openWallet(el("token").value));
+fetch("/wallet/sign-in-options")
+  .then((r) => r.json())
+  .then((options) => {
+    if (!wallet) el("accountLogin").hidden = !options.email;
+  })
+  .catch(() => {});
+el("emailForm").onsubmit = action(async () => {
+  await api("/wallet/request-code", { email: el("email").value });
+  el("otpForm").hidden = false;
+  el("status").textContent = "Nếu tài khoản đã được mời, hãy mở email để lấy mã.";
+});
+el("otpForm").onsubmit = action(async () => {
+  const result = await api("/wallet/verify-code", { email: el("email").value, otp: el("otp").value });
+  el("otp").value = "";
+  await openWallet(result.token);
 });
 el("refresh").onclick = action(refresh);
-el("logout").onclick = () => location.reload();
+el("logout").onclick = action(async () => {
+  try {
+    await api("/wallet/sign-out", {});
+  } finally {
+    location.reload();
+  }
+});
 el("extras").onchange = action(async () => {
   try {
     await api("/wallet/use-purchased", { enabled: el("extras").checked });

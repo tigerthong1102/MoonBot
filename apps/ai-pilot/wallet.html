@@ -1,8 +1,10 @@
 <!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ví AI thử nghiệm · StartupBot</title>
 <style>body{font:1rem/1.5 system-ui,sans-serif;max-width:44rem;margin:auto;padding:1rem;color-scheme:light dark}input,button,textarea{font:inherit;padding:.5rem;margin:.25rem}textarea{width:min(94%,38rem)}article{padding:.5rem 0;border-top:1px solid #888}pre{white-space:pre-wrap}output{display:block}</style>
 <h1>Ví AI thử nghiệm</h1><p>Thanh toán bằng thẻ thử của Stripe. Mỗi tài khoản có số dư riêng.</p>
+<section id="accountLogin" hidden><form id="emailForm"><label>Email StartupBot được mời <input type="email" id="email" required autocomplete="email"></label><button>Gửi mã đăng nhập</button></form>
+<form id="otpForm" hidden><label>Mã xác nhận <input id="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{8}" required></label><button>Xác nhận và mở ví</button></form></section>
 <form id="login"><label>Mã truy cập thử nghiệm <input id="token" type="password" required autocomplete="off"></label><button>Mở ví</button></form>
-<main hidden><h2 id="account"></h2><p id="balance"></p><button id="refresh">Cập nhật số dư</button><button id="logout">Đóng ví</button>
+<main hidden><h2 id="account"></h2><p id="balance"></p><p id="usage"></p><button id="refresh">Cập nhật số dư</button><button id="logout">Đóng ví</button>
 <p><label><input id="extras" type="checkbox">Dùng credit đã mua khi hết phần trong gói</label></p>
 <section id="offers" aria-label="Gói thử nghiệm"></section><button id="cancel">Tắt gia hạn cuối kỳ</button>
 <details><summary>Kết nối bot cá nhân</summary><p>Trong máy chủ StartupBot cá nhân, thêm nhà cung cấp tương thích OpenAI với URL <code>http://127.0.0.1:8537/v1</code>. Mã bên dưới chỉ được gọi model và dùng số dư của tài khoản này. Mỗi lần cấp mã sẽ thay mã cũ.</p><button id="engine">Cấp mã kết nối bot cá nhân</button><output id="engineToken"></output></details>

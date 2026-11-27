@@ -10,5 +10,5 @@
   "maxOutput": 2048,
   "maxPromptUsdPerMillion": 1,
   "maxOutputUsdPerMillion": 4,
-  "keyLimitUsd": 5
+  "keyLimitUsd": 50
 }

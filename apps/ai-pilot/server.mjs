@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { Ledger, Fault, catalog } from "./ledger.mjs";
+import { accountSignIn, invite } from "./accounts.mjs";
+import { Ledger, Fault, catalog, digest } from "./ledger.mjs";
 import { payments } from "./payments.mjs";
 import { asEventStream, router } from "./router.mjs";
 
@@ -16,6 +17,18 @@ async function readBody(req) {
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
+}
+async function readObject(req) {
+  let body;
+  try {
+    body = JSON.parse(await readBody(req));
+  } catch (e) {
+    if (e instanceof Fault) throw e;
+    throw new Fault(400, "invalid_json");
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new Fault(400, "invalid_json");
+
+  return body;
 }
 function identifier(value) {
   if (typeof value !== "string" || !/^[a-z0-9_-]{16,100}$/i.test(value))
@@ -51,6 +64,20 @@ export function pilotServer(ledger, settings, http = fetch) {
         await pay.webhook(await readBody(req), req.headers["stripe-signature"]);
         return json(200, { ok: true });
       }
+      if (method === "GET" && path === "/wallet/sign-in-options")
+        return json(200, { email: Boolean(settings.accountOrigin) });
+      if (method === "POST" && (path === "/wallet/request-code" || path === "/wallet/verify-code")) {
+        return json(
+          200,
+          await accountSignIn(
+            ledger,
+            settings.accountOrigin,
+            http,
+            await readObject(req),
+            path === "/wallet/verify-code",
+          ),
+        );
+      }
       const bearer = req.headers.authorization?.match(/^Bearer (sbpilot_[\w-]+)$/)?.[1];
       if (!bearer) throw new Fault(401, "invalid_pilot_token");
       const owner = ledger.authenticate(bearer, path?.startsWith("/v1/"));
@@ -70,23 +97,28 @@ export function pilotServer(ledger, settings, http = fetch) {
           data: [{ id: config.model, object: "model", owned_by: "startupbot-pilot" }],
         });
       if (method !== "POST") throw new Fault(404, "not_found");
-      let body;
-      try {
-        body = JSON.parse(await readBody(req));
-      } catch (e) {
-        if (e instanceof Fault) throw e;
-        throw new Fault(400, "invalid_json");
+      const body = await readObject(req);
+      if (path === "/wallet/sign-out") {
+        ledger.db.prepare("DELETE FROM wallet_sessions WHERE token=? AND owner=?").run(digest(bearer), owner);
+        return json(200, { ok: true });
       }
-      if (!body || typeof body !== "object" || Array.isArray(body)) throw new Fault(400, "invalid_json");
       if (path === "/wallet/engine-token") return json(200, { token: ledger.issueEngineToken(owner) });
       if (path === "/wallet/checkout") {
-        const existing = ledger.db.prepare("SELECT owner FROM orders WHERE id=?").get(identifier(body.id));
+        const existing = ledger.db
+          .prepare("SELECT * FROM orders WHERE id=? AND owner=?")
+          .get(identifier(body.id), owner);
+        const offer = config.offers[body.sku];
+        const quote = existing ?? {
+          version: config.version,
+          currency: config.currency,
+          amount: offer?.amountMinor,
+          credits: offer?.creditMicros,
+        };
         if (
-          !existing &&
-          (body.version !== config.version ||
-            body.amount !== config.offers[body.sku]?.amountMinor ||
-            body.credits !== config.offers[body.sku]?.creditMicros ||
-            body.currency !== config.currency)
+          body.version !== quote.version ||
+          body.amount !== quote.amount ||
+          body.credits !== quote.credits ||
+          body.currency !== quote.currency
         )
           throw new Fault(409, "price_changed_refresh");
         if (!/^(sk|rk)_test_/.test(settings.stripeKey ?? "") || !settings.webhookSecret?.startsWith("whsec_"))
@@ -129,6 +161,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const settings = {
     origin: "http://127.0.0.1:" + port,
     catalog: process.env.STARTUPBOT_PILOT_CATALOG || new URL("./catalog.example.json", import.meta.url),
+    accountOrigin: process.env.STARTUPBOT_PILOT_ACCOUNT_ORIGIN,
     stripeKey: process.env.STRIPE_TEST_KEY,
     webhookSecret: process.env.STRIPE_TEST_WEBHOOK_SECRET,
     managementKey: process.env.OPENROUTER_PILOT_MANAGEMENT_KEY,
@@ -136,19 +169,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   };
   const [command, owner, id, generation] = process.argv.slice(2);
   if (command === "issue-token") console.log(ledger.issue(owner ?? ""));
+  else if (command === "invite") invite(ledger, owner, id);
   else if (command === "revoke-token")
-    ledger.db.prepare("UPDATE users SET token=?,engineToken=NULL WHERE id=?").run(randomUUID(), owner);
+    ledger.tx(() => {
+      ledger.db.prepare("DELETE FROM invites WHERE owner=?").run(owner);
+      ledger.db.prepare("DELETE FROM wallet_sessions WHERE owner=?").run(owner);
+      ledger.db.prepare("UPDATE users SET token=?,engineToken=NULL WHERE id=?").run(randomUUID(), owner);
+    });
   else if (command === "reconcile") {
-    if (generation)
-      ledger.db
-        .prepare("UPDATE requests SET generation=? WHERE owner=? AND id=? AND state='held' AND generation IS NULL")
-        .run(generation, owner, id);
-    await router(ledger, settings).reconcile(owner, id);
+    await router(ledger, settings).reconcile(owner, id, generation);
   } else if (command === "serve") {
     catalog(settings.catalog);
     pilotServer(ledger, settings).listen(port, "127.0.0.1", () => console.log(settings.origin));
   } else
     throw new Error(
-      "Use serve, issue-token ACCOUNT, revoke-token ACCOUNT or reconcile ACCOUNT REQUEST [GENERATION].",
+      "Use serve, invite ACCOUNT EMAIL, issue-token ACCOUNT, revoke-token ACCOUNT or reconcile ACCOUNT REQUEST [GENERATION].",
     );
 }

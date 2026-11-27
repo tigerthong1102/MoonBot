@@ -47,7 +47,7 @@ beforeEach(async () => {
         id: "gen-" + randomUUID(),
         model: config.model,
         choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
-        usage: { cost: 0.00025 },
+        usage: { cost: 0.00025, prompt_tokens: 17, completion_tokens: 8 },
       });
     if (remote.has(path)) return Response.json(remote.get(path));
     throw new Error("unexpected fixture request " + path);
@@ -130,6 +130,8 @@ it("keeps each account isolated, reads back a signed paid checkout, rotates rest
   expect(await result.text()).toContain("data: [DONE]");
   expect((await chat(token, id)).status).toBe(409);
   expect((await summary()).purchased).toBe(999750);
+  expect((await summary()).usage).toEqual({ cost: 250, input: 17, output: 8 });
+  expect((await summary(b)).usage).toEqual({ cost: 0, input: null, output: null });
   expect((await summary(b)).recent).toEqual([]);
   expect(ledger.db.prepare("SELECT secret FROM users WHERE id=?").get("account-a").secret).not.toContain(
     "secret-",
@@ -238,9 +240,16 @@ it("deduplicates out-of-order cumulative refunds and accounts for a dispute afte
   await notify("charge.refunded", ch);
   expect((await summary()).purchased).toBe(500000);
   await chat();
-  await notify("charge.dispute.created", { charge: "ch_1" });
+  const dispute = { id: "dp1", charge: "ch_1", amount: 150, status: "needs_response", livemode: false };
+  remote.set("/v1/disputes/dp1", dispute);
+  await notify("charge.dispute.created", dispute);
   expect((await summary()).purchased).toBe(-250);
   expect((await chat()).status).toBe(402);
+  dispute.status = "won";
+  await notify("charge.dispute.closed", dispute);
+  dispute.status = "needs_response";
+  await notify("charge.dispute.created", dispute);
+  expect((await summary()).purchased).toBe(499750);
 });
 it("holds ambiguous calls across reopen and settles each allocation to its original grant", async () => {
   config.offers.topup.creditMicros = 15000;
@@ -286,16 +295,92 @@ it("runs the installed OpenAI-compatible engine through the pilot for chat and a
   await paidTopup();
   const token = ledger.issueEngineToken("account-a");
   const instance = await OpenAICompatDriver.create({
-    instanceId: "pilot", displayName: "Pilot", enabled: true,
+    instanceId: "pilot",
+    displayName: "Pilot",
+    enabled: true,
     config: { url: url + "/v1", apiKeyEnv: "PILOT_KEY", model: config.model, tools: false },
     environment: { PILOT_KEY: token },
   });
   const recorder = recordEvents(instance.adapter);
   try {
     await instance.adapter.sendTurn({ threadId: "test-thread", text: "test", model: config.model });
-    expect(await recorder.until(event => event.type === "turn.completed", 5000)).toMatchObject({ ok: true });
-    expect(await instance.generateText("helper test", {model:config.model})).toBe("ok");
+    expect(await recorder.until((event) => event.type === "turn.completed", 5000)).toMatchObject({ ok: true });
+    expect(await instance.generateText("helper test", { model: config.model })).toBe("ok");
     expect((await summary()).purchased).toBe(999500);
     expect((await summary(b)).purchased).toBe(0);
-  } finally { recorder.stop(); await instance.dispose(); }
+  } finally {
+    recorder.stop();
+    await instance.dispose();
+  }
+});
+
+it("binds email sign-in to the invited StartupBot ID and reuses its wallet across distinct expiring sessions", async () => {
+  const { invite } = await import("../../apps/ai-pilot/accounts.mjs");
+  settings.accountOrigin = "https://account.fixture.test";
+  invite(ledger, "account-a", "tester@example.test");
+  const who = { id: "account-a", email: "tester@example.test" },
+    code = { email: who.email, otp: "12345678" };
+  const send = () => call("/wallet/request-code", "", code),
+    verify = () => call("/wallet/verify-code", "", code);
+  expect((await call("/wallet/request-code", "", { email: "unknown@example.test" })).status).toBe(200);
+  expect(http).not.toHaveBeenCalled();
+  http.mockImplementation(async (raw, init) => {
+    const path = new URL(raw).pathname;
+    if (path.endsWith("/send-verification-otp")) return Response.json({ success: true });
+    if (path.endsWith("/sign-in/email-otp"))
+      return Response.json(
+        { user: who, token: "never-use-raw-token" },
+        { headers: { "set-auth-token": "signed-fixture-bearer-only-for-test" } },
+      );
+    if (path === "/v1/me") {
+      expect(new Headers(init.headers).get("authorization")).toBe("Bearer signed-fixture-bearer-only-for-test");
+      return Response.json({ user: who });
+    }
+    throw Error("unexpected request");
+  });
+  expect((await send()).status).toBe(200);
+  who.id = "account-b";
+  expect((await verify()).status).toBe(401);
+  who.id = "account-a";
+  const one = (await (await verify()).json()).token,
+    two = (await (await verify()).json()).token;
+  expect(one).not.toEqual(two);
+  expect((await summary(one)).account).toBe("account-a");
+  await call("/wallet/sign-out", one, {});
+  expect((await call("/wallet", one)).status).toBe(401);
+  expect((await call("/wallet", two)).status).toBe(200);
+  ledger.db.prepare("UPDATE wallet_sessions SET expires=0").run();
+  expect((await call("/wallet", two)).status).toBe(401);
+});
+
+it("prevents installing a wallet bearer or a personal inference token in a team-wide engine", async () => {
+  const { OpenAICompatDriver } = await import("../../server/drivers/openai-compat.ts");
+  const base = {
+    instanceId: "pilot",
+    displayName: "Pilot",
+    enabled: true,
+    config: { url: url + "/v1", apiKeyEnv: "PILOT_KEY", tools: false },
+  };
+  await expect(OpenAICompatDriver.create({ ...base, environment: { PILOT_KEY: a } })).rejects.toThrow(
+    /personal pilot/,
+  );
+  await expect(
+    OpenAICompatDriver.create({
+      ...base,
+      environment: { PILOT_KEY: ledger.issueEngineToken("account-a"), OMB_CLOUD_ROLE: "team" },
+    }),
+  ).rejects.toThrow(/personal pilot/);
+});
+
+it("resumes pending checkouts only at the price the same customer actually reviewed", async () => {
+  const { id } = await order("topup");
+  config.version = "new";
+  config.offers.topup.amountMinor = 800;
+  writeFileSync(settings.catalog, JSON.stringify(config));
+  const newQuote = { id, sku: "topup", version: "new", amount: 800, credits: 1000000, currency: "usd" };
+  expect((await call("/wallet/checkout", a, newQuote)).status).toBe(409);
+  const [pending] = (await summary()).pending;
+  expect(pending.amount).toBe(300);
+  expect((await summary(b)).pending).toEqual([]);
+  expect((await call("/wallet/checkout", a, pending)).status).toBe(200);
 });

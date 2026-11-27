@@ -143,14 +143,25 @@ export function payments(ledger, settings, http = fetch) {
           end: null,
         });
       }
-    } else if (event.type === "charge.refunded" || event.type === "charge.dispute.created") {
-      const dispute = event.type === "charge.dispute.created";
-      const charge = await stripe("charges/" + encodeURIComponent(dispute ? obj.charge : obj.id));
-      const amount = dispute ? charge.amount : charge.amount_refunded;
-      if (charge.payment_intent && Number.isSafeInteger(amount) && amount > 0)
+    } else if (event.type === "charge.refunded") {
+      const charge = await stripe("charges/" + pathId);
+      if (charge.payment_intent && Number.isSafeInteger(charge.amount_refunded) && charge.amount_refunded > 0)
         ledger.db
           .prepare("INSERT OR IGNORE INTO reversals VALUES (?,?,?)")
-          .run(event.id, charge.payment_intent, amount);
+          .run(event.id, charge.payment_intent, charge.amount_refunded);
+    } else if (event.type === "charge.dispute.created" || event.type === "charge.dispute.closed") {
+      const dispute = await stripe("disputes/" + pathId);
+      const charge = await stripe("charges/" + encodeURIComponent(dispute.charge));
+      if (!charge.payment_intent || !Number.isSafeInteger(dispute.amount) || dispute.amount <= 0)
+        throw new Fault(409, "unexpected_dispute");
+      const final = ["won", "lost", "warning_closed"].includes(dispute.status);
+      const held = ["won", "warning_closed"].includes(dispute.status) ? 0 : dispute.amount;
+      ledger.db
+        .prepare(
+          `INSERT INTO disputes VALUES (?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+        held=excluded.held, final=excluded.final WHERE final=0 AND payment=excluded.payment`,
+        )
+        .run(dispute.id, charge.payment_intent, held, Number(final));
     }
   }
   async function cancel(owner) {

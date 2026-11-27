@@ -24,7 +24,7 @@ interface Msg {
   engineCompaction?: true;
 }
 
-const BIG = `line ${"x".repeat(80)}\n`.repeat(200) + "INV-314 = 19.540.000 VND"; // ~17 KB: past the 6 KB preview
+const BIG = `line ${"x".repeat(80)}\n`.repeat(200) + "INV-314 = 19.540.000 VND";
 
 function harness(label: string, serverEnv: Record<string, string>, instanceEnv: Record<string, string> = {}) {
   const PORT = workerPort(18800, 10_000);

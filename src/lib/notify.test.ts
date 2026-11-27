@@ -75,6 +75,19 @@ describe("desktop notifications", () => {
     expect(requestPermission).not.toHaveBeenCalled();
   });
 
+  it("snoozes only this bot's completion until expiry", () => {
+    const { notices } = installNotification("granted");
+    let deadline = Date.now() + 60_000;
+    vi.stubGlobal("localStorage", { getItem: (key: string) => key.endsWith(".bot-1") ? String(deadline) : null });
+    showNotification(frame, vi.fn());
+    showNotification({ ...frame, botId: "other" }, vi.fn());
+    showNotification({ ...frame, kind: "approval" }, vi.fn());
+    expect(notices).toHaveLength(2);
+    deadline = Date.now() - 1;
+    showNotification(frame, vi.fn());
+    expect(notices).toHaveLength(3);
+  });
+
   it("this device's switch mutes finished-work notices, never approval, sign-in or spend ones", () => {
     const { notices } = installNotification("granted");
     sounds.finished = false;

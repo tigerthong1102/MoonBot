@@ -29,6 +29,16 @@ describe.skipIf(!CHROME)("element evidence in Chrome", () => {
     expect(png.readUInt32BE(16)).toBeLessThanOrEqual(120);
     expect(png.readUInt32BE(20)).toBeLessThanOrEqual(40);
   });
+  it("labels copies of the same element with each actual viewport", async () => {
+    try {
+      for (const width of [390, 1024]) {
+        await page.emulateSize({ width, height: 800 });
+        const result = await elementEvidence(page, 15, 16);
+        expect(result?.text).toContain("Viewport: " + width + " × 800 CSS px");
+        expect(result?.text).toContain("button#save");
+      }
+    } finally { await page.emulateSize(null); }
+  });
   it("refuses editable controls and invalid coordinates", async () => {
     for (const y of [58, 86, -1, NaN]) expect(await elementEvidence(page, 15, y)).toBeNull();
   });

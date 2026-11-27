@@ -11688,5 +11688,9 @@
   "workflow.interrupted": "Lượt chạy bị ngắt sau khi được duyệt. Hãy đối chiếu kết quả thực tế trước khi chạy lại.",
   "workflow.resume": "Tiếp tục",
   "workflow.approve": "Duyệt và tiếp tục",
-  "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\"."
+  "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\".",
+  "notify.snooze.hour": "Tắt thông báo hoàn tất trên thiết bị này trong một giờ",
+  "notify.snooze.resume": "Bật lại thông báo hoàn tất trên thiết bị này",
+  "notify.snooze.failed": "Thiết bị không lưu được cài đặt.",
+  "share.host": "Máy chủ workspace: {host}"
 }

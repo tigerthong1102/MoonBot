@@ -25,7 +25,7 @@ export function ShareBotDialog({ bot, teamName, onClose, onChanged, headerMenu }
   headerMenu?: ReactNode;
 }) {
   const team = useTeamPeople();
-  const { dispatch } = useStore();
+  const { state, dispatch } = useStore();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -94,6 +94,7 @@ export function ShareBotDialog({ bot, teamName, onClose, onChanged, headerMenu }
             <h2 id="share-bot-title" className="min-w-0 truncate text-[17px] font-semibold">{t("botAccess.title", { bot: bot.name })}</h2>
             {headerMenu}
           </header>
+          {state?.config?.computerName && <p className="px-5 pb-2 text-xs text-ink-secondary">{t("share.host", { host: state.config.computerName })}</p>}
           {editable && team && (
             <div className="relative z-10 shrink-0 px-5 pb-1">
               <AddPerson team={team} access={access} owner={botOwner(bot)} disabled={busy}

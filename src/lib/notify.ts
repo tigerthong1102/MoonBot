@@ -1,3 +1,4 @@
+import { snoozedUntil } from "./bot-notification-snooze";
 import type { Notification } from "../../shared/notification";
 import { plainPreviewText } from "../../shared/plain-preview";
 import { finishedNotificationsEnabled, notificationSoundsEnabled } from "./notification-preferences";
@@ -38,7 +39,7 @@ export function showNotification(
   visibleThreadId?: string | null,
 ) {
   if (typeof Notification === "undefined") return;
-  if (frame.kind === "done" && !finishedNotificationsEnabled()) return;
+  if (frame.kind === "done" && (!finishedNotificationsEnabled() || snoozedUntil(frame.botId))) return;
   const spend = frame.kind === "spend";
   if (!spend && document.hasFocus() && visibleThreadId === frame.threadId) return;
   if (Notification.permission !== "granted") return;

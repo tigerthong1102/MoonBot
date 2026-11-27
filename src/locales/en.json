@@ -11688,5 +11688,9 @@
   "workflow.interrupted": "The run was interrupted after approval. Check the actual result before starting again.",
   "workflow.resume": "Resume",
   "workflow.approve": "Approve and resume",
-  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\"."
+  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\".",
+  "notify.snooze.hour": "Mute completion alerts here for one hour",
+  "notify.snooze.resume": "Resume completion alerts here",
+  "notify.snooze.failed": "This device could not save the setting.",
+  "share.host": "Workspace server: {host}"
 }

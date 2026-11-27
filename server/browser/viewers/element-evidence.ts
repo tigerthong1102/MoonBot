@@ -26,7 +26,8 @@ export const inspectAt = (x: number, y: number) => `(() => {
   const name = containsSecret(label) ? '' : label.trim().slice(0, 120);
   const css = getComputedStyle(el);
   const selector = buildSelector(el);
-  const text = [location.origin, '<' + tag + '>', role.slice(0, 40), name, selector,
+  const viewport = 'Viewport: ' + innerWidth + ' × ' + innerHeight + ' CSS px · DPR ' + devicePixelRatio;
+  const text = [location.origin, viewport, '<' + tag + '>', role.slice(0, 40), name, selector,
     'display: ' + css.display + ', color: ' + css.color].filter(Boolean).join('\\n');
   const rect = el.getBoundingClientRect();
   const left = Math.max(0, rect.left), top = Math.max(0, rect.top);

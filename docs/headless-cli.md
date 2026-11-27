@@ -553,3 +553,13 @@ the commit subjects, exact revisions, change summary and repository template.
 - `dev attempt start --repo DIR --host NAME` issues an attempt number. Record the worker's result with `finish --attempt N --exit CODE --host NAME --artifact FILE`. `show` lists receipts stored for that checkout. `--retry` supersedes an unfinished attempt.
 - `dev sandbox start --repo DIR --image LOCAL_IMAGE --minutes 15` creates an expiring Docker container with a copy of committed files, isolated networking and no host mount. The local image must provide sleep. Use `list` or `stop --id FULL_ID` on the same checkout.
 - On Windows, `dev host wsl-list` shows installed user distributions. `dev host wsl-status --distro NAME --folder /repo` reads the exact Git revision in that distribution.
+
+`dev source --repo DIR --file FILE --line N` reports the recorded Git author
+and revision of the selected line. A locally modified line is labelled as such.
+Add `--editor code|cursor|zed --launch` to open it in an installed editor.
+
+Feed a GitHub workflow_run, check_run or pull_request event to
+`dev ci-event --event FILE --github OWNER/REPO --pr N --out NEW_DRAFT`.
+It verifies the repository, source identity, PR head and current run attempt
+against authenticated GitHub reads before writing a local diagnostic draft.
+Identical redeliveries reuse the draft.

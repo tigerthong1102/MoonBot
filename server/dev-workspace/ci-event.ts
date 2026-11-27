@@ -1,8 +1,8 @@
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import type { VerbContext } from "../headless/context.ts";
 import { EXIT } from "../headless/args.ts";
-import { run } from "./command.ts";
+import { publishFile, run } from "./command.ts";
 
 interface GitHubEvent {
   repository?: { full_name?: string };
@@ -40,11 +40,13 @@ export async function ciEventCommand(ctx: VerbContext) {
   const key = [identity.repo, number, identity.kind, identity.id, identity.head, identity.attempt].join("/");
   const text = [key, "", "Review CI for " + pr.url, "Revision " + identity.head, "Source " + (record.html_url ?? record.details_url ?? pr.url),
     "Attempt " + identity.attempt, "Status " + (record.conclusion || record.status || record.state)].join("\n") + "\n";
-  let reused = false;
-  try { writeFileSync(output, text, { flag: "wx", mode: 0o600 }); }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST" || readFileSync(output, "utf8") !== text) throw error;
-    reused = true;
+  const reused = !publishFile(output, text);
+  if (reused) {
+    const prior = readFileSync(output, "utf8");
+    const status = prior.lastIndexOf("\nStatus ");
+    const sameDraft = status >= 0 && prior.slice(0, status) === text.slice(0, text.lastIndexOf("\nStatus "))
+      && /^\nStatus [a-z_]+\n$/i.test(prior.slice(status));
+    if (!sameDraft) throw new Error("The output path contains a different draft.");
   }
   return { result: { key, output: resolve(output), reused }, exitCode: EXIT.done, human: [resolve(output)] };
 }

@@ -5,7 +5,7 @@ import { libraryKey } from "./source-cache";
 import { indexSources, type SourceDocument } from "./source-index";
 import { SourcePassage } from "./SourcePassage";
 
-export function SourceCitation({ threadId, digest, start, path, children }: { threadId: string; digest: string; start: number; path?: string; children?: ReactNode }) {
+export function SourceCitation({ threadId, digest, start, path, signal, children }: { threadId: string; digest: string; start: number; path?: string; signal?: AbortSignal; children?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [doc, setDoc] = useState<SourceDocument | null>(null);
   const [busy, setBusy] = useState(false);
@@ -13,11 +13,11 @@ export function SourceCitation({ threadId, digest, start, path, children }: { th
     if (!open) return;
     let active = true;
     setBusy(true);
-    void libraryKey(threadId).then(key => key ? import("./source-sync").then(module => module.currentLibrary(key)) : undefined).then(index => {
+    void libraryKey(threadId).then(key => key ? import("./source-sync").then(module => module.currentLibrary(key, { signal })) : undefined).then(index => {
       if (active) setDoc([...index?.docs.values() ?? []].find(d => d.digest === digest && (!path || d.path === path) && d.passages.some(p => p.start === start)) ?? null);
     }).catch(() => { if (active) setDoc(null); }).finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
-  }, [open, threadId, digest, start, path]);
+  }, [open, threadId, digest, start, path, signal]);
   async function pick(file: File) {
     setBusy(true);
     try {

@@ -45,3 +45,27 @@ backups omit private workflow run files. Restoring an older backup never
 reactivates its paused runs or approvals. If the server
 stops after claiming an approved action, the chat marks the result as uncertain.
 Reconcile it against the destination before starting a fresh workflow.
+
+### Reading a table of records
+
+A saved workflow can pass up to 100 rows to one known read-only connector
+tool. In the workflow definition, declare an input such as
+`"args": { "records": {} }` and add the following to an app step that reads
+one record. Here the step passes each invoice into the tool's query argument
+and returns the corresponding scalar field.
+
+```json
+{
+  "batch": {
+    "rows": { "$arg": "records" },
+    "column": "invoice",
+    "argument": "query",
+    "select": "result.total"
+  }
+}
+```
+
+The row source may also reference an earlier step and a path to its array.
+The run returns each original row number, lookup key and selected value.
+Missing inputs and missing fields have separate statuses. Each connector
+call uses the active account's normal permissions and shares the step deadline.

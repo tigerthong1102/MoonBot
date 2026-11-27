@@ -415,3 +415,50 @@ it("refuses review when a resolved value contains a credential before JSON escap
   expect(reviewAction(ai, { payload: nested }, {})).toBeNull();
   expect(reviewAction(ai, { payload: { value: "safe text" }, unused: credential }, {})).toContain("safe text");
 });
+
+describe("a bounded connector read batch", () => {
+  const batch = { rows: { $arg: "records" }, column: "invoice", argument: "query", select: "result.total" };
+  const step = app("reconcile", "GMAIL_FETCH_EMAILS", {}, { batch });
+  const flow = { version: 1 as const, summary: "Read invoice totals", args: { records: {} }, steps: [step] };
+  it("runs 100 source rows, marks missing inputs and results and keeps zero-prefixed identifiers", async () => {
+    const calls: unknown[] = [];
+    const h = harness({ app: async input => { calls.push(input.args.query); return { ok: true, output: { result: input.args.query === "0002" ? {} : { total: -123.45 } } }; } });
+    const rows = Array.from({ length: 100 }, (_, i) => i === 0 ? {} : { invoice: String(i + 1).padStart(4, "0") });
+    const result = await h.start(workflowSchema.parse(flow), { records: rows });
+    expect(result).toMatchObject({ status: "ok", output: { count: 100, missing: 2 } });
+    expect((result.output as { rows: unknown[] }).rows.slice(0, 3)).toEqual([
+      { row: 1, status: "missing_input" }, { row: 2, key: "0002", status: "missing_result" },
+      { row: 3, key: "0003", status: "read", value: -123.45 },
+    ]);
+    expect(calls).toHaveLength(99);
+    expect(await h.start(workflowSchema.parse(flow), { records: [...rows, {}] })).toMatchObject({ ok: false });
+    expect(calls).toHaveLength(99);
+    expect(workflowSchema.safeParse({ ...flow, steps: [app("write", "GMAIL_SEND_EMAIL", {}, { batch })] }).success).toBe(false);
+  });
+  it("aborts the current connector read at the deadline without dispatching the next row", async () => {
+    vi.useFakeTimers();
+    try {
+      const calls: AbortSignal[] = [];
+      const h = harness({ app: async input => {
+        calls.push(input.signal);
+        return new Promise<ExecResult>(() => {});
+      } });
+      const pending = h.start(workflowSchema.parse({ ...flow, steps: [{ ...step, timeoutMs: 1000 }] }), { records: [{ invoice: 1 }, { invoice: 2 }] });
+      await vi.advanceTimersByTimeAsync(1001);
+      expect(await pending).toMatchObject({ ok: false, error: { type: "timeout" } });
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.aborted).toBe(true);
+    } finally { vi.useRealTimers(); }
+  });
+  it("checks permission for each row and stops immediately on revocation or cancellation", async () => {
+    const controller = new AbortController();
+    let reads = 0;
+    const h = harness({ app: async () => ++reads === 2 ? { ok: false, error: "revoked" } : { ok: true, output: { result: { total: 1 } } } });
+    const records = Array.from({ length: 5 }, (_, i) => ({ invoice: i }));
+    expect(await h.start(workflowSchema.parse(flow), { records })).toMatchObject({ ok: false, error: { message: expect.stringContaining("Row 2: revoked") } });
+    expect(reads).toBe(2);
+    const cancelled = harness({ app: async () => { controller.abort(); return { ok: true, output: {} }; } });
+    cancelled.deps.signal = controller.signal;
+    expect(await cancelled.start(workflowSchema.parse(flow), { records })).toMatchObject({ status: "cancelled" });
+  });
+});

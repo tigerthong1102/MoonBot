@@ -5,16 +5,17 @@ import { WORKFLOW_TAG } from "../shared/skill-burger/format.ts";
 import { readSkillLibraryIndex } from "./skill-library.ts";
 import { readWorkflowSkill } from "./skill-burger/store.ts";
 import type { Routine } from "./routines.ts";
-import { listSkills, readSkillFile } from "./skills.ts";
+import { listSkills, readSkillFile, maintainLearnedSkill } from "./skills.ts";
 
-type RoutineRef = Pick<Routine, "botId" | "name" | "prompt">;
+type RoutineRef = Pick<Routine, "botId" | "name" | "prompt"> & Pick<Partial<Routine>, "groupId">;
 
 export function skillDependencies(name: string, botId: string, routines: RoutineRef[], templates: NewBotDefaults | undefined,
-  bots: readonly { id: string; assignedSkills?: string[] }[]): Set<string> {
+  bots: readonly { id: string; assignedSkills?: string[] }[], groups: readonly { id: string; memberIds: string[] }[] = [],
+  presets: readonly { skills?: string[] }[] = []): Set<string> {
   const kinds = new Set<string>();
   const mentions = (text: string) => skillMentions(text).includes(name);
-  if (routines.some(routine => routine.botId === botId && mentions(routine.prompt))) kinds.add("routine");
-  if (templates?.skills.some(skill => skill.name === name || mentions(skill.text)) || templates?.routines.some(routine => mentions(routine.prompt))) kinds.add("template");
+  if (routines.some(routine => (routine.botId === botId || groups.some(group => group.id === routine.groupId && group.memberIds.includes(botId))) && mentions(routine.prompt))) kinds.add("routine");
+  if (presets.some(preset => preset.skills?.includes(name)) || templates?.skills.some(skill => skill.name === name || mentions(skill.text)) || templates?.routines.some(routine => mentions(routine.prompt))) kinds.add("template");
   if (bots.some(bot => bot.assignedSkills?.includes(name))) kinds.add("team");
   const workflows = [
     ...listSkills(botId).filter(skill => isBurgerSource(skill.source)).map(skill => ({ name: skill.name, place: { botId } })),
@@ -36,4 +37,13 @@ export function similarLearnedSkills(botId: string, name: string): string[] {
     const both = [...own].filter(term => other.has(term)).length;
     return both >= 5 && both / (own.size + other.size - both) >= 0.85 ? [skill.name] : [];
   });
+}
+
+/** An explicit choice keeps one reviewed body and archives the redundant one intact for rollback. */
+export function consolidateLearnedSkill(botId: string, redundant: string, revision: string, keep: string, keepRevision: string, referenced: boolean) {
+  const target = listSkills(botId).find(skill => skill.name === keep && skill.enabled && skill.reviewedRevision === keepRevision);
+  if (!target || revision.split(":")[1] !== keepRevision.split(":")[1] || !similarLearnedSkills(botId, redundant).includes(keep)) {
+    return { error: "Compare the current revisions again. The retained skill must be enabled and have matching reference files." };
+  }
+  return maintainLearnedSkill(botId, redundant, revision, "archive", referenced);
 }

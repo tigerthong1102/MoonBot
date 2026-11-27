@@ -16,7 +16,7 @@ import {
   type SkillListing, type StagedSkillWrite,
 } from "../skills.ts";
 import type { BotRecord, Store } from "../store.ts";
-import { skillDependencies, similarLearnedSkills } from "../skill-maintenance.ts";
+import { consolidateLearnedSkill, skillDependencies, similarLearnedSkills } from "../skill-maintenance.ts";
 import type { Routine } from "../routines.ts";
 import { learnedSkillUsage } from "../message-db.ts";
 import { PASS, type RouteHandler } from "./table.ts";
@@ -25,6 +25,7 @@ export interface BotSkillsRouteDeps {
   store: Store;
   cfg: AppConfig;
   routines?(): Routine[];
+  presets?(): { skills?: string[] }[];
   visibleThread?(auth: RequestAuth, threadId: string): boolean;
   visibleBot(auth: RequestAuth, botId: string): boolean;
   listBotSkills(bot: BotRecord, threadId?: string): SkillListing[];
@@ -107,7 +108,7 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
         const skill = listSkills(bot.id).find(one => one.name === m![2]);
         if (!skill?.reviewedRevision) return json(res, 404, { error: "No reviewed skill." });
         return json(res, 200, { text, revision: skill.reviewedRevision,
-          dependencies: [...skillDependencies(skill.name, bot.id, deps.routines?.() ?? [], cfg.newBotDefaults, store.bots)],
+          dependencies: [...skillDependencies(skill.name, bot.id, deps.routines?.() ?? [], cfg.newBotDefaults, store.bots, store.groups, deps.presets?.())],
           similar: similarLearnedSkills(bot.id, skill.name) });
       }
       return json(res, 200, { text });
@@ -115,12 +116,18 @@ export function createBotSkillsRoutes(deps: BotSkillsRouteDeps): RouteHandler {
     if (m && method === "PATCH") {
       const body = await readBody(req);
       if (body && typeof body === "object" && "maintenance" in body) {
-        const input = z.object({ maintenance: z.enum(["pin", "unpin", "archive", "restore"]), revision: z.string().max(129) }).safeParse(body);
+        const version = z.string().min(1).max(129);
+        const input = z.union([
+          z.object({ maintenance: z.enum(["pin", "unpin", "archive", "restore"]), revision: version }),
+          z.object({ maintenance: z.literal("consolidate"), revision: version, keep: z.string().min(1).max(64), keepRevision: version }),
+        ]).safeParse(body);
         const bot = store.bot(m[1]!);
         if (!bot || !input.success) return json(res, 400, { error: "Choose a reviewed skill revision." });
         const name = m[2]!;
-        const referenced = input.data.maintenance === "archive" && (!deps.routines || skillDependencies(name, bot.id, deps.routines(), cfg.newBotDefaults, store.bots).size > 0);
-        const result = maintainLearnedSkill(bot.id, name, input.data.revision, input.data.maintenance, referenced);
+        const referenced = (input.data.maintenance === "archive" || input.data.maintenance === "consolidate") && (!deps.routines || skillDependencies(name, bot.id, deps.routines(), cfg.newBotDefaults, store.bots, store.groups, deps.presets?.()).size > 0);
+        const result = input.data.maintenance === "consolidate"
+          ? consolidateLearnedSkill(bot.id, name, input.data.revision, input.data.keep, input.data.keepRevision, referenced)
+          : maintainLearnedSkill(bot.id, name, input.data.revision, input.data.maintenance, referenced);
         return "error" in result ? json(res, 409, result) : json(res, 200, { skill: result });
       }
       const parsed = z.object({ enabled: z.boolean() }).safeParse(body);

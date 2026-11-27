@@ -38,7 +38,7 @@ import {
   syncSkillLinks,
   undoSkillWrite,
 } from "./skills.ts";
-import { similarLearnedSkills, skillDependencies } from "./skill-maintenance.ts";
+import { consolidateLearnedSkill, similarLearnedSkills, skillDependencies } from "./skill-maintenance.ts";
 import { parseSkillSource } from "./skill-fetch.ts";
 import { ensureTaskWorkspaceWithSkills, syncTaskSkillLinks } from "./skill-task-links.ts";
 import { buildSystemPrompt } from "./system-prompt.ts";
@@ -633,12 +633,20 @@ describe("staged skill writes", () => {
     const maintain = (action: "pin" | "unpin" | "archive" | "restore", referenced = false) => maintainLearnedSkill(bot, name, revision, action, referenced);
     expect(similarLearnedSkills(bot, name)).toEqual(["beta-report"]);
     expect(skillDependencies(name, bot, [{ botId: bot, name: "Invoices", prompt: "/alpha-report" }], undefined, [])).toContain("routine");
+    expect(skillDependencies(name, bot, [{ groupId: "finance", name: "Weekly", prompt: "/alpha-report" }], undefined, [], [{ id: "finance", memberIds: [bot] }])).toContain("routine");
+    expect(skillDependencies(name, bot, [], undefined, [], [], [{ skills: [name] }])).toContain("template");
     expect(maintain("pin")).toHaveProperty("maintenancePinned", true);
     expect(maintain("archive")).toHaveProperty("error");
     maintain("unpin");
     expect(maintain("archive", true)).toHaveProperty("error");
     expect(maintain("archive")).toMatchObject({ enabled: false, archivedFrom: { revision } });
     expect(maintainLearnedSkill(bot, name, "stale", "restore", false)).toHaveProperty("error");
+    expect(maintain("restore")).toMatchObject({ enabled: true, reviewedRevision: revision });
+    const keep = listSkills(bot).find(skill => skill.name === "beta-report")!.reviewedRevision!;
+    expect(consolidateLearnedSkill(bot, name, revision, "beta-report", "stale", false)).toHaveProperty("error");
+    expect(consolidateLearnedSkill(bot, name, revision, "beta-report", keep, true)).toHaveProperty("error");
+    expect(consolidateLearnedSkill(bot, name, revision, "beta-report", keep, false)).toMatchObject({ enabled: false, archivedFrom: { revision } });
+    expect(listSkills(bot).find(skill => skill.name === "beta-report")).toMatchObject({ enabled: true, reviewedRevision: keep });
     expect(maintain("restore")).toMatchObject({ enabled: true, reviewedRevision: revision });
   });
 

@@ -12138,7 +12138,7 @@ ROUTES.push(createBotLifecycleRoutes({
   store, routines: () => routines, interruptAllDirectThreads, cancelDirectTurnDispatch, revokeInternalCapabilitiesForThread,
   activeGroupTurnForBot, cancelGroupTurnOperations, runningTurnInstance, closeOpenApprovals, deleteBotWithLifecycle, deleteRefusal: (auth, botId) => memberDeleteRefusal(auth, store.bot(botId), Boolean(CLOUD_TEAM)),
 }));
-const skillsRoutes = createBotSkillsRoutes({ store, cfg, visibleBot: (auth, id) => visibleTo(viewerFor(auth)).bot(id), listBotSkills, readBotSkillFile, stagedSkillListing, routines: () => routines?.listRoutines() ?? [], visibleThread: (auth, id) => visibleTo(viewerFor(auth)).thread(id) }); ROUTES.push(skillsRoutes);
+const skillsRoutes = createBotSkillsRoutes({ store, cfg, presets: () => presetStore.list(), visibleBot: (auth, id) => visibleTo(viewerFor(auth)).bot(id), listBotSkills, readBotSkillFile, stagedSkillListing, routines: () => routines?.listRoutines() ?? [], visibleThread: (auth, id) => visibleTo(viewerFor(auth)).thread(id) }); ROUTES.push(skillsRoutes);
 ROUTES.push(createEmailRoutes({ service: emailService }));
 ROUTES.push(phones.routes, createSkillShareRoutes({ enabled: () => skillsHost.mode() !== "off", botExists: (id) => Boolean(store.bot(id)),
   cardRefusal: (auth, threadId, requestId) => cardAnswerRefusal(auth, threadId, requestId, "allow"), shareFromReceipt: skillsHost.shareFromReceipt, shareFromBot: skillsHost.shareFromBot }), createTeamContextRoutes({ store, teamMemory }));

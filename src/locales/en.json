@@ -9542,6 +9542,8 @@
   "skills.usage.calls": "{count} calls on this revision. Last used {date}.",
   "skills.usage.failed": "Review {count} unsuccessful runs.",
   "skills.maintenance.review": "Review maintenance",
+  "skills.maintenance.compare": "Compare with {name}",
+  "skills.maintenance.consolidate": "Keep {keep} and archive {archive}",
   "skills.maintenance.similar": "Compare similar skills: {names}",
   "skills.maintenance.pin": "Pin skill",
   "skills.maintenance.unpin": "Unpin skill",

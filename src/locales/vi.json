@@ -10065,6 +10065,8 @@
   "skills.usage.calls": "{count} lượt gọi bản này. Dùng gần nhất {date}.",
   "skills.usage.failed": "Rà soát {count} lượt chạy chưa thành công.",
   "skills.maintenance.review": "Xem bảo trì",
+  "skills.maintenance.compare": "So với {name}",
+  "skills.maintenance.consolidate": "Giữ {keep} và lưu trữ {archive}",
   "skills.maintenance.similar": "So sánh các skill gần giống: {names}",
   "skills.maintenance.pin": "Ghim skill",
   "skills.maintenance.unpin": "Bỏ ghim",

@@ -1,6 +1,7 @@
+import { observeEffect } from "./effect.ts";
 import { newId, type RuntimeEvent } from "../contracts.ts";
 import { setTimeout as delay } from "node:timers/promises";
-import { backgroundAccessibilityAction, slimResponse } from "./driver-wire.ts";
+import { backgroundAccessibilityAction, slimResponse, treeCounts, type TreeCounts } from "./driver-wire.ts";
 import { resolveStep, resolveStepSoon, type CallOutcome, type ComputerCaller, type Patience } from "./resolve.ts";
 import { stepLabel, type Recipe, type RecipeStep } from "./rules.ts";
 import { expectedWindowsDestination, windowsSnapshotMatches, windowsTabCount, windowsTabSelected } from "./windows-destination.ts";
@@ -12,6 +13,7 @@ export type ReplayOutcome =
   | { kind: "done" }
   | { kind: "declined"; tool: string; label: string }
   | { kind: "failed"; done: number; total: number; tool: string; label: string; error: string; gate?: true }
+  | { kind: "unverified"; message: string }
   | { kind: "stopped" };
 
 const STOPPED: ReplayOutcome = { kind: "stopped" };
@@ -77,7 +79,8 @@ export async function runSteps(
     const windows = step.element?.uiaWindowChild === true || step.element?.linuxWindowChild === true;
     const destination = step.element?.linuxWindowChild ? linuxDestinations?.[done] : windows ? expectedWindowsDestination(recipe) : undefined;
     if (windows && (!destination || !deps.windowsAttempt)) return failed({ ok: false, error: "This Windows recipe does not name a verifiable navigation destination." });
-    let target = await resolveStepSoon(step, caller, signal, patience);
+    let before: TreeCounts | undefined;
+    let target = await resolveStepSoon(step, caller, signal, patience, windows ? undefined : tree => { before = treeCounts(tree); });
     if (!target.ok) return failed(target);
     const tool = engineToolName(step.tool);
     const summary = stepSummary(step.tool, label);
@@ -124,7 +127,11 @@ export async function runSteps(
         result = { ok: false, error: WINDOWS_UNCERTAIN };
       }
     }
-    publish({ ...base(itemId), type: "item.completed", itemType: "tool", ok: result.ok, output: result.ok ? "done" : result.error });
+    const effect = result.ok && !windows ? await observeEffect(step, target.args, before, caller, signal) : undefined;
+    const output = result.ok ? effect?.output ?? "Verified the expected navigation destination." : result.error;
+    publish({ ...base(itemId), type: "item.completed", itemType: "tool", ok: result.ok && !effect?.uncertain, output });
+    if (signal.aborted) return STOPPED;
+    if (effect?.uncertain) return { kind: "unverified", message: effect.output };
     if (!result.ok) return failed(result);
   }
   return { kind: "done" };

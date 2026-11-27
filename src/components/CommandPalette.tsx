@@ -1,8 +1,9 @@
 import { t } from "@/lib/i18n";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MessageSquare, Search, Users } from "lucide-react";
 import { BotAvatar } from "./Avatar";
 import { api, openBot, useStore, type Bot, type Group } from "@/state/store";
+import { workspaceTargets, type WorkspaceTarget } from "@/lib/workspace-quick-open";
 import { rankByName } from "@/lib/palette-rank";
 import { useShowThreads } from "@/lib/thread-preferences";
 import { cn } from "@/lib/cn";
@@ -13,7 +14,8 @@ import { imeComposing } from "@/lib/send-key";
 type PaletteEntry =
   | { kind: "bot"; bot: Bot }
   | { kind: "room"; group: Group }
-  | { kind: "message"; hit: SearchHit };
+  | { kind: "message"; hit: SearchHit }
+  | WorkspaceTarget;
 
 const OPEN_EVENT = "omb:open-command-palette";
 
@@ -83,19 +85,26 @@ export function CommandPalette({ onOpenChange }: { onOpenChange?: (open: boolean
     selectedRef.current?.scrollIntoView({ block: "nearest" });
   }, [cursor, messageHits]);
 
+  const resources = useMemo(() => open ? workspaceTargets(state.bots, state.groups) : [], [open, state.bots, state.groups]);
   if (!open) return null;
+  const matches = q ? rankByName(resources, q).slice(0, 20) : [];
 
   const bots = rankByName(state.bots.filter((b) => !b.hidden), q);
   const rooms = rankByName(state.groups, q);
   const entries: PaletteEntry[] = [
     ...bots.map((bot): PaletteEntry => ({ kind: "bot", bot })),
     ...rooms.map((group): PaletteEntry => ({ kind: "room", group })),
+    ...matches,
     ...(q ? messageHits.map((hit): PaletteEntry => ({ kind: "message", hit })) : []),
   ];
   const selected = entries.length ? Math.min(cursor, entries.length - 1) : 0;
 
   const activate = async (entry: PaletteEntry) => {
-    if (entry.kind === "message") {
+    if (entry.kind === "task") {
+      dispatch({ type: "select", id: entry.id });
+      if (entry.group) dispatch({ type: "switchGroupTask", groupId: entry.id, threadId: entry.threadId });
+      else dispatch({ type: "switchTask", botId: entry.id, threadId: entry.threadId, ...(!showThreads ? { whole: true } : {}) });
+    } else if (entry.kind === "message" || entry.kind === "report") {
       const hit = entry.hit;
       try {
         await landOnSearchHit(hit, state, dispatch, showThreads);
@@ -130,7 +139,8 @@ export function CommandPalette({ onOpenChange }: { onOpenChange?: (open: boolean
   };
 
   const roomOffset = bots.length;
-  const messageOffset = bots.length + rooms.length;
+  const resourceOffset = bots.length + rooms.length;
+  const messageOffset = resourceOffset + matches.length;
 
   const row = (key: string, index: number, onPick: () => void, children: React.ReactNode, twoLine = false) => (
     <button
@@ -216,6 +226,9 @@ export function CommandPalette({ onOpenChange }: { onOpenChange?: (open: boolean
               </>,
             ),
           )}
+          {matches.length > 0 && <div className="px-3 pb-1 pt-2 text-[12px] font-medium text-ink-tertiary">{t("palette.resources")}</div>}
+          {matches.map((resource, index) => row(resource.kind === "report" ? "report:" + resource.hit.messageId : JSON.stringify([resource.id, resource.threadId]), resourceOffset + index,
+            () => void activate(resource), <><span className="truncate text-sm">{resource.name}</span><span className="ms-auto truncate text-xs text-ink-secondary">{resource.owner}</span></>))}
           {q && messageHits.length > 0 && (
             <div className="px-3 pb-1 pt-2 text-[12px] font-medium text-ink-tertiary">
               {t("palette.messages")}

@@ -11688,5 +11688,13 @@
   "workflow.interrupted": "Lượt chạy bị ngắt sau khi được duyệt. Hãy đối chiếu kết quả thực tế trước khi chạy lại.",
   "workflow.resume": "Tiếp tục",
   "workflow.approve": "Duyệt và tiếp tục",
-  "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\"."
+  "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\".",
+  "palette.resources": "Công việc và báo cáo",
+  "browser.context.connection": "Máy: {host} · Hồ sơ: {profile} · Kết nối: {transport}",
+  "browser.context.live": "Xem trực tiếp v1",
+  "computer.files.find": "Tìm tệp đã thay đổi theo tên hoặc thư mục",
+  "computer.files.noMatches": "Không tìm thấy tệp đã thay đổi phù hợp.",
+  "computer.files.reference": "Tệp từ cuộc trò chuyện này: {path}",
+  "computer.files.addDraft": "Thêm đường dẫn tệp vào nháp",
+  "computer.files.added": "Đã thêm vào nháp"
 }

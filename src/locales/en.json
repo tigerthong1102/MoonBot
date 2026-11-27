@@ -11688,5 +11688,13 @@
   "workflow.interrupted": "The run was interrupted after approval. Check the actual result before starting again.",
   "workflow.resume": "Resume",
   "workflow.approve": "Approve and resume",
-  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\"."
+  "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\".",
+  "palette.resources": "Tasks and reports",
+  "browser.context.connection": "Computer: {host} · Profile: {profile} · Connection: {transport}",
+  "browser.context.live": "Live view v1",
+  "computer.files.find": "Find a changed file by name or folder",
+  "computer.files.noMatches": "No changed files match.",
+  "computer.files.reference": "File from this conversation: {path}",
+  "computer.files.addDraft": "Add file reference to draft",
+  "computer.files.added": "Added to draft"
 }

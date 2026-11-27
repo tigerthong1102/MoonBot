@@ -1,4 +1,3 @@
-// An offline receipt for the app and screenshot from one disposable mobile QA run.
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";

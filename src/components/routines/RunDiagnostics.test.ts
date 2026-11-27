@@ -11,3 +11,9 @@ it.each([["computer", "host"], ["connection", "connector"], ["model", "engine"]]
     expect(value).toMatchObject({ runId: run.id, layer, scheduledFor: 17 });
     expect(JSON.stringify(value)).not.toContain("private");
   });
+it("keeps an unconfirmed delivery distinct from a completed calculation", () => {
+  const exported = runDiagnostics({ ...run, status: "completed",
+    emailDeliveries: [{ destination: "private@customer.test", messageId: "private", state: "unconfirmed", at: 21 }] });
+  expect(exported).toMatchObject({ status: "completed", layer: "delivery", email: [{ state: "unconfirmed", at: 21 }] });
+  expect(JSON.stringify(exported)).not.toContain("private");
+});

@@ -2,7 +2,9 @@ import { t } from "@/lib/i18n";
 import type { RoutineRun } from "@/lib/routines";
 
 export function runDiagnostics(run: RoutineRun) {
-  const layer = run.blockedBy === "computer" ? "host"
+  const email = run.emailDeliveries?.map(({ state, at }) => ({ state, at }));
+  const layer = email?.some(receipt => receipt.state === "unconfirmed") ? "delivery"
+    : run.blockedBy === "computer" ? "host"
     : run.blockedBy === "connection" ? "connector"
     : run.blockedBy === "model" || run.ownerCause || run.retried === "provider" ? "engine"
     : run.blockedBy ?? (run.status === "failed" || run.status === "missed" ? "unknown" : undefined);
@@ -22,6 +24,7 @@ export function runDiagnostics(run: RoutineRun) {
     trigger: run.triggerSource ?? (run.manual ? "manual" : undefined),
     partial: run.partial,
     report: run.report?.state,
+    email,
   };
 }
 

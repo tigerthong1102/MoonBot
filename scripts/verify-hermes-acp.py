@@ -1,7 +1,6 @@
 """Exercise an installed Hermes via stdio against a local synthetic provider and invoice.
 Run: python3 scripts/verify-hermes-acp.py /absolute/path/to/hermes
 The installed Hermes must include its acp and mcp extras.
-The temporary profile keeps the wire transcript and diagnostic logs for inspection.
 Model fixture and wire loop adapted from NousResearch/hermes-agent, MIT,
 evals/acp_empty_session_wire.py at ab7e19a761e0ef52ef0d1c5f0417c5784c653446.
 See third_party/hermes-agent/LICENSE.
@@ -21,7 +20,6 @@ from pathlib import Path
 
 
 if len(sys.argv) > 1 and sys.argv[1] == "mcp":
-    # The only exposed tool returns a constant synthetic invoice; log its read out of band.
     for line in sys.stdin:
         request = json.loads(line)
         if "id" not in request:

@@ -758,7 +758,7 @@ it("propagates cancellation to a running source provider before releasing its sh
 it("pins a text-only background route to its own instance, current grant and bot budget", async () => {
   let selection = { instanceId: "openrouter", model: "cheap" };
   const { jobs, openrouter, state } = setup({ backgroundModel: () => selection });
-  openrouter.instance.models = { default: "cheap", options: [{ id: "cheap", label: "Cheap" }] };
+  state.instances.set("openrouter", { ...openrouter.instance, models: { default: "cheap", options: [{ id: "cheap", label: "Cheap" }] } });
   expect(jobs.text("work-bot-offer", "claude")).toBeNull();
   const writer = jobs.text("compaction", "openrouter", { threadId: "test-thread" })!;
   await writer.generateText("Summarize");

@@ -98,3 +98,17 @@ export function localComputerRelay(platform: string, journalledWindows = false) 
     return child.call(call.name, call.arguments).then((result) => unconfirmedClickResult(result) ?? result);
   };
 }
+
+export function macSavedStepsWindowRequest(line: string): string {
+  let frame: unknown;
+  try { frame = JSON.parse(line); } catch { return line; }
+  if (!frame || typeof frame !== "object" || Array.isArray(frame)) return line;
+  const request = frame as { method?: unknown; params?: { name?: unknown; arguments?: unknown } };
+  if (request.method !== "tools/call" || request.params?.name !== "get_window_state") return line;
+  const args = request.params.arguments;
+  if (!args || typeof args !== "object" || Array.isArray(args)) return line;
+  const values = args as Record<string, unknown>;
+  if (values.query !== undefined || values.since !== undefined || values.full_output === false) return line;
+  request.params.arguments = { ...values, full_output: true, tree_format: values.tree_format === "elements" ? "elements" : "both", timeout_ms: values.timeout_ms ?? 10000 };
+  return JSON.stringify(frame);
+}

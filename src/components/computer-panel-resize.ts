@@ -6,9 +6,9 @@ export const PANEL_MAX_WIDTH = 960;
 const PANEL_DEFAULT_WIDTH = 400;
 const PANEL_RESIZE_STEP = 40;
 
-function readPanelWidth(): number {
+function readPanelWidth(key: string): number {
   try {
-    const stored = Number(localStorage.getItem(PANEL_WIDTH_KEY));
+    const stored = Number(localStorage.getItem(key) ?? localStorage.getItem(PANEL_WIDTH_KEY));
     if (Number.isFinite(stored) && stored >= PANEL_MIN_WIDTH && stored <= PANEL_MAX_WIDTH) return stored;
   } catch {
   }
@@ -17,12 +17,14 @@ function readPanelWidth(): number {
 
 /** The computer panel's drag edge: a pointer drag or the arrow keys resize the
  * panel, and the width is remembered across opens. */
-export function useComputerPanelResize() {
-  const [panelWidth, setPanelWidth] = useState(readPanelWidth);
+export function useComputerPanelResize(scope?: string) {
+  const key = scope ? `${PANEL_WIDTH_KEY}:${scope}` : PANEL_WIDTH_KEY;
+  const [panelWidth, setPanelWidth] = useState(() => readPanelWidth(key));
   const resizeFrom = useRef<{ x: number; width: number } | null>(null);
+  useEffect(() => { resizeFrom.current = null; setPanelWidth(readPanelWidth(key)); }, [key]);
   const persistPanelWidth = (width: number) => {
     try {
-      localStorage.setItem(PANEL_WIDTH_KEY, String(width));
+      localStorage.setItem(key, String(width));
     } catch {
     }
   };

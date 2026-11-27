@@ -1,4 +1,6 @@
 {
+  "today.dueDate": "Ngày đến hạn",
+  "today.criteria": "Tiêu chí hoàn thành",
   "workBotOffer.continueHere": "Tiếp tục tại đây",
   "server.workBot.scheduleConflict": "Bot được liên kết có lịch hoặc lượt chạy có thể trùng, hoặc chưa thể kiểm tra liên kết. Mở Tự động hóa, xem lịch liên quan, rồi chọn Mới → Tự thiết lập nó nếu là việc khác để tạo lịch thủ công.",
   "server.workBot.choiceInProgress": "Đang xử lý lựa chọn tạo bot. Hãy thử lại sau khi bước này hoàn tất.",

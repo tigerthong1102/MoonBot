@@ -8,6 +8,7 @@ import { api, openThread, useStore } from "@/state/store";
 import { closeInbox } from "@/state/inbox";
 import { AttentionThreadRows, attentionJumpAction, crossBotAttentionThreads } from "../SidebarBotActivity";
 import { NeedsYouLine } from "../TeamOwner";
+import { TodayTaskDetails } from "./TodayTaskDetails";
 import { InboxRowItem } from "./InboxRow";
 import { rowsIn } from "./inbox-view";
 import { useInboxActions } from "./use-inbox-actions";
@@ -60,11 +61,15 @@ export function Today({ view, now, onOpen }: { view: InboxView | null; now: numb
       dispatch({ type: "showRoutines", routineId: line.routineId, botId: line.botId, runId: line.id });
     }
   };
-  const work = (lines: TodayLine[]) => lines.map((line) => <button key={line.id} type="button" disabled={!line.threadId && !state.routines.some((routine) => routine.id === line.routineId)} onClick={() => jump(line)}
+  const work = (lines: TodayLine[]) => lines.map((line) => {
+    const task = state.bots.find(bot => bot.id === line.botId)?.tasks?.find(row => row.threadId === line.threadId);
+    if (task?.snoozedUntil === 0 || (task?.snoozedUntil ?? 0) > now) return null;
+    return <div key={line.id}><button type="button" disabled={!line.threadId && !state.routines.some((routine) => routine.id === line.routineId)} onClick={() => jump(line)}
     className="block w-full rounded-md px-2 py-1.5 text-start enabled:hover:bg-raised">
     <span className="block break-words text-[13px] text-ink">{line.title || state.bots.find((bot) => bot.id === line.botId)?.name || t("needsYou.aBot")}</span>
     {line.error && <span className="block break-words text-[12px] text-ink-secondary">{line.error}</span>}
-  </button>);
+  </button>{task && <TodayTaskDetails key={task.threadId} task={task} botId={line.botId} />}</div>;
+  });
   return <>
     {(waiting.length > 0 || needs.length > 0) && <TodaySection title={t("inbox.waitsOnYou")}>
       <div role="list">{waiting.map((row) => <InboxRowItem key={row.id} row={row} now={now} onOpen={onOpen} onAction={run} />)}</div>

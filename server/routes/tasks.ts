@@ -303,7 +303,7 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler & { deleteTa
       if (!body || typeof body !== "object" || Array.isArray(body)) return json(res, 400, { error: "body must be a JSON object" });
       const current = store.projectBotForTask(m[1], m[2]);
       if (!current) return json(res, 404, { error: "no such task" });
-      const allowed = new Set(["title", "projectId", "modelSelection", "updateBotDefault", "resetApprovalToAsk", "approvalMode", "autoApprove", "requireAvailableModel", "pinnedMessageId", "acknowledgeLocalAuto", "archivedAt", "pinned", "snoozedUntil", "surface", "refreshPermissions", "link"]);
+      const allowed = new Set(["title", "projectId", "modelSelection", "updateBotDefault", "resetApprovalToAsk", "approvalMode", "autoApprove", "requireAvailableModel", "pinnedMessageId", "acknowledgeLocalAuto", "archivedAt", "pinned", "snoozedUntil", "surface", "refreshPermissions", "link", "doneWhen", "dueDate"]);
       if (Object.keys(body).some((key) => !allowed.has(key))) return json(res, 400, { error: "unsupported thread setting" });
       const notYours = cloudThreadRefusal(auth, m[2]);
       if (notYours) return json(res, 403, { error: notYours });
@@ -384,6 +384,16 @@ export function createTaskRoutes(deps: TaskRouteDeps): RouteHandler & { deleteTa
         if (body.snoozedUntil === null) patch.snoozedUntil = undefined;
         else if (typeof body.snoozedUntil === "number" && Number.isFinite(body.snoozedUntil) && body.snoozedUntil >= 0) patch.snoozedUntil = body.snoozedUntil;
         else return json(res, 400, { error: "snoozedUntil must be a timestamp, 0 to snooze until activity, or null to wake now" });
+      }
+      if (body.doneWhen !== undefined) {
+        if (body.doneWhen !== null && (typeof body.doneWhen !== "string" || body.doneWhen.length > 2000)) return json(res, 400, { error: "doneWhen must be text up to 2000 characters or null" });
+        patch.doneWhen = body.doneWhen?.trim() || undefined;
+      }
+      if (body.dueDate !== undefined) {
+        const day = body.dueDate;
+        if (day !== null && (typeof day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(day) ||
+          !Number.isFinite(Date.parse(day)) || new Date(day).toISOString().slice(0, 10) !== day)) return json(res, 400, { error: "dueDate must be a calendar date or null" });
+        patch.dueDate = day ?? undefined;
       }
       if (body.link !== undefined) {
         const link = body.link === null ? undefined : threadLinkUrl(body.link);

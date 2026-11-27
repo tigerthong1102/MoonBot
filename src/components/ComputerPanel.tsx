@@ -45,7 +45,7 @@ import { releaseComputerPanelFocus, useComputerPanelEntry } from "@/lib/computer
 import { PANEL_MAX_WIDTH, PANEL_MIN_WIDTH, useComputerPanelResize } from "./computer-panel-resize";
 import {
   computerPanelTabs,
-  readComputerPanelView,
+  readComputerPanelView, readSavedPanelView, taskPanelScope,
   resolveComputerPanelView,
   writeComputerPanelView,
   type ComputerPanelView,
@@ -124,7 +124,8 @@ export function ComputerPanel({
   onOpenVmWorkspace?: (botId: string) => void;
 }) {
   const { dragProps } = useCaptionChrome();
-  const { panelWidth, separatorRef, separatorWidth, onSeparatorKeyDown, onResizeStart, onResizeMove, onResizeEnd } = useComputerPanelResize();
+  const layoutScope = taskPanelScope(profileBot.id, profileBot.threadId);
+  const { panelWidth, separatorRef, separatorWidth, onSeparatorKeyDown, onResizeStart, onResizeMove, onResizeEnd } = useComputerPanelResize(layoutScope);
   const { state, dispatch, flushBotPatches } = useStore();
   const liveTask = profileBot.tasks?.find((task) => task.threadId === profileBot.threadId);
   const livePlace = effectivePlace(profileBot, liveTask);
@@ -249,7 +250,7 @@ export function ComputerPanel({
   const [error, setError] = useState<Error | string | null>(null);
   const errorText = panelErrorText(error);
   const advanced = useAdvancedMode();
-  const [storedPanelView, setPanelView] = useState<ComputerPanelView>(() => readComputerPanelView(bot.id));
+  const [storedPanelView, setPanelView] = useState<ComputerPanelView>(() => readSavedPanelView(layoutScope) ?? readComputerPanelView(bot.id));
   const requestedDataResult = state.dataResultFocus?.botId === bot.id ? state.dataResultFocus : undefined;
   const [dataRequest, setDataRequest] = useState<{ id: string; requestId: number }>();
   const androidStatus = useAndroidUsbDevices(usbPhoneTakeoverEnabled(state.config));
@@ -297,7 +298,7 @@ export function ComputerPanel({
   const selectPanelView = (view: ComputerPanelView) => {
     explicitPanelView.current = true;
     setPanelView(view);
-    writeComputerPanelView(bot.id, view);
+    writeComputerPanelView(layoutScope, view);
   };
 
   const previousPanelTarget = useRef<string | null>(null);
@@ -308,16 +309,16 @@ export function ComputerPanel({
     if (previous === panelTargetKey && (explicitPanelView.current || !(bot.computer === "browser" && browserEnabled))) return;
     if (previous !== panelTargetKey) explicitPanelView.current = false;
     previousPanelTarget.current = panelTargetKey;
-    setPanelView(bot.computer === "browser" && browserEnabled ? "browser"
-      : previous === null ? readComputerPanelView(bot.id) : "computer");
-  }, [panelTargetKey, bot.id, bot.computer, browserEnabled]);
+    setPanelView(readSavedPanelView(layoutScope) ?? (bot.computer === "browser" && browserEnabled ? "browser"
+      : previous === null ? readComputerPanelView(bot.id) : "computer"));
+  }, [panelTargetKey, bot.id, bot.computer, browserEnabled, layoutScope]);
 
   useEffect(() => {
     if (!requestedDataResult || requestedDataResult.consumed) return;
     explicitPanelView.current = true;
     setDataRequest(requestedDataResult);
     setPanelView("data");
-    writeComputerPanelView(bot.id, "data");
+    writeComputerPanelView(layoutScope, "data");
     dispatch({ type: "dataResultFocusConsumed", requestId: requestedDataResult.requestId });
   }, [bot.id, dispatch, requestedDataResult]);
 
@@ -331,7 +332,7 @@ export function ComputerPanel({
     const view = requestedSignIn.place === "browser" ? "browser" : "computer";
     explicitPanelView.current = true;
     setPanelView(view);
-    writeComputerPanelView(bot.id, view);
+    writeComputerPanelView(layoutScope, view);
     if (view === "browser") setSignInRequest({ url: requestedSignIn.url, site: requestedSignIn.site, nonce: requestedSignIn.requestId });
     dispatch({ type: "signInFocusConsumed", requestId: requestedSignIn.requestId });
   }, [bot.id, dispatch, requestedSignIn]);

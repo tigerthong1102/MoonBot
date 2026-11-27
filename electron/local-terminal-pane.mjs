@@ -34,7 +34,7 @@ export async function localTerminalPane(dataDir, action, target, input, run = in
   if (!selected) throw new Error("Terminal session ended.");
   const pane = selected.id.split("/").at(-1);
   if (action === "read") return cmd(["capture-pane", "-p", "-S", "-2000", "-t", pane]);
-  if (action !== "send" || typeof input !== "string" || !input || input.length > 4096 || /[\x00-\x1f\x7f]/u.test(input)) throw new Error("Enter one line of terminal input.");
+  if (action !== "send" || typeof input !== "string" || !input || input.length > 4096 || Array.from(input).some(char => { const code = char.codePointAt(0); return code < 32 || (code >= 127 && code <= 159); })) throw new Error("Enter one line of terminal input.");
   const buffer = "startupbot-ui-" + randomUUID();
   await cmd(["load-buffer", "-b", buffer, "-"], input);
   try {

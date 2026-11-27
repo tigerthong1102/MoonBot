@@ -52,7 +52,7 @@ export function emailToolCallProblem(name: unknown, args: unknown): string | nul
   }
   if (name === "EMAIL_SEND_MESSAGE") {
     const report = args as { report_delivery?: boolean; to?: string[]; cc?: string[]; bcc?: string[] };
-    if (report.report_delivery && (report.to?.length !== 1 || report.cc || report.bcc || !/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/u.test(report.to[0]!))) {
+    if (report.report_delivery && (report.to?.length !== 1 || report.cc || report.bcc || !/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/u.test(report.to[0]!))) {
       return "A report delivery needs one plain destination address in to, without cc or bcc.";
     }
     try { checkSendBudget(args); inlineAttachments((args as { inline_images?: import("./client.ts").InlineImage[] }).inline_images); }

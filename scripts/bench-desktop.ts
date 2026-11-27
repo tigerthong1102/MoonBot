@@ -26,6 +26,7 @@ import { gzipSync } from "node:zlib";
 
 import { runControlOmb, verificationServerArgs, verificationServerEnvironment } from "./control-omb.ts";
 import { installedChrome } from "./testing/control-omb-ui.ts";
+import { measureComposerInput } from "./testing/bench-composer-latency.ts";
 import { FRAMES_START, FRAMES_STOP, launchChrome, switchExpression, TRANSCRIPT_BOX, type Chrome, type Page } from "./testing/bench-desktop-page.ts";
 import { removeTempDir, waitForExit } from "../server/testing/cleanup.ts";
 import { freePortBlock } from "../server/testing/ports.ts";
@@ -453,6 +454,7 @@ async function streamTurn(chrome: Chrome, page: Page, fixture: Fixture, botId: s
   const tally0 = await fixture.tally();
   const started = performance.now();
   await runControlOmb(["send", "--bot", botId, "--text", "Write the long report, please.", "--url", fixture.url]);
+  const composerInput = await measureComposerInput(page);
   await sleep(4_000);
   const animationsMidTurn = await page.evaluate<Record<string, number>>(RUNNING_ANIMATIONS);
   const settled = await waitTurn(fixture, botId);
@@ -470,7 +472,7 @@ async function streamTurn(chrome: Chrome, page: Page, fixture: Fixture, botId: s
   const top = Object.entries(snapshot.renders).sort((a, b) => b[1] - a[1]).slice(0, 30);
   const server = tallyDelta(tally0, tally1);
   return {
-    settled: settled.status, drawn, wallMs: Math.round(wallMs),
+    composerInput, settled: settled.status, drawn, wallMs: Math.round(wallMs),
     serverFrames: snapshot.sse.frames, serverFrameKb: kb(snapshot.sse.bytes),
     serverFrameKinds: Object.fromEntries(Object.entries(snapshot.sse.kinds).sort((a, b) => b[1].bytes - a[1].bytes).map(([kind, entry]) => [kind, { n: entry.n, kb: kb(entry.bytes) }])),
     reactCommits: snapshot.commits, commitsPerSec: round(snapshot.commits / seconds),

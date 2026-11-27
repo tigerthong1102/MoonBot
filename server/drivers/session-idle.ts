@@ -67,13 +67,13 @@ export function keepWarm(key: string, engine: WarmEngine, box: Pick<BoxMemory, "
   if (extra <= 0) return;
   for (const [other, warm] of [...warmEngines].slice(0, extra)) {
     warmEngines.delete(other);
-    warm.close();
+    if (warm.idle()) warm.close();
   }
 }
 
 /** Closes an idle engine after `ms`, or sooner on a small box once another engine goes idle after it. */
 export function armIdleClose(key: string, ms: number, engine: WarmEngine): ReturnType<typeof setTimeout> {
-  const timer = setTimeout(engine.close, ms);
+  const timer = setTimeout(() => { if (engine.idle()) engine.close(); }, ms);
   timer.unref?.();
   keepWarm(key, engine);
   return timer;

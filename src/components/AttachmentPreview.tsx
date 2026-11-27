@@ -47,7 +47,7 @@ export interface PreviewImage {
   openUrl?: string;
 }
 
-export interface MessageAttachmentContext { threadId: string; messageId: string }
+export interface MessageAttachmentContext { threadId: string; messageId: string; botOutput?: boolean }
 
 export function previewImage(path: string, name = attachmentBasename(path)): PreviewImage | null {
   const src = attachmentImageUrl(path);

@@ -11691,5 +11691,8 @@
   "workflow.resumeMessage": "Continue the approved workflow in this conversation. Call run_workflow with resume {token} and response \"continue\".",
   "chat.limit.reviewActions": "This turn already used tools. Review their results before continuing. Schedule this conversation to resume when the limit resets?",
   "today.dueDate": "Due date",
-  "today.criteria": "Completion criteria"
+  "today.criteria": "Completion criteria",
+  "artifact.link.create": "Create a link for conversation readers",
+  "artifact.link.revoke": "Revoke link",
+  "artifact.link.scope": "Conversation readers · expires {time}"
 }

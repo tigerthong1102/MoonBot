@@ -11691,5 +11691,8 @@
   "workflow.resumeMessage": "Tiếp tục quy trình đã duyệt trong cuộc trò chuyện này. Gọi run_workflow với resume {token} và response \"continue\".",
   "chat.limit.reviewActions": "Lượt này đã dùng công cụ. Hãy xem lại kết quả trước khi tiếp tục. Hẹn cuộc trò chuyện chạy tiếp khi hạn mức được đặt lại?",
   "today.dueDate": "Ngày đến hạn",
-  "today.criteria": "Tiêu chí hoàn thành"
+  "today.criteria": "Tiêu chí hoàn thành",
+  "artifact.link.create": "Tạo liên kết cho người xem cuộc trò chuyện",
+  "artifact.link.revoke": "Thu hồi liên kết",
+  "artifact.link.scope": "Người xem cuộc trò chuyện · hết hạn {time}"
 }

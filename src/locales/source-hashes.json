@@ -75079,7 +75079,10 @@
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "chat.limit.reviewActions": "7516bfbbf5eaf3c84f8c0e8edae891d32f5a6f2d8fb8878de21e38bea90e10d2",
       "today.criteria": "74382a22fa1f728fa15ed021e55aaa874a4c90e2c95c2e8667363cb196028d61",
-      "today.dueDate": "e1cb6d30fa3f17ee1e50b2bcf1967374467748ba3b8acd64be2df8a70c2ddc46"
+      "today.dueDate": "e1cb6d30fa3f17ee1e50b2bcf1967374467748ba3b8acd64be2df8a70c2ddc46",
+      "artifact.link.create": "3f93873f897d400b7c2effab7e8c02f181f560447fcb4700927b7f6a3272a6ae",
+      "artifact.link.revoke": "da371ee1e141c623dbdf48d2d855df86e77b46b71abbed24efc6a917337ca6f3",
+      "artifact.link.scope": "3ed02fdc189d3002003affd945c8e0ab41ce59903a7df5a600d2720a349f907e"
     },
     "tr": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",

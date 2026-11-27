@@ -521,3 +521,11 @@ the owner's GitHub Project. `dev stack --github OWNER/REPO --pr N` shows
 open PRs whose base and head branches depend on each other in that repository.
 `dev draft --repo DIR --base main --out draft.md` makes a local PR draft with
 the commit subjects, exact revisions, change summary and repository template.
+
+### Developer hosts and worker attempts
+
+- `dev host status --host ALIAS --folder /repo` reads a remote Git checkout using the operating system's trusted SSH host keys.
+- `dev host forward --host ALIAS --port 3000 --local 4000` previews the route. Add `--connect` to keep it open until interrupted. Both ends bind to loopback.
+- `dev attempt start --repo DIR --host NAME` issues an attempt number. Record the worker's result with `finish --attempt N --exit CODE --host NAME --artifact FILE`. `show` lists receipts stored for that checkout. `--retry` supersedes an unfinished attempt.
+- `dev sandbox start --repo DIR --image LOCAL_IMAGE --minutes 15` creates an expiring Docker container with a copy of committed files, isolated networking and no host mount. The local image must provide sleep. Use `list` or `stop --id FULL_ID` on the same checkout.
+- On Windows, `dev host wsl-list` shows installed user distributions. `dev host wsl-status --distro NAME --folder /repo` reads the exact Git revision in that distribution.

@@ -2,7 +2,7 @@
 // Simple mode's composer: one pill with a round + (attach, Work until done or Finish together, Teach a task), a chip for a
 // mode only while this conversation turns it on, and one round button in the bot's tone that calls, sends or stops.
 // Advanced keeps its row of buttons.
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -131,6 +131,29 @@ describe("the Simple composer in a bot chat", () => {
     const row = menu()!.querySelector("[data-menu-key='attach']")!.className.split(" ");
     expect(row).toEqual(expect.arrayContaining(["h-[34px]", "gap-2", "px-3", "text-[15px]"]));
     expect(menu()!.className.split(" ")).toEqual(expect.arrayContaining(["popover-surface", "rounded-[12px]", "w-max", "min-w-[200px]", "max-w-[280px]"]));
+  });
+
+  it("waits for the selected invoice and sends the verified lines with the current draft", async () => {
+    const message = { id: "invoice", role: "bot", kind: "text", text: "[Totals](file:///work/invoices.csv)" } as Bot["messages"][number];
+    const file = () => Response.json({ sha256: "f".repeat(64), text: "invoice,00123,19.95" });
+    let finish!: (reply: Response) => void;
+    let reads = 0;
+    vi.stubGlobal("fetch", (url: string) => {
+      if (!String(url).endsWith("/messages/invoice/file")) return Promise.resolve(Response.json({}));
+      return ++reads === 1 ? new Promise<Response>(resolve => { finish = resolve; }) : Promise.resolve(file());
+    });
+    restoreComposerDraft(`bot:${bot.id}:${bot.threadId}`, { text: "Compare these totals", attachments: [] });
+    render({ bot: { ...bot, messages: [message] } });
+    click(container.querySelector("fieldset button"));
+    expect(sendButton()?.disabled).toBe(true);
+    click(sendButton());
+    container.querySelector("textarea")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    expect(fixture.dispatch).not.toHaveBeenCalledWith(expect.objectContaining({ type: "send" }));
+    await act(async () => finish(file()));
+    expect(sendButton()?.disabled).toBe(false);
+    await act(async () => sendButton()?.click());
+    expect(fixture.dispatch).toHaveBeenCalledWith(expect.objectContaining({ type: "send", text: expect.stringContaining("invoice,00123,19.95") }));
+    expect(reads).toBe(2);
   });
 
   it("starts a /learn draft from Teach a task, ahead of anything already typed", () => {

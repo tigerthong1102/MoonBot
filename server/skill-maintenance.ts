@@ -15,13 +15,13 @@ function workflowMentions(value: unknown, matches: (text: string) => boolean): b
 }
 
 export function skillDependencies(name: string, botId: string, routines: RoutineRef[], templates: NewBotDefaults | undefined,
-  bots: readonly { id: string; assignedSkills?: string[] }[], groups: readonly { id: string; memberIds: string[] }[] = [],
+  ownerAssignments: readonly string[] | undefined, groups: readonly { id: string; memberIds: string[] }[] = [],
   presets: readonly { skills?: string[] }[] = []): Set<string> {
   const kinds = new Set<string>();
   const mentions = (text: string) => skillMentions(text).includes(name);
   if (routines.some(routine => (routine.botId === botId || groups.some(group => group.id === routine.groupId && group.memberIds.includes(botId))) && mentions(routine.prompt))) kinds.add("routine");
   if (presets.some(preset => preset.skills?.includes(name)) || templates?.skills.some(skill => skill.name === name || mentions(skill.text)) || templates?.routines.some(routine => mentions(routine.prompt))) kinds.add("template");
-  if (bots.some(bot => bot.assignedSkills?.includes(name))) kinds.add("team");
+  if (ownerAssignments?.includes(name)) kinds.add("team");
   const workflows = [
     ...listSkills(botId).filter(skill => isBurgerSource(skill.source)).map(skill => ({ name: skill.name, place: { botId } })),
     ...Object.values(readSkillLibraryIndex()).filter(skill => skill.tags?.includes(WORKFLOW_TAG)).map(skill => ({ name: skill.name, place: { everyChat: true as const } })),
@@ -44,7 +44,6 @@ export function similarLearnedSkills(botId: string, name: string): string[] {
   });
 }
 
-/** An explicit choice keeps one reviewed body and archives the redundant one intact for rollback. */
 export function consolidateLearnedSkill(botId: string, redundant: string, revision: string, keep: string, keepRevision: string, referenced: boolean) {
   const target = listSkills(botId).find(skill => skill.name === keep && skill.enabled && skill.reviewedRevision === keepRevision);
   if (!target || revision.split(":")[1] !== keepRevision.split(":")[1] || !similarLearnedSkills(botId, redundant).includes(keep)) {

@@ -21,7 +21,7 @@ import { alternateSend, alternateSendLabel, useFollowUpDefault } from "@/lib/fol
 import {
   draftRevision,
   appendDraftAttachments,
-  changeDraftAttachmentPending,
+  changeDraftAttachmentPending, isDraftAttachmentPending,
   forgetFailedComposerSend,
   markDraftEdited,
   prependComposerDraft,
@@ -528,7 +528,7 @@ export function Composer({
     }
   };
   const send = async (followUp: FollowUp | undefined = followUpFor(false)) => {
-    if (locked || attachmentPending || activation.pending || sources.busy.current) return;
+    if (locked || isDraftAttachmentPending(draftId) || activation.pending || sources.busy.current) return;
     if (
       attachments.some((attachment) => attachment.kind === "image") &&
       !imageTargetsSupport(effectiveText, effectiveChannelMode)
@@ -735,7 +735,7 @@ export function Composer({
           </div>
         )}
         <PointedChips threadId={threadId} />{!group && bot && <SetupRequestChip bot={bot} threadId={threadId} />}
-        {!locked && <ComposerSourceLines key={threadId} threadId={threadId} messages={group ? group.messages : bot ? visibleMessages(bot) : []} attach={a => editAttachments(current => [...current, a])} />}
+        {!locked && <ComposerSourceLines key={draftId} draftId={draftId} threadId={threadId} messages={group ? group.messages : bot ? visibleMessages(bot) : []} attach={a => editAttachments(current => [...current, a])} />}
         <ComposerAttachments threadId={threadId}
           items={attachments}
           onAdd={addAttachments}

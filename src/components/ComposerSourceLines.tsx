@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
+import { changeDraftAttachmentPending } from "@/lib/drafts";
 import { pasteAttachment, type PasteAttachment } from "@/lib/composer-attachments";
 import { fetchSourceLines, type SourceLineReference } from "@/lib/source-line-reference";
 import { collectMessageFiles } from "./AttachmentGallery";
@@ -17,22 +18,30 @@ function sourceEntries(messages: readonly Message[]) {
   return Array.from(new Map(files.map(file => [file.id, file])).values());
 }
 
-export function ComposerSourceLines({ messages, threadId, attach }: { messages: Message[]; threadId: string; attach(file: PasteAttachment): void }) {
+export function ComposerSourceLines({ messages, threadId, draftId, attach }: { messages: Message[]; threadId: string; draftId: string; attach(file: PasteAttachment): void }) {
   const [choice, setChoice] = useState(""), [start, setStart] = useState("1"), [end, setEnd] = useState("1");
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);
-  const live = useRef(true);
-  useEffect(() => { live.current = true; return () => { live.current = false; }; }, []);
+  const active = useRef<AbortController | null>(null);
+  useEffect(() => () => active.current?.abort(), []);
   const entries = useMemo(() => sourceEntries(messages), [messages]);
   if (!entries.length) return null;
   const selected = entries.find(e => e.id === choice) ?? entries[0];
   const add = async () => {
+    if (active.current) return;
+    const request = new AbortController();
+    active.current = request;
+    changeDraftAttachmentPending(draftId, true);
     setBusy(true); setError("");
     try {
       const ref = { threadId, messageId: selected.messageId, path: selected.path, name: selected.name, start: Number(start), end: Number(end) };
-      const { sha256 } = await fetchSourceLines(ref, threadId);
-      if (live.current) attach({ ...pasteAttachment(`${ref.name} · L${ref.start}–${ref.end} · ${sha256.slice(0, 12)}`), resource: { ...ref, sha256 } });
-    } catch (e) { if (live.current) setError(e instanceof Error ? e.message : String(e)); }
-    finally { if (live.current) setBusy(false); }
+      const { sha256 } = await fetchSourceLines(ref, threadId, request.signal);
+      if (!request.signal.aborted) attach({ ...pasteAttachment(`${ref.name} · L${ref.start}–${ref.end} · ${sha256.slice(0, 12)}`), resource: { ...ref, sha256 } });
+    } catch (e) { if (!request.signal.aborted) setError(e instanceof Error ? e.message : String(e)); }
+    finally {
+      active.current = null;
+      changeDraftAttachmentPending(draftId, false);
+      if (!request.signal.aborted) setBusy(false);
+    }
   };
   return <details className="text-xs text-ink-secondary"><summary className="cursor-pointer">{t("composer.sourceLines")}</summary>
     <fieldset disabled={busy} className="flex flex-wrap items-center gap-2 py-2">

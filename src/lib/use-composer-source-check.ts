@@ -1,7 +1,7 @@
 import { useRef } from "react";
 import { t } from "./i18n";
 import type { Attachment } from "./composer-attachments.ts";
-import { draftRevision } from "./drafts.ts";
+import { draftRevision, isDraftAttachmentPending } from "./drafts.ts";
 import { fetchSourceLines, type SourceLineReference } from "./source-line-reference.ts";
 
 export function useComposerSourceCheck(threadId: string, draftId: string, activeDraft: { current: string }, notice: (error: string) => void) {
@@ -22,7 +22,7 @@ export function useComposerSourceCheck(threadId: string, draftId: string, active
   };
   const prepare = async (attachments: Attachment[], refs: SourceLineReference[]): Promise<Attachment[] | null> => {
     const texts = await verify(refs);
-    if (!texts) return null;
+    if (!texts || isDraftAttachmentPending(draftId)) return null;
     let index = 0;
     return attachments.map(a => a.kind === "paste" && a.resource ? { ...a, text: texts[index++]! } : a);
   };

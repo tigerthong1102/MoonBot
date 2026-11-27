@@ -1,10 +1,10 @@
 import { isSourceLineReference, type SourceLineReference } from "../../shared/source-line-reference.ts";
 export type { SourceLineReference } from "../../shared/source-line-reference.ts";
 
-export async function fetchSourceLines(ref: Omit<SourceLineReference, "sha256"> & { sha256?: string }, threadId: string) {
+export async function fetchSourceLines(ref: Omit<SourceLineReference, "sha256"> & { sha256?: string }, threadId: string, signal?: AbortSignal) {
   if (ref.threadId !== threadId) throw new Error("Choose a file in the current conversation.");
   const response = await fetch(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(ref.messageId)}/file`, {
-    method: "POST", cache: "no-store", headers: { "content-type": "application/json" },
+    method: "POST", cache: "no-store", signal, headers: { "content-type": "application/json" },
     body: JSON.stringify({ path: ref.path, sourceLines: { start: ref.start, end: ref.end, sha256: ref.sha256 } }),
   });
   const result = await response.json() as Record<string, unknown>;

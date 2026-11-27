@@ -24,7 +24,7 @@ export function runPersistentCli(args: string[]): number {
     return 2;
   }
   // tmux restricts its default socket directory to the OS user. Keep unrelated StartupBot profiles separate.
-  const dataDir = resolve(process.env.OMB_DATA_DIR || resolve(homedir(), ".openmausbot"));
+  const dataDir = resolve(process.env.OMB_DATA_DIR || resolve(homedir(), ".startupbot"));
   const socket = "startupbot-" + createHash("sha256").update(dataDir).digest("hex").slice(0, 24);
   const target = "=" + name;
   let command: string[];

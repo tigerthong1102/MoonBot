@@ -530,3 +530,18 @@ note, then export the notes with both commits, the file and left/right line.
 Pass `--github OWNER/REPO --pr NUMBER` to include live checks, discussions
 and resolved/outdated thread status. This requires GitHub CLI access and the
 PR's exact head in the selected checkout. The command creates a new file.
+
+Use `dev worktree create --repo DIR --title "Task name" --out NEW_DIR --base main`
+to create a task branch and checkout. Select an issue or PR by adding
+`--github OWNER/REPO --issue N` or `--pr N`. For a PR the exact commit must
+already be available locally. `dev worktree show --repo NEW_DIR` displays
+changes, and `checkpoint --repo NEW_DIR --note TEXT` records progress.
+`setup --repo DIR` previews scripts and shared directories from tracked
+orca.yaml. `remove-clean --repo DIR --target NEW_DIR` preserves the branch
+and refuses changed, untracked, ignored or locked worktrees.
+
+`dev issues --github OWNER/REPO` reads GitHub Issues. Add `--project N` for
+the owner's GitHub Project. `dev stack --github OWNER/REPO --pr N` shows
+open PRs whose base and head branches depend on each other in that repository.
+`dev draft --repo DIR --base main --out draft.md` makes a local PR draft with
+the commit subjects, exact revisions, change summary and repository template.

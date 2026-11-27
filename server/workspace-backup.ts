@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { isAbsolute, join, parse, posix, relative, resolve, sep, win32 } from "node:path";
 import { homedir } from "node:os";
+import { assertRestoreDatabasesIdle } from "./workspace-restore-holders.ts";
 import { backup, DatabaseSync } from "node:sqlite";
 import { pipeline } from "node:stream/promises";
 import { Worker } from "node:worker_threads";
@@ -919,6 +920,8 @@ export function applyPendingWorkspaceRestore(dataDir: string): WorkspaceRestoreR
   if (existsSync(journalFile)) {
     const previous = readJournal(journalFile);
     if (previous.phase === "applying") {
+      assertRestoreDatabasesIdle(dataDir, Object.keys(SNAPSHOT_DATABASES));
+      assertRestoreDatabasesIdle(join(root, `safety-${previous.id}`, "data"), Object.keys(SNAPSHOT_DATABASES));
       rollback(dataDir, previous);
       writeJson(journalFile, { ...previous, phase: "rolled-back" });
       rmSync(pendingFile, { force: true });
@@ -953,6 +956,7 @@ export function applyPendingWorkspaceRestore(dataDir: string): WorkspaceRestoreR
   });
   if ("result" in preparation) return preparation.result;
   const prepared = preparation.prepared;
+  assertRestoreDatabasesIdle(dataDir, Object.keys(SNAPSHOT_DATABASES));
   folder(join(safetyCopyPath, "data"));
   const journal: RestoreJournal = {
     id: pending.id, phase: "applying",

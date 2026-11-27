@@ -1,5 +1,8 @@
 import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { Readable } from "node:stream";
+import { ATTACHMENTS_DIR, deleteAttachment, saveFile } from "./attachments.ts";
+import type { SavedBotAttachment } from "./bot-attachment.ts";
 import type { Message } from "./store.ts";
 import { zipDirectoryLocation, zipMembers } from "./zip-archive.ts";
 
@@ -8,7 +11,25 @@ const required = {
   "reconciliation.xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "sources.csv": "text/csv",
 } as const;
-export const RECONCILIATION_DELIVERY_PROMPT = "Attach report.pdf (report), reconciliation.xlsx (working papers) and sources.csv (a table identifying the source for each result) with attach_file in the final turn. The report is delivered to the routine’s selected StartupBot conversation. Keep files there for review. External delivery requires a separate request after verification.";
+export const RECONCILIATION_DELIVERY_PROMPT = "Attach report.pdf (report), reconciliation.xlsx (working papers) and sources.csv (a table identifying the source for each result) with attach_file in the final turn. To create a file in this confined turn, use its exact name and pass its bytes as a data:<mime>;base64,<content> path (up to 256 KiB per file). The report is delivered to the routine’s selected StartupBot conversation. Keep files there for review. External delivery requires a separate request after verification.";
+
+export async function saveReconciliationBytes(path: string, name?: string): Promise<SavedBotAttachment> {
+  const invalid = () => Object.assign(new Error("Use a required reconciliation filename and its matching base64 file contents (up to 256 KiB)."), { status: 400 });
+  if (!name || !Object.hasOwn(required, name)) throw invalid();
+  const artifact = name as keyof typeof required;
+  const mime = required[artifact], prefix = "data:" + mime + ";base64,";
+  if (!path.startsWith(prefix)) throw invalid();
+  const encoded = path.slice(prefix.length);
+  if (!encoded || encoded.length > Math.ceil(256 * 1024 / 3) * 4) throw invalid();
+  const bytes = Buffer.from(encoded, "base64");
+  if (bytes.length > 256 * 1024 || bytes.toString("base64") !== encoded) throw invalid();
+  const saved = await saveFile(Readable.from([bytes]), name, mime, { expectedBytes: bytes.length });
+  if (!usable(ATTACHMENTS_DIR, saved.path, artifact)) {
+    deleteAttachment(saved.path);
+    throw invalid();
+  }
+  return { attachment: { kind: "file", name, path: saved.path, mime }, bytes: saved.bytes };
+}
 
 export function reconciliationFiles(lines: readonly Message[], turnId: string | undefined) {
   return lines.filter(line => line.role === "bot" && line.kind === "text" && Boolean(turnId) && (line.turnId ?? line.sentInTurn) === turnId)

@@ -30,6 +30,7 @@ import {
   turnCostFromRunningTotal,
   type ClaudeConfig,
 } from "./claude.ts";
+import { deliveryInventoryAllowed } from "./claude-delivery.ts";
 import { spawnContractDiff } from "./claude-spawn-contract.ts";
 import { TEAM_TOOLS_FAILED } from "./team-tools.ts";
 import { claudeLimitMessage } from "./claude-limits.ts";
@@ -910,6 +911,20 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(Object.keys(seen.mcpConfig.mcpServers)).not.toContain("planted");
     expect(after("--allowedTools").split(",")).not.toContain("mcp__browser");
     expect(recorder.events.find((e) => e.type === "turn.completed")).toMatchObject({ ok: true });
+  });
+
+  it("confines an internal reconciliation to local source reads and isolated MCP settings", async () => {
+    await create(undefined, { FAKE_CLAUDE_VERSION: "2.1.284" });
+    expect(deliveryInventoryAllowed(["Read", "ToolSearch", "mcp__agents__attach_file"])).toBe(true);
+    for (const inventory of [undefined, ["UnrecognizedNativeTool"], ["mcp__unknown__example"], ["WebSearch"]]) expect(deliveryInventoryAllowed(inventory)).toBe(false);
+    const dump = join(scratch, "reconciliation-launch.json");
+    process.env.FAKE_CLAUDE_DUMP = dump;
+    await instance.adapter.sendTurn({ threadId: "reconciliation", text: "Review the local source.", approvalMode: "ask", guestConfined: true, internalDeliveryOnly: true });
+    await recorder.until(event => event.type === "turn.completed");
+    const { argv, settings } = JSON.parse(readFileSync(dump, "utf8"));
+    expect(argv).toContain("--strict-mcp-config");
+    expect(argv[argv.indexOf("--tools") + 1]).toBe("Read,Grep,Glob");
+    expect(settings.permissions.deny).toEqual(expect.arrayContaining(["Bash", "PowerShell", "WebFetch", "WebSearch", "Edit", "Write"]));
   });
 
   it("stops a guest's turn when the CLI kept a shell, and refuses one too old to confine it", async () => {

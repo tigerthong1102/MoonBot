@@ -9,12 +9,12 @@ const run = (access?: RoutineRun["access"]): RoutineRun => ({
   manual: false, createdAt: 0, threadId: "run-thread", checkKey: "chk-1", ...(access ? { access } : {}),
 });
 
-function fence(access: RoutineRun["access"] | null = "read-and-draft") {
+function fence(access: RoutineRun["access"] | null = "read-and-draft", fields: Partial<RoutineRun> = {}) {
   const decided: unknown[] = [];
   const drafted: string[] = [];
   const respond = vi.fn(async () => "rejected" as const);
   const gate = createReadAndDraft({
-    runFor: (threadId) => (threadId === "run-thread" ? run(access ?? undefined) : null),
+    runFor: (threadId) => (threadId === "run-thread" ? { ...run(access ?? undefined), ...fields } : null),
     adapter: () => ({ respondToRequest: respond, interruptTurn: vi.fn(async () => {}) }) as never,
     stale: () => false, decide: (row) => decided.push(row), release: () => {},
     mayDraft: (_key, threadId, to) => threadId === "t-ada" && to === "ada@x.test" && !drafted.includes(threadId),
@@ -72,6 +72,13 @@ describe("what a read-and-draft run may do through the connected-apps relay", ()
 });
 
 describe("the fence around a read-and-draft run", () => {
+  it("accepts an internal artifact upload only for the active reconciliation and its owning bot", () => {
+    const refuses = (fields: Partial<RoutineRun>, sender = bot) => fence("read-and-draft", fields).gate.refusesRoute(sender, "run-thread", "POST", "/api/internal/attach-file");
+    expect(refuses({ deliverables: "reconciliation" })).toBe(false);
+    expect(refuses({})).toBe(true);
+    expect(refuses({ deliverables: "reconciliation", status: "completed" })).toBe(true);
+    expect(refuses({ deliverables: "reconciliation" }, { ...bot, id: "other" })).toBe(true);
+  });
   it("holds only in a read-and-draft run's own conversation", () => {
     expect(fence().gate.confines("run-thread")).toBe(true);
     expect(fence().gate.confines("main-chat")).toBe(false);

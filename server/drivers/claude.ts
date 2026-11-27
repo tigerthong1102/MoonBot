@@ -1,5 +1,6 @@
 // Claude Code over stream-json both ways: prompt on stdin, one retained CLI process per thread,
 // each turn settled by the CLI's own `result` frame.
+import { DELIVERY_TOOLS, DELIVERY_DENIED, deliveryInventoryAllowed } from "./claude-delivery.ts";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
@@ -976,6 +977,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
     const retryState = new Map<string, { attempt: number; cancelled: boolean; rebuilt?: boolean }>();
 
     const sendTurn = async (turn: SendTurnInput, logicalTurnId?: string) => {
+      if (turn.internalDeliveryOnly) turn = { ...turn, guestConfined: true, approvalMode: "ask", approvalModeNow: () => "ask", mcpFromUserConfig: false, userSkillsDir: undefined };
       if (startupModelRefresh) await startupModelRefresh;
       turn = { ...turn, toolScope: assertToolScopeSupported(DRIVER_KIND, turn.toolScope) };
       if (config.managedModels && (!turn.model || !config.managedModels.includes(turn.model))) throw new Error("This model is not assigned to this workspace.");
@@ -1028,7 +1030,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       if (turn.guestConfined && permissionMode !== "default") {
         throw new Error("A guest's turn on this Cloud runs only in Ask.");
       }
-      if (turn.guestConfined) args.push("--restricted", "--tools", GUEST_CLAUDE_TOOLS.join(","));
+      if (turn.guestConfined) args.push("--restricted", "--tools", (turn.internalDeliveryOnly ? DELIVERY_TOOLS : GUEST_CLAUDE_TOOLS).join(","));
       else if (config.tools !== undefined) args.push("--tools", config.tools.join(","));
       const turnEnvironment = environment();
       const launchCli = findCliCandidates(config.cli, turnEnvironment.PATH ?? "")[0]; await ensureCliVersion(turnEnvironment);
@@ -1040,9 +1042,10 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       const replaysUserMessages = turnCliVersion === null || versionAtLeast(turnCliVersion, CLAUDE_REPLAY_FLOOR);
       if (replaysUserMessages) args.push("--replay-user-messages");
       const isolated = !inheritsUserConfig(turnEnvironment); const projectSettingsOnly = isolated && claudeCliSupports(turnCliVersion, "--setting-sources");
-      const disallowed = [...(config.disallowedTools ?? []), ...unusableBuiltIns({ isolated, listsTools: config.tools !== undefined, guest: Boolean(turn.guestConfined) }), ...claudeDisabledNativeSkillRules(botId)];
+      const disallowed = [...(turn.internalDeliveryOnly ? DELIVERY_DENIED : []), ...(config.disallowedTools ?? []), ...unusableBuiltIns({ isolated, listsTools: config.tools !== undefined, guest: Boolean(turn.guestConfined) }), ...claudeDisabledNativeSkillRules(botId)];
       if (disallowed.length) args.push("--disallowedTools", disallowed.join(","));
-      if (turn.toolScope !== undefined && (!isolated || turn.mcpFromUserConfig || turnCliVersion === null || !claudeCliSupports(turnCliVersion, "--strict-mcp-config"))) {
+      if (turn.internalDeliveryOnly && !isolated) throw new Error("Disable inherited Claude settings for the reconciliation or select an isolated Claude Agent account.");
+      if ((turn.toolScope !== undefined || turn.internalDeliveryOnly) && (!isolated || turn.mcpFromUserConfig || turnCliVersion === null || !claudeCliSupports(turnCliVersion, "--strict-mcp-config"))) {
         throw new Error("Claude cannot confirm a restricted MCP configuration for this account. Disable inherited Claude MCP servers and use a current, identifiable Claude CLI before using tool selection.");
       }
       if (isolated) {
@@ -1171,7 +1174,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
       // Project-only settings still find the personal memory via ancestors when the bot lives under HOME.
       if (isolated) own.claudeMdExcludes = [join(homedir(), ".claude", "CLAUDE.md")];
       if (hooks) own.hooks = claudeHookSettings(HOOK_HELPER_PATH);
-      if (turn.guestConfined) own.permissions = GUEST_CLAUDE_PERMISSIONS;
+      if (turn.guestConfined) own.permissions = turn.internalDeliveryOnly ? { ...GUEST_CLAUDE_PERMISSIONS, deny: [...GUEST_CLAUDE_PERMISSIONS.deny, ...DELIVERY_DENIED] } : GUEST_CLAUDE_PERMISSIONS;
       // Approvals and browser credentials expire at the turn boundary; native background workers and cron jobs must not outlive it.
       env.CLAUDE_CODE_DISABLE_BACKGROUND_TASKS = env.CLAUDE_CODE_DISABLE_CRON = "1";
       // Never for a guest: --restricted leaves project settings out, and a hook is a command. The MCP output limit comes after, so one the bot set there is kept.
@@ -1454,8 +1457,10 @@ export const ClaudeDriver: ProviderDriver<ClaudeConfig> = {
             if (o.subtype === "init") {
               // A guest's CLI that kept a command-running tool is stopped before it does anything.
               const tools: unknown[] = Array.isArray(o.tools) ? o.tools : [];
-              if (session.turn?.input.guestConfined && (o.permissionMode !== "default" || tools.some((tool) => typeof tool === "string" && GUEST_FORBIDDEN_TOOLS.has(tool)))) {
-                emit({ ...base(threadId, currentTurnId()), type: "runtime.error", message: withWhy("This Claude Code kept its shell, so it can't run this turn. Update Claude Code.", session.turn?.input.confinedWhy) });
+              const deliveryChanged = session.turn?.input.internalDeliveryOnly && !deliveryInventoryAllowed(o.tools);
+              if (deliveryChanged || (session.turn?.input.guestConfined && (o.permissionMode !== "default" || tools.some(tool => typeof tool === "string" && GUEST_FORBIDDEN_TOOLS.has(tool))))) {
+                const message = deliveryChanged ? "Claude Code exposed tools outside this reconciliation. Update Claude Code or choose an isolated Claude Agent account." : "This Claude Code kept its shell, so it can't run this turn. Update Claude Code.";
+                emit({ ...base(threadId, currentTurnId()), type: "runtime.error", message: withWhy(message, session.turn?.input.confinedWhy) });
                 session.closing = true;
                 stopSession(session);
                 break;

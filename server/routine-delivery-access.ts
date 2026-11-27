@@ -6,18 +6,28 @@ import type { RoutineRun } from "./routines.ts";
 
 export const INTERNAL_DELIVERY_ONLY = "This reconciliation delivers its verified files to the selected StartupBot conversation. Open the completed report there to request a separate external delivery.";
 
+export const DELIVERY_ENGINE_REFUSAL = "Choose Claude Agent with an isolated, up-to-date Claude Code account to run this reconciliation and attach its verified files.";
+const integrations = new Set(["agents", "hooks", "composio", "email"]);
+export function confineDeliveryIntegrations<T extends object>(mounts: T) {
+  for (const key of Object.keys(mounts) as Array<keyof T>) if (!integrations.has(String(key))) delete mounts[key];
+}
+const deliveryRoutes = new Set(["POST /api/internal/attach-file", "POST /api/internal/hook", "POST /api/internal/email/mcp",
+  "POST /api/internal/connectors/mcp", "GET /api/internal/tool-result", "POST /api/internal/tool-result"]);
+export function deliveryRouteAllowed(method: string, path: string) { return deliveryRoutes.has(method + " " + path); }
+
 type Turn = { botId: string; threadId: string };
 type RunOf = (threadId: string) => Pick<RoutineRun, "deliverables" | "botId"> | null;
 
-export function internalDeliveryTurn(turn: Turn, activeRun: RunOf, coordinator: Pick<Coordinator, "inThread" | "node">): boolean {
+export function internalDeliveryTurn(turn: Turn, activeRun: RunOf, coordinator: Pick<Coordinator, "inThread" | "node">, assigned?: string): boolean {
   const isContracted = ({ botId, threadId }: Turn) => {
     const run = activeRun(threadId);
     return run?.botId === botId && run.deliverables === "reconciliation";
   };
   if (isContracted(turn)) return true;
   // A delegated worker inherits the originating run's delivery target while handling that assignment.
-  return coordinator.inThread(turn.threadId, { open: true }).some(node => {
-    if (node.botId !== turn.botId || !node.parentId || node.status !== "running") return false;
+  const assignment = assigned ? coordinator.node(assigned) : undefined;
+  return [...coordinator.inThread(turn.threadId, { open: true }), ...(assignment ? [assignment] : [])].some(node => {
+    if (node.threadId !== turn.threadId || node.botId !== turn.botId || !node.parentId || (node.status !== "running" && !(node.id === assigned && node.status === "queued"))) return false;
     const root = coordinator.node(node.rootId);
     return root !== undefined && isContracted(root);
   });

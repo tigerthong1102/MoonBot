@@ -254,3 +254,22 @@ export async function attachForTurn<S>(
     }
   }
 }
+
+/** Keep the attachment receipt and errors identical for existing workspace files and generated run artifacts. */
+export async function attachmentResponse(path: string, name: string | undefined, max: number, attach: () => Promise<AttachForTurnOutcome<SavedBotAttachment>>) {
+  try {
+    const outcome = await attach();
+    if (outcome.status === "limit") return { status: 429, body: { error: `You already attached ${max} files this turn. Put the rest in one document or archive summary instead.` } };
+    if (outcome.status === "ended") return { status: 409, body: { error: "This turn ended before the file could be attached, so nothing was posted." } };
+    const { saved } = outcome;
+    const label = saved.attachment.kind === "file" ? saved.attachment.name : name?.trim() || path.split(/[\\/]/).at(-1) || "image";
+    return { status: 200, body: { ok: true, name: label, bytes: saved.bytes } };
+  } catch (error) {
+    const code = (error as { status?: unknown } | null)?.status;
+    const status = typeof code === "number" ? code : 500;
+    const message = status === 404
+      ? `No file was found at ${path}. Save it under /home/cua/workspace (or your working folder) and pass its exact path.`
+      : error instanceof Error ? error.message : "could not attach that file";
+    return { status, body: { error: message } };
+  }
+}

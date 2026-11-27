@@ -115,6 +115,7 @@ export interface BridgeOptions {
   gate?: { url: string; token: string; describe?: (frame: unknown) => Record<string, string> };
   journal?: { url: string; token: string; platform?: NodeJS.Platform };
   rewriteResponse?: (line: string) => string;
+  rewriteRequest?: (line: string) => string;
   /** A tools/call the bridge carries out itself through the child, answering the agent with what this resolves to; null
    * forwards the frame as it came. Frames after it wait, so the agent's calls still act in order. */
   relay?: (call: ToolCall, child: ChildCalls) => Promise<unknown> | null;
@@ -460,7 +461,8 @@ export function runMcpBridge(options: BridgeOptions): void {
     respond(JSON.stringify({ jsonrpc: "2.0", id: frame.id, result }));
   };
   let sending: Promise<void> = Promise.resolve();
-  const forward = (line: string): void | Promise<void> => {
+  const forward = (original: string): void | Promise<void> => {
+    const line = options.rewriteRequest?.(original) ?? original;
     if (!options.relay && !respawn) {
       child.stdin.write(line + "\n");
       return;

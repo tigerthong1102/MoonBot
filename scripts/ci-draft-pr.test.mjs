@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { selectEventPull } from "./ci-draft-pr.mjs";
 const repo = "example/checkout", sha = "a".repeat(40);

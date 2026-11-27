@@ -396,7 +396,7 @@ export function LiveBrowser({ bot, signIn, page }: { bot: Bot; signIn?: BrowserS
     <dialog ref={profilesDialog} onClose={() => setShowProfiles(false)} onClick={(e) => { if (e.target === e.currentTarget) setShowProfiles(false); }} className="m-auto w-[min(420px,calc(100%-32px))] max-h-[80vh] overflow-auto rounded-2xl border border-hairline/50 bg-card p-5 text-ink shadow-2xl backdrop:bg-black/40">
       <div className="mb-4 flex items-center justify-between"><h2 className="text-[15px] font-medium">{t("browser.panel.profiles")}</h2><button className={button} aria-label={t("browser.panel.closeProfiles")} onClick={() => setShowProfiles(false)}><X size={16} /></button></div>
       {(heldElsewhere || (you && takeStatus !== "")) && <p className="mb-3 text-[12px] text-ink-secondary">{t(heldElsewhere ? "browser.profiles.heldElsewhere" : "browser.profiles.busy")}</p>}
-      <p className="mb-3 text-xs text-ink-secondary">{t("browser.context.connection", { host: state.config?.computerName?.trim() || window.location.hostname, profile: profileName, transport: stream ? "WebSocket v2" : t("browser.context.live") })}</p>
+      <p className="mb-3 text-xs text-ink-secondary">{t("browser.context.connection", { host: state.config?.computerName?.trim() || globalThis.location?.hostname || "—", profile: profileName, transport: stream ? "WebSocket v2" : t("browser.context.live") })}</p>
       <BrowserProfilesManager bot={bot} disabled={heldElsewhere || takeStatus === "pending" || takeStatus === "slow"} onProfileChanged={() => { setShowProfiles(false); reconnect(); }} />
     </dialog>
     {/* Security: a password or code typed here goes only to the page's focused field; it is never held in state, logged or shown. */}

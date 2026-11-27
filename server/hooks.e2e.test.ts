@@ -1,6 +1,6 @@
 // POSIX-gated: the fake CLI is a shebang script.
 import { spawn, type ChildProcess } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,7 +24,7 @@ interface Msg {
   engineCompaction?: true;
 }
 
-const BIG = `line ${"x".repeat(80)}\n`.repeat(200); // ~17 KB: past the 6 KB preview
+const BIG = `line ${"x".repeat(80)}\n`.repeat(200) + "INV-314 = 19.540.000 VND";
 
 function harness(label: string, serverEnv: Record<string, string>, instanceEnv: Record<string, string> = {}) {
   const PORT = workerPort(18800, 10_000);
@@ -143,7 +143,8 @@ posixOnly("engine hooks e2e (fake Claude honouring the settings hooks)", () => {
 });
 
 posixOnly("engine hooks e2e: compaction", () => {
-  const h = harness("compact", {}, { FAKE_CLAUDE_COMPACT: "1" });
+  const key = "isolated-hook-read-fixture";
+  const h = harness("compact", { OMB_TEST_INTERNAL_CAPABILITY_KEY: key }, { FAKE_CLAUDE_COMPACT: "1" });
 
   it("records the compaction in the transcript and hands the latest digests back to the engine as plain-text context", async () => {
     const bot = await h.runTurn();
@@ -170,6 +171,54 @@ posixOnly("engine hooks e2e: compaction", () => {
     expect(replies.at(-1)!.text).toContain("did in an earlier turn");
     expect(replies.at(-1)!.text).toContain("Bash ×1");
   }, 90_000);
+
+  it("reads and cites the end of the redacted tool spill after two native compactions, then honors revocation and deletion", async () => {
+    await h.api("PUT", "/api/config", { context: { replayToolHistory: true } });
+    const bot = await h.runTurn();
+    const threadId = bot.activeTaskId ?? bot.threadId;
+    const row = bot.messages.find((m: Msg) => m.tool?.name === "Bash") as Msg;
+    expect(row.tool?.output).not.toContain("19.540.000");
+    for (let fold = 1; fold <= 2; fold++) {
+      expect((await h.api("POST", `/api/bots/${bot.id}/messages`, { text: `continue fixture ${fold}` })).status).toBe(202);
+      await h.waitFor(async () => {
+        const b = await h.getBot(bot.id);
+        return !b.busy && b.messages.filter((m: Msg) => m.kind === "compaction").length >= fold;
+      }, "the native compaction and its reply");
+      const reply = (await h.getBot(bot.id)).messages.filter((m: Msg) => m.role === "bot" && m.kind === "text").at(-1);
+      expect(reply.text).toContain(row.id);
+    }
+    const capability = await h.api("POST", "/api/testing/internal-capability", { botId: bot.id, threadId }, { "x-openmausbot-test-capability": key });
+    expect(capability.status).toBe(201);
+    const read = (offset: number) => h.api("GET", `/api/internal/session-read?fromBotId=${bot.id}&threadId=${threadId}&messageId=${row.id}&offset=${offset}`, undefined, { authorization: `Bearer ${capability.body.token}` });
+    let page = await read(0);
+    expect(page.status).toBe(200);
+    expect(page.body.messageId).toBe(row.id);
+    expect(page.body.nextOffset).toBe(8000);
+    while (page.body.nextOffset) page = await read(page.body.nextOffset);
+    expect(page.body.text).toContain("INV-314 = 19.540.000 VND");
+    const anchor = bot.messages.find((m: Msg) => m.role === "user");
+    const fork = await h.api("POST", `/api/bots/${bot.id}/tasks/${threadId}/forks`, { messageId: anchor.id });
+    expect(fork.status).toBe(201);
+    const forkToken = await h.api("POST", "/api/testing/internal-capability", { botId: bot.id, threadId: fork.body.task.threadId }, { "x-openmausbot-test-capability": key });
+    const crossRead = await h.api("GET", `/api/internal/session-read?fromBotId=${bot.id}&threadId=${threadId}&messageId=${row.id}`, undefined, { authorization: `Bearer ${forkToken.body.token}` });
+    expect(crossRead.status).toBe(404);
+    const later = bot.messages.findLast((m: Msg) => m.role === "bot" && m.kind === "text");
+    const retained = await h.api("POST", `/api/bots/${bot.id}/tasks/${threadId}/forks`, { messageId: later.id });
+    expect(retained.status).toBe(201);
+    const retainedId = retained.body.task.threadId;
+    const retainedToken = await h.api("POST", "/api/testing/internal-capability", { botId: bot.id, threadId: retainedId }, { "x-openmausbot-test-capability": key });
+    const retainedRead = () => h.api("GET", `/api/internal/session-read?fromBotId=${bot.id}&threadId=${retainedId}&messageId=${row.id}&offset=16000`, undefined, { authorization: `Bearer ${retainedToken.body.token}` });
+    expect((await retainedRead()).body.text).toContain("INV-314 = 19.540.000 VND");
+    expect((await h.api("PATCH", `/api/bots/${bot.id}`, { toolScope: { deny: ["native:Bash"] } })).status).toBe(200);
+    expect((await read(0)).status).toBe(404);
+    expect((await retainedRead()).status).toBe(404);
+    expect((await h.api("PATCH", `/api/bots/${bot.id}`, { toolScope: { allow: ["native:Bash"] } })).status).toBe(200);
+    expect((await h.api("DELETE", `/api/bots/${bot.id}/tasks/${threadId}`)).status).toBe(200);
+    expect((await retainedRead()).body.text).toContain("INV-314 = 19.540.000 VND");
+    await h.api("DELETE", `/api/bots/${bot.id}`);
+    expect((await read(0)).status).toBeGreaterThanOrEqual(400);
+    expect(existsSync(join(h.home(), ".startupbot", "tool-results", threadId))).toBe(false);
+  }, 120_000);
 });
 
 posixOnly("engine hooks e2e: a shell call that hit its time limit", () => {

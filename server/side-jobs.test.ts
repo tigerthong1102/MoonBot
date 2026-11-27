@@ -62,7 +62,7 @@ function backgroundEngine(instanceId: string, driverKind: string) {
 
 const bot = (id: string, instanceId: string): SideJobBot => ({ id, name: `Bot ${id}`, threadId: `main-${id}`, modelSelection: { instanceId } });
 
-function setup(options: { helper?: { instanceId: string; model?: string } | null; modelAllowed?: SideJobsDeps["modelAllowed"]; smallModels?: SideJobsDeps["smallModels"]; slots?: SideJobsDeps["slots"] } = {}) {
+function setup(options: { backgroundModel?: SideJobsDeps["backgroundModel"]; helper?: { instanceId: string; model?: string } | null; modelAllowed?: SideJobsDeps["modelAllowed"]; smallModels?: SideJobsDeps["smallModels"]; slots?: SideJobsDeps["slots"] } = {}) {
   const claude = textEngine("claude", "claudeAgent");
   const openrouter = textEngine("openrouter", "openai-compat");
   const acp = backgroundEngine("grok", "grokAgent");
@@ -87,7 +87,7 @@ function setup(options: { helper?: { instanceId: string; model?: string } | null
     bot: (id) => state.bots.get(id),
     instance: (id) => state.instances.get(id) ?? null,
     refusal: (instance) => (state.refused.has(instance.instanceId) ? "the organisation does not allow this engine" : undefined),
-    helper: () => state.helper,
+    helper: () => state.helper, backgroundModel: options.backgroundModel,
     ...(options.modelAllowed ? { modelAllowed: options.modelAllowed } : {}),
     smallModels: options.smallModels ?? { refused: () => new Set(), remember: () => {} },
     assertWithinBudget: () => {
@@ -752,4 +752,21 @@ it("propagates cancellation to a running source provider before releasing its sh
   await next;
   expect(claude.calls.map(call => call.prompt)).toEqual(["upkeep"]);
   expect(slots.running).toBe(0);
+});
+
+
+it("pins a text-only background route to its own instance, current grant and bot budget", async () => {
+  let selection = { instanceId: "openrouter", model: "cheap" };
+  const { jobs, openrouter, state } = setup({ backgroundModel: () => selection });
+  state.instances.set("openrouter", { ...openrouter.instance, models: { default: "cheap", options: [{ id: "cheap", label: "Cheap" }] } });
+  expect(jobs.text("work-bot-offer", "claude")).toBeNull();
+  const writer = jobs.text("compaction", "openrouter", { threadId: "test-thread" })!;
+  await writer.generateText("Summarize");
+  expect(openrouter.calls[0]!.options).toMatchObject({ model: "cheap", requireIsolatedText: true, sourceThreadId: "test-thread" });
+  state.overBudget = true;
+  await expect(async () => writer.generateText("Again")).rejects.toThrow("spend limit");
+  state.overBudget = false;
+  selection = { instanceId: "other-account", model: "cheap" };
+  await expect(async () => writer.generateText("Again")).rejects.toThrow("no longer allowed");
+  expect(openrouter.calls).toHaveLength(1);
 });

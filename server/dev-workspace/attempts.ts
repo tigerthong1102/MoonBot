@@ -1,3 +1,5 @@
+import { basename, dirname } from "node:path";
+import { watch } from "node:fs/promises";
 import { mkdirSync, readFileSync, readdirSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { VerbContext } from "../headless/context.ts";
@@ -12,7 +14,7 @@ export function recordAttempt(repo: string, action: string, args: { host?: strin
   const read = (file: string) => JSON.parse(readFileSync(join(state, file), "utf8"));
   const ids = sequence();
   const last = ids.at(-1) ?? 0;
-  if (action === "show") return { attempts: ids.map(n => ({ ...read(n + ".json"), result: existsSync(join(state, n + ".result")) ? read(n + ".result") : null })) };
+  if (action === "show") return { attempts: ids.map(n => ({ ...read(n + ".json"), diagnostics: readdirSync(state).filter(name => name.startsWith(n + ".diagnostics.")).sort().map(read), result: existsSync(join(state, n + ".result")) ? read(n + ".result") : null })) };
   if (action === "start") {
     if (!args.host?.trim() || args.host.length > 200) throw new Error("Identify the worker host.");
     if (last && !existsSync(join(state, last + ".result"))) {
@@ -39,6 +41,22 @@ export function recordAttempt(repo: string, action: string, args: { host?: strin
 
 export async function attemptCommand(ctx: VerbContext) {
   const repo = resolve(String(ctx.flags.repo || "."));
+  if (ctx.positionals[0] === "diagnose") {
+    const { diagnoseAttempt } = await import("./diagnostics.ts");
+    const file = String(ctx.flags.file || "");
+    const read = () => diagnoseAttempt(repo, Number(ctx.flags.attempt), String(ctx.flags.host || ""), file);
+    let result = await read();
+    if (ctx.flags.watch === true) {
+      ctx.output.progress(result);
+      for await (const event of watch(dirname(resolve(repo, file)), { signal: ctx.signal })) {
+        if (event.filename && event.filename !== basename(file)) continue;
+        const next = await read();
+        if (next.sourceSha256 !== result.sourceSha256) ctx.output.progress(next);
+        result = next;
+      }
+    }
+    return { result, exitCode: EXIT.done, human: [JSON.stringify(result, null, 2)] };
+  }
   const result = recordAttempt(repo, ctx.positionals[0] || "show", { host: typeof ctx.flags.host === "string" ? ctx.flags.host : undefined,
     retry: ctx.flags.retry === true, attempt: Number(ctx.flags.attempt), exit: Number(ctx.flags.exit), artifact: typeof ctx.flags.artifact === "string" ? ctx.flags.artifact : undefined });
   return { result, exitCode: EXIT.done, human: [JSON.stringify(result, null, 2)] };

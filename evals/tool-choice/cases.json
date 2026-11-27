@@ -1,4 +1,5 @@
 [
+  { "id": "vn-invoice-citation", "tools": ["show_widget", "show_html"], "text": "Hồ sơ giả lập gồm HĐ-401 = 125.000 VND và HĐ-402 = 370.000 VND. Hãy tạo biểu đồ ngay trong chat, rồi cho biết hóa đơn lớn nhất và số tiền, ghi nguyên mã chứng từ.", "answer": "370.000", "citation": "HĐ-402", "why": "Checks amount and evidence on the same Vietnamese invoice fixture." },
   { "id": "trigger-on-new-mail", "tools": ["trigger", "trigger_info"], "text": "Bitte nicht mehr regelmäßig nachsehen. Starte dich automatisch, sobald eine neue Mail eintrifft.", "why": "Asked for an event trigger in place of polling." },
   { "id": "my-own-computer", "tools": ["ask_for_computer", "list_shared_computers", "select_computer", "shared_computer"], "text": "Mach das bitte über meinen Mac mini.", "why": "Asked for a named computer in two words." },
   { "id": "what-did-we-decide", "tools": ["session_search"], "text": "Was hatten wir letzte Woche mit dem Lieferanten vereinbart?", "why": "Asked about an earlier conversation." },

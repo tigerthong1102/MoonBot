@@ -12,13 +12,19 @@ import type { UsageRow, UsageTrigger } from "./usage-ledger.ts";
 
 /** config.json `helper`: a connected instance and optionally one of its models. Stored config only, so a settings
  * request cannot set it; a mistyped entry reads as no helper rather than costing the whole config. */
+const routedJobs = ["compaction", "work-bot-offer"] as const;
+type RoutedJob = typeof routedJobs[number];
+const routeShape = z.object({ instanceId: z.string().trim().min(1).max(200), model: z.string().regex(/^[A-Za-z0-9][!-~]{0,499}$/) }).strict();
+
 export const helperStoredShape = {
+  backgroundModels: z.partialRecord(z.enum(routedJobs), routeShape).optional(),
   helper: z.object({
     instanceId: z.string().trim().max(200).optional(),
     model: z.string().trim().max(500).optional(),
   }).optional().catch(undefined),
 };
 export interface HelperConfig {
+  backgroundModels?: Partial<Record<RoutedJob, z.infer<typeof routeShape>>>;
   helper?: { instanceId?: string; model?: string };
 }
 
@@ -64,6 +70,7 @@ export interface SideJobsDeps {
   instance: (instanceId: string) => SideJobInstance | null | undefined;
   refusal: (instance: SideJobInstance) => string | undefined;
   helper: () => { instanceId: string; model?: string } | null;
+  backgroundModel?: (job: RoutedJob) => z.infer<typeof routeShape> | undefined;
   /** Small models each engine instance refused, kept across restarts. */
   smallModels: { refused(instanceId: string): ReadonlySet<string>; remember(instanceId: string, model: string): void };
   /** Hosted workspaces only. */
@@ -217,6 +224,24 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     const bot = deps.bot(botId);
     const own = at.instance ?? (bot ? deps.instance(bot.modelSelection.instanceId) : null);
     if (!bot || !own || deps.refusal(own)) return null;
+    if (job === "compaction" || job === "work-bot-offer") {
+      const route = deps.backgroundModel?.(job);
+      if (route) {
+        const allowed = () => own.enabled && deps.instance(route.instanceId) === own && !deps.refusal(own)
+          && own.models.options.some(option => option.id === route.model)
+          && (!deps.modelAllowed || deps.modelAllowed(route));
+        if (!allowed() || !own.generateText || !["openai-compat", "claudeAgent"].includes(own.driverKind)) return null;
+        const check = () => {
+          const current = deps.backgroundModel?.(job);
+          if (current?.instanceId !== route.instanceId || current.model !== route.model || !allowed()) throw new Error("Background model is no longer allowed.");
+          deps.assertWithinBudget(botId);
+        };
+        const writer = booked(job, bot, own, own.generateText.bind(own), { kind: "bot", botId }, () => ({
+          model: route.model, requireIsolatedText: true, sourceThreadId: at.threadId, beforeRequest: check,
+        }), at.threadId);
+        return { via: "engine", generateText: (prompt, options) => { check(); return writer(prompt, options); } };
+      }
+    }
     if (job === "skill-review" && own.adapter.capabilities.agentsMcp !== true) return null;
     const call = ownCall(job, own);
     if (call) {

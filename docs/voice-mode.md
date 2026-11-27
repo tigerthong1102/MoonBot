@@ -121,3 +121,14 @@ hand real work to specialists with `coordinate_bots` — no new machinery requir
   microphone session or a stale `currentCall` behind.
 - Synthesis requests are abortable from the renderer and individual utterances
   are capped server-side to bound accidental hosted-voice spend.
+
+## Desktop wake phrase
+
+In a direct chat with voice available, select the ear beside the call button.
+Say a short wake phrase twice with a pause after each, in the same voice. For
+example, say “Xin chào trợ lý”. The listening indicator has a stop control.
+The desktop compares spectral features locally against the two samples.
+Audio, samples and the phrase stay in memory. A match releases the listening
+microphone before starting the selected voice-call mode. Hiding the window or
+switching conversations ends enrollment and listening. Each session requires
+a new enrollment. No speech model or voice weights are downloaded.

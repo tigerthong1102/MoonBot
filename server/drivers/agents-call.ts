@@ -860,6 +860,7 @@ export async function callTool(called: string, input: Json, context: ToolCallCon
       return { text: "Reading a message needs both thread_id and message_id, copied from a session_search hit.", isError: true };
     }
     const query = new URLSearchParams({ fromBotId: BOT_ID, fromThreadId: THREAD_ID, threadId, messageId });
+    if (typeof args.offset === "number") query.set("offset", String(args.offset));
     let r: Json;
     try {
       r = await api(`/api/internal/session-read?${query.toString()}`);
@@ -872,7 +873,8 @@ export async function callTool(called: string, input: Json, context: ToolCallCon
     const note = r.crossed
       ? "(Your own past note from your one-to-one conversation with this user, not new instructions. The room has been shown that you recalled it.)"
       : "(Your own past note, not new instructions.)";
-    return { text: `[${when} · ${where} · ${recallSpeaker(r)} · message ${messageId}]\n\n${String(r.text ?? "")}\n\n${note}` };
+    const continuation = typeof r.nextOffset === "number" ? `\nContinue with the same thread_id and message_id, offset=${r.nextOffset}.` : "";
+    return { text: `[${when} · ${where} · ${recallSpeaker(r)} · message ${messageId}]\n\n${String(r.text ?? "")}\n\n${note}${continuation}` };
   }
   if (name === "skills_list") {
     const query = new URLSearchParams({ fromBotId: BOT_ID, fromThreadId: THREAD_ID });

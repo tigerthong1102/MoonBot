@@ -1,0 +1,546 @@
+diff --git a/libs/cua-driver/rust/crates/cua-driver/src/main.rs b/libs/cua-driver/rust/crates/cua-driver/src/main.rs
+index ad29969..0f0d398 100644
+--- a/libs/cua-driver/rust/crates/cua-driver/src/main.rs
++++ b/libs/cua-driver/rust/crates/cua-driver/src/main.rs
+@@ -552,6 +552,12 @@ mod mcp_runtime_selection_tests {
+
+ #[cfg(target_os = "macos")]
+ fn main() {
++    if std::env::args_os().nth(1).as_deref()
++        == Some(std::ffi::OsStr::new("--startupbot-ax-proof-version"))
++    {
++        println!("startupbot-ax-proof-v1");
++        return;
++    }
+     cua_driver_core::build_info::init(env!("CUA_DRIVER_GIT_SHA"));
+     cua_driver_sdk::configure_perception_client_resolver(
+         extension_manager::perception_client_resolver(),
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs
+index 300c7e6..56a3f9c 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/batch.rs
+@@ -170,6 +170,38 @@ impl NodeAttributes {
+         }
+     }
+
++    pub(crate) unsafe fn identity_read_complete(&self) -> bool {
++        let NodeAttributes::Batch(_) = *self else {
++            return false;
++        };
++        for attr in [
++            NodeAttr::Role,
++            NodeAttr::Title,
++            NodeAttr::Value,
++            NodeAttr::PlaceholderValue,
++            NodeAttr::Description,
++            NodeAttr::Identifier,
++        ] {
++            let Some(value) = self.raw(attr) else {
++                return false;
++            };
++            if CFGetTypeID(value) == AXValueGetTypeID()
++                && AXValueGetType(value as AXValueRef) == kAXValueAXErrorType
++            {
++                let mut error: AXError = 0;
++                if !AXValueGetValue(
++                    value as AXValueRef,
++                    kAXValueAXErrorType,
++                    (&mut error as *mut AXError).cast(),
++                ) || (error != kAXErrorAttributeUnsupported && error != kAXErrorNoValue)
++                {
++                    return false;
++                }
++            }
++        }
++        true
++    }
++
+     /// [`copy_string_attr`].
+     pub(crate) unsafe fn string(&self, attr: NodeAttr) -> Option<String> {
+         match *self {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
+index e5c4ddb..d8dd459 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
+@@ -48,6 +48,7 @@ pub const kAXValueCGPointType: AXValueType = 1;
+ pub const kAXValueCGSizeType: AXValueType = 2;
+ pub const kAXValueCGRectType: AXValueType = 3;
+ pub const kAXValueCFRangeType: AXValueType = 4;
++pub const kAXValueAXErrorType: AXValueType = 5;
+ pub const kAXValueIllegalType: AXValueType = 1_000;
+
+ // ── Link to AXUIElement functions ────────────────────────────────────────────
+@@ -157,6 +158,22 @@ use core_foundation::{array::CFArray, base::TCFType, string::CFString as CFStr};
+ /// # Safety
+ ///
+ /// `element` must be a valid, live `AXUIElementRef` for the duration of the call.
++pub unsafe fn is_attribute_settable_checked(
++    element: AXUIElementRef,
++    name: &str,
++) -> Result<bool, AXError> {
++    let attr = CFStr::new(name);
++    let mut settable = 0_u8;
++    let result = AXUIElementIsAttributeSettable(element, attr.as_concrete_TypeRef(), &mut settable);
++    if result == kAXErrorAttributeUnsupported || result == kAXErrorNoValue {
++        return Ok(false);
++    }
++    if result != kAXErrorSuccess {
++        return Err(result);
++    }
++    Ok(settable != 0)
++}
++
+ pub unsafe fn is_attribute_settable(element: AXUIElementRef, attr_name: &str) -> bool {
+     let attr = CFStr::new(attr_name);
+     let mut settable = 0_u8;
+@@ -378,6 +395,40 @@ pub unsafe fn copy_stringish_attr(
+ /// # Safety
+ ///
+ /// `element` must be a valid, live `AXUIElementRef` for the duration of the call.
++pub unsafe fn copy_action_names_checked(element: AXUIElementRef) -> Result<Vec<String>, AXError> {
++    let mut names: CFArrayRef = std::ptr::null_mut();
++    let error = AXUIElementCopyActionNames(element, &mut names);
++    if error != kAXErrorSuccess {
++        if !names.is_null() {
++            CFRelease(names as CFTypeRef);
++        }
++        return if error == kAXErrorActionUnsupported || error == kAXErrorNoValue {
++            Ok(Vec::new())
++        } else {
++            Err(error)
++        };
++    }
++    if names.is_null() {
++        return Err(kAXErrorFailure);
++    }
++    if core_foundation::base::CFGetTypeID(names as CFTypeRef) != CFArray::<CFTypeRef>::type_id() {
++        CFRelease(names as CFTypeRef);
++        return Err(kAXErrorFailure);
++    }
++    let array = CFArray::<CFTypeRef>::wrap_under_create_rule(names);
++    let mut actions = Vec::new();
++    for i in 0..array.len() {
++        let Some(value) = array.get(i) else {
++            return Err(kAXErrorFailure);
++        };
++        if value.is_null() || core_foundation::base::CFGetTypeID(*value) != CFStr::type_id() {
++            return Err(kAXErrorFailure);
++        }
++        actions.push(CFStr::wrap_under_get_rule(*value as _).to_string());
++    }
++    Ok(actions)
++}
++
+ pub unsafe fn copy_action_names(element: AXUIElementRef) -> Vec<String> {
+     let mut names: CFArrayRef = std::ptr::null_mut();
+     let err = AXUIElementCopyActionNames(element, &mut names);
+@@ -666,6 +717,51 @@ pub fn focused_element_window_id_of_pid(pid: i32) -> Option<u32> {
+ /// # Safety
+ ///
+ /// `element` must be valid, and the caller must release every returned element.
++pub unsafe fn copy_children_checked(
++    element: AXUIElementRef,
++) -> Result<Vec<AXUIElementRef>, AXError> {
++    let attr = CFStr::new("AXChildren");
++    let mut value: CFTypeRef = std::ptr::null();
++    let error = AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut value);
++    if error != kAXErrorSuccess {
++        if !value.is_null() {
++            CFRelease(value);
++        }
++        return if error == kAXErrorAttributeUnsupported || error == kAXErrorNoValue {
++            Ok(Vec::new())
++        } else {
++            Err(error)
++        };
++    }
++    if value.is_null() {
++        return Err(kAXErrorFailure);
++    }
++    if core_foundation::base::CFGetTypeID(value) != CFArray::<CFTypeRef>::type_id() {
++        CFRelease(value);
++        return Err(kAXErrorFailure);
++    }
++    let array = CFArray::<CFTypeRef>::wrap_under_create_rule(value as _);
++    let mut children = Vec::new();
++    for i in 0..array.len() {
++        let Some(item) = array.get(i) else {
++            for child in children {
++                CFRelease(child as CFTypeRef);
++            }
++            return Err(kAXErrorFailure);
++        };
++        let item = *item;
++        if item.is_null() || core_foundation::base::CFGetTypeID(item) != AXUIElementGetTypeID() {
++            for child in children {
++                CFRelease(child as CFTypeRef);
++            }
++            return Err(kAXErrorFailure);
++        }
++        CFRetain(item);
++        children.push(item as AXUIElementRef);
++    }
++    Ok(children)
++}
++
+ pub unsafe fn copy_children(element: AXUIElementRef) -> Vec<AXUIElementRef> {
+     let attr = CFStr::new("AXChildren");
+     let mut value: CFTypeRef = std::ptr::null();
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
+index 1578d55..c8172ad 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
+@@ -180,6 +180,9 @@ pub struct TreeWalkResult {
+     pub truncated: bool,
+     /// True when nodes past `max_depth` were omitted, independently of budget `truncated`.
+     pub depth_truncated: bool,
++    pub read_incomplete: bool,
++    pub window_nodes: Vec<AXNode>,
++    pub window_complete: bool,
+     /// Why and where the walk stopped (see [`cua_driver_core::walk_budget`]).
+     pub walk: WalkOutcome,
+     /// Whether the requested `window_id` actually resolved to an AX surface,
+@@ -282,6 +285,10 @@ fn walk_tree_with_web_content(
+     let mut lines: Vec<(usize, String)> = Vec::new(); // (depth, line)
+     let mut index_counter = 0usize;
+     let mut depth_truncated = false;
++    let mut read_incomplete = false;
++    let mut window_nodes = Vec::new();
++    let mut window_complete = false;
++    let mut window_roots = 0usize;
+     let mut window_scope: Option<WindowScope> = None;
+
+     unsafe {
+@@ -292,6 +299,9 @@ fn walk_tree_with_web_content(
+                 nodes,
+                 truncated: false,
+                 depth_truncated: false,
++                read_incomplete: true,
++                window_nodes: Vec::new(),
++                window_complete: false,
+                 walk: budget.outcome(),
+                 // No application AX element at all, so a requested window
+                 // certainly did not resolve.
+@@ -355,6 +365,12 @@ fn walk_tree_with_web_content(
+
+         // Walk each top-level child at depth 0.
+         for child in walk_these {
++            let window_root = window_id.is_some()
++                && ax_get_window_id(child) == window_id
++                && copy_string_attr(child, "AXRole").as_deref() == Some("AXWindow");
++            let start = nodes.len();
++            let mut root_depth_truncated = false;
++            let mut root_read_incomplete = false;
+             walk_element(
+                 child,
+                 0,
+@@ -364,11 +380,25 @@ fn walk_tree_with_web_content(
+                 &mut lines,
+                 &mut index_counter,
+                 &mut budget,
+-                &mut depth_truncated,
++                &mut root_depth_truncated,
++                &mut root_read_incomplete,
+                 max_depth,
+                 include_web_content,
+             );
++            depth_truncated |= root_depth_truncated;
++            read_incomplete |= root_read_incomplete;
++            if window_root {
++                window_roots += 1;
++                window_nodes = nodes[start..].to_vec();
++                window_complete = !root_depth_truncated
++                    && !root_read_incomplete
++                    && !budget.outcome().truncated()
++                    && window_nodes.first().is_some_and(|node| {
++                        node.role == "AXWindow" && node.element_index.is_some()
++                    });
++            }
+         }
++        window_complete &= window_roots == 1;
+
+         // Release all top-level elements (copy_children / copy_ax_windows both retain).
+         release_all(top_level);
+@@ -395,6 +425,9 @@ fn walk_tree_with_web_content(
+         nodes,
+         truncated: walk.truncated(),
+         depth_truncated,
++        read_incomplete,
++        window_nodes,
++        window_complete,
+         walk,
+         window_scope,
+     }
+@@ -519,6 +552,7 @@ unsafe fn walk_element(
+     counter: &mut usize,
+     budget: &mut WalkBudget,
+     depth_truncated: &mut bool,
++    read_incomplete: &mut bool,
+     max_depth: usize,
+     include_web_content: bool,
+ ) {
+@@ -539,12 +573,17 @@ unsafe fn walk_element(
+     // One round trip for every attribute this node can need (see
+     // `super::batch`); the reads below only convert the reply.
+     let attrs = NodeAttributes::read(element);
+-    let role = attrs
+-        .string(NodeAttr::Role)
+-        .unwrap_or_else(|| "AXUnknown".into());
++    if !attrs.identity_read_complete() {
++        *read_incomplete = true;
++    }
++    let role = attrs.string(NodeAttr::Role).unwrap_or_else(|| {
++        *read_incomplete = true;
++        "AXUnknown".into()
++    });
+
+     let in_web_content = in_web_content || is_web_content_role(&role);
+     if in_web_content && !include_web_content {
++        *read_incomplete = true;
+         return;
+     }
+
+@@ -553,7 +592,13 @@ unsafe fn walk_element(
+         // Still recurse — children may be interesting. Layout containers
+         // collapse, so children inherit the parent's depth AND the same
+         // parent_index (no actionable node was emitted here).
+-        let children = attrs.children();
++        let children = match copy_children_checked(element) {
++            Ok(children) => children,
++            Err(_) => {
++                *read_incomplete = true;
++                Vec::new()
++            }
++        };
+         drop(attrs);
+         for child in children {
+             walk_element(
+@@ -566,6 +611,7 @@ unsafe fn walk_element(
+                 counter,
+                 budget,
+                 depth_truncated,
++                read_incomplete,
+                 max_depth,
+                 include_web_content,
+             );
+@@ -592,7 +638,13 @@ unsafe fn walk_element(
+     let help = attrs
+         .string(NodeAttr::Help)
+         .filter(|h| !h.trim().is_empty());
+-    let actions = copy_action_names(element);
++    let actions = match copy_action_names_checked(element) {
++        Ok(actions) => actions,
++        Err(_) => {
++            *read_incomplete = true;
++            Vec::new()
++        }
++    };
+
+     // Some native controls expose no AX action names but do expose a writable
+     // AXValue. Finder's transient inline-rename field is the important case:
+@@ -602,7 +654,13 @@ unsafe fn walk_element(
+     // extra AX round trip.
+     let value_settable = actions.is_empty()
+         && role_supports_value_addressing(&role)
+-        && is_attribute_settable(element, "AXValue");
++        && match is_attribute_settable_checked(element, "AXValue") {
++            Ok(value) => value,
++            Err(_) => {
++                *read_incomplete = true;
++                false
++            }
++        };
+     // A disabled control is still indexed and published with `enabled: false`:
+     // enablement is state the caller needs to read (a form's Save button, a
+     // toolbar item in a window that is not key), not a reason to hide the row.
+@@ -626,7 +684,13 @@ unsafe fn walk_element(
+         !visible_title.is_empty() || !visible_description.is_empty() || !visible_value.is_empty();
+
+     if !is_actionable && !has_content && role != "AXWindow" && role != "AXSheet" {
+-        let children = attrs.children();
++        let children = match copy_children_checked(element) {
++            Ok(children) => children,
++            Err(_) => {
++                *read_incomplete = true;
++                Vec::new()
++            }
++        };
+         drop(attrs);
+         for child in children {
+             walk_element(
+@@ -639,6 +703,7 @@ unsafe fn walk_element(
+                 counter,
+                 budget,
+                 depth_truncated,
++                read_incomplete,
+                 max_depth,
+                 include_web_content,
+             );
+@@ -652,12 +717,16 @@ unsafe fn walk_element(
+     // Structured `elements` only contains actionable nodes. Keep all new AX
+     // round-trips behind that same gate so display-only rows pay no cost.
+     let control_state = read_control_state_if_actionable(is_actionable, || ControlState {
+-        value_state: copied_value
+-            .map(|copied| copied.state_value)
+-            .filter(|v| !v.trim().is_empty())
+-            .or_else(|| value.clone())
+-            .map(|v| v.trim().to_owned())
+-            .filter(|v| !v.is_empty()),
++        value_state: if matches!(role.as_str(), "AXTextField" | "AXTextArea" | "AXComboBox") {
++            copied_value.and_then(|copied| copied.string_value)
++        } else {
++            copied_value
++                .map(|copied| copied.state_value)
++                .filter(|v| !v.trim().is_empty())
++                .or_else(|| value.clone())
++                .map(|v| v.trim().to_owned())
++                .filter(|v| !v.is_empty())
++        },
+         value_description: attrs
+             .string(NodeAttr::ValueDescription)
+             .map(|v| v.trim().to_owned())
+@@ -766,10 +835,17 @@ unsafe fn walk_element(
+     lines.push((depth, line));
+     nodes.push(node);
+     if collapse_here {
++        *read_incomplete = true;
+         return;
+     }
+
+-    let children = attrs.children();
++    let children = match copy_children_checked(element) {
++        Ok(children) => children,
++        Err(_) => {
++            *read_incomplete = true;
++            Vec::new()
++        }
++    };
+     drop(attrs);
+     for child in children {
+         walk_element(
+@@ -782,6 +858,7 @@ unsafe fn walk_element(
+             counter,
+             budget,
+             depth_truncated,
++            read_incomplete,
+             max_depth,
+             include_web_content,
+         );
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
+index 00776fe..5b1c417 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
+@@ -641,6 +641,9 @@ mod tests {
+                     tree_markdown: String::new(),
+                     truncated: false,
+                     depth_truncated: false,
++                    read_incomplete: false,
++                    window_nodes: Vec::new(),
++                    window_complete: false,
+                     walk: budget.outcome(),
+                     window_scope: None,
+                 })?;
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/setup_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/setup_ui.rs
+index 15fad37..81f1b53 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/browser/setup_ui.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/browser/setup_ui.rs
+@@ -2060,6 +2060,9 @@ mod tests {
+             nodes,
+             truncated: false,
+             depth_truncated: false,
++            read_incomplete: false,
++            window_nodes: Vec::new(),
++            window_complete: false,
+             walk: cua_driver_core::walk_budget::WalkBudget::nodes_only(0).outcome(),
+             window_scope: Some(crate::ax::WindowScope::Matched),
+         }
+@@ -2393,6 +2396,9 @@ mod tests {
+             nodes: Vec::new(),
+             truncated: true,
+             depth_truncated: false,
++            read_incomplete: false,
++            window_nodes: Vec::new(),
++            window_complete: false,
+             walk: cua_driver_core::walk_budget::WalkOutcome::timed_out(
+                 1000,
+                 std::time::Duration::from_millis(1000),
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
+index ddaaf61..15ee300 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
+@@ -694,11 +694,15 @@ impl Tool for GetWindowStateTool {
+             _ => elements_json,
+         };
+         let filtered_element_count = elements_json.len();
+-        // The structured array intentionally contains only actionable nodes,
+-        // and AX child reads can fail independently of the element/depth caps.
+-        // Until the walker exposes a proof over the projected search domain,
+-        // absence must remain unknown rather than being claimed complete.
+-        let elements_complete = false;
++        // A complete actionable projection requires a full, successful walk of the selected scope.
++        let elements_complete = query.is_none()
++            && scope_matched
++            && !observation_only
++            && snapshot_id.is_some()
++            && filtered_element_count == element_count
++            && tree_result.as_ref().is_some_and(|tree| {
++                !tree.read_incomplete && !tree.truncated && !tree.depth_truncated
++            });
+
+         let mut structured = serde_json::json!({
+             "window_id": window_id,
+@@ -714,6 +718,16 @@ impl Tool for GetWindowStateTool {
+                 Use `max_elements` / `max_depth` to bound the \
+                 AX walk on apps with very large trees."
+         });
++        if query.is_none() && args.get("since").is_none() && scope_matched && !observation_only {
++            if let (Some(sid), Some(tree)) = (snapshot_id, tree_result.as_ref()) {
++                if tree.window_complete {
++                    structured["window_elements_complete"] = serde_json::json!(true);
++                    structured["window_elements"] = serde_json::json!(
++                        build_elements_array_with_token(&tree.window_nodes, Some(sid))
++                    );
++                }
++            }
++        }
+         if query.is_some() {
+             structured["filtered_element_count"] = serde_json::json!(filtered_element_count);
+         }
+@@ -1213,7 +1227,13 @@ fn element_entry(node: &crate::ax::tree::AXNode, snapshot_id: Option<u32>) -> se
+         .value_state
+         .clone()
+         .or_else(|| node.value.clone())
+-        .filter(|v| !v.is_empty())
++        .filter(|v| {
++            !v.is_empty()
++                || matches!(
++                    node.role.as_str(),
++                    "AXTextField" | "AXTextArea" | "AXComboBox"
++                )
++        })
+     {
+         entry["value"] = serde_json::Value::String(value);
+     }
+@@ -2074,6 +2094,22 @@ mod tests {
+         assert_eq!(entry["value"], "Search");
+     }
+
++    #[test]
++    fn empty_text_field_value_is_reported() {
++        let mut nodes = vec![node(
++            Some(0),
++            "AXTextField",
++            Some("Receipt"),
++            0,
++            None,
++            None,
++            vec![],
++        )];
++        nodes[0].value_state = Some(String::new());
++        let entry = &build_elements_array_with_token(&nodes, None)[0];
++        assert_eq!(entry["value"], "");
++    }
++
+     #[test]
+     fn elements_omit_empty_value() {
+         // An empty AXValue must not emit a `value` field (matches the other

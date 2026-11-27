@@ -46,14 +46,14 @@ function caller(windowStateAnswer: object = state(), answers: Partial<Record<Loo
 }
 
 const LOOKUPS: [string, Record<string, unknown>][] = [
-  ["list_apps", {}], ["list_windows", { pid: 4242, on_screen_only: false }], ["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false }],
+  ["list_apps", {}], ["list_windows", { pid: 4242, on_screen_only: false }], ["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false, tree_format: "elements", full_output: true, timeout_ms: 10000 }],
 ];
 const tools = () => calls.map(([tool]) => tool);
 
 describe("resolveStep", () => {
   it("resolves an element step afresh, without a screenshot", async () => {
     expect(await resolveStep(CLICK_DOCUMENT, caller(), signal)).toEqual({ ok: true, args: { pid: 4242, window_id: 7, element_token: "s2-e2" } });
-    expect(calls.at(-1)).toStrictEqual(["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false }]);
+    expect(calls.at(-1)).toStrictEqual(["get_window_state", { pid: 4242, window_id: 7, include_screenshot: false, tree_format: "elements", full_output: true, timeout_ms: 10000 }]);
     expect(calls).toStrictEqual(LOOKUPS);
   });
 

@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { runMcpBridge } from "./mcp-bridge.ts";
 import { augmentedPath } from "./env-path.ts";
 import { HOST_FILE_TOOLS, hostFileRelay } from "./host-file-tools.ts";
-import { localComputerCallQuery, localComputerRelay, localComputerResultLine } from "./local-computer-guidance.ts";
+import { localComputerCallQuery, localComputerRelay, localComputerResultLine, macSavedStepsWindowRequest } from "./local-computer-guidance.ts";
 import { journalUrl } from "./saved-steps/journal-tap.ts";
 import { COMPUTER_HELPER_STOPPED } from "../shared/your-computer.ts";
 
@@ -47,6 +47,7 @@ runMcpBridge({
   gate: { url: url!, token: token!, describe: localComputerCallQuery },
   ...(journal === "1" ? { journal: { url: journalUrl(url!), token: token!, ...(journalledWindows ? { platform: "win32" as const } : {}) } } : {}),
   rewriteResponse: (line) => localComputerResultLine(line, journalledWindows),
+  ...(journal === "1" && nativePlatform === "darwin" ? { rewriteRequest: macSavedStepsWindowRequest } : {}),
   relay: fileRelay ? (call, child) => fileRelay(call) ?? screenRelay(call, child) : screenRelay,
   ...(fileRelay ? { ownTools: HOST_FILE_TOOLS } : {}),
   respawn: { stopped: COMPUTER_HELPER_STOPPED },

@@ -1,4 +1,4 @@
-import { treeCounts, type TreeCounts } from "./driver-wire.ts";
+import { treeCounts, windowScopedTree, type TreeCounts } from "./driver-wire.ts";
 import { heldValue, matchElement, type ComputerCaller } from "./resolve.ts";
 import type { RecipeStep } from "./rules.ts";
 
@@ -12,9 +12,9 @@ export async function observeEffect(step: RecipeStep, args: Record<string, unkno
   if (!before || !Number.isSafeInteger(args.pid) || !Number.isSafeInteger(args.window_id)) return unknown;
   const bounded = AbortSignal.any([signal, AbortSignal.timeout(3000)]);
   const state = await caller.call("get_window_state", { pid: args.pid, window_id: args.window_id,
-    include_screenshot: false, tree_format: "elements", timeout_ms: 2500 }, bounded).catch(() => null);
+    include_screenshot: false, tree_format: "elements", full_output: true, timeout_ms: 2500 }, bounded).catch(() => null);
   if (bounded.aborted || !state?.ok) return unknown;
-  const tree = state.structured;
+  const tree = windowScopedTree(state.structured);
   if (tree.pid !== args.pid || tree.window_id !== args.window_id || tree.window_title !== step.window?.title) return unknown;
   const after = treeCounts(tree);
   if (!after) return unknown;

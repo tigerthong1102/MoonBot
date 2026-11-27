@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { localComputerCallQuery, localComputerRelay, localComputerResultLine, OWN_PROFILE_UNAVAILABLE, WEB_PAGES_USE_BROWSER } from "./local-computer-guidance.ts";
+import { localComputerCallQuery, localComputerRelay, localComputerResultLine, macSavedStepsWindowRequest, OWN_PROFILE_UNAVAILABLE, WEB_PAGES_USE_BROWSER } from "./local-computer-guidance.ts";
 import type { ChildCalls } from "./mcp-bridge.ts";
 import { CLICK_SENT_UNCONFIRMED } from "./unconfirmed-click.ts";
 
@@ -165,5 +165,20 @@ describe("localComputerRelay", () => {
     const refused = { content: [{ type: "text", text: "foreground_unavailable: … no mouse input was sent" }], isError: true };
     expect(await localComputerRelay("win32")({ name: "click", arguments: {} }, child(() => refused).relayed)).toBe(refused);
     expect(localComputerRelay("win32")({ name: "get_window_state", arguments: {} }, child(() => ({})).relayed)).toBeNull();
+  });
+});
+
+
+describe("macOS Saved Steps window observations", () => {
+  const request = (args: Record<string, unknown>) => JSON.stringify({ jsonrpc: "2.0", id: 42, method: "tools/call", params: { name: "get_window_state", arguments: args } });
+  it("requests a complete structured observation while keeping the original target and screenshot choice", () => {
+    const input = request({ pid: 24, window_id: 7, include_screenshot: false });
+    expect(JSON.parse(macSavedStepsWindowRequest(input)).params.arguments).toEqual({ pid: 24, window_id: 7, include_screenshot: false, tree_format: "both", full_output: true, timeout_ms: 10000 });
+    expect(JSON.parse(macSavedStepsWindowRequest(request({ tree_format: "markdown" }))).params.arguments).toEqual({ tree_format: "both", full_output: true, timeout_ms: 10000 });
+  });
+  it("preserves explicitly scoped or formatted requests and other traffic", () => {
+    for (const input of [request({ query: "Save" }), request({ since: "latest" }), request({ full_output: false }), "not-json", JSON.stringify({ method: "tools/call", params: { name: "set_value", arguments: {} } })]) {
+      expect(macSavedStepsWindowRequest(input)).toBe(input);
+    }
   });
 });

@@ -78,6 +78,46 @@ export function wholeTree(state: Record<string, unknown>): boolean {
     && COUNTS.every((key) => countFits(state[key], returned));
 }
 
+export function windowScopedTree(state: Record<string, unknown>): Record<string, unknown> {
+  if (state.window_elements_complete !== true || !Array.isArray(state.window_elements)
+      || state.window_elements.length === 0 || state.window_elements.length > MAX_ELEMENTS) return state;
+  const elements = state.window_elements;
+  if (!elements.every((row) => isRec(row) && Number.isSafeInteger(row.element_index)
+      && Number.isSafeInteger(row.depth) && typeof row.role === "string" && typeof row.element_token === "string")) return state;
+  if (!Array.isArray(state.elements)) return state;
+  const byIndex = new Map(elements.map((row) => [row.element_index, row]));
+  const tokens = new Set(elements.map((row) => row.element_token));
+  if (byIndex.size !== elements.length || tokens.size !== elements.length) return state;
+  const full = new Map();
+  for (const row of state.elements) {
+    if (!isRec(row) || full.has(row.element_index)) return state;
+    full.set(row.element_index, row);
+  }
+  for (const row of elements) {
+    const original = full.get(row.element_index);
+    if (!original || original.element_token !== row.element_token || original.role !== row.role
+        || original.label !== row.label || original.depth !== row.depth || original.parent_index !== row.parent_index
+        || original.value !== row.value) return state;
+  }
+  const roots = elements.filter((row) => row.parent_index === undefined);
+  if (roots.length !== 1 || roots[0].role !== "AXWindow" || roots[0].depth !== 0) return state;
+  const root = roots[0];
+  for (const element of elements) {
+    const seen = new Set();
+    let node = element;
+    while (node !== root) {
+      if (seen.has(node.element_index)) return state;
+      seen.add(node.element_index);
+      const parent = byIndex.get(node.parent_index);
+      if (!parent || Number(parent.depth) >= Number(node.depth)) return state;
+      node = parent;
+    }
+  }
+  const { truncation_reason: _reason, ...rest } = state;
+  return { ...rest, elements, elements_complete: true, truncated: false, element_count: elements.length,
+    total_element_count: elements.length, returned_element_count: elements.length, filtered_element_count: elements.length };
+}
+
 export const treeDegraded = (state: Record<string, unknown>) => state.degraded === true || hasText(state.degraded_reason);
 
 function markWindowButtons(raw: Rec, elements: WireElement[], platform: "win32" | "linux"): void {
@@ -109,7 +149,8 @@ export function backgroundAccessibilityAction(raw: Rec): boolean {
     && (raw.effect === "confirmed" || raw.effect === "unverifiable");
 }
 
-function slimStructured(raw: Rec, platform: NodeJS.Platform): SlimStructured {
+function slimStructured(input: Rec, platform: NodeJS.Platform): SlimStructured {
+  const raw = platform === "darwin" ? windowScopedTree(input) : input;
   const out: SlimStructured = pick(raw, Object.keys(TOP_TYPES), TOP_TYPES);
   const elements = slimList<WireElement>(raw.elements, ELEMENT_TYPES, ["element_index", "role", "depth"], MAX_ELEMENTS, markValueRead);
   const apps = slimList<WireApp>(raw.apps, APP_TYPES, ["pid", "name"]);

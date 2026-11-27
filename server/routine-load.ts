@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import type { RoutineRequestOperation } from "../shared/routine-request.ts";
-import { ROUTINE_CHECKS, type RoutineCheck } from "../shared/routines.ts";
+import { isRoutineAccess, ROUTINE_CHECKS, type RoutineCheck } from "../shared/routines.ts";
 import { isEffortLevel, type ModelSelection } from "../shared/wire.ts";
 import { isModelVariant } from "./contracts.ts";
 import { ROUTINE_PARTS, type PartPair, type RoutinePart } from "./package-parts.ts";
@@ -65,7 +65,7 @@ export function loadChecks(value: unknown): RoutineCheck[] | undefined {
 /** A routine's checks, access and delivery as it may hold them; a field out of range is left out. */
 export function withCheckFields<T extends Pick<Routine, "target" | "checks" | "access" | "deliver">>(routine: T): T {
   const clean = { ...routine, checks: routine.target === "bot" ? loadChecks(routine.checks) : undefined,
-    access: routine.access === "read-and-draft" ? "read-and-draft" as const : undefined,
+    access: isRoutineAccess(routine.access) ? routine.access : undefined,
     deliver: routine.target === "bot" && routine.deliver === "brief" ? "brief" as const : undefined };
   return withoutUndefined(clean, ["checks", "access", "deliver"]);
 }
@@ -133,7 +133,7 @@ export function loadRun(run: RoutineRun): RoutineRun {
     attachments: loadAttachments(run.attachments),
     sourceThreadId: persistedSourceThreadId.parse(run.sourceThreadId),
     resultsThreadId: persistedSourceThreadId.parse(run.resultsThreadId),
-    access: run.access === "read-and-draft" ? "read-and-draft" : undefined,
+    access: isRoutineAccess(run.access) ? run.access : undefined,
     deliver: run.deliver === "brief" ? "brief" : undefined,
     checkKey: typeof run.checkKey === "string" && /^[\w-]{1,128}$/.test(run.checkKey) ? run.checkKey : undefined,
     busyMs: instant(run.busyMs),

@@ -1,3 +1,4 @@
+import { ROUTINE_ACCESS } from "./routines.ts";
 import { z } from "zod";
 import { mascotFaceColorSchema } from "./bot-avatar.ts";
 
@@ -151,7 +152,7 @@ const backupSchema = z.object({
     durationMinutes: z.number().finite().positive(),
     timeoutMinutes: z.number().int().min(5).max(1_440).optional(),
     checks: z.array(z.enum(["calendar", "mail", "runs"])).max(3).optional(),
-    access: z.literal("read-and-draft").optional(),
+    access: z.enum(ROUTINE_ACCESS).optional(),
     deliver: z.literal("brief").optional(),
   })).max(2_000),
 });

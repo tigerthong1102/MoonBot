@@ -23,7 +23,7 @@ export async function pdfText(bytes: ArrayBuffer) {
       pages.push(text);
       page.cleanup();
     }
-    if (!length) throw new Error("PDF has no text");
-    return pages.join("\f");
+    const missing = pages.flatMap((text, i) => text ? [] : [i + 1]);
+    return { text: pages.join("\f"), coverage: { pages: pages.length, missing } };
   } finally { await task.destroy(); }
 }

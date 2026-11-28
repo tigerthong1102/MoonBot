@@ -81,6 +81,36 @@ afterAll(async () => {
   if (home) removeTempDir(home);
 });
 
+it("rechecks source-cache conversation access through a real Team Cloud session after sharing changes", async () => {
+  const session = async (email: string, role: string) => {
+    const granted = await signed("POST", "/api/cloud/pairing", JSON.stringify({ label: "Knowledge proof fixture", ttlSeconds: 300, team: TEAM, member: { email, role } }));
+    expect(granted.status).toBe(200);
+    const paired = await call("POST", "/api/auth/pair", { body: JSON.stringify({ code: granted.body.code }), headers: { "content-type": "application/json" } });
+    expect(paired.status).toBe(200);
+    const token = paired.body.token as string;
+    return (method: string, path: string, body?: unknown) => call(method, path, {
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+    });
+  };
+  const admin = await session("proof-admin@acme.test", "admin");
+  const member = await session("proof-member@acme.test", "member");
+  const created = await admin("POST", "/api/bots", { name: "Knowledge access fixture" });
+  expect(created.status).toBe(201);
+  const bot = created.body.bot as { id: string; threadId: string; mainThreadId: string };
+  const thread = bot.mainThreadId ?? bot.threadId;
+  expect(thread).toBeTruthy();
+  expect((await admin("PUT", `/api/bots/${bot.id}/access`, { everyone: "chat", people: {} })).status).toBe(200);
+  const path = `/api/threads/${thread}/knowledge-access`;
+  const allowed = await member("GET", path);
+  expect(allowed.status).toBe(200);
+  expect(typeof allowed.body.owner).toBe("string");
+  expect((await admin("PUT", `/api/bots/${bot.id}/access`, { everyone: "none", people: {} })).status).toBe(200);
+  const refused = await member("GET", path);
+  expect(refused.status).toBe(404);
+  expect(JSON.stringify(refused.body)).not.toContain("Knowledge access fixture");
+}, 30_000);
+
 it("the Admin reads a Team Cloud's shared connections and AI by a signed request, with no key, header value or MCP address in the answer", async () => {
   let summary: any;
   await expect.poll(async () => {

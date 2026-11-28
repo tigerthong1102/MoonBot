@@ -2,7 +2,7 @@ import { BOT_HELD_CODE, BOT_PAUSED_CODE } from "../../../shared/bot-limit";
 import { lacksAdminScope } from "@/lib/admin-scope";
 import { ApiError } from "@/state/api";
 
-export type SourceAnswerIssue = "knowledge.answerAccess" | "knowledge.answerChanged" | "knowledge.answerNetwork" |
+export type SourceAnswerIssue = "knowledge.answerAccess" | "knowledge.accessVerificationUnavailable" | "knowledge.answerChanged" | "knowledge.answerNetwork" |
   "knowledge.answerLimit" | "knowledge.answerMoved" | "knowledge.answerBusy" | "knowledge.answerModel" | "knowledge.answerMissing" |
   "knowledge.answerHeld" | "knowledge.answerPlanPaused" | "knowledge.answerMaintenance" | "knowledge.answerReadiness" | "knowledge.sendError" | "knowledge.answerTrialKey" |
   "knowledge.answerUpdateEngine" | "knowledge.answerRestoreRestart" | "model.orgBlocked" | "knowledge.answerProviderUnavailable";
@@ -13,7 +13,7 @@ export function sourceAnswerIssue(error: unknown): SourceAnswerIssue {
     switch (error.status) {
       case 401: return "knowledge.answerAccess";
       case 403: return lacksAdminScope(error) ? "knowledge.answerMissing" : "knowledge.answerAccess";
-      case 404: return code === "source_conversation_missing" ? "knowledge.answerAccess" : "knowledge.answerMissing";
+      case 404: return code === "source_access_unavailable" ? "knowledge.accessVerificationUnavailable" : code === "source_conversation_missing" ? "knowledge.answerAccess" : "knowledge.answerMissing";
       case 409:
         switch (code) {
           case "spend_cap": return "knowledge.answerLimit";

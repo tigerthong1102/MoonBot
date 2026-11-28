@@ -63,7 +63,7 @@ export function ZaloOfficialSetup() {
     <form autoComplete="off" onSubmit={verify} className="mt-3 flex flex-wrap items-end gap-2">
       <label className="grid gap-1 text-sm">{t("zaloOfficial.token")}
         <input ref={input} type="password" autoComplete="off" spellCheck={false} required maxLength={289} disabled={busy}
-          className="rounded-md border border-line bg-card px-2 py-1 text-ink" />
+          className="rounded-md border border-hairline bg-card px-2 py-1 text-ink" />
       </label>
       <button className="ui-button" type="submit" disabled={busy}>{t(busy ? "zaloOfficial.checking" : "zaloOfficial.verify")}</button>
     </form>

@@ -73,7 +73,7 @@ Run the same isolated fixture with its experimental exact-answer gate enabled.
 node cloudflare/control-plane/inbox/prepare-assets.mjs
 node --experimental-strip-types scripts/verify-twin-inbox-pairing.mjs --exact
 node --test electron/twin-online-exact.node-test.mjs
-pnpm --filter @openmausbot/control-plane exec vitest run test/personal-inbox.test.ts
+pnpm exec vitest run --root cloudflare/control-plane --config vitest.config.ts "$(pwd)/cloudflare/control-plane/test/personal-inbox.test.ts"
 ```
 
 The desktop component chooses an owner-taught lesson from a temporary local workspace and one DM. The fixture checks native-dialog arguments and supplies a scripted approval without opening an OS dialog. A second Inbox session reviews the actual question, answer, expiry and room. A peer posts a matching message. The desktop polls the local Worker, signs a short-lived request, and the Worker stores one attributed reply. A third session revokes the grant and the fixture checks another matching message produces no reply. The three windows share one Electron process. This recipe runs against source and an unpackaged Electron runtime.

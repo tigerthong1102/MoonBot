@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { probeZaloOfficialToken, ZaloOfficialError } from "../zalo-official.ts";
+import { probeZaloOfficialToken, zaloPairingEnabled, ZaloOfficialError } from "../zalo-official.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -7,8 +7,7 @@ const input = z.object({ token: z.string().min(1).max(289) }).strict();
 
 export const isZaloDesktopOwner = (localDesktop: boolean, auth: RequestAuth) => localDesktop && auth.kind === "loopback" &&
   auth.desktopOwner === true && auth.trust !== "service" && !auth.companionDevice;
-export const zaloPairingEnabled = () => process.env.STARTUPBOT_ZALO_OFFICIAL_PILOT === "1" &&
-  process.env.STARTUPBOT_ZALO_OFFICIAL_WEBHOOK_PILOT === "1";
+export { zaloPairingEnabled } from "../zalo-official.ts";
 
 export const zaloApprovedSendEnabled = () => zaloPairingEnabled() && process.env.STARTUPBOT_ZALO_OFFICIAL_APPROVED_SEND_PILOT === "1";
 

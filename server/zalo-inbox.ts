@@ -1,3 +1,4 @@
+import { purgeExpiredZaloReportHistory } from "./zalo-period-report.ts";
 import { zaloWrite } from "./zalo-write.ts";
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
@@ -139,7 +140,11 @@ export function createZaloInbox(db: DatabaseSync, now: () => number = Date.now) 
       });
     },
     purgeExpired() {
-      write(() => prune(now()));
+      write(() => {
+        const time = now();
+        prune(time);
+        purgeExpiredZaloReportHistory(db, time);
+      });
     },
   };
 }

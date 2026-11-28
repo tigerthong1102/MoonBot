@@ -2,6 +2,9 @@ import { z } from "zod";
 import type { createZaloInbox, ZaloReceipt } from "./zalo-inbox.ts";
 import type { ZaloEvent } from "../shared/zalo-event.ts";
 
+export const zaloPairingEnabled = () => process.env.STARTUPBOT_ZALO_OFFICIAL_PILOT === "1" &&
+  process.env.STARTUPBOT_ZALO_OFFICIAL_WEBHOOK_PILOT === "1";
+
 const id = z.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/);
 const envelope = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), result: z.unknown(), error_code: z.unknown().optional() }),

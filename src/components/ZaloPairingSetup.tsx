@@ -1,3 +1,4 @@
+import { ZaloPeriodReports } from "./ZaloPeriodReports";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ZaloPairingStatus } from "../../shared/zalo-pairing";
 import { ZaloApprovedReply } from "./ZaloApprovedReply";
@@ -94,6 +95,7 @@ export function ZaloPairingSetup({ approvedSendPilot = false }: { approvedSendPi
       {status.state === "paired" && status.revision && <ZaloSourceErasure key={status.revision} revision={status.revision}
         onErased={coverage => setStatus(previous => previous && previous.revision === status.revision ? { ...previous, coverage } : previous)} />}
     </div>}
+    {status?.state === "paired" && <ZaloPeriodReports key={status.revision} manage />}
     <div className="flex flex-wrap gap-2">
       <button className="ui-button" type="button" disabled={busy} onClick={() => void update()}>{t("zaloPair.refresh")}</button>
       {status?.revision && status.state !== "paired" && <button className="ui-button" type="button"

@@ -4,7 +4,6 @@ import { openZaloPrivateDatabase } from "./zalo-private-database.ts";
 import { createZaloWebhookPilot } from "./zalo-webhook.ts";
 import { zaloPairingEnabled } from "./routes/zalo-official.ts";
 
-/** A running local pilot cleans an idle inbox on startup and every five minutes. Reads enforce expiry immediately. */
 export function attachZaloRetention(server: Pick<Server, "once">, desktop: boolean, home = homedir) {
   if (!desktop || !zaloPairingEnabled()) return;
   function sweep() {

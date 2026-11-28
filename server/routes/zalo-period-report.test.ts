@@ -7,7 +7,7 @@ import { zaloPeriodService } from "./zalo-period-report.ts";
 afterEach(() => vi.unstubAllEnvs());
 const owner: RequestAuth = { kind: "loopback", scopes: ["admin"], desktopOwner: true };
 async function request(local: boolean, auth: RequestAuth, method = "GET", body?: object) {
-  const service = zaloPeriodService(local, () => "/fixture-does-not-exist");
+  const service = zaloPeriodService(local, { home: () => "/fixture-does-not-exist" });
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, "http://localhost");
     await service.route({ path: url.pathname, url, req, res, method: req.method!, json, auth, readBody });

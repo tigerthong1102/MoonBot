@@ -910,6 +910,8 @@ export class RoutineManager {
   get isTicking(): boolean { return this.ticking; }
   private tickInBackground(): void { this.tick().catch((error) => console.error("routines: a scheduler pass failed", error)); }
 
+  pokeSchedule() { this.timer?.poke(); }
+
   start() {
     if (this.closing || this.timer) return;
     if (!this.startupRunsQueued) this.startupRunsQueued = this.queueStartupRuns();

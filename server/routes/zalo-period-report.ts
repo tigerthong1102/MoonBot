@@ -15,7 +15,8 @@ const bodySchema = z.object({
     }),
   }).strict().nullable(),
 }).strict();
-export function zaloPeriodService(local: boolean, home = homedir, now: () => number = Date.now) {
+type PeriodOptions = { home?: () => string; now?: () => number; onChanged?: () => void };
+export function zaloPeriodService(local: boolean, { home = homedir, now = Date.now, onChanged }: PeriodOptions = {}) {
   const enabled = () => local && zaloPairingEnabled() && process.env.STARTUPBOT_ZALO_LOCAL_REPORTS === "1";
   function withStore<T>(fn: (store: ReturnType<typeof zaloPeriodReports>) => T): T | null {
     const account = process.env.STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID;
@@ -39,7 +40,9 @@ export function zaloPeriodService(local: boolean, home = homedir, now: () => num
       if (!input.success) return json(res, 400, { error: "invalid-schedule" });
       if (res.destroyed) return;
       const result = withStore(store => store.configure(input.data.revision, input.data.schedule));
-      return result ? json(res, 200, { view: result }) : json(res, 409, { error: "source-changed" });
+      if (!result) return json(res, 409, { error: "source-changed" });
+      onChanged?.();
+      return json(res, 200, { view: result });
     } catch { return json(res, 503, { error: "private-inbox-unavailable" }); }
   };
   return {

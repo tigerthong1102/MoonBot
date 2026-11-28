@@ -16,6 +16,7 @@ export interface SetupImportRouteDeps {
    * among them, is the owner's loopback; nor on a Cloud home or a hosted organization server, whose files are not the
    * person's own. */
   local: boolean;
+  onLocalReportScheduleChanged?: () => void;
   cfg: Pick<AppConfig, "mcpServers" | "features">;
   mcpConfigBusy: BusyFlag;
   mcpPolicyRefusal(name: string, server: object): string | undefined;
@@ -86,5 +87,5 @@ export function createSetupImportRoutes(deps: SetupImportRouteDeps): RouteHandle
 }
 
 export function createDesktopImportRoutes(deps: SetupImportRouteDeps): RouteHandler[] {
-  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloPairingRoutes(deps.local), zaloPeriodService(deps.local).route];
+  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloPairingRoutes(deps.local), zaloPeriodService(deps.local, { onChanged: deps.onLocalReportScheduleChanged }).route];
 }

@@ -7834,5 +7834,13 @@
   "mobileChat.unavailable": "Сервис аккаунтов временно недоступен.",
   "mobileChat.account_changed": "Аккаунт изменился. Откройте чат снова.",
   "mobileChat.invalid_message": "Сократите сообщение и подтвердите сохранение.",
-  "email.address": "Адрес электронной почты"
+  "email.address": "Адрес электронной почты",
+  "mobileChat.desktopListen": "Получать задачи с телефона",
+  "mobileChat.desktopListening": "Ожидание телефона · Остановить",
+  "mobileChat.desktopChoose": "Выберите компьютер.",
+  "mobileChat.desktopWaiting": "Ожидание компьютера…",
+  "mobileChat.desktopReceived": "Черновик открыт на компьютере. Проверьте и отправьте его там.",
+  "mobileChat.desktopUnconfirmed": "Получение не подтверждено. Проверьте компьютер перед повторной попыткой.",
+  "mobileChat.desktop_unavailable": "Нет готового компьютера. Включите приём задач в пустом личном чате на компьютере.",
+  "mobileChat.desktopConsent": "Задачи для компьютера передавать на мой принимающий компьютер в виде личного черновика."
 }

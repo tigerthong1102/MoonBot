@@ -31,6 +31,7 @@ function status(message = "", announcement = message) {
   if (live.textContent !== announcement) live.textContent = announcement;
 }
 function signedOut() {
+  el("handoffTargets").hidden = true;
   pending = newThread = undefined;
   drafts.clear();
   active?.abort();
@@ -81,6 +82,7 @@ async function list() {
     if (id !== newThread && !conversations.some(item => item.id === id)) drafts.delete(id);
   }
   connection = data.provider;
+  el("desktopConsent").hidden = !data.desktopHandoff;
   for (const option of el("skill").options) option.disabled = data.disabledSkills?.includes(option.value) ?? false;
   if (el("skill").selectedOptions[0]?.disabled) el("skill").value = [...el("skill").options].find(o => !o.disabled)?.value ?? "";
   el("providers").hidden = !connection?.enabled && !connection?.connected;
@@ -150,6 +152,7 @@ function formatAnswer(element, text) {
   element.parentElement.append(copy);
 }
 async function show(id) {
+  el("handoffTargets").hidden = true;
   if (thread) {
     const prompt = el("prompt").value;
     if (prompt || pending) drafts.set(thread, { prompt, skill:el("skill").value, provider:el("provider").value, pending });
@@ -347,8 +350,50 @@ el("compose").onsubmit = event => {
     el("stop").hidden = false;
     if (fromSendButton) el("stop").focus();
     status(t("waiting"));
+    let refreshThreads = true;
     try {
-      const response = await api("send", { thread, id, prompt, provider, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
+      const response = await api("send", { thread, id, prompt, provider, target:pending.target, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
+      if (response.headers.get("content-type")?.includes("application/json")) {
+        refreshThreads = false;
+        el("stop").hidden = true;
+        let { desktop } = await response.json();
+        const targets = el("handoffTargets");
+        targets.hidden = true;
+        if (desktop?.state === "choose") {
+          targets.replaceChildren();
+          for (const device of desktop.devices) {
+            const button = document.createElement("button");
+            button.className = "ui-button";
+            button.type = "button";
+            button.textContent = device.name + " · " + device.code;
+            button.onclick = () => {
+              if (pending?.id !== id || pending.thread !== thread || el("prompt").value !== submitted ||
+                  el("skill").value !== skill || el("provider").value !== provider || !el("consent").checked) { targets.hidden = true; return; }
+              pending.target = device.id;
+              targets.hidden = true;
+              el("compose").requestSubmit();
+            };
+            targets.append(button);
+          }
+          targets.hidden = false;
+          status(t("desktopChoose"));
+          return;
+        }
+        for (let i=0; desktop?.state === "waiting" && i<16; i++) {
+          status(t("desktopWaiting"));
+          await new Promise(resolve => setTimeout(resolve,1000));
+          active.signal.throwIfAborted();
+          desktop = await (await api("desktop-status",{id},active.signal)).json();
+        }
+        if (desktop?.state === "received") {
+          status(t("desktopReceived"));
+        } else {
+          if (desktop?.state === "expired") pending = undefined;
+
+          status(t(desktop?.state === "expired" || desktop?.state === "waiting" ? "desktopUnconfirmed" : "desktop_unavailable"));
+        }
+        return;
+      }
       if (newThread === thread) newThread = undefined;
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
       if (el("prompt").value === submitted) el("prompt").value = "";
@@ -393,7 +438,7 @@ el("compose").onsubmit = event => {
       if (document.activeElement === el("stop") && !el("chat").hidden) el("prompt").focus();
       el("stop").hidden = true;
       active = undefined;
-      if (account) await list().catch(() => { el("retry").hidden = false; });
+      if (account && refreshThreads) await list().catch(() => { el("retry").hidden = false; });
     }
   });
 };

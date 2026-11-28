@@ -4595,5 +4595,13 @@
   "mobileChat.account_changed": "Обліковий запис змінився. Відкрийте чат знову.",
   "mobileChat.invalid_message": "Скоротіть повідомлення та підтвердьте збереження.",
   "email.address": "Адреса електронної пошти",
-  "connectors.action.reconnect": "Під’єднати знову"
+  "connectors.action.reconnect": "Під’єднати знову",
+  "mobileChat.desktopListen": "Отримувати завдання з телефона",
+  "mobileChat.desktopListening": "Очікування телефона · Зупинити",
+  "mobileChat.desktopChoose": "Виберіть комп’ютер.",
+  "mobileChat.desktopWaiting": "Очікування комп’ютера…",
+  "mobileChat.desktopReceived": "Чернетку відкрито на комп’ютері. Перевірте її та надішліть там.",
+  "mobileChat.desktopUnconfirmed": "Отримання не підтверджено. Перевірте комп’ютер перед повторною спробою.",
+  "mobileChat.desktop_unavailable": "Немає готового комп’ютера. Увімкніть отримання завдань у порожньому особистому чаті на комп’ютері.",
+  "mobileChat.desktopConsent": "Завдання для комп’ютера передавати на мій комп’ютер як приватну чернетку."
 }

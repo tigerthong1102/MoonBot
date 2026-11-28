@@ -1,3 +1,5 @@
+import { needsDesktop } from "./mobile-desktop-task.mjs";
+import { sealDraft } from "../../electron/mobile-desktop-envelope.mjs";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
@@ -54,6 +56,23 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     AND (created,id)<(?,?) ORDER BY created DESC,id DESC LIMIT 13`);
   const lookup = db.prepare("SELECT id FROM mobile_threads WHERE owner=? AND id=?");
   const finish = db.prepare("UPDATE mobile_turns SET state=?,answer=? WHERE owner=? AND id=? AND state='running'");
+  async function desktopDraft(session, body, operation) {
+    try {
+      if (operation === "status") return await accounts.mobileDesktopDraft(session.token, body, operation);
+      const {prompt,...routing}=body;
+      routing.fingerprint=session.draftFingerprint(routing.id,prompt);
+      const ready=await accounts.mobileDesktopDraft(session.token,routing,"targets");
+      if (ready.state!=="ready") return ready;
+      const envelope=await sealDraft(prompt,ready.publicKey,routing.id,ready.listener);
+      return await accounts.mobileDesktopDraft(session.token,{...routing,envelope,installation:ready.id,listener:ready.listener},"offer");
+    }
+    catch (error) {
+      if (!(error instanceof ControlPlaneError)) throw error;
+      if (error.status === 401) throw new Fault(401,"signed_out");
+      if (error.status === 409) throw new Fault(409,"request_conflict");
+      throw new Fault(503,"desktopUnconfirmed");
+    }
+  }
   function recover(owner) {
     db.prepare("UPDATE mobile_turns SET state='interrupted' WHERE owner=? AND state='running' AND created<?")
       .run(owner, Date.now() - 5 * 60000);
@@ -145,9 +164,11 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       throw new Fault(401, "signed_out");
     }
     recover(owner);
-    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
+    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, desktopHandoff:settings.mobileDesktopHandoff === true, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
     if (method !== "POST") throw new Fault(404, "not_found");
     if (body.account !== owner) throw new Fault(409, "account_changed");
+    if (settings.mobileDesktopHandoff && path === "/mobile/desktop-status" && uuid.test(body.id))
+      return json(200, await desktopDraft(session, {id:body.id}, "status"));
     if (path === "/mobile/provider/start") return json(200, personalAI.start(session));
     if (path === "/mobile/provider/complete") return json(200, await personalAI.complete(session, body));
     if (path === "/mobile/provider/disconnect") return json(200, personalAI.disconnect(session));
@@ -184,13 +205,22 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     if (path !== "/mobile/send") throw new Fault(404, "not_found");
     if (!uuid.test(body.id) || typeof body.prompt !== "string" || !body.prompt.trim() ||
         Buffer.byteLength(body.prompt) > 8192 || body.save !== true) throw new Fault(400, "invalid_message");
-    if (body.runtime === "desktop" || /^(?:(?:hãy|vui lòng|please)\s+)?(?:mở|chạy|open|launch|start)\s+(?:phần mềm\s+|ứng dụng\s+)?(?:misa|excel|quickbooks)(?:\s|$|[.,!])/iu.test(body.prompt.trim()))
-      throw new Fault(409, "desktop_required");
+    const skill = body.skill ?? "chat";
+    const config = catalog(settings.catalog);
+    if (!["desktop","text"].includes(body.runtime ?? "text")) throw new Fault(409,"runtime_unavailable");
+    if (needsDesktop(body.prompt, body.runtime)) {
+      if (!settings.mobileDesktopHandoff) throw new Fault(409, "desktop_required");
+      if (config.disabledMobileSkills?.some(value => value === "desktop" || value === skill)) throw new Fault(409,"skill_paused");
+      const input = { id:body.id, prompt:body.prompt };
+      if (body.target != null) {
+        if (!uuid.test(body.target)) throw new Fault(400,"invalid_target");
+        input.target = body.target;
+      }
+      return json(200,{desktop:await desktopDraft(session,input,"offer")});
+    }
     if ((body.runtime ?? "text") !== "text" || /^(?:(?:hãy|vui lòng|please)\s+)?(?:chạy|run)\s+.{1,80}(?:khi máy tính tắt|when (?:my |the )?computer is off)/iu.test(body.prompt.trim()))
       throw new Fault(409, "runtime_unavailable");
-    const skill = body.skill ?? "chat";
     if (!textSkills.has(skill)) throw new Fault(400, "unsupported_skill");
-    const config = catalog(settings.catalog);
     if (config.disabledMobileSkills?.includes(skill)) throw new Fault(409, "skill_paused");
     const provider = body.provider ?? "managed";
     if (!["managed","openrouter"].includes(provider)) throw new Fault(400, "unsupported_provider");

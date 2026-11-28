@@ -11921,5 +11921,13 @@
   "mobileChat.error": "Chưa hoàn tất yêu cầu. Hãy kiểm tra kết nối và thử lại.",
   "mobileChat.unavailable": "Dịch vụ tài khoản tạm thời gián đoạn.",
   "mobileChat.account_changed": "Tài khoản đã thay đổi. Hãy mở lại hội thoại.",
-  "mobileChat.invalid_message": "Hãy rút ngắn tin nhắn và xác nhận lựa chọn lưu trữ."
+  "mobileChat.invalid_message": "Hãy rút ngắn tin nhắn và xác nhận lựa chọn lưu trữ.",
+  "mobileChat.desktopListen": "Nhận việc từ điện thoại",
+  "mobileChat.desktopListening": "Đang nhận việc từ điện thoại · Dừng",
+  "mobileChat.desktopChoose": "Chọn máy tính nhận yêu cầu này.",
+  "mobileChat.desktopWaiting": "Đang chờ máy tính mở bản nháp…",
+  "mobileChat.desktopReceived": "Bản nháp đã mở trên máy tính. Kiểm tra rồi nhấn Gửi tại đó.",
+  "mobileChat.desktopUnconfirmed": "Chưa xác nhận được việc nhận bản nháp. Kiểm tra máy tính trước khi thử lại.",
+  "mobileChat.desktop_unavailable": "Chưa có máy tính sẵn sàng. Mở cuộc trò chuyện cá nhân có ô nhập trống trên StartupBot máy tính và chọn “Nhận việc từ điện thoại”.",
+  "mobileChat.desktopConsent": "Với việc cần máy tính, chuyển yêu cầu dưới dạng bản nháp riêng tư đến máy tính của tôi đang nhận việc."
 }

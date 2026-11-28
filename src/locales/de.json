@@ -4552,5 +4552,13 @@
   "mobileChat.account_changed": "Dein Konto hat sich geändert. Öffne das Gespräch erneut.",
   "mobileChat.invalid_message": "Kürze die Nachricht und bestätige die Speicherung.",
   "email.address": "E-Mail-Adresse",
-  "connectors.action.reconnect": "Erneut verbinden"
+  "connectors.action.reconnect": "Erneut verbinden",
+  "mobileChat.desktopListen": "Aufgaben vom Handy empfangen",
+  "mobileChat.desktopListening": "Empfang aktiv · Beenden",
+  "mobileChat.desktopChoose": "Computer auswählen.",
+  "mobileChat.desktopWaiting": "Warten auf den Computer…",
+  "mobileChat.desktopReceived": "Entwurf am Computer geöffnet. Dort prüfen und senden.",
+  "mobileChat.desktopUnconfirmed": "Empfang unbestätigt. Vor erneutem Senden den Computer prüfen.",
+  "mobileChat.desktop_unavailable": "Kein Computer bereit. In einem leeren persönlichen Chat am Computer den Handy-Empfang einschalten.",
+  "mobileChat.desktopConsent": "Für Computeraufgaben den Auftrag als Entwurf an meinen empfangsbereiten Computer übertragen."
 }

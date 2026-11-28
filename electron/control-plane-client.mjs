@@ -362,6 +362,12 @@ export function createControlPlaneClient({
       return user;
     },
 
+    async mobileDesktopDraft(token, body, operation) {
+      if (!boundedSecret(token)) throw new ControlPlaneError("signed_out", 401);
+      const path = { arm:"/v1/mobile-drafts/arm", offer:"/v1/mobile-drafts", targets:"/v1/mobile-drafts/targets", status:"/v1/mobile-drafts/status", device:"/v1/installations/self/mobile-drafts" }[operation];
+      if (!path) throw new ControlPlaneError("invalid_request", 400);
+      return (await request(path, { token, method:"POST", body })).payload;
+    },
     async listInstallations(accountToken) {
       return accountInstallations(accountToken);
     },

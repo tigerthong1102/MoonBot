@@ -5,6 +5,7 @@ import { Select } from "./Select";
 
 export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
   const scopeId = useId();
+  const durationId = useId();
   const bridge = window.ogb?.personalInbox;
   const [choices, setChoices] = useState<Awaited<ReturnType<NonNullable<NonNullable<typeof bridge>["generatedChoices"]>>>>();
   const [scope, setScope] = useState("selected");
@@ -81,12 +82,13 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
             });
           }} /> {room.title} ({t(room.kind === "group" ? "personalInbox.group" : "personalInbox.direct")} · {room.id})
         </label>)}
-        <label>{t("personalInbox.generatedDuration")}
-          <select data-duration value={ongoing ? "online" : "once"} onChange={e => setOngoing(e.target.value === "online")}>
+        <div className="grid gap-1">
+          <label htmlFor={durationId}>{t("personalInbox.generatedDuration")}</label>
+          <Select id={durationId} data-duration value={ongoing ? "online" : "once"} onChange={e => setOngoing(e.target.value === "online")}>
             <option value="once">{t("personalInbox.generatedOnce")}</option>
             <option value="online">{t("personalInbox.generatedWhileOnline")}</option>
-          </select>
-        </label>
+          </Select>
+        </div>
         {ongoing && <>
           <label>{t("personalInbox.generatedDailyLimit")} <input type="number" min={1} max={720} value={limit} onChange={e => setLimit(e.target.value)} /></label>
           {validLimit && <p>{t("personalInbox.generatedOngoingTerms", { count: dailyLimit })}</p>}

@@ -54,6 +54,9 @@ it("requires a separate while-open choice and a valid rolling daily limit", asyn
     await act(async () => root.render(createElement(AiTwinGeneratedRelease, { paired: true })));
     await act(async () => host.querySelector("button")!.click());
     const duration = host.querySelector<HTMLSelectElement>("[data-duration]")!;
+    expect([...duration.labels].map(label => label.textContent)).toEqual(["Duration"]);
+    duration.focus();
+    expect(document.activeElement).toBe(duration);
     const submit = host.querySelectorAll("button")[1]!;
     expect(duration.value).toBe("once");
     expect(host.querySelector("input[type=number]")).toBeNull();

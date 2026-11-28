@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
+import { randomUuid } from "@/lib/random-uuid";
 
 export function MobileDraftReceiver({ receive }: { receive: (prompt: string) => void }) {
   const [armed, setArmed] = useState<string | null>(null);
@@ -74,7 +75,7 @@ export function MobileDraftReceiver({ receive }: { receive: (prompt: string) => 
         aria-pressed={Boolean(armed)}
         onClick={() => {
           setFailed(false);
-          setArmed(armed ? null : crypto.randomUUID());
+          setArmed(armed ? null : randomUuid());
         }}
       >
         {t(armed ? "mobileChat.desktopListening" : "mobileChat.desktopListen")}

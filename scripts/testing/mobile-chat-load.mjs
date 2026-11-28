@@ -32,6 +32,7 @@ try {
     return Math.round(values.toSorted((a,b) => a-b)[Math.ceil(fraction * values.length)-1]);
   }
   console.log(JSON.stringify({ clients, completed:total.length, wallMs:Math.round(performance.now()-start),
-    firstDeltaP50Ms:percentile(first,0.50), firstDeltaP95Ms:percentile(first,0.95), completeP95Ms:percentile(total,0.95),
+    firstDeltaP50Ms:percentile(first,0.50), firstDeltaP95Ms:percentile(first,0.95), firstDeltaP99Ms:percentile(first,0.99),
+    completeP50Ms:percentile(total,0.5), completeP95Ms:percentile(total,0.95), completeP99Ms:percentile(total,0.99),
     billedFixtureRequests:fixture.ledger.db.prepare("SELECT count(*) n FROM requests WHERE state='settled'").get().n }));
 } finally { await fixture.close(); }

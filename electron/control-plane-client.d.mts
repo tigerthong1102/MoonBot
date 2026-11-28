@@ -48,6 +48,7 @@ export interface ControlPlaneClient {
   requestOTP(email: string): Promise<unknown>;
   verifyOTP(email: string, otp: string): Promise<{ accountToken: string; user: ControlPlaneUser }>;
   me(accountToken: string): Promise<ControlPlaneUser>;
+  mobileDesktopDraft(token: string, body: Record<string, unknown>, operation: "arm" | "offer" | "targets" | "status" | "device"): Promise<Record<string, unknown>>;
   listInstallations(accountToken: string): Promise<ControlPlaneInstallation[]>;
   ensureInstallation(input: {
     accountToken: string;

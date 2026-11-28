@@ -43,6 +43,7 @@ const BrainDialog = lazy(() => import("./knowledge/BrainDialog"));
 type ExcerptOptions = { twinEnabled: boolean; bot?: Bot };
 
 function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
+  const panelId = useId();
   const [source, setSource] = useState("");
   const [input, setInput] = useState("");
   const [rows, setRows] = useState<ZaloReportRow[] | null>(null);
@@ -96,13 +97,21 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
         {row.deadlineText && <p>{t("zalo.report.deadline", { quote: row.deadlineText })}</p>}
         {row.repeatedLine !== undefined && <p>{t("zalo.report.repeated", { line: row.repeatedLine })}</p>}
         {twinEnabled && row.text.length <= AI_TWIN_QUESTION_MAX && <button type="button" className="ui-button self-start" aria-expanded={selected === row.line}
+          aria-controls={`${panelId}-twin-${row.line}`}
           onClick={() => setSelected(selected === row.line ? null : row.line)}>{t("settings.aiTwin.preview")}</button>}
         {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row)}>{t("zalo.brain")}</button>}
         {bot && (row.work.length > 0 || row.deadlineText) && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
         {bot && row.work.length > 0 && <button type="button" className="ui-button self-start" aria-expanded={workflowLine === row.line}
+          aria-controls={`${panelId}-workflow-${row.line}`}
           onClick={() => setWorkflowLine(workflowLine === row.line ? null : row.line)}>{t("zalo.workflow.review")}</button>}
-        {bot && workflowLine === row.line && <Suspense><WorkflowReview key={bot.threadId + ":" + row.line} bot={bot} source={source} line={row.line} /></Suspense>}
-        {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
+        {bot && row.work.length > 0 && <div id={`${panelId}-workflow-${row.line}`} hidden={workflowLine !== row.line}
+          className={workflowLine === row.line ? "contents" : undefined}>
+          {workflowLine === row.line && <Suspense><WorkflowReview key={bot.threadId + ":" + row.line} bot={bot} source={source} line={row.line} /></Suspense>}
+        </div>}
+        {twinEnabled && row.text.length <= AI_TWIN_QUESTION_MAX && <div id={`${panelId}-twin-${row.line}`} hidden={selected !== row.line}
+          className={selected === row.line ? "contents" : undefined}>
+          {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
+        </div>}
       </li>)}</ol>
     {bot && reminder && <Layer modal><Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}
       seed={{ kind: "routine", at: reminder.at, durationMinutes: 15, botIds: [bot.id], name: t("zalo.reminderTitle"), description: t("zalo.reminderPrompt", { line: reminder.line }) }}

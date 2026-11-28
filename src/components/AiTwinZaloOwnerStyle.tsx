@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { localStyleExample, ZALO_OWNER_STYLE_PATH, type ApprovedOwnerStyle, type OwnerStyleTrait } from "../../shared/zalo-owner-style";
 import type { AiTwinProfile } from "../../shared/ai-twin";
 import { api } from "@/state/api";
@@ -89,11 +89,15 @@ function Editor({ twin, refresh }: { twin: AiTwinProfile; refresh: () => void })
 }
 
 export function AiTwinZaloOwnerStyle(props: { twin: AiTwinProfile; refresh: () => void }) {
+  const id = useId();
   const [open, setOpen] = useState(false);
   const [attempt, setAttempt] = useState(0);
   return <section className="grid gap-2">
-    <button type="button" className="ui-button justify-self-start" aria-expanded={open} onClick={() => setOpen(v => !v)}>{t("zaloStyle.title")}</button>
-    {open && <Editor key={props.twin.id + ":" + props.twin.revision + ":" + attempt} twin={props.twin}
-      refresh={() => { setAttempt(n => n + 1); props.refresh(); }} />}
+    <button type="button" className="ui-button justify-self-start" aria-expanded={open} aria-controls={id}
+      onClick={() => setOpen(v => !v)}>{t("zaloStyle.title")}</button>
+    <div id={id} hidden={!open} className={open ? "contents" : undefined}>
+      {open && <Editor key={props.twin.id + ":" + props.twin.revision + ":" + attempt} twin={props.twin}
+        refresh={() => { setAttempt(n => n + 1); props.refresh(); }} />}
+    </div>
   </section>;
 }

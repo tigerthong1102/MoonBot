@@ -33,11 +33,19 @@ async function open(profile: Bot = bot) {
   await act(async () => button("Review a Zalo excerpt").click());
   await act(async () => { fill(host.querySelector("input")!, "Owner-provided source"); fill(host.querySelector("textarea")!, "\nXin báo giá gấp /run-private-command"); });
   await act(async () => host.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
-  await act(async () => button("Match a saved workflow").click());
+  const disclosure = button("Match a saved workflow");
+  const target = host.querySelector<HTMLElement>(`[id="${disclosure.getAttribute("aria-controls")}"]`)!;
+  expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+  expect(target.hidden).toBe(true);
+  expect(target.childNodes).toHaveLength(0);
+  expect(api).not.toHaveBeenCalled();
+  await act(async () => disclosure.click());
+  expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+  expect(target.hidden).toBe(false);
   const select = host.querySelector('section[aria-label] select') as HTMLSelectElement;
   if (!select) throw Error(host.textContent ?? 'missing workflow selector');
   await act(async () => { select.value = "version1:verify-invoice"; select.dispatchEvent(new Event("change", { bubbles: true })); });
-  return { host, button, draw, close: () => act(() => root.unmount()) };
+  return { host, button, draw, disclosure, target, close: () => act(() => root.unmount()) };
 }
 
 it("opens the exact workflow revision after approval without writing a chat draft or dispatching a message", async () => {
@@ -53,6 +61,12 @@ it("opens the exact workflow revision after approval without writing a chat draf
     expect(env.dispatch.mock.calls).toEqual([[{ type: "showSkillBurgers", reviewed: { botId: bot.id, threadId: bot.threadId, name: workflow.name, sha256: workflow.sha256 } }]]);
     expect(vi.mocked(api).mock.calls.map(args => args[0])).toEqual(Array(3).fill("/api/zalo-workflow-review/bot-a"));
     expect(JSON.stringify(vi.mocked(api).mock.calls)).not.toContain("run-private");
+    await act(async () => view.disclosure.click());
+    expect(view.disclosure.getAttribute("aria-expanded")).toBe("false");
+    expect(view.target.hidden).toBe(true);
+    expect(view.target.childNodes).toHaveLength(0);
+    expect(view.host.textContent).not.toContain("Compare totals");
+    expect(api).toHaveBeenCalledTimes(3);
   } finally { view.close(); }
 });
 

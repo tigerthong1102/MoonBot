@@ -1,15 +1,18 @@
 // @vitest-environment happy-dom
-import { mobileCatalog } from "../../apps/ai-pilot/mobile-catalog.mjs";
+import { mobileCatalog, renderMobilePage } from "../../apps/ai-pilot/mobile-catalog.mjs";
 import html from "../../apps/ai-pilot/mobile.html?raw";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const el = id => document.getElementById(id);
 
-let send, history;
+let send, history, extraPicker;
 
 beforeEach(async () => {
   vi.resetModules();
-  document.body.innerHTML = html.split("<body>")[1].split("<script")[0];
+  document.documentElement.lang = "en";
+  document.body.innerHTML = renderMobilePage(html, mobileCatalog("en")).split("<body>")[1].split('<script type="module"')[0];
+  el("compose").insertAdjacentHTML("beforeend", '<label for="extraPicker">Provider</label><select id="extraPicker" name="extraPicker"><option value="managed">Managed</option><option value="own" selected>Personal</option></select>');
+  extraPicker = el("extraPicker");
   vi.stubGlobal("Option", function Option(text, value) {
     const option = document.createElement("option");
     option.textContent = text;
@@ -20,7 +23,6 @@ beforeEach(async () => {
   history = vi.fn();
   vi.stubGlobal("BroadcastChannel", undefined);
   vi.stubGlobal("fetch", async (path, init) => {
-    if (path.startsWith("/mobile/messages?")) return Response.json(mobileCatalog("en"));
     if (path === "/mobile/threads") return Response.json({ account:"test", threads:[] });
     if (path === "/mobile/history") return history();
     if (path === "/mobile/send") return send(JSON.parse(init.body));
@@ -99,4 +101,23 @@ it.each([true, false])("copies a mobile answer through the legacy fallback when 
   } finally {
     delete document.execCommand;
   }
+});
+
+it("boots every picker with the shared Select, native labels, options and keyboard focus", async () => {
+  const fields = ["threads", "skill", "extraPicker"].map(el);
+  expect(el("extraPicker")).toBe(extraPicker);
+  expect(extraPicker.value).toBe("own");
+  for (const field of fields) {
+    expect(field.tagName).toBe("SELECT");
+    expect(field.dataset.look).toBe("select");
+    expect(field.closest("[data-inbox-select]").querySelector('svg[aria-hidden="true"]')).toBeTruthy();
+    expect(document.querySelector('label[for="' + field.id + '"]').textContent).toBeTruthy();
+    field.focus();
+    expect(document.activeElement).toBe(field);
+  }
+  const { installInboxSelects } = await import("../../apps/ai-pilot/inbox-select.js");
+  installInboxSelects(document.querySelectorAll("select"));
+  expect(document.querySelectorAll("[data-inbox-select]")).toHaveLength(fields.length);
+  expect(el("skill").querySelector('option[value="write"]').textContent).toBeTruthy();
+  expect([...document.querySelectorAll("button")].every(button => button.classList.contains("ui-button"))).toBe(true);
 });

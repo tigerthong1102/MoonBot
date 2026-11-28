@@ -7,6 +7,7 @@ import { applySetupImport, detectSetup, thisMachine, type SetupHost, type SetupM
 import type { BusyFlag } from "./config.ts";
 import { createZaloReplyRoutes } from "./zalo-approved-send.ts";
 import { createZaloErasureRoutes } from "./zalo-erasure.ts";
+import { createZaloKnowledgeRoutes } from "./zalo-knowledge-bookmarks.ts";
 import { createZaloPairingRoutes } from "./zalo-pairing.ts";
 import { zaloPeriodService } from "./zalo-period-report.ts";
 export { zaloPeriodService };
@@ -89,5 +90,5 @@ export function createSetupImportRoutes(deps: SetupImportRouteDeps): RouteHandle
 }
 
 export function createDesktopImportRoutes(deps: SetupImportRouteDeps): RouteHandler[] {
-  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloPairingRoutes(deps.local), createZaloReplyRoutes(deps.local), createZaloErasureRoutes(deps.local), zaloPeriodService(deps.local, { onChanged: deps.onLocalReportScheduleChanged }).route];
+  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloPairingRoutes(deps.local), createZaloReplyRoutes(deps.local), createZaloErasureRoutes(deps.local), zaloPeriodService(deps.local, { onChanged: deps.onLocalReportScheduleChanged }).route, createZaloKnowledgeRoutes(deps.local)];
 }

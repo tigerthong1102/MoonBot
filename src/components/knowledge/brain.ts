@@ -176,7 +176,8 @@ const questionWords = new Set([
   "of",
   "did",
 ]);
-export function searchPages(pages: VerifiedPage[], question: string) {
+type SearchablePage = { page: Pick<BrainPage, "title" | "body">; evidence: Pick<BrainEvidence, "label" | "quote"> };
+export function searchPages<T extends SearchablePage>(pages: T[], question: string) {
   const query = fold(question.trim());
   if (!query) return pages;
   const words = query.match(/[\p{L}\p{N}]+/gu) ?? [];

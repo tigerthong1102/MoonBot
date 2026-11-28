@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
+import { localSetupImport } from "@/lib/setup-import";
+import { ZaloPrivateKnowledge } from "./ZaloPrivateKnowledge";
 import { libraryOwner } from "./source-cache";
 import { observeLibraryOwner } from "./source-sync";
 import {
@@ -35,6 +37,7 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", za
   const [query, setQuery] = useState(initialQuery);
   const [error, setError] = useState(false);
   const [ready, setReady] = useState(false);
+  const [shelfOpen, setShelfOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [epoch, refresh] = useState(0);
   const view = useRef<AbortController | null>(null);
@@ -225,6 +228,7 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", za
           {t("reconcile.close")}
         </button>
       </header>
+      {ready && !draft && account.current === "local" && localSetupImport(state.config?.cloudHome === true) && <ZaloPrivateKnowledge query={query} open={shelfOpen} setOpen={setShelfOpen} />}
       {error && (
         <p role="alert">
           {t("brain.unavailable")}{" "}

@@ -1,6 +1,8 @@
 import { installInboxSelects } from "./inbox-select.js";
 import { copyText } from "./clipboard-write.js";
 
+let callback = location.pathname === "/mobile/callback" ? new URLSearchParams(location.search) : null;
+if (callback) history.replaceState(null, "", "/mobile");
 const el = id => document.getElementById(id);
 const locale = document.documentElement.lang;
 function readCatalog() {
@@ -16,7 +18,9 @@ if (catalog) {
   for (const node of document.querySelectorAll("[data-t]")) node.textContent = t(node.dataset.t);
   for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
 }
-let account, thread, busy = false, active, pending;
+let account, thread, busy = false, active, pending, connection;
+let conversations = [], before, newThread;
+const drafts = new Map();
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("startupbot-account") : null;
 channel?.addEventListener("message", () => location.reload());
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
@@ -27,11 +31,15 @@ function status(message = "", announcement = message) {
   if (live.textContent !== announcement) live.textContent = announcement;
 }
 function signedOut() {
+  el("handoffTargets").hidden = true;
+  pending = newThread = undefined;
+  drafts.clear();
   active?.abort();
   status();
-  pending = undefined;
   account = undefined;
   thread = undefined;
+  conversations = [];
+  connection = undefined;
   el("chat").hidden = el("logout").hidden = true;
   el("login").hidden = false;
   el("codeBox").hidden = el("changeEmail").hidden = true;
@@ -39,6 +47,13 @@ function signedOut() {
   el("email").readOnly = false;
   el("loginButton").textContent = t("code");
   el("transcript").replaceChildren();
+  el("usage").open = false;
+  el("usageText").textContent = "";
+  el("sessions").open = false;
+  el("sessionList").replaceChildren();
+  el("tools").open = el("skills").open = false;
+  el("devices").open = false;
+  el("deviceList").replaceChildren();
   el("threads").replaceChildren();
   el("login").reset();
   el("compose").reset();
@@ -61,18 +76,47 @@ async function list() {
   const data = await (await api("threads")).json();
   if (account && account !== data.account) { location.reload(); return; }
   account = data.account;
+  conversations = data.threads;
+  if (conversations.some(item => item.id === newThread)) newThread = undefined;
+  for (const id of drafts.keys()) {
+    if (id !== newThread && !conversations.some(item => item.id === id)) drafts.delete(id);
+  }
+  connection = data.provider;
+  el("desktopConsent").hidden = !data.desktopHandoff;
+  for (const option of el("skill").options) option.disabled = data.disabledSkills?.includes(option.value) ?? false;
+  if (el("skill").selectedOptions[0]?.disabled) el("skill").value = [...el("skill").options].find(o => !o.disabled)?.value ?? "";
+  el("providers").hidden = !connection?.enabled && !connection?.connected;
+  el("connectProvider").hidden = !connection?.enabled || connection.connected;
+  el("disconnectProvider").hidden = !connection?.connected;
+  el("providerKeys").href = connection?.settingsURL || "https://openrouter.ai/keys";
   const options = data.threads.map(item => new Option(item.title, item.id));
   el("threads").replaceChildren(new Option(t("empty"), ""), ...options);
   el("threads").value = options.some(o => o.value === thread) ? thread : "";
+  payer();
   return data.threads;
 }
-function bubble(speaker, text) {
-  const block = document.createElement("article"), label = document.createElement("strong"), paragraph = document.createElement("p");
+function payer() {
+  const saved = conversations.find(item => item.id === thread);
+  el("billing").hidden = !connection?.connected && saved?.provider !== "openrouter";
+  el("provider").disabled = Boolean(saved);
+  if (saved) el("provider").value = saved.provider;
+  else if (!connection?.connected && el("provider").value === "openrouter") {
+    el("provider").value = "managed";
+    el("consent").checked = false;
+  }
+  el("provider").options[1].disabled = !connection?.connected;
+}
+function bubble(speaker, text, container = el("transcript")) {
+  const block = document.createElement("article"), label = document.createElement("small");
+  const bubble = document.createElement("div"), paragraph = document.createElement("pre");
+  block.className = speaker === t("you") ? "message mine" : "message";
+  bubble.className = "bubble";
   label.textContent = speaker;
   paragraph.dir = "auto";
   paragraph.textContent = text;
-  block.append(label, paragraph);
-  el("transcript").append(block);
+  bubble.append(paragraph);
+  block.append(label, bubble);
+  container.append(block);
   return paragraph;
 }
 function formatAnswer(element, text) {
@@ -108,25 +152,50 @@ function formatAnswer(element, text) {
   element.parentElement.append(copy);
 }
 async function show(id) {
-  thread = id || crypto.randomUUID();
+  el("handoffTargets").hidden = true;
+  if (thread) {
+    const prompt = el("prompt").value;
+    if (prompt || pending) drafts.set(thread, { prompt, skill:el("skill").value, provider:el("provider").value, pending });
+    else drafts.delete(thread);
+  }
+  if (!id && !newThread) newThread = crypto.randomUUID();
+  thread = id || newThread;
+  const draft = drafts.get(thread);
+  pending = draft?.pending;
   el("transcript").replaceChildren();
   el("compose").reset();
   el("threads").value = id || "";
-  if (id) await refreshTranscript();
+  if (draft) {
+    el("prompt").value = draft.prompt;
+    const option = [...el("skill").options].find(o => o.value === draft.skill && !o.disabled);
+    if (option) el("skill").value = option.value;
+    el("provider").value = draft.provider;
+  } else {
+    const option = [...el("skill").options].find(o => !o.disabled);
+    if (option) el("skill").value = option.value;
+  }
+  payer();
+  before = null;
+  el("older").hidden = true;
+  if (id) { await loadHistory(); el("history").scrollTop = el("history").scrollHeight; }
 }
-async function refreshTranscript() {
-  const { turns } = await (await api("history", { thread })).json();
-  el("transcript").replaceChildren();
+async function loadHistory(replace = false) {
+  const { turns, next } = await (await api("history", { thread, before:replace ? null : before })).json();
+  const fragment = document.createDocumentFragment();
   for (const turn of turns) {
-    bubble(t("you"), turn.prompt);
-    const answer = bubble(t("bot"), "");
+    bubble(t("you"), turn.prompt, fragment);
+    const answer = bubble(t("bot"), "", fragment);
     if (turn.answer) formatAnswer(answer, turn.answer);
     if (t(turn.state)) answer.append(document.createTextNode(t(turn.state)));
   }
+  if (replace) el("transcript").replaceChildren(fragment);
+  else el("transcript").prepend(fragment);
+  before = next;
+  el("older").hidden = !before;
 }
 function lock(value) {
   busy = value;
-  for (const id of ["threads","new","rename","remove","send","logout","loginButton","changeEmail"]) el(id).disabled = value;
+  for (const id of ["threads","new","older","rename","remove","send","logout","logoutAll","loginButton","changeEmail","connectProvider","disconnectProvider"]) el(id).disabled = value;
 }
 async function action(work) {
   if (busy) return;
@@ -139,9 +208,25 @@ async function openChat() {
   el("retry").hidden = true;
   let threads;
   try { threads = await list(); } catch (error) { el("retry").hidden = !el("login").hidden; throw error; }
+  el("prompt").placeholder = t("message");
   el("chat").hidden = el("logout").hidden = false;
   el("login").hidden = true;
-  await show(threads[0]?.id);
+  if (callback) {
+    const authorization = callback;
+    callback = null;
+    try {
+      await api("provider/complete", { code:authorization.get("code"), state:authorization.get("state") });
+      el("tools").open = el("providers").open = true;
+      threads = await list();
+    } catch (error) {
+      if (!account) throw error;
+      el("retry").hidden = false;
+      status(error.message);
+    }
+  }
+  const existing = threads.some(item => item.id === thread) ? thread : threads[0]?.id;
+  try { await show(thread && newThread === thread ? "" : existing || ""); }
+  catch (error) { el("retry").hidden = !account; throw error; }
 }
 el("login").onsubmit = event => {
   event.preventDefault();
@@ -168,45 +253,156 @@ el("retry").onclick = () => action(async () => {
   el("retry").hidden = true;
   try {
     const saved = await list();
-    if (saved?.some(item => item.id === thread)) await refreshTranscript();
+    if (saved?.some(item => item.id === thread)) await loadHistory(true);
   } catch (error) {
     el("retry").hidden = !account;
     throw error;
   }
 });
+el("usage").ontoggle = async () => {
+  if (!el("usage").open) return;
+  const initiatingAccount = account;
+  try {
+    const usage = await (await api("account-usage", {})).json();
+    if (!account || account !== initiatingAccount || !el("usage").open) return;
+    const usd = micros => (micros/1000000).toLocaleString(locale, { style:"currency", currency:"USD", maximumFractionDigits:6 });
+    el("usageText").textContent = [t("balance") + " · " + usd(usage.available),
+      usage.expires && t("expires") + " · " + new Date(usage.expires).toLocaleDateString(locale),
+      t("byokUsage") + " · " + usd(usage.byokTodayUTC.settled) + " / " + usd(usage.byokTodayUTC.pending)].filter(Boolean).join("\n");
+  } catch (error) { status(error.message); }
+};
+async function showSessions() {
+  const initiatingAccount = account;
+  const { sessions } = await (await api("sessions", {})).json();
+  if (!account || account !== initiatingAccount || !el("sessions").open) return;
+  const items = sessions.map(session => {
+    const item = document.createElement("li"), button = document.createElement("button");
+    if (session.current) item.append(t("currentSession") + " · ");
+    item.append(new Date(session.createdAt).toLocaleString(locale) + " · " + t("expires") + " " + new Date(session.expiresAt).toLocaleString(locale) + " ");
+    button.className = "ui-button";
+    button.textContent = t("revoke");
+    button.onclick = () => action(async () => {
+      await api("sessions/revoke", { sessionId:session.id });
+      await showSessions();
+    });
+    item.append(button);
+    return item;
+  });
+  el("sessionList").replaceChildren(...items);
+}
+el("sessions").ontoggle = () => {
+  if (el("sessions").open) showSessions().catch(error => status(error.message));
+};
+el("logoutAll").onclick = () => action(async () => {
+  await api("sessions/logout-all", {});
+  signedOut();
+  channel?.postMessage("changed");
+});
+el("devices").ontoggle = async () => {
+  if (!el("devices").open) return;
+  const viewer = account;
+  try {
+    const { devices } = await (await api("devices", {})).json();
+    if (!account || viewer !== account) return;
+    el("deviceList").replaceChildren(...(devices.length ? devices.map(d => [d.name, d.platform, d.appVersion].filter(Boolean).join(" · ")) : [t("noDevices")])
+      .map(text => { const item = document.createElement("li"); item.textContent = text; return item; }));
+  } catch (error) { status(error.message); }
+};
+el("connectProvider").onclick = () => action(async () => {
+  const { url } = await (await api("provider/start", {})).json();
+  location.assign(url);
+});
+el("disconnectProvider").onclick = () => action(async () => { await api("provider/disconnect", {}); await list(); });
 el("changeEmail").onclick = signedOut;
 el("logout").onclick = () => action(async () => { await api("logout", {}); signedOut(); channel?.postMessage("changed"); });
-el("threads").onchange = () => action(() => show(el("threads").value));
-el("new").onclick = () => action(() => show(""));
+el("threads").onchange = () => action(async () => { await show(el("threads").value); el("tools").open = false; });
+el("older").onclick = () => action(loadHistory);
+el("new").onclick = () => action(async () => { await show(""); el("tools").open = false; el("prompt").focus(); });
 el("rename").onclick = () => action(async () => {
   if (!el("threads").value) return;
   const title = window.prompt(t("rename"), el("threads").selectedOptions[0].textContent);
   if (title?.trim()) { await api("rename", { thread, title }); await list(); }
 });
 el("remove").onclick = () => action(async () => {
-  if (el("threads").value && window.confirm(t("confirm"))) { await api("delete", { thread }); await list(); await show(""); }
+  if (el("threads").value && window.confirm(t("confirm"))) {
+    await api("delete", { thread });
+    drafts.delete(thread);
+    thread = pending = undefined;
+    await list();
+    await show("");
+    el("tools").open = false;
+  }
 });
 el("stop").onclick = () => active?.abort();
 el("compose").onsubmit = event => {
   event.preventDefault();
+  if (!navigator.onLine) { status(t("offline")); return; }
   const fromSendButton = document.activeElement === el("send");
   action(async () => {
     const submitted = el("prompt").value;
     const prompt = submitted.trim();
     if (!prompt) return;
     const skill = el("skill").value;
-    if (!pending || pending.thread !== thread || pending.prompt !== prompt || pending.skill !== skill) pending = { thread, prompt, skill, id:crypto.randomUUID() };
+    const provider = el("provider").value;
+    if (!pending || pending.thread !== thread || pending.prompt !== prompt || pending.skill !== skill || pending.provider !== provider) pending = { thread, prompt, skill, provider, id:crypto.randomUUID() };
     const id = pending.id;
     active = new AbortController();
     el("stop").hidden = false;
     if (fromSendButton) el("stop").focus();
     status(t("waiting"));
+    let refreshThreads = true;
     try {
-      const response = await api("send", { thread, id, prompt, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
+      const response = await api("send", { thread, id, prompt, provider, target:pending.target, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
+      if (response.headers.get("content-type")?.includes("application/json")) {
+        refreshThreads = false;
+        el("stop").hidden = true;
+        let { desktop } = await response.json();
+        const targets = el("handoffTargets");
+        targets.hidden = true;
+        if (desktop?.state === "choose") {
+          targets.replaceChildren();
+          for (const device of desktop.devices) {
+            const button = document.createElement("button");
+            button.className = "ui-button";
+            button.type = "button";
+            button.textContent = device.name + " · " + device.code;
+            button.onclick = () => {
+              if (pending?.id !== id || pending.thread !== thread || el("prompt").value !== submitted ||
+                  el("skill").value !== skill || el("provider").value !== provider || !el("consent").checked) { targets.hidden = true; return; }
+              pending.target = device.id;
+              targets.hidden = true;
+              el("compose").requestSubmit();
+            };
+            targets.append(button);
+          }
+          targets.hidden = false;
+          status(t("desktopChoose"));
+          return;
+        }
+        for (let i=0; desktop?.state === "waiting" && i<16; i++) {
+          status(t("desktopWaiting"));
+          await new Promise(resolve => setTimeout(resolve,1000));
+          active.signal.throwIfAborted();
+          desktop = await (await api("desktop-status",{id},active.signal)).json();
+        }
+        if (desktop?.state === "received") {
+          status(t("desktopReceived"));
+        } else {
+          if (desktop?.state === "expired") pending = undefined;
+
+          status(t(desktop?.state === "expired" || desktop?.state === "waiting" ? "desktopUnconfirmed" : "desktop_unavailable"));
+        }
+        return;
+      }
+      if (newThread === thread) newThread = undefined;
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
       if (el("prompt").value === submitted) el("prompt").value = "";
+      const history = el("history");
+      const nearBottom = () => history.scrollHeight - history.clientHeight - history.scrollTop < 64;
+      const following = nearBottom();
       bubble(t("you"), prompt);
       const answer = bubble(t("bot"), "");
+      if (following) history.scrollTop = history.scrollHeight;
       let buffer = "", state;
       while (true) {
         const chunk = await reader.read();
@@ -217,7 +413,12 @@ el("compose").onsubmit = event => {
         while ((end = buffer.indexOf("\n")) >= 0) {
           const frame = JSON.parse(buffer.slice(0, end));
           buffer = buffer.slice(end + 1);
-          if (frame.text) { answer.append(document.createTextNode(frame.text)); status(); }
+          if (frame.text) {
+            const follow = nearBottom();
+            answer.append(document.createTextNode(frame.text));
+            if (follow) history.scrollTop = history.scrollHeight;
+            status();
+          }
           if (frame.state) state = frame.state;
         }
       }
@@ -228,7 +429,8 @@ el("compose").onsubmit = event => {
       status(notice, [reply, notice].filter(Boolean).join("\n"));
     } catch (error) {
       if (error.code !== "request_exists") throw error;
-      await refreshTranscript();
+      if (newThread === thread) newThread = undefined;
+      await loadHistory(true);
       if (el("prompt").value === submitted) el("prompt").value = "";
       pending = undefined;
       status(t("interrupted"));
@@ -236,7 +438,7 @@ el("compose").onsubmit = event => {
       if (document.activeElement === el("stop") && !el("chat").hidden) el("prompt").focus();
       el("stop").hidden = true;
       active = undefined;
-      if (account) await list().catch(() => { el("retry").hidden = false; });
+      if (account && refreshThreads) await list().catch(() => { el("retry").hidden = false; });
     }
   });
 };

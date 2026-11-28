@@ -4174,5 +4174,13 @@
   "mobileChat.account_changed": "आपका खाता बदल गया है। बातचीत फिर खोलें।",
   "mobileChat.invalid_message": "संदेश छोटा करें और उसे सहेजने की सहमति दें।",
   "email.address": "ईमेल पता",
-  "connectors.action.reconnect": "फिर से कनेक्ट करें"
+  "connectors.action.reconnect": "फिर से कनेक्ट करें",
+  "mobileChat.desktopListen": "फ़ोन से कार्य लें",
+  "mobileChat.desktopListening": "फ़ोन की प्रतीक्षा · रोकें",
+  "mobileChat.desktopChoose": "कंप्यूटर चुनें।",
+  "mobileChat.desktopWaiting": "कंप्यूटर की प्रतीक्षा है…",
+  "mobileChat.desktopReceived": "ड्राफ़्ट कंप्यूटर पर खुला है। वहाँ जाँचकर भेजें।",
+  "mobileChat.desktopUnconfirmed": "प्राप्ति की पुष्टि नहीं हुई। पुनः प्रयास से पहले कंप्यूटर देखें।",
+  "mobileChat.desktop_unavailable": "कोई कंप्यूटर तैयार नहीं है। कंप्यूटर पर खाली निजी चैट में फ़ोन से कार्य लेना चालू करें।",
+  "mobileChat.desktopConsent": "कंप्यूटर वाले कार्यों के लिए अनुरोध को मेरे तैयार कंप्यूटर पर निजी ड्राफ़्ट के रूप में भेजें।"
 }

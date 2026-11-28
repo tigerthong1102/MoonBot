@@ -7643,5 +7643,13 @@
   "mobileChat.unavailable": "Il servizio account è temporaneamente non disponibile.",
   "mobileChat.account_changed": "L’account è cambiato. Riapri la conversazione.",
   "mobileChat.invalid_message": "Accorcia il messaggio e conferma il salvataggio.",
-  "email.address": "Indirizzo e-mail"
+  "email.address": "Indirizzo e-mail",
+  "mobileChat.desktopListen": "Ricevi attività dal telefono",
+  "mobileChat.desktopListening": "Ricezione attiva · Interrompi",
+  "mobileChat.desktopChoose": "Scegli un computer.",
+  "mobileChat.desktopWaiting": "In attesa del computer…",
+  "mobileChat.desktopReceived": "Bozza aperta sul computer. Controllala e inviala da lì.",
+  "mobileChat.desktopUnconfirmed": "Ricezione non confermata. Controlla il computer prima di riprovare.",
+  "mobileChat.desktop_unavailable": "Nessun computer pronto. Attiva la ricezione in una chat personale vuota sul computer.",
+  "mobileChat.desktopConsent": "Per le attività da computer, invia la richiesta come bozza privata al mio computer in ascolto."
 }

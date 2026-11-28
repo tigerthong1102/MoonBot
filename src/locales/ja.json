@@ -8610,5 +8610,13 @@
   "mobileChat.unavailable": "アカウントサービスは一時的に利用できません。",
   "mobileChat.account_changed": "アカウントが変わりました。会話を開き直してください。",
   "mobileChat.invalid_message": "メッセージを短くし、保存への同意を確認してください。",
-  "email.address": "メールアドレス"
+  "email.address": "メールアドレス",
+  "mobileChat.desktopListen": "スマートフォンから依頼を受け取る",
+  "mobileChat.desktopListening": "受信待機中 · 停止",
+  "mobileChat.desktopChoose": "受け取るコンピューターを選んでください。",
+  "mobileChat.desktopWaiting": "コンピューターの応答を待っています…",
+  "mobileChat.desktopReceived": "コンピューターで下書きを開きました。内容を確認して送信してください。",
+  "mobileChat.desktopUnconfirmed": "受信を確認できません。再試行する前にコンピューターを確認してください。",
+  "mobileChat.desktop_unavailable": "受信できるコンピューターがありません。コンピューターの個人チャットで入力欄を空にし、スマートフォンからの受信を有効にしてください。",
+  "mobileChat.desktopConsent": "コンピューターが必要な依頼は、受信待機中の自分のコンピューターに非公開の下書きとして転送します。"
 }

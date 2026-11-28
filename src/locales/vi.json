@@ -12139,5 +12139,20 @@
   "zalo.intent.rent": "Có thể có nhu cầu thuê",
   "zalo.intent.approval": "Có thể cần phê duyệt",
   "zalo.intent.quote": "Có thể cần báo giá",
-  "zalo.intent.other": "Chưa phân loại"
+  "zalo.intent.other": "Chưa phân loại",
+  "zalo.workflow.review": "Chọn quy trình đã lưu…",
+  "zalo.workflow.source": "Đề xuất từ {source}, dòng {line}.",
+  "zalo.workflow.scope": "Chọn quy trình riêng của bot và xem lại các bước. Đề xuất nằm ở màn hình này tới khi bạn mở thư viện quy trình.",
+  "zalo.workflow.savedSteps": "Xem bản ghi các bước đã lưu gần nhất trong chat này",
+  "zalo.workflow.changed": "Quy trình đã thay đổi hoặc đã bị gỡ. Vui lòng xem lại danh sách.",
+  "zalo.workflow.prepared": "Đề xuất đã được duyệt để xem. Quy trình chưa chạy.",
+  "zalo.workflow.openChat": "Mở phiên bản này trong thư viện quy trình",
+  "zalo.workflow.empty": "Bot này chưa có quy trình riêng đã lưu.",
+  "zalo.workflow.choose": "Chọn quy trình",
+  "zalo.workflow.inputs": "Đầu vào của quy trình: {inputs}",
+  "zalo.workflow.windows": "Công việc này cần Windows",
+  "zalo.workflow.available": "Bot này có thể dùng máy này ({host}).",
+  "zalo.workflow.unavailable": "Máy cần dùng đang ngoại tuyến, chưa sẵn sàng hoặc chưa được chọn cho chat này. Công việc chưa chạy.",
+  "zalo.workflow.all": "Xem tất cả quy trình đã lưu",
+  "zalo.workflow.prepare": "Duyệt đề xuất quy trình"
 }

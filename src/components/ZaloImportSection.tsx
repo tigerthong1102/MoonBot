@@ -36,12 +36,14 @@ function TwinForExcerpt({ text, source }: { text: string; source: ZaloSourceLine
     allowSemantic={Boolean(view.lessons?.some(lesson => lesson.allowProvider))} refresh={() => setAttempt(a => a + 1)} /></>;
 }
 
+const WorkflowReview = lazy(() => import("./ZaloWorkflowReview"));
 const RoutineEditor = lazy(() => import("./RoutineCalendarPage").then(module => ({ default: module.EventEditor })));
 const BrainDialog = lazy(() => import("./knowledge/BrainDialog"));
 
 type ExcerptOptions = { twinEnabled: boolean; bot?: Bot };
 
 function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
+  const panelId = useId();
   const [source, setSource] = useState("");
   const [input, setInput] = useState("");
   const [rows, setRows] = useState<ZaloReportRow[] | null>(null);
@@ -51,6 +53,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
   const [selected, setSelected] = useState<number | null>(null);
 
   const [reminder, setReminder] = useState<{ line: number; at: number } | null>(null);
+  const [workflowLine, setWorkflowLine] = useState<number | null>(null);
   const [brain, setBrain] = useState<ZaloReportRow | null>(null);
   const closeBrain = useCallback(() => setBrain(null), []);
 
@@ -79,7 +82,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
 
   const visible = rows.filter(row => matchesZaloReport(row, filter));
   const pageSize = 20;
-  function move(next: number) { setSelected(null); setPage(next); }
+  function move(next: number) { setWorkflowLine(null); setSelected(null); setPage(next); }
   function clear() { setRows(null); setSource(""); setInput(""); closeBrain(); setReminder(null); setFilter("all"); move(0); }
   return <section className="flex flex-col gap-3">
     <ZaloReportControls rows={rows} source={source} filter={filter} onFilter={next => { setFilter(next); move(0); }} />
@@ -94,10 +97,21 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
         {row.deadlineText && <p>{t("zalo.report.deadline", { quote: row.deadlineText })}</p>}
         {row.repeatedLine !== undefined && <p>{t("zalo.report.repeated", { line: row.repeatedLine })}</p>}
         {twinEnabled && row.text.length <= AI_TWIN_QUESTION_MAX && <button type="button" className="ui-button self-start" aria-expanded={selected === row.line}
+          aria-controls={`${panelId}-twin-${row.line}`}
           onClick={() => setSelected(selected === row.line ? null : row.line)}>{t("settings.aiTwin.preview")}</button>}
         {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row)}>{t("zalo.brain")}</button>}
         {bot && (row.work.length > 0 || row.deadlineText) && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
-        {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
+        {bot && row.work.length > 0 && <button type="button" className="ui-button self-start" aria-expanded={workflowLine === row.line}
+          aria-controls={`${panelId}-workflow-${row.line}`}
+          onClick={() => setWorkflowLine(workflowLine === row.line ? null : row.line)}>{t("zalo.workflow.review")}</button>}
+        {bot && row.work.length > 0 && <div id={`${panelId}-workflow-${row.line}`} hidden={workflowLine !== row.line}
+          className={workflowLine === row.line ? "contents" : undefined}>
+          {workflowLine === row.line && <Suspense><WorkflowReview key={bot.threadId + ":" + row.line} bot={bot} source={source} line={row.line} /></Suspense>}
+        </div>}
+        {twinEnabled && row.text.length <= AI_TWIN_QUESTION_MAX && <div id={`${panelId}-twin-${row.line}`} hidden={selected !== row.line}
+          className={selected === row.line ? "contents" : undefined}>
+          {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
+        </div>}
       </li>)}</ol>
     {bot && reminder && <Layer modal><Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}
       seed={{ kind: "routine", at: reminder.at, durationMinutes: 15, botIds: [bot.id], name: t("zalo.reminderTitle"), description: t("zalo.reminderPrompt", { line: reminder.line }) }}

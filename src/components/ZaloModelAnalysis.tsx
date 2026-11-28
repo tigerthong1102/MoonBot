@@ -12,7 +12,7 @@ export function ZaloModelAnalysis({ bot, source, rows }: { bot: Bot; source: str
   const id = useId();
   return <div><button type="button" className="ui-button" aria-expanded={open} aria-controls={id}
     onClick={() => setOpen(!open)}>{t("zalo.model.open")}</button>
-    {open && <section id={id}><ReviewModelLines bot={bot} source={source} rows={rows} /></section>}</div>;
+    <section id={id} hidden={!open}>{open && <ReviewModelLines bot={bot} source={source} rows={rows} />}</section></div>;
 }
 
 function ReviewModelLines({ bot, source, rows }: { bot: Bot; source: string; rows: ZaloModelLine[] }) {

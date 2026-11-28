@@ -12139,5 +12139,20 @@
   "zalo.intent.rent": "Possible tenant",
   "zalo.intent.approval": "Possible approval request",
   "zalo.intent.quote": "Possible quote request",
-  "zalo.intent.other": "Unclassified"
+  "zalo.intent.other": "Unclassified",
+  "zalo.workflow.review": "Match a saved workflow…",
+  "zalo.workflow.source": "Proposal from {source}, line {line}.",
+  "zalo.workflow.scope": "Choose a private workflow saved for this bot and review its steps. The proposal stays in this view until you open the saved workflow library.",
+  "zalo.workflow.savedSteps": "View the last Saved Steps record in this chat",
+  "zalo.workflow.changed": "The saved workflow changed or was removed. Review the list again.",
+  "zalo.workflow.prepared": "Proposal approved for inspection. No workflow has started.",
+  "zalo.workflow.openChat": "Open this revision in the workflow library",
+  "zalo.workflow.empty": "This bot has no private saved workflows.",
+  "zalo.workflow.choose": "Choose a workflow",
+  "zalo.workflow.inputs": "Workflow inputs: {inputs}",
+  "zalo.workflow.windows": "This task requires Windows",
+  "zalo.workflow.available": "This bot can use this computer ({host}).",
+  "zalo.workflow.unavailable": "The required computer is offline, unavailable, or not selected for this chat. No work has started.",
+  "zalo.workflow.all": "Browse all saved workflows",
+  "zalo.workflow.prepare": "Approve the workflow proposal"
 }

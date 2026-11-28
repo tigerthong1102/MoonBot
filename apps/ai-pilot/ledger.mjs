@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { budgetExposure, initializeManagedBudget } from "./managed-budget.mjs";
 
 export class Fault extends Error {
   constructor(status, code) {
@@ -76,6 +77,7 @@ export class Ledger {
       CREATE INDEX IF NOT EXISTS requests_state ON requests(state);
       CREATE INDEX IF NOT EXISTS by_owner ON grants(owner,end);
     `);
+    initializeManagedBudget(this);
   }
   tx(work) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -282,15 +284,9 @@ export class Ledger {
       start=CASE WHEN start<=excluded.start-60000 THEN excluded.start ELSE start END`).run(owner, now);
     const recent = this.db.prepare("SELECT count FROM managed_rate WHERE owner=?").get(owner).count;
     if (active >= limits.concurrent || recent > limits.requestsPerMinute) throw new Fault(429, "account_rate_limit");
-    const day = new Date(now);
-    day.setUTCHours(0, 0, 0, 0);
-    const month = new Date(day);
-    month.setUTCDate(1);
-    const exposure = this.db.prepare(`SELECT coalesce(sum(CASE WHEN r.state='held' THEN
-        (SELECT sum(held) FROM allocations a WHERE a.owner=r.owner AND a.request=r.id)
-        ELSE r.cost END),0) total FROM requests r WHERE r.state='held' OR r.created>=?`);
-    if (exposure.get(+day).total + amount > limits.dailyMicros ||
-        exposure.get(+month).total + amount > limits.monthlyMicros) throw new Fault(429, "managed_budget_exhausted");
+    const exposure = budgetExposure(this.db, now);
+    if (exposure.day + amount > limits.dailyMicros || exposure.month + amount > limits.monthlyMicros)
+      throw new Fault(429, "managed_budget_exhausted");
   }
   settle(owner, id, generation, cost, tokens = {}, retryable = false) {
     if (!Number.isSafeInteger(cost) || cost < 0 || !generation || (retryable && cost !== 0)) throw new Fault(503, "reconciliation_required");

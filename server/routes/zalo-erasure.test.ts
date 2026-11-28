@@ -82,9 +82,8 @@ it("binds a confirmed interval to exactly the previewed rows and grant, leaving 
   expect((await call(preview)).status).toBe(409);
 });
 
-it("restores a real encrypted pre-deletion workspace archive while preserving live erasure and revocation", async () => {
+it("restores an encrypted pre-deletion archive with an overlapping workspace root while preserving erasure and revocation", async () => {
   const { source, other, pilot, range, inbox } = seed();
-  // Deliberately choose an overlapping workspace root to exercise archive intake, export and restore.
   writeFileSync(join(home, "notes.md"), "synthetic portable note");
   const archived = await createWorkspaceBackup(home, { password });
   const preview = await call({ ...range, action: "preview" });

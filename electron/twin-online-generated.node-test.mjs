@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { createHash, generateKeyPairSync, randomUUID, verify } from "node:crypto";
-import { createOnlineGenerated } from "./twin-online-generated.mjs";
+import { createOnlineGenerated, generatedStatus } from "./twin-online-generated.mjs";
 import { generatedGrantMessage, generatedPostMessage, generatedRenewalMessage } from "./twin-generated-message.mjs";
 import { generatedComposerNotice, prepareInboxPost } from "../cloudflare/control-plane/inbox/public/twin-generated-notice.js";
 
@@ -220,4 +220,15 @@ test("an idle renewable signer stops on provider change or central revocation", 
     assert.equal(f.service.whileOpen(),false);
     assert.equal(f.generations(),0);
   }
+});
+
+test("management-only status exposes independent revocation and usage while generation is switched off", async () => {
+  const now=10000;
+  const grant={id:"grant", enabled:true, count:2, usedToday:4, dailyLimit:7, expires:now+1000, authorizedUntil:now+86400000};
+  const state=await generatedStatus(async () => ({owner:"owner",manageOnly:true,grant,now}), { id:"owner",generatedManageOnly:true });
+  assert.equal(state.manageOnly,true);
+  assert.equal(state.remote.id,grant.id);
+  assert.equal(state.remote.usedToday,4);
+  assert.equal(state.remote.dailyLimit,7);
+  assert.deepEqual(await generatedStatus(()=>{throw Error("unexpected read");},{id:"other"}),{available:false});
 });

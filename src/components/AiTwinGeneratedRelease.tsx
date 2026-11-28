@@ -8,6 +8,7 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
   const bridge = window.ogb?.personalInbox;
   const [choices, setChoices] = useState<Awaited<ReturnType<NonNullable<NonNullable<typeof bridge>["generatedChoices"]>>>>();
   const [scope, setScope] = useState("selected");
+  const [manageOnly, setManageOnly] = useState(false);
   const [ongoing, setOngoing] = useState(false);
   const [limit, setLimit] = useState("5");
   const [rooms, setRooms] = useState<string[]>([]);
@@ -37,9 +38,13 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
       }
       if (action === "stop") setNote(t("personalInbox.exactStopping"));
       const state = action === "stop" ? await bridge!.stopGenerated!(target) : await bridge!.generatedStatus!();
+      setManageOnly(state.manageOnly === true);
       setTarget(state.owner && state.remote ? {owner:state.owner,id:state.remote.id} : undefined);
       if (state.remote?.enabled && state.remote.dailyLimit !== undefined) {
-        setNote(t(state.remote.leaseActive ? "personalInbox.generatedOngoingEnabled" : "personalInbox.generatedOngoingWaiting", { count: state.remote.dailyLimit }));
+        const active = state.remote.leaseActive && !state.manageOnly;
+        const status = t(state.manageOnly ? "personalInbox.generatedManageOnly" : active ? "personalInbox.generatedOngoingEnabled" : "personalInbox.generatedOngoingWaiting", {count:state.remote.dailyLimit});
+        const usage = state.remote.usedToday !== undefined ? t("personalInbox.generatedUsage", { recent:state.remote.count, today:state.remote.usedToday, count:state.remote.dailyLimit }) : "";
+        setNote([status, usage].filter(Boolean).join(" "));
         return;
       }
       setNote(t(state.pendingRecovery ? "personalInbox.exactStopping" : !state.available ? "personalInbox.exactUnavailable" :
@@ -53,8 +58,8 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
     <summary>{t("personalInbox.generatedTitle")}</summary>
     <p>{t("personalInbox.generatedTerms")}</p>
     <fieldset disabled={busy}>
-      {paired && <button type="button" className="ui-button" onClick={() => void run("choose")}>{t("personalInbox.generatedChoose")}</button>}
-      {paired && choices && <>
+      {paired && !manageOnly && <button type="button" className="ui-button" onClick={() => void run("choose")}>{t("personalInbox.generatedChoose")}</button>}
+      {paired && !manageOnly && choices && <>
         <p dir="auto">{choices.provider.name} · {choices.provider.model} · {choices.provider.destination}</p>
         <div className="grid gap-1">
           <label htmlFor={scopeId}>{t("personalInbox.generatedScope")}</label>

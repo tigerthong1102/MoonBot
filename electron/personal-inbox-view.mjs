@@ -383,6 +383,10 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
     handle("personal-inbox:twin-generated-stop", async (_e, target) => {
       pairing?.generated.reset();
       const ctx = standalone(generatedJournal), me = await recoverGenerated(ctx);
+      if (!target) {
+        const status = await generatedStatus(ctx.inbox, me);
+        if (status.remote) target = {owner:me.id, id:status.remote.id};
+      }
       if (target) {
         if (target.owner !== me.id || typeof target.id !== "string") throw Error("generated_reply_unavailable");
         const receipt = await ctx.inbox("twin-generated", { action: "revoke", owner: me.id, id: target.id });

@@ -20,11 +20,11 @@ export async function recoverGenerated({ journal, origin, inbox, keep }) {
 }
 
 export async function generatedStatus(inbox, me, localId) {
-  if (!me.generatedAnswer) return { available: false };
-  const { owner, grant, now } = await inbox("twin-generated");
+  if (!me.generatedAnswer && !me.generatedManageOnly) return { available: false };
+  const { owner, grant, now, manageOnly } = await inbox("twin-generated");
   if (me.id !== owner) throw unavailable();
-  return { available: true, owner, local: Boolean(grant && grant.id === localId),
-    remote: grant ? { id: grant.id, enabled: grant.enabled, expires: grant.expires, count: grant.count, ...(grant.dailyLimit !== undefined && { dailyLimit: grant.dailyLimit, authorizedUntil: grant.authorizedUntil, leaseActive: Number.isSafeInteger(now) && grant.expires > now }) } : null };
+  return { available: true, ...(manageOnly === true || me.generatedManageOnly === true ? {manageOnly:true} : {}), owner, local: Boolean(grant && grant.id === localId),
+    remote: grant ? { id: grant.id, enabled: grant.enabled, expires: grant.expires, count: grant.count, ...(grant.dailyLimit !== undefined && { dailyLimit: grant.dailyLimit, usedToday: grant.usedToday, authorizedUntil: grant.authorizedUntil, leaseActive: Number.isSafeInteger(now) && grant.expires > now }) } : null };
 }
 
 export function createOnlineGenerated({ state, check, checkOnline, profile, generate, inbox, approve, journal, origin, monotonic = () => performance.now() }) {

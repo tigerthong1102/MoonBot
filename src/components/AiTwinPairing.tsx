@@ -13,6 +13,7 @@ export function AiTwinPairing() {
     generatedAvailable?: boolean;
   }>();
   const [generatedAvailable, setGeneratedAvailable] = useState(false);
+  const [manageOnly, setManageOnly] = useState(false);
   const [exactAvailable, setExactAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -38,7 +39,7 @@ export function AiTwinPairing() {
       onToggle={(event) => {
         if (event.target !== event.currentTarget || !event.currentTarget.open) return;
         void bridge.generatedStatus?.()
-          .then(s => setGeneratedAvailable(s.available || s.pendingRecovery === true)).catch(() => {});
+          .then(s => { setGeneratedAvailable(s.available || s.pendingRecovery === true); setManageOnly(s.manageOnly === true); }).catch(() => {});
         void bridge.exactStatus?.()
           .then(s => setExactAvailable(s.available || s.pendingRecovery === true)).catch(() => {});
       }}
@@ -72,7 +73,7 @@ export function AiTwinPairing() {
         </div>
       )}
       {(exactAvailable || ticket?.exactAvailable) && <AiTwinExactRelease paired={!!ticket?.exactAvailable} />}
-      {(generatedAvailable || ticket?.generatedAvailable) && <AiTwinGeneratedRelease paired={!!ticket?.generatedAvailable} />}
+      {(generatedAvailable || ticket?.generatedAvailable) && <AiTwinGeneratedRelease paired={!!ticket?.generatedAvailable && !manageOnly} />}
       <p role="status">{notice}</p>
     </details>
   );

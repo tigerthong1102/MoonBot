@@ -246,7 +246,7 @@ el("logout").onclick = run(async () => {
 async function start() {
   me = await api("me");
   el("twin-exact").hidden=me.exactAnswer!==true;
-  el("twin-generated").hidden=me.generatedAnswer!==true;
+  el("twin-generated").hidden=me.generatedAnswer!==true && me.generatedManageOnly!==true;
   if (pickedLanguage || !el("desktop-back").hidden || !me.locale) {
     if (me.locale !== language) await api("language",{locale:language});
   } else chooseLanguage(me.locale);

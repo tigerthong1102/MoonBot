@@ -140,8 +140,8 @@ const __APP_VERSION__: string;
       personalInbox?: {
         generatedChoices?(): Promise<{rooms:{id:string;kind:string;title:string;ref:string}[];provider:{key:string;name:string;model:string;destination:string}}>;
         offerGenerated?(provider:{key:string;name:string;model:string;destination:string},rooms:string[],dailyLimit?:number): Promise<boolean>;
-        stopGenerated?(target?:{owner:string;id:string}): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number;count:number;dailyLimit?:number;authorizedUntil?:number;leaseActive?:boolean}|null}>;
-        generatedStatus?(): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number;count:number;dailyLimit?:number;authorizedUntil?:number;leaseActive?:boolean}|null}>;
+        stopGenerated?(target?:{owner:string;id:string}): Promise<{available:boolean;manageOnly?:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number;count:number;dailyLimit?:number;usedToday?:number;authorizedUntil?:number;leaseActive?:boolean}|null}>;
+        generatedStatus?(): Promise<{available:boolean;manageOnly?:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number;count:number;dailyLimit?:number;usedToday?:number;authorizedUntil?:number;leaseActive?:boolean}|null}>;
         exactChoices?(): Promise<{rooms:{id:string;kind:string;title:string;ref:string}[];lessons:{id:string;question:string}[]}>;
         offerExact?(lesson:string,rooms:string[]): Promise<boolean>;
         stopExact?(target?:{owner:string;id:string}): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number}|null}>;

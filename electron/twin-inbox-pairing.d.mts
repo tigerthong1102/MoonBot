@@ -10,7 +10,7 @@ type Grant = Ref & {
   expires: number;
 };
 type Provider = { key: string; name: string; model: string; destination: string };
-type GeneratedStatus = { available: boolean; owner?: string; local?: boolean; remote?: null | { id: string; enabled: boolean; expires: number; count: number; dailyLimit?: number; authorizedUntil?: number; leaseActive?: boolean } };
+type GeneratedStatus = { available: boolean; manageOnly?: boolean; owner?: string; local?: boolean; remote?: null | { id: string; enabled: boolean; expires: number; count: number; dailyLimit?: number; usedToday?: number; authorizedUntil?: number; leaseActive?: boolean } };
 type Journal = { add(ref: Ref): void; remove(ref: Ref): void; list(owner: string, origin: string): Ref[] };
 export function createTwinInboxPairing(deps: {
   current(): boolean;

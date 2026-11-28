@@ -1,3 +1,5 @@
+export const generatedRoomLimit = 8;
+
 export function generatedGrantMessage({ origin, owner, pairing, id, twin, revision, rooms, expires, provider }) {
   return JSON.stringify([
     "startupbot.inbox.generated-release", 1, origin, owner, pairing, id, twin, revision, rooms, expires,

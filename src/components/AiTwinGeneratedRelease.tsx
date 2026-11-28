@@ -1,3 +1,4 @@
+import { generatedRoomLimit } from "../../electron/twin-generated-message.mjs";
 import { useState } from "react";
 import { t } from "@/lib/i18n";
 
@@ -36,9 +37,13 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
       {paired && choices && <>
         <p dir="auto">{choices.provider.name} · {choices.provider.model} · {choices.provider.destination}</p>
         {choices.rooms.map(room => <label className="block" key={room.ref}>
-          <input type="checkbox" checked={rooms.includes(room.ref)} onChange={e => {
+          <input type="checkbox" disabled={rooms.length >= generatedRoomLimit && !rooms.includes(room.ref)} checked={rooms.includes(room.ref)} onChange={e => {
             const checked = e.target.checked;
-            setRooms(old => checked ? [...old, room.ref] : old.filter(ref => ref !== room.ref));
+            setRooms(old => {
+              if (!checked) return old.filter(ref => ref !== room.ref);
+              if (old.length >= generatedRoomLimit || old.includes(room.ref)) return old;
+              return [...old, room.ref];
+            });
           }} /> {room.title} ({t(room.kind === "group" ? "personalInbox.group" : "personalInbox.direct")} · {room.id})
         </label>)}
         <button type="button" className="ui-button" disabled={!rooms.length} onClick={() => void run("offer")}>{t("personalInbox.generatedOffer")}</button>

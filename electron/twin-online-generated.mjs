@@ -1,5 +1,5 @@
 import { createHash, randomUUID, sign } from "node:crypto";
-import { generatedGrantMessage, generatedPostMessage } from "./twin-generated-message.mjs";
+import { generatedGrantMessage, generatedPostMessage, generatedRoomLimit } from "./twin-generated-message.mjs";
 
 const unavailable = () => Error("generated_reply_unavailable");
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
@@ -50,7 +50,7 @@ export function createOnlineGenerated({ state, check, profile, generate, inbox, 
     return { provider: selected, rooms: account.rooms };
   }
   async function offer(expected, refs) {
-    if (!approve || !journal || busy || active || !Array.isArray(refs) || !refs.length || refs.length > 100 ||
+    if (!approve || !journal || busy || active || !Array.isArray(refs) || !refs.length || refs.length > generatedRoomLimit ||
         new Set(refs).size !== refs.length || refs.includes("*")) throw unavailable();
     const key = state(), version = epoch;
     busy = true;

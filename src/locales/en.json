@@ -11559,7 +11559,7 @@
   "personalInbox.exactTitle": "Automatic taught answer",
   "personalInbox.generatedTitle": "AI-generated Inbox replies",
   "personalInbox.generatedTerms": "Each eligible new text message is sent to the provider shown here. Its answer is posted automatically for the room to read. The desktop must be online. Up to 5 generation attempts in 10 minutes can incur provider charges, including attempts without a reply. There is no spending limit in currency.",
-  "personalInbox.generatedChoose": "Choose provider and rooms",
+  "personalInbox.generatedChoose": "Choose provider and up to 8 rooms",
   "personalInbox.generatedOffer": "Request Inbox approval",
   "personalInbox.generatedAllow": "Allow AI-generated replies in these rooms",
   "personalInbox.generatedStop": "Stop AI-generated replies",

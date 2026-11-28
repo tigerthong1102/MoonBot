@@ -17,7 +17,7 @@ function fixture(t, overrides = {}) {
   const records = new Map(), calls = [];
   const inbox = async (path, data) => {
     if (path === "me") return { id:key.owner, generatedAnswer:true };
-    if (path.endsWith("?rooms=1")) return { owner:key.owner, rooms:[room] };
+    if (path.endsWith("?rooms=1")) return { owner:key.owner, rooms:overrides.rooms ?? [room] };
     calls.push(data);
     switch (data.action) {
       case "offer":
@@ -48,6 +48,16 @@ test("signs an explicitly authorized short-lived generated reply and never gener
   await assert.rejects(f.service.offer(f.provider,["*"])); await assert.rejects(f.service.offer({...f.provider,model:"another"},[f.room.ref]));
   assert.equal(f.calls.length,0); await f.offer(); await f.service.tick(); await f.service.tick();
   assert.equal(f.generations(),1); assert.equal(f.calls.filter(c=>c.action==="finish").length,1);
+});
+
+test("nine eligible rooms cannot reach the native consent dialog", async t => {
+  const rooms = Array.from({ length: 9 }, () => ({ id: randomUUID(), ref: randomUUID(), title: "Fixture", kind: "group" }));
+  let approvals = 0;
+  const f = fixture(t, { rooms, approve: async () => { approvals++; return true; } });
+  await assert.rejects(f.service.offer(f.provider, rooms.map(room => room.ref)));
+  assert.equal(approvals, 0);
+  await f.service.offer(f.provider, rooms.slice(0, 8).map(room => room.ref));
+  assert.equal(approvals, 1);
 });
 
 test("a mismatched input hash, selected room, or expired challenge prevents provider dispatch", async t => {

@@ -11402,7 +11402,7 @@
   "personalInbox.exactTitle": "Resposta automática ensinada",
   "personalInbox.generatedTitle": "Respostas geradas por IA no Inbox",
   "personalInbox.generatedTerms": "Cada nova mensagem de texto elegível é enviada ao provedor indicado. A resposta é publicada automaticamente para a sala. O computador deve estar online. Até 5 tentativas em 10 minutos podem gerar cobranças, mesmo sem uma resposta publicada. Não há um limite de gastos em dinheiro.",
-  "personalInbox.generatedChoose": "Escolher provedor e salas",
+  "personalInbox.generatedChoose": "Escolher provedor e até 8 salas",
   "personalInbox.generatedOffer": "Solicitar aprovação no Inbox",
   "personalInbox.generatedAllow": "Permitir respostas de IA nestas salas",
   "personalInbox.generatedStop": "Parar respostas de IA",

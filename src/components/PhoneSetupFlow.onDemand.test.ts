@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setLocale } from "@/lib/i18n";
 import type { CompanionAccountState } from "../types/ogb";
+import { AccountCodeFields } from "./AccountCodeFields";
 import { PhoneSetupFlowView, usePhoneSetupController, type CompanionState } from "./PhoneSetupFlow";
 
 /** Settings' pairing panel: the flow with its own controller, as CompanionSection mounts it. */
@@ -146,6 +147,28 @@ async function startPairing(fake: ReturnType<typeof desktop>) {
   await vi.waitFor(() => expect(button("Pair a device")?.disabled).toBe(false));
   button("Pair a device")!.click();
 }
+
+it("verifies an email for desktop handoff without opening a pairing or provisioning a tunnel", async () => {
+  const fake = desktop();
+  (globalThis as { ogb?: unknown }).ogb = fake.bridge;
+  let enterCode: (code: string) => void;
+  function SignIn() {
+    const c = usePhoneSetupController("ada@example.com");
+    enterCode = c.setCode;
+    return createElement(AccountCodeFields, { controller: c, mode: "account" });
+  }
+  flushSync(() => root.render(createElement(SignIn)));
+  await vi.waitFor(() => expect(host.querySelector("button")?.disabled).toBe(false));
+  host.querySelector("button")!.click();
+  await vi.waitFor(() => expect(host.querySelector('[autocomplete="one-time-code"]')).not.toBeNull());
+  flushSync(() => enterCode("12345678"));
+  host.querySelector("button")!.click();
+  await vi.waitFor(() => expect(host.querySelector('[autocomplete="one-time-code"]')).toBeNull());
+  expect(fake.bridge.companionAccount.verifyCode).toHaveBeenCalledWith("ada@example.com", "12345678");
+  expect(fake.bridge.companion.start).not.toHaveBeenCalled();
+  expect(fake.bridge.companion.pairing).not.toHaveBeenCalled();
+  expect(fake.bridge.companionAccount.prepare).not.toHaveBeenCalled();
+});
 
 describe("pairing on a computer that holds no HTTPS address yet", () => {
   it("creates the address under the spinner, then opens the HTTPS QR", async () => {

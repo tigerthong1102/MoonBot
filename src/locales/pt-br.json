@@ -11755,6 +11755,7 @@
   "knowledge.answerRestoreRestart": "A restauração está pronta. Feche o StartupBot por completo e abra-o novamente ou peça a quem administra o servidor que o reinicie. Depois, repita a pergunta.",
   "knowledge.answerProviderUnavailable": "O modelo de IA escolhido não está disponível. Verifique a conexão dele ou escolha outro modelo e pergunte novamente.",
   "knowledge.answerAccess": "Não foi possível verificar o acesso. Entre na sua conta e confira suas permissões para a conversa e as fontes.",
+  "knowledge.accessVerificationUnavailable": "Não foi possível verificar o acesso a esta conversa. Verifique suas permissões ou atualize o servidor e tente novamente.",
   "knowledge.answerNetwork": "Não foi possível acessar o servidor a tempo. Verifique a conexão e tente novamente.",
   "knowledge.answerLimit": "Um limite de gastos ou de uso foi atingido. Confira Configurações → Uso antes de tentar novamente.",
   "knowledge.answerMoved": "Este bot foi movido. Abra-o na nova instalação do StartupBot e faça a pergunta novamente.",

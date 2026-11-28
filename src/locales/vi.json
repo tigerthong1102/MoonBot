@@ -1273,6 +1273,7 @@
   "settings.aiTwin.learningDisclosure": "Chọn tối đa 12 cuộc trò chuyện riêng. AI Twin học từ cách viết gần đây và đề xuất cặp hỏi đáp từ tin nhắn của bạn. Xem lại đề xuất trước khi lưu thành bài học riêng mà bạn có thể xóa.",
   "settings.aiTwin.learning": "Học từ tin nhắn của bạn",
   "settings.aiTwin.controls": "Nguồn học và quyền truy cập",
+  "knowledge.accessVerificationUnavailable": "Không thể xác minh quyền truy cập cuộc trò chuyện này. Kiểm tra quyền hoặc cập nhật máy chủ, rồi thử lại.",
   "settings.aiTwin.memoryDisclosure": "Tác vụ AI dùng {provider} ({model}). Tra theo ý nghĩa gửi câu truy vấn và câu hỏi từ những bài học bạn đã cho phép. Soạn nháp kèm bài học có thể gửi thêm đáp án phù hợp và thói quen viết. Tin nhắn gốc vẫn ở nơi lưu trữ.",
   "settings.aiTwin.semanticSource": "Bài học đã duyệt có thể phù hợp",
   "settings.aiTwin.groundedDraft": "Soạn nháp kèm bài học",

@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { stripTypeScriptTypes } from "node:module";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
 import { revokeWalletSessions } from "./accounts.mjs";
 import { inboxSkinCSS } from "../../cloudflare/control-plane/inbox/skin-css.mjs";
@@ -19,6 +20,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
   const skin = inboxSkinCSS(readFileSync(new URL("../../src/styles.css", import.meta.url), "utf8"));
   const accounts = createControlPlaneClient({ baseURL: settings.accountOrigin, fetchImpl: http });
   const db = ledger.db;
+  const clipboard = stripTypeScriptTypes(readFileSync(new URL("../../src/lib/clipboard-write.ts", import.meta.url), "utf8"));
   const sessions = mobileSessions(db);
   const textSkills = mobileTextSkills();
   db.exec(`
@@ -50,6 +52,10 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const method = req.method;
     if (method === "POST" && (req.headers.origin !== origin.origin || !req.headers["content-type"]?.startsWith("application/json")))
       throw new Fault(403, "origin_denied");
+    if (method === "GET" && path === "/mobile/clipboard-write.js") {
+      res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
+      return res.end(clipboard);
+    }
     if (method === "GET" && path === "/mobile/skin.css") {
       res.writeHead(200, { "content-type":"text/css; charset=utf-8" });
       return res.end(skin);

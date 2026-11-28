@@ -362,3 +362,15 @@ it("checks issuer revocation on wallet and inference, preserves sessions during 
   expect((await call("/wallet", legacy)).status).toBe(401);
   expect(f.ledger.db.prepare("SELECT 1 FROM wallet_sessions WHERE token=?").get(digest(legacy))).toBeUndefined();
 });
+
+it("serves a browser-ready shared clipboard module and uses neutral reference-skin primary colors", async () => {
+  const page = await (await fetch(f.url + "/mobile")).text();
+  expect(page).toContain('href="/mobile/inbox.css"');
+  const entry = await (await fetch(f.url + "/mobile/app.js")).text();
+  expect(entry).toContain('import { copyText } from "./clipboard-write.js"');
+  const response = await fetch(f.url + "/mobile/clipboard-write.js");
+  expect(response.headers.get("content-type")).toContain("application/javascript");
+  const source = await response.text();
+  const { copyText } = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+  expect(await copyText(" ")).toBe("empty");
+});

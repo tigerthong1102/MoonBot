@@ -80,8 +80,10 @@ Use only mapped, tested commands:
 - [Welcome flow and guided tour](onboarding.md)
 - [Channels](channels.md)
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
+- [Operator-driven Zalo Official round-trip qualification](zalo-official-roundtrip.md)
+- [Internal Zalo Official webhook and one-time pairing](zalo-official-webhook.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
-- [Zalo browser comparison and SQLite endurance fixture](zalo-load.md)
+- [AI Twin local owner-written Zalo style sample](zalo-owner-style.md)
 - [Zalo excerpt review, intelligence and release evidence](zalo-intelligence.md)
 - [In-chat team coordination](room-coordination.md)
 - [Question cards: a teammate's question, in its chat and the person's inbox](question-cards.md)
@@ -349,6 +351,8 @@ desktop routing, cancellation, and computer authority cleanup.
 The [Gemini speech fixture](gemini-speech.md) checks write-only credentials,
 voice selection and WAV synthesis against an offline provider in an isolated
 server, with manual steps for real Google access and playback.
+
+The [Zalo browser comparison and SQLite endurance fixture](zalo-load.md) measures local processing time, duplicate handling, and restart recovery with synthetic messages.
 
 The [persistence responsiveness benchmark](persistence-performance.md) measures
 synthetic message/log bursts and history scans, with isolated chat, visibility

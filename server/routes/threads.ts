@@ -144,6 +144,18 @@ export function createThreadRoutes(deps: ThreadRouteDeps): RouteHandler {
       return json(res, 200, { bot: shownBot(bot, visible, limit) });
     }
 
+    m = path.match(/^\/api\/threads\/([\w-]+)\/knowledge-access$/);
+    if (m && method === "GET") {
+      if (backgroundWhileAsleep(path, req.headers)) return answerAsleep(res, json);
+      const threadId = m[1]!;
+      res.setHeader("cache-control", "private, no-store");
+      if ((auth.kind === "loopback" && auth.trust === "service") ||
+          (!store.botByThread(threadId) && !store.groupByThread(threadId)) || !visible.thread(threadId)) {
+        return json(res, 404, { error: "no such conversation", code: "knowledge_thread_unavailable" });
+      }
+      return json(res, 200, { owner: auth.kind === "session" ? auth.session.id : "local" });
+    }
+
     m = path.match(/^\/api\/threads\/([\w-]+)\/messages$/);
     if (m && method === "GET") {
       const threadId = m[1];

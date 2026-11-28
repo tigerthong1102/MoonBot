@@ -141,7 +141,7 @@ export function createAiTwinHost(deps: {
     },
     revokeDevice(device: string) { revokedDevices.add(device); },
     routes: createAiTwinRoutes({
-      store: privateStore, preview: deps.preview, zaloRecipe: deps.zaloRecipe, owner, phone, canEnablePhone: desktop, learning,
+      store: privateStore, preview: deps.preview, zaloRecipe: deps.zaloRecipe, owner, phone, canEnablePhone: desktop, desktop, learning,
       learnedStyle: (auth, sources) => recentTwinStyle(learnedRows(auth, sources, true)),
       blocked: deps.blocked,
     }),

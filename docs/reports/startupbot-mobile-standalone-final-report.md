@@ -1,6 +1,6 @@
 # StartupBot Mobile Standalone — báo cáo cho founder
 
-Ngày 28/11/2026. Phạm vi gồm chuỗi draft PR cho nền tảng Mobile và trải nghiệm mobile-first. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
+Ngày 28/11/2026. Phạm vi gồm năm draft PR. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
 
 ## A. Người dùng làm được gì?
 
@@ -31,7 +31,6 @@ Chat hỗ trợ hiển thị text ngay khi provider phát, Dừng, lịch sử, 
 | 3. OpenRouter cá nhân, dựa trên 2 | `feat/mobile-openrouter-connection` · `cd9d821ec` | [PR #126](https://github.com/tigerthong1102/MoonBot/pull/126) · [CI](https://github.com/tigerthong1102/MoonBot/actions/runs/46090749139) |
 | 4. Ngân sách, catalog, registry và báo cáo, dựa trên 3 | `perf/mobile-managed-budget-admission` · `d32095798` đến `1902f5375`, tích hợp bản sửa test ở `dea4a2d2c` | [PR #127](https://github.com/tigerthong1102/MoonBot/pull/127) · [Trạng thái CI hiện tại](https://github.com/tigerthong1102/MoonBot/pull/127/checks) |
 | 5. Quản lý phiên và kiểm soát, dựa trên 4 | `feat/mobile-account-controls` · `abfce8c0e` | [PR #128](https://github.com/tigerthong1102/MoonBot/pull/128) · [CI](https://github.com/tigerthong1102/MoonBot/pull/128/checks) |
-| 6. Mobile-first, dựa trên 5 | `feat/mobile-first-chat-experience` · `1a200a4e1` và bản giữ nháp | [PR #129](https://github.com/tigerthong1102/MoonBot/pull/129) · [CI](https://github.com/tigerthong1102/MoonBot/pull/129/checks) |
 
 Base là `3d35516862f78414208146c1fd3f766af0e845e2`. Các mô-đun chính là `apps/ai-pilot/mobile*.{mjs,js,html}`, `managed-budget.mjs`, `ledger.mjs`, `router.mjs`, `electron/control-plane-client.mjs`, `ios/App/MobileChatButton.swift` và `MobileChatButton.kt` trong Android UI. Các skill dùng nguyên nguồn đã có trong `skills/catalog/campaign-plan` và `skills/catalog/draft-outreach`, có LICENSE và SOURCE.md. [Đánh giá kiến trúc](../architecture/mobile-standalone-assessment.md) · [Cấu hình, đối soát và rollback](../../apps/ai-pilot/README.md)
 
@@ -39,7 +38,7 @@ Base là `3d35516862f78414208146c1fd3f766af0e845e2`. Các mô-đun chính là `a
 
 | Loại bằng chứng | Kết quả và môi trường |
 |---|---|
-| Unit/integration có đếm | **2.489 PASS, 0 FAIL, 13 SKIP** trên macOS arm64, Node 26.4.0. Tám suite gateway/ví/PKCE/quota/client/i18n/Desktop và tương tác UI gồm **72 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
+| Unit/integration có đếm | **2.487 PASS, 0 FAIL, 13 SKIP** trên macOS arm64, Node 26.4.0. Bảy suite gateway/ví/PKCE/quota/client/i18n/Desktop gồm **70 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
 | Browser HTTPS end-to-end | Chrome thật, viewport mobile, issuer chạy local với 18 D1 migrations, OTP từ email sink. Đăng ký mới → suất trial → xác nhận registry trống → nhận stream → reload history → logout; issuer trả 200, dùng lại chính bearer cũ trả 401. Một lượt khác kiểm tra desktop-required. Ở chiều rộng 320 px, dark mode và font 125%, trang không tràn ngang. Provider inference là fixture. |
 | Browser BYOK | Chrome + issuer local; mô phỏng trang authorize và exchange của OpenRouter. Callback S256, gửi bằng personal key; sau disconnect, gửi lại bị từ chối. Từ chối cấp quyền ở provider rồi mở chat mới vẫn gửi được. Tests kiểm tra khác phiên, state một lần, race, key hash và giới hạn chi phí. |
 | Desktop | Harness cô lập, doctor không có problem. Tạo bot, gửi, chờ và đọc lại câu trả lời fake engine. Đây là luồng server trên macOS. Chưa kiểm thử phiên bản đóng gói mới trên macOS, Windows hoặc Linux bằng máy người dùng thật. |
@@ -117,12 +116,4 @@ Local AI là một runtime khác, cần kiểm tra khả năng thiết bị, RAM
 - Mục 21 và 27 có lượt đo bổ sung 128/128 stream qua HTTP/SQLite fixture, 32 account. Tới delta đầu P50/P95/P99 là 70/88/88 ms; hoàn tất 70/88/91 ms. Thời lượng cả lượt 403 ms. Chưa có inference trả phí hay WAN trong số liệu này.
 - Mục 26 được kiểm riêng theo từng ca, gồm cả ca chưa chạy và tính năng hoãn. Ma trận bổ sung ở đầu báo cáo thay cho cách chỉ đếm nhóm. Cổng store bổ sung có báo cáo nội dung ngay trong app ở Play, review native utility, IAP/restore theo thị trường và xóa account. Xem ADR để đối chiếu chính sách chính thức.
 
-**Số ca theo nguyên văn mục 26.** Trong 128 ca, 56 đạt ở phạm vi ghi rõ, 40 đạt một phần, 23 chưa chạy, 5 có blocker và 4 thuộc tính năng hoãn. Một ca có thể cần nhiều test tự động; 2.489 là số test đạt của các lệnh đã chạy. Năm blocker theo ca là tạo tài khoản trên iPhone vật lý, chuyển mạng thật, screen reader, store restore và xóa account xuyên hệ sinh thái.
-
-## Trải nghiệm ưu tiên điện thoại
-
-Khi đã cấu hình gateway, hành động chính trong màn hình chào và màn hình chưa ghép đôi của iOS/Android là **Chat không cần máy tính**. Người dùng có thể ghép máy về sau. Trên màn hình chat đầu tiên, có thể viết ngay hoặc chọn Soạn, Dịch, Tóm tắt. Menu gom lịch sử, thiết bị, tài khoản, số dư và provider. Lần đầu gửi trong hội thoại, nút **Đồng ý và gửi** đi cùng thông tin lưu/chia sẻ dữ liệu. Trong khi có phản hồi, nút **Dừng** nằm cùng vị trí với nút Gửi. Khi đang ngoại tuyến, nội dung đang soạn vẫn còn trong trang và cần người dùng chủ động gửi sau khi có mạng.
-
-Chrome và WebKit thật trên macOS, viewport điện thoại và dữ liệu giả, đều chạy qua chọn skill, nhập, đồng ý gửi, stream, Dừng, mở lịch sử, xem credit, mất mạng và có mạng lại. Ở 390 × 844, nút gửi cao 48 px và nằm trong viewport. Ở 320 × 568, giao diện tối và font 125%, nút cao 53 px, mép dưới ở 555 px, không có tràn ngang. Bài thử viewport cao 420 px kiểm tra còn cuộn tới nhập/gửi/dừng khi vùng hiển thị thu hẹp. Chưa đo bàn phím hệ điều hành hoặc nút Dừng trên phần cứng thật. Nút Mới quay về bản nháp mới trong tab. Khi đổi hội thoại hoặc mở lại hội thoại trong cùng tab, nội dung chưa gửi được giữ theo từng hội thoại. Đăng xuất xóa các nháp trong tab. Chưa có lưu nháp qua force-quit.
-
-[Ảnh giao diện tiếng Việt sau thay đổi mobile-first](assets/mobile-first-chat-vi.png)
+**Số ca theo nguyên văn mục 26.** Trong 128 ca, 56 đạt ở phạm vi ghi rõ, 40 đạt một phần, 23 chưa chạy, 5 có blocker và 4 thuộc tính năng hoãn. Một ca có thể cần nhiều test tự động; 2.487 là số test đạt của các lệnh đã chạy. Năm blocker theo ca là tạo tài khoản trên iPhone vật lý, chuyển mạng thật, screen reader, store restore và xóa account xuyên hệ sinh thái.

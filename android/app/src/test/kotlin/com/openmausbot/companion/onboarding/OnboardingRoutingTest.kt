@@ -59,8 +59,6 @@ class OnboardingRoutingTest {
             mobileEntry.assertDoesNotExist()
         } else {
             mobileEntry.assertIsDisplayed()
-            val pairing = compose.onNodeWithText("Kết nối với máy tính của tôi")
-            org.junit.Assert.assertTrue(mobileEntry.fetchSemanticsNode().boundsInRoot.center.y < pairing.fetchSemanticsNode().boundsInRoot.center.y)
             mobileEntry.performClick()
             val target = org.robolectric.Shadows.shadowOf(compose.activity).nextStartedActivity.data
             assertEquals("/mobile", target?.path)

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { invite } from "../../apps/ai-pilot/accounts.mjs";
@@ -307,15 +308,11 @@ it("revokes the selected wallet and retires local access even when the issuer re
   expect((await f.call("/threads", cookie)).status).toBe(401);
 });
 
-it("serves the mobile layout and same-origin brand asset under the page's content policy", async () => {
+it("uses the same stylesheet as the existing mobile Inbox and its shared skin tokens", async () => {
   const page = await f.call("");
-  const policy = page.headers.get("content-security-policy");
-  expect(policy).toContain("style-src 'self'");
-  expect(policy).toContain("img-src 'self'");
-  const html = await page.text();
-  expect(html).toContain('href="/mobile/chat.css"');
-  expect(html).toContain('aria-describedby="consentNotice"');
-  const css = await f.call("/chat.css");
-  expect(css.headers.get("content-type")).toMatch(/^text\/css/);
-  expect((await f.call("/logo.png")).headers.get("content-type")).toBe("image/png");
+  expect(page.headers.get("content-security-policy")).toContain("style-src 'self'");
+  expect(await page.text()).toContain('href="/mobile/inbox.css"');
+  const sheet = await f.call("/inbox.css"), skin = await f.call("/skin.css");
+  expect(await sheet.text()).toBe(readFileSync(new URL("../../cloudflare/control-plane/inbox/public/inbox.css", import.meta.url), "utf8"));
+  expect(await skin.text()).toContain("--color-bubble-user:");
 });

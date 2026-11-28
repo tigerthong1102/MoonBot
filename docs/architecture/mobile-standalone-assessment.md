@@ -2,10 +2,6 @@
 
 Ngày khảo sát 28/11/2026. Base MoonBot `3d35516862f78414208146c1fd3f766af0e845e2`. PR đang mở #123 thuộc AI Twin. #4, #51, #63, #91 và #111 đã merge. Issues bị tắt. Upstream OpenMausBot ban đầu theo ref cục bộ `868a4746d`, sau đó đã đối chiếu `upstream/main` tại `e1cc6a290d024203be40f41928f5cf1ee3ba83b6`. [Upstream PR #1137](https://github.com/milind-soni/OpenMausBot/pull/1137) đề xuất server driver và tài khoản provider toàn cục. Luồng này cần thêm danh tính người dùng Mobile, lịch sử theo owner và kiểm soát bên chi trả. Cây nguồn OSS dùng Apache-2.0, giữ NOTICE và các ghi chú sửa đổi riêng của iOS/Android. Không đưa thành phần enterprise vào thiết kế.
 
-## Mục tiêu sản phẩm mobile-first
-
-Trên iPhone và Android, ưu tiên người mới chỉ có điện thoại. Khi có gateway tin cậy, chat là hành động chính ngay lúc mở app. Người dùng nhập email, xác minh và gửi câu đầu mà không cần mở Menu, chọn model, ghép máy hay hiểu cách thanh toán AI. Cho biết dữ liệu sẽ được gửi tới đâu ngay bên nút đồng ý gửi lần đầu. Đưa lịch sử, thiết bị và quản lý tài khoản vào lớp điều hướng phụ. Kiểm tra ô nhập và nút gửi/dừng có thể chạm được trên màn hình nhỏ, với font lớn, light/dark, bàn phím và kết nối gián đoạn. Khi người dùng chưa có Desktop, trải nghiệm cốt lõi vẫn có ích.
-
 ## Tài sản hiện có
 
 | Bề mặt | Bằng chứng | Ý nghĩa |

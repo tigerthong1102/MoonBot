@@ -22,32 +22,30 @@ struct CompanionWelcomeView: View {
                     Text("Welcome to StartupBot")
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
-                    Text(MobileChatButton.origin == nil ? LocalizedStringKey("Open chats, approve actions, and send new work from this device.") : LocalizedStringKey("Write, translate, or ask a question. A computer is optional."))
+                    Text("Open chats, approve actions, and send new work from this device.")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
 
-                if MobileChatButton.origin == nil {
-                    VStack(spacing: 18) {
-                        WelcomeBenefit(
-                            icon: "bubble.left.and.bubble.right.fill",
-                            title: "Your chats, in your pocket",
-                            detail: "Pick up the same conversations from your computer."
-                        )
-                        WelcomeBenefit(
-                            icon: "checkmark.circle.fill",
-                            title: "Respond when a bot needs you",
-                            detail: "Review approvals without going back to your desk."
-                        )
-                        WelcomeBenefit(
-                            icon: "lock.shield.fill",
-                            title: "Private by design",
-                            detail: "You choose which trusted computer this device connects to."
-                        )
-                    }
-                    .padding(.top, 4)
+                VStack(spacing: 18) {
+                    WelcomeBenefit(
+                        icon: "bubble.left.and.bubble.right.fill",
+                        title: "Your chats, in your pocket",
+                        detail: "Pick up the same conversations from your computer."
+                    )
+                    WelcomeBenefit(
+                        icon: "checkmark.circle.fill",
+                        title: "Respond when a bot needs you",
+                        detail: "Review approvals without going back to your desk."
+                    )
+                    WelcomeBenefit(
+                        icon: "lock.shield.fill",
+                        title: "Private by design",
+                        detail: "You choose which trusted computer this device connects to."
+                    )
                 }
+                .padding(.top, 4)
 
                 Spacer(minLength: 10)
             }
@@ -66,7 +64,12 @@ struct CompanionWelcomeView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
                 MobileChatButton()
-                ComputerEntryButton(title: "Connect my computer", action: onConnect)
+                Button(action: onConnect) {
+                    Text("Connect my computer")
+                        .frame(maxWidth: .infinity)
+                }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
                 Button("Not now", action: onSkip)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -76,24 +79,6 @@ struct CompanionWelcomeView: View {
             .padding(.top, 14)
             .padding(.bottom, 8)
             .background(.ultraThinMaterial)
-        }
-    }
-}
-
-private struct ComputerEntryButton: View {
-    let title: LocalizedStringKey
-    let action: () -> Void
-
-    private var button: some View {
-        Button(action: action) { Text(title).frame(maxWidth: .infinity) }
-            .controlSize(.large)
-    }
-
-    var body: some View {
-        if MobileChatButton.origin == nil {
-            button.buttonStyle(.borderedProminent)
-        } else {
-            button.buttonStyle(.bordered)
         }
     }
 }
@@ -136,27 +121,26 @@ struct UnpairedHomeView: View {
                         Circle()
                             .fill(MausPalette.color("blue").opacity(0.12))
                             .frame(width: 112, height: 112)
-                        Image(systemName: MobileChatButton.origin == nil ? "laptopcomputer.and.iphone" : "bubble.left.and.bubble.right")
+                        Image(systemName: "laptopcomputer.and.iphone")
                             .font(.system(size: 42, weight: .medium))
                             .foregroundStyle(MausPalette.color("blue"))
                     }
                     .accessibilityHidden(true)
 
                     VStack(spacing: 8) {
-                        Text(MobileChatButton.origin == nil ? LocalizedStringKey("Connect when you're ready") : LocalizedStringKey("Welcome to StartupBot"))
+                        Text("Connect when you're ready")
                             .font(.title2.bold())
-                        Text(MobileChatButton.origin == nil ? LocalizedStringKey("Pair this device with StartupBot to see your chats and respond to your bots.") : LocalizedStringKey("Write, translate, or ask a question. A computer is optional."))
+                        Text("Pair this device with StartupBot to see your chats and respond to your bots.")
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    if MobileChatButton.origin == nil {
-                        Text("On your computer, open StartupBot → Settings → Phone.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
+                    MobileChatButton()
+                    Text("On your computer, open StartupBot → Settings → Phone.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
 
                     Spacer(minLength: 30)
                 }
@@ -165,10 +149,12 @@ struct UnpairedHomeView: View {
                 .frame(maxWidth: .infinity)
             }
             .safeAreaInset(edge: .bottom) {
-                VStack(spacing: 10) {
-                    MobileChatButton()
-                    ComputerEntryButton(title: "Connect computer", action: onConnect)
+                Button(action: onConnect) {
+                    Text("Connect computer")
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 14)
                 .background(.ultraThinMaterial)

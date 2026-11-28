@@ -36,7 +36,7 @@ it("keeps each chat draft in its tab, requires first-send consent and clears dra
   el("new").click();
   await idle();
   expect(el("prompt").value).toBe("unsent new chat");
-  el("openMenu").click();
+  el("tools").open = true;
   el("threads").value = saved;
   el("threads").dispatchEvent(new Event("change"));
   await idle();
@@ -44,12 +44,12 @@ it("keeps each chat draft in its tab, requires first-send consent and clears dra
   el("new").click();
   await idle();
   expect(el("prompt").value).toBe("unsent new chat");
-  el("compose").dispatchEvent(new Event("submit", { cancelable:true }));
-  expect(calls.filter(c => c.path.endsWith("/send"))).toHaveLength(0);
+  expect(el("consent").checked).toBe(false);
+  el("consent").checked = true;
   el("compose").dispatchEvent(new SubmitEvent("submit", { cancelable:true, submitter:el("send") }));
   await idle();
   expect(calls.filter(c => c.path.endsWith("/send")).map(c => c.body.save)).toEqual([true]);
-  el("openMenu").click();
+  el("tools").open = true;
   el("logout").click();
   await idle();
   expect(el("login").hidden).toBe(false);

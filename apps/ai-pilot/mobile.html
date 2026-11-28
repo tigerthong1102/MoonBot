@@ -1,84 +1,28 @@
 <!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#f5f6fc" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#161823" media="(prefers-color-scheme: dark)">
-  <title>StartupBot</title>
-  <link rel="icon" href="/mobile/logo.png">
-  <link rel="stylesheet" href="/mobile/chat.css">
-</head>
-<body>
-  <header class="topbar">
-    <div class="brand"><img src="/mobile/logo.png" width="36" height="36" alt=""><strong>StartupBot</strong></div>
-    <nav id="chatNav" hidden>
-      <button id="new" data-t="shortNew" type="button"></button>
-      <button id="openMenu" data-t="menu" aria-haspopup="dialog" aria-controls="menu" type="button"></button>
-    </nav>
-  </header>
-  <main>
-    <form id="login" hidden>
-      <h1 data-t="welcome"></h1>
-      <p data-t="welcomeNote"></p>
-      <label for="email" data-t="email"></label>
-      <input type="email" id="email" autocomplete="email" autocapitalize="none" spellcheck="false" required maxlength="254">
-      <div id="codeBox" hidden>
-        <label for="otp" data-t="otp"></label>
-        <input id="otp" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="one-time-code">
-      </div>
-      <button class="primary" id="loginButton" data-t="code"></button>
-      <button type="button" id="changeEmail" hidden data-t="change"></button>
-    </form>
-    <section id="chat" hidden>
-      <div id="reading" tabindex="0">
-        <div id="intro">
-          <h1 data-t="startChat"></h1>
-          <div class="starters">
-            <button type="button" data-skill="write" data-t="write"></button>
-            <button type="button" data-skill="translate" data-t="translate"></button>
-            <button type="button" data-skill="summarize" data-t="summarize"></button>
-          </div>
-        </div>
-        <button hidden id="older" data-t="older"></button>
-        <section id="transcript" aria-label="Chat"></section>
-      </div>
-      <form id="compose">
-        <details id="options">
-          <summary data-t="options"></summary>
-          <div id="billing" hidden>
-            <label for="provider" data-t="billing"></label>
-            <select id="provider"><option value="managed" data-t="managed"></option><option value="openrouter" data-t="personal"></option></select>
-          </div>
-          <label for="skill" data-t="skill"></label>
-          <select id="skill">
-            <option value="chat" data-t="ask"></option><option value="write" data-t="write"></option>
-            <option value="translate" data-t="translate"></option><option value="summarize" data-t="summarize"></option>
-            <option value="campaign-plan" data-t="campaign"></option><option value="draft-outreach" data-t="outreach"></option>
-            <option value="desktop" data-t="desktop"></option>
-          </select>
-        </details>
-        <label for="prompt" class="visually-hidden" data-t="message"></label>
-        <textarea id="prompt" rows="2" required maxlength="8192"></textarea>
-        <p id="consentNotice" data-t="consent"></p>
-        <div class="sendRow">
-          <button class="primary" id="send" aria-describedby="consentNotice" data-t="agreeSend"></button>
-          <button type="button" id="stop" hidden data-t="stop"></button>
-        </div>
-      </form>
-    </section>
-    <div id="feedback"><button hidden id="retry" data-t="retry"></button><p id="status" role="status" aria-live="polite"></p></div>
-  </main>
-  <dialog id="menu" aria-labelledby="menuTitle">
-    <div class="sheetHeader"><h2 id="menuTitle" data-t="menuTitle"></h2><button id="closeMenu" type="button" data-t="close"></button></div>
-    <label for="threads" data-t="history"></label><select id="threads"></select>
-    <div class="actions"><button id="rename" data-t="rename"></button><button id="remove" data-t="remove"></button></div>
-    <details id="usage"><summary data-t="usage"></summary><p id="usageText"></p></details>
-    <details id="sessions"><summary data-t="sessions"></summary><ul id="sessionList"></ul><button id="logoutAll" data-t="logoutAll"></button></details>
-    <details id="devices"><summary data-t="devices"></summary><p data-t="deviceNote"></p><ul id="deviceList"></ul></details>
-    <details id="providers" hidden><summary data-t="providers"></summary><p data-t="providerNote"></p><div class="actions"><button id="connectProvider" data-t="connectProvider"></button><button id="disconnectProvider" data-t="disconnectProvider"></button><a id="providerKeys" rel="noreferrer" target="_blank" href="https://openrouter.ai/keys" data-t="providerKeys"></a></div></details>
-    <p id="menuStatus" role="status" aria-live="polite"></p><button hidden id="logout" data-t="logout"></button>
-  </dialog>
-  <script type="module" src="/mobile/app.js"></script>
-</body>
-</html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StartupBot</title><link rel="stylesheet" href="/mobile/skin.css"><link rel="stylesheet" href="/mobile/inbox.css">
+<style>
+#chat{display:flex;flex:1;min-height:0;flex-direction:column}#history{min-height:5rem}#login{width:min(440px,94%);margin:5vh auto;padding:1rem;overflow:auto}
+#tools{max-height:45dvh;overflow:auto;padding:.3rem 1rem;border-bottom:1px solid var(--color-hairline)}#tools summary{padding:.6rem 0}
+.controls{display:flex;flex-wrap:wrap;gap:.4rem}#compose{padding-bottom:max(.7rem,env(safe-area-inset-bottom));overflow:auto}
+#prompt{flex:1;min-width:0;border:0;background:transparent;resize:vertical;font-size:max(16px,1rem)}
+#compose label:has(#consent){display:flex;align-items:flex-start}#send,#stop{min-height:44px}
+#posts pre{white-space:pre-wrap;overflow-wrap:anywhere}header #logout{margin-inline-start:auto}#status{overflow-wrap:anywhere}
+</style></head><body><header><b>StartupBot</b><button class="ui-button" hidden id="logout" data-t="logout"></button></header>
+<main><form id="login" hidden>
+<label for="email" data-t="email"></label><input type="email" id="email" autocomplete="email" required maxlength="254">
+<div id="codeBox" hidden><label for="otp" data-t="otp"></label><input id="otp" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autocomplete="one-time-code"></div>
+<button class="ui-button" id="loginButton" data-t="code"></button> <button type="button" id="changeEmail" hidden data-t="change"></button></form>
+<section id="chat" hidden><details id="tools"><summary data-t="history"></summary><label class="sr" for="threads" data-t="history"></label><select id="threads"></select>
+<div class="controls"><button id="new" data-t="new"></button><button id="rename" data-t="rename"></button><button id="remove" data-t="remove"></button></div>
+<details id="usage"><summary data-t="usage"></summary><p id="usageText"></p></details>
+<details id="sessions"><summary data-t="sessions"></summary><ul id="sessionList"></ul><button id="logoutAll" data-t="logoutAll"></button></details>
+<details id="devices"><summary data-t="devices"></summary><p data-t="deviceNote"></p><ul id="deviceList"></ul></details>
+<details id="providers" hidden><summary data-t="providers"></summary><p data-t="providerNote"></p><div class="controls"><button id="connectProvider" data-t="connectProvider"></button><button id="disconnectProvider" data-t="disconnectProvider"></button><a id="providerKeys" rel="noreferrer" target="_blank" href="https://openrouter.ai/keys" data-t="providerKeys"></a></div></details>
+</details><div id="history"><button hidden id="older" data-t="older"></button><div id="posts"><section id="transcript" aria-label="Chat" style="display:contents"></section></div></div>
+<form id="compose"><details id="skills"><summary data-t="skill"></summary><div id="billing" hidden><label for="provider" data-t="billing"></label><select id="provider"><option value="managed" data-t="managed"></option><option value="openrouter" data-t="personal"></option></select></div><label for="skill" data-t="skill"></label><select id="skill"><option value="chat" data-t="ask"></option><option value="write" data-t="write"></option><option value="translate" data-t="translate"></option><option value="summarize" data-t="summarize"></option><option value="campaign-plan" data-t="campaign"></option><option value="draft-outreach" data-t="outreach"></option><option value="desktop" data-t="desktop"></option></select></details><label for="prompt" class="sr" data-t="message"></label>
+<label><input type="checkbox" id="consent" required> <span data-t="consent"></span></label>
+<div class="compose-row"><div class="draft-field"><textarea id="prompt" rows="1" required maxlength="8192"></textarea></div>
+<button id="send" class="ui-button" data-t="send"></button><button type="button" id="stop" hidden class="ui-button" data-t="stop"></button></div>
+</form></section><button hidden id="retry" data-t="retry"></button><p id="status" role="status" aria-live="polite"></p></main>
+<script type="module" src="/mobile/app.js"></script></body></html>

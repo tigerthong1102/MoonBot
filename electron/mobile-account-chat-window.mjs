@@ -16,13 +16,22 @@ export function createMobileAccountChatWindow(environment) {
     if (!entry.window.isDestroyed()) entry.window.destroy();
     void entry.partition.clearStorageData().catch(() => {});
   }
+  async function display(entry) {
+    if (current !== entry || entry.window.isDestroyed() || entry.loaded) return;
+    await entry.window.loadURL(url.origin + "/mobile?lang=vi");
+    if (current !== entry || entry.window.isDestroyed()) return;
+    entry.loaded = true;
+    entry.window.show();
+  }
   async function signIn(entry) {
     try {
+      if (!entry.account) return await display(entry);
       const response = await fetch(url.origin + "/mobile/login", {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(12000),
         headers: { origin: url.origin, authorization: "Bearer " + entry.account.accountToken, "content-type": "application/json" },
         body: JSON.stringify({ client: "desktop-account", account: entry.account.userId, email: entry.account.email }),
       });
+      if (response.status === 401 || response.status === 403) return await display(entry);
       if (!response.ok) throw Error("Account service unavailable");
       const cookie = response.headers.getSetCookie().find(line => line.startsWith(cookieName + "="));
       const handle = cookie?.split(";", 1)[0].slice(cookieName.length + 1);
@@ -30,12 +39,8 @@ export function createMobileAccountChatWindow(environment) {
       if (current !== entry || entry.window.isDestroyed()) return;
       await entry.partition.cookies.set({ url:url.origin, name:cookieName, value:handle, path:"/", secure:true, httpOnly:true, sameSite:"strict" });
       if (current !== entry || entry.window.isDestroyed()) return;
-      if (!entry.loaded) {
-        await entry.window.loadURL(url.origin + "/mobile?lang=vi");
-        if (current !== entry || entry.window.isDestroyed()) return;
-        entry.loaded = true;
-        entry.window.show();
-      }
+      await display(entry);
+      if (current !== entry || entry.window.isDestroyed()) return;
       entry.timer = setTimeout(() => void signIn(entry), 7 * 3600_000);
     } catch {
       if (current === entry && !entry.window.isDestroyed()) {
@@ -44,12 +49,12 @@ export function createMobileAccountChatWindow(environment) {
     }
   }
   return credentials => {
-    const account = !companionAccountCleanupPending(credentials) && storedAccount(credentials);
-    if (current && !current.window.isDestroyed() && account?.userId === current.account.userId && account?.accountToken === current.account.accountToken) return;
+    const stored = !companionAccountCleanupPending(credentials) && storedAccount(credentials);
+    const account = stored?.accountToken ? stored : null;
+    if (current && !current.window.isDestroyed() && account?.userId === current.account?.userId && account?.accountToken === current.account?.accountToken) return;
     const previous = current;
     current = undefined;
     if (previous) stop(previous);
-    if (!account?.accountToken) return;
     const partition = session.fromPartition("account-chat-" + randomUUID());
     partition.setPermissionRequestHandler((_contents, _permission, answer) => answer(false));
     partition.setPermissionCheckHandler(() => false);

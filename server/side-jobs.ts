@@ -63,7 +63,7 @@ export interface SideJobText {
   generateText: (prompt: string, options?: SideJobTextOptions) => Promise<string>;
 }
 
-export type SideJobTextOptions = Pick<TextGenerationOptions, "signal" | "timeoutMs"> & { waiting?(): void; started?(): void };
+export type SideJobTextOptions = Pick<TextGenerationOptions, "signal" | "timeoutMs" | "beforeRequest"> & { waiting?(): void; started?(): void };
 
 export interface SideJobsDeps {
   bot: (botId: string) => SideJobBot | null | undefined;
@@ -159,9 +159,11 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     async (prompt, options) => {
       deps.assertWithinBudget(job === "instruction-test" || job === "source-answer" ? bot.id : undefined);
       const threadId = `${job}-${randomUUID()}`;
+      const config = fixed();
       return call(prompt, {
         ...options,
-        ...fixed(),
+        ...config,
+        ...(options?.beforeRequest ? { beforeRequest: () => { config.beforeRequest?.(); options.beforeRequest?.(); } } : {}),
         onUsage: (usage) => deps.book({
           botId: bot.id,
           botName: bot.name,

@@ -9,6 +9,8 @@ export const isZaloDesktopOwner = (localDesktop: boolean, auth: RequestAuth) => 
   auth.desktopOwner === true && auth.trust !== "service" && !auth.companionDevice;
 export { zaloPairingEnabled } from "../zalo-official.ts";
 
+export const zaloApprovedSendEnabled = () => zaloPairingEnabled() && process.env.STARTUPBOT_ZALO_OFFICIAL_APPROVED_SEND_PILOT === "1";
+
 export function createZaloOfficialRoutes(localDesktop: boolean, probe = probeZaloOfficialToken): RouteHandler {
   let busy = false;
   return async ({ req, res, path, method, auth, json, readBody }) => {
@@ -18,7 +20,7 @@ export function createZaloOfficialRoutes(localDesktop: boolean, probe = probeZal
       return json(res, 403, { error: "desktop-owner-required" });
     }
     const enabled = process.env.STARTUPBOT_ZALO_OFFICIAL_PILOT === "1";
-    if (method === "GET") return json(res, 200, { enabled, ...(zaloPairingEnabled() ? { pairingPilot: true } : {}) });
+    if (method === "GET") return json(res, 200, { enabled, ...(zaloPairingEnabled() ? { pairingPilot: true } : {}), ...(zaloApprovedSendEnabled() ? { approvedSendPilot: true } : {}) });
     if (method !== "POST") return json(res, 405, { error: "method-not-allowed" });
     if (!enabled) return json(res, 403, { error: "disabled" });
     if (req.headers["content-type"]?.split(";")[0].toLowerCase().trim() !== "application/json") {

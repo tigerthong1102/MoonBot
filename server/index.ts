@@ -657,6 +657,7 @@ import { createInstanceRoutes } from "./routes/instances.ts";
 import { createMcpConfig } from "./host/mcp-config.ts";
 import { createMcpServerRoutes } from "./routes/mcp-servers.ts";
 import { teamAdminSummary } from "./cloud-team-admin.ts"; import { createConnectionHealthHost } from "./host/connection-health-host.ts";
+import { attachZaloRetention } from "./zalo-retention.ts";
 import { zaloPeriodService, createDesktopImportRoutes } from "./routes/setup-import.ts";
 import { createComputerRoutes } from "./routes/computers.ts";
 import { createStatusRoutes } from "./routes/status.ts";
@@ -15230,10 +15231,9 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     releaseWorkspaceRequest?.();
   }
 };
-
 const server = createServer(IDLE_HTTP_SERVER, handleRequest);
 upgrades.attach(server, handleRequest);
-
+attachZaloRetention(server, DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE);
 moveFreeze.hold(() => calendarCalls.start(), () => calendarCalls.stop());
 
 // Resolve the edition before accepting requests so /api/edition is never a guess.

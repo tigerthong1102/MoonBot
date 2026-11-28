@@ -1,6 +1,8 @@
 import { ZaloPeriodReports } from "./ZaloPeriodReports";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ZaloPairingStatus } from "../../shared/zalo-pairing";
+import { ZaloApprovedReply } from "./ZaloApprovedReply";
+import { ZaloSourceErasure } from "./ZaloSourceErasure";
 import { t } from "@/lib/i18n";
 import { api } from "@/state/api";
 
@@ -9,7 +11,7 @@ const request = { mode: "same-origin", redirect: "error", cache: "no-store", tim
 type Snapshot = ZaloPairingStatus & { command?: string };
 const stamp = (time: number) => new Date(time).toLocaleString(document.documentElement.lang || undefined);
 
-export function ZaloPairingSetup() {
+export function ZaloPairingSetup({ approvedSendPilot = false }: { approvedSendPilot?: boolean }) {
   const pending = useRef<AbortController | null>(null);
   const [status, setStatus] = useState<Snapshot>();
   const [busy, setBusy] = useState(false);
@@ -90,6 +92,8 @@ export function ZaloPairingSetup() {
         })}</p>}
         <p>{t("zaloPair.gaps", { polls: status.coverage.pollGaps, issues: status.coverage.timingIssues })}</p>
       </>}
+      {status.state === "paired" && status.revision && <ZaloSourceErasure key={status.revision} revision={status.revision}
+        onErased={coverage => setStatus(previous => previous && previous.revision === status.revision ? { ...previous, coverage } : previous)} />}
     </div>}
     {status?.state === "paired" && <ZaloPeriodReports key={status.revision} manage />}
     <div className="flex flex-wrap gap-2">
@@ -98,6 +102,7 @@ export function ZaloPairingSetup() {
         onClick={() => void update({ action: "invite", revision: status.revision })}>{t(status.state === "ready" ? "zaloPair.invite" : "zaloPair.replace")}</button>}
       {status?.revision && !confirmRevoke && <button className="ui-button" type="button" onClick={() => setConfirmRevoke(true)}>{t("zaloPair.revoke")}</button>}
     </div>
+    {approvedSendPilot && status?.state === "paired" && <ZaloApprovedReply key={`reply-${status.revision}`} />}
     {confirmRevoke && status?.revision && <div className="grid gap-2 text-sm">
       <p>{t("zaloPair.deleteNotice")}</p>
       <div className="flex gap-2">

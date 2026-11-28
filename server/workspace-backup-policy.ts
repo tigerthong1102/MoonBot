@@ -47,7 +47,7 @@ export function restoredWorkspaceConfig(portable: unknown, destination: unknown)
 }
 
 export function excludedWorkspaceAuthPath(path: string): boolean {
-  if (inSecretFolder(path)) return true;
+  if (inSecretFolder(path) || /(?:^|\/)\.startupbot-qualification(?:\/|$)/i.test(path)) return true;
   if (/^command-allowlist\.json(?:$|\.\d+\.[0-9a-f-]+\.tmp$)/.test(path)) return true;
   if (/^mcp-oauth\.json(?:$|\.\d+\.[0-9a-f-]+\.tmp$)/.test(path)) return true;
   // Saved website logins and their key never leave the computer they were saved on, nor does the key sealing webhook secrets.

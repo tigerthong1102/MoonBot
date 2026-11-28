@@ -109,6 +109,7 @@ function backupRoot(dataDir: string): string {
   if (root === parse(root).root) throw new Error("A filesystem root cannot be a workspace backup target.");
   const stat = lstatSync(root);
   if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("The workspace data directory must not be a symbolic link.");
+  if (realpathSync(root).split(sep).some(name => name.toLowerCase() === ".startupbot-qualification")) throw new Error("Private qualification data cannot be a workspace backup target.");
   const path = join(root, ".backups");
   folder(path);
   return path;

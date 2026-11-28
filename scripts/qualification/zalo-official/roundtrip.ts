@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { z } from "zod";
-import { normalizedOfficialText, readZaloOfficialEnvelope } from "../../../server/zalo-official.ts";
+import { normalizedOfficialText, readZaloOfficialEnvelope, sendZaloPrivateText } from "../../../server/zalo-official.ts";
 import { classifyZaloText } from "../../../shared/zalo-intelligence.ts";
 import type { ZaloEvent } from "../../../shared/zalo-event.ts";
 import { openLabJournal } from "./journal.ts";
@@ -28,7 +28,7 @@ export async function runOfficialRoundtrip(options: {
   const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
   const lease = claimLabAccount(db, accountId, started, deadline + 15_000);
   if (!lease) return "blocked-by-prior-run";
-  type Method = "getMe" | "getWebhookInfo" | "getUpdates" | "sendMessage";
+  type Method = "getMe" | "getWebhookInfo" | "getUpdates";
   async function call(method: Method, body: object = {}) {
     signal.throwIfAborted();
     if (Date.now() >= deadline || process.env.STARTUPBOT_ZALO_OFFICIAL_PILOT !== "1") throw Error();
@@ -81,8 +81,7 @@ export async function runOfficialRoundtrip(options: {
       const confirm = lease.arm(event.conversationId, event.senderId, event.messageId, Date.now());
       if (!confirm) return "blocked-by-prior-run";
       armed = true;
-      const receipt = await call("sendMessage", { chat_id: event.conversationId, text: REPLY });
-      if (!z.object({ message_id: z.string().trim().min(1).max(128) }).safeParse(receipt).success) return "delivery-unknown";
+      await sendZaloPrivateText(token, event.conversationId, REPLY, signal, request);
       confirm();
       return "provider-acknowledged";
     }

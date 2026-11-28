@@ -191,3 +191,15 @@ it("admits a verified new account once within an explicitly funded trial cohort"
   expect(f.ledger.order("trial","monthly",f.config,randomUUID()).state).toBe("pending");
   expect(f.ledger.db.prepare("SELECT count(*) n FROM orders WHERE sku='mobile_trial'").get().n).toBe(1);
 });
+
+it("serves a browser-ready shared clipboard module and uses neutral reference-skin primary colors", async () => {
+  const page = await (await fetch(f.url + "/mobile")).text();
+  expect(page).toMatch(/\.primary\{[^}]*background:var\(--color-ink\);color:var\(--color-app\)/);
+  const entry = await (await fetch(f.url + "/mobile/app.js")).text();
+  expect(entry).toContain('import { copyText } from "./clipboard-write.js"');
+  const response = await fetch(f.url + "/mobile/clipboard-write.js");
+  expect(response.headers.get("content-type")).toContain("application/javascript");
+  const source = await response.text();
+  const { copyText } = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+  expect(await copyText(" ")).toBe("empty");
+});

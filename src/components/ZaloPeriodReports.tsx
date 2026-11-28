@@ -1,3 +1,4 @@
+import { Select } from "./Select";
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
 import { ApiError, api } from "@/state/api";
@@ -68,8 +69,8 @@ export function ZaloPeriodReports({ manage = false }: { manage?: boolean }) {
     <h3 className="font-medium">{t("zalo.period.title")}</h3>
     <p>{t("zalo.period.source", view.source)}</p><p>{t("zalo.period.scope")}</p>
     {manage && <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void save(form); }}>
-      <label>{t("zalo.period.cadence")} <select value={form.cadence} onChange={e => setForm({ ...form, cadence: e.target.value === "hourly" ? "hourly" : "daily" })}>
-        <option value="daily">{t("zalo.period.daily")}</option><option value="hourly">{t("zalo.period.hourly")}</option></select></label>
+      <label>{t("zalo.period.cadence")} <Select value={form.cadence} onChange={e => setForm({ ...form, cadence: e.target.value === "hourly" ? "hourly" : "daily" })}>
+        <option value="daily">{t("zalo.period.daily")}</option><option value="hourly">{t("zalo.period.hourly")}</option></Select></label>
       {form.cadence === "daily" && <label>{t("zalo.period.hour")} <input required type="number" min="0" max="23" value={form.hour} onChange={e => setForm({ ...form, hour: Number(e.target.value) })} /></label>}
       <label>{t("zalo.period.minute")} <input required type="number" min="0" max="59" value={form.minute} onChange={e => setForm({ ...form, minute: Number(e.target.value) })} /></label>
       <label>{t("zalo.period.zone")} <input required maxLength={100} value={form.timeZone} onChange={e => setForm({ ...form, timeZone: e.target.value })} /></label>

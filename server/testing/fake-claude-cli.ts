@@ -13,6 +13,7 @@
 //   FAKE_CLAUDE_ANSWER_MODEL  the `model` of its assistant frames, as when the CLI answers with another model than asked
 //   FAKE_CLAUDE_RELEASE  with hang: the turn ends normally once this file exists; a scripted call's `hold` ends then too
 //   FAKE_CLAUDE_DUMP  path for the latest turn's {argv, env, cwd, prompt, systemPrompt, mcpConfig}
+//   FAKE_CLAUDE_DUMP_HISTORY_DIR  directory for one complete JSON file per turn
 //   FAKE_CLAUDE_ELICIT  JSON request body: a "hang" turn (or a failing FAKE_CLAUDE_TRANSIENTS launch) first asks it
 //     as control_request "elicit-1"
 //   FAKE_CLAUDE_CONTROL_LOG  JSON-lines file every control_response the host writes is appended to
@@ -94,6 +95,7 @@
 import { splitLaunchNote } from "./launch-note.ts";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { appendFileSync, closeSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -892,15 +894,14 @@ const playTurn = (prompt: JsonValue, late = false) => {
   volatileNote = volatileNoteIn(prompt) ?? volatileNote;
   const homeFiles = process.env.FAKE_CLAUDE_HOME_FILES === "1";
   const signedInAs = homeFiles ? homeSignIn() : undefined;
-  if (!late && process.env.FAKE_CLAUDE_DUMP) {
+  if (!late && (process.env.FAKE_CLAUDE_DUMP || process.env.FAKE_CLAUDE_DUMP_HISTORY_DIR)) {
     launchFiles ??= readLaunchFiles();
     // systemPrompt: what the model is instructed with, the system prompt file plus the
     // volatile half a user message carries (claude.ts keeps the file stable for the cache)
     const systemPrompt = volatileNote && typeof launchFiles.systemPrompt === "string" ? `${launchFiles.systemPrompt}\n\n${volatileNote}` : launchFiles.systemPrompt;
-    writeDumpAtomic(
-      process.env.FAKE_CLAUDE_DUMP,
-      JSON.stringify({ pid: process.pid, argv, env: process.env, cwd: process.cwd(), prompt, ...launchFiles, systemPrompt, systemPromptFile: launchFiles.systemPrompt, ...(homeFiles ? { signedInAs } : {}) }, null, 2),
-    );
+    const captured = JSON.stringify({ pid: process.pid, argv, env: process.env, cwd: process.cwd(), prompt, ...launchFiles, systemPrompt, systemPromptFile: launchFiles.systemPrompt, ...(homeFiles ? { signedInAs } : {}) }, null, 2);
+    if (process.env.FAKE_CLAUDE_DUMP) writeDumpAtomic(process.env.FAKE_CLAUDE_DUMP, captured);
+    if (process.env.FAKE_CLAUDE_DUMP_HISTORY_DIR) writeDumpAtomic(join(process.env.FAKE_CLAUDE_DUMP_HISTORY_DIR, `${randomUUID()}.json`), captured);
   }
 
   if (process.env.FAKE_CLAUDE_ROUTER_PING === "1" && process.env.ANTHROPIC_BASE_URL) {

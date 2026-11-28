@@ -81,3 +81,20 @@ it("allocates a fresh ID when the retry uses a different skill", async () => {
   expect(send.mock.calls[1][0].id).not.toBe(send.mock.calls[0][0].id);
   expect(el("prompt").value).toBe("");
 });
+
+it.each([true, false])("copies a mobile answer through the legacy fallback when browser access is denied (%s)", async copied => {
+  send.mockResolvedValueOnce(success());
+  submit();
+  await idle();
+  const legacy = vi.fn(() => copied);
+  vi.stubGlobal("navigator", { get clipboard() { throw new Error("denied"); } });
+  Object.defineProperty(document, "execCommand", { configurable:true, value:legacy });
+  try {
+    await el("transcript").querySelector("button").onclick();
+    expect(legacy).toHaveBeenCalledWith("copy");
+    expect(el("status").textContent.length > 0).toBe(!copied);
+    expect(document.querySelector("textarea[readonly]")).toBeNull();
+  } finally {
+    delete document.execCommand;
+  }
+});

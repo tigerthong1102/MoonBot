@@ -1,3 +1,5 @@
+import { copyText } from "./clipboard-write.js";
+
 const translations = {
   en: {
     skill:"What would you like to do?", ask:"Ask a question", write:"Draft text", translate:"Translate", summarize:"Summarize text", desktop:"Work on my computer", copy:"Copy", retry:"Reconnect", managed_access_revoked:"AI access has been suspended.", email:"Email address", otp:"Eight-digit email code", code:"Continue with email", login:"Sign in", change:"Change email", logout:"Sign out",
@@ -120,7 +122,9 @@ function formatAnswer(element, text) {
   const copy = document.createElement("button");
   copy.type = "button";
   copy.textContent = t.copy;
-  copy.onclick = () => navigator.clipboard.writeText(text).catch(() => status(t.error));
+  copy.onclick = async () => {
+    if (await copyText(text) === "failed") status(t.error);
+  };
   element.parentElement.append(copy);
 }
 async function show(id) {

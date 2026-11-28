@@ -679,6 +679,19 @@ it("pins instruction tests to the bot's allowed model, checking spend before eve
   expect(jobs.instructionTest("pi", { instanceId: "pi", model: "selected" })).toBeNull();
 });
 
+it("uses the allowed Codex one-shot path for Twin without falling back to another provider", async () => {
+  const { jobs, codex, acp, claude, state } = setup({ modelAllowed: ({ model }) => model === "selected" });
+  const writer = jobs.twinPreview({ instanceId: "codex", model: "selected" }, "twin")!;
+  expect(writer.name).toBe("Codex");
+  await writer.generateText("consented Twin preview");
+  expect(codex.calls[0]?.options).toMatchObject({ model: "selected", requireIsolatedText: true });
+  expect(state.booked[0]?.row).toMatchObject({ botId: "twin", instanceId: "codex" });
+  expect(jobs.twinPreview({ instanceId: "codex", model: "forbidden" }, "twin")).toBeNull();
+  expect(jobs.twinPreview({ instanceId: "grok", model: "selected" }, "twin")).toBeNull();
+  expect(claude.calls).toHaveLength(0);
+  expect(acp.calls).toHaveLength(0);
+});
+
 it("uses only isolated source-capable models and charges the person and conversation that asked", async () => {
   const { jobs, state, codex, acp } = setup({ modelAllowed: ({ model }) => model === "allowed" });
   const selection = { instanceId: "codex", model: "allowed" }, person = { kind: "user" as const, label: "Reader" };

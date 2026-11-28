@@ -1133,7 +1133,7 @@ export class Store {
     return full;
   }
 
-  appendWorkBotContext(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId" | "replyToId"> & { at: number } }>, transfer?: { claim: Parameters<typeof mdb.transferQueuedWorkBotMessages>[2]; afterCommit(): void }, link?: import("./work-bot-message-db.ts").WorkBotLink, hold?: { expectedSourceLeaf: string | null }): Map<string, Message> {
+  appendLinkedMessages(threadId: string, rows: Array<{ sourceId: string; replySourceId?: string; message: Omit<Message, "id" | "at" | "parentId"> & { at: number } }>, transfer?: { claim: Parameters<typeof mdb.transferQueuedWorkBotMessages>[2]; afterCommit(): void }, link?: import("./work-bot-message-db.ts").WorkBotLink, hold?: { expectedSourceLeaf: string | null }): Map<string, Message> {
     const thread = this.thread(threadId);
     const copied = new Map<string, Message>();
     const messages: Message[] = [];

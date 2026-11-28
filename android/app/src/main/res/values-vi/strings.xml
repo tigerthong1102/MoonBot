@@ -13,4 +13,18 @@
     <string name="always_on_notification_text">Bạn vẫn sẽ nhận được thông báo khi đóng ứng dụng</string>
     <string name="ui_room_council">Hội đồng AI</string>
     <string name="ui_room_council_critique">Thêm vòng phản biện</string>
+    <string name="ai_twin_title">AI Twin</string>
+    <string name="ai_twin_question">Hỏi AI Twin</string>
+    <string name="ai_twin_lookup">Tra bài học</string>
+    <string name="ai_twin_semantic">Tra theo ý nghĩa</string>
+    <string name="ai_twin_draft">Soạn nháp kèm bài học</string>
+    <string name="ai_twin_disclosure">AI dùng %1$s (%2$s). Tra theo ý nghĩa có thể gửi câu hỏi từ những bài học bạn đã cho phép. Soạn nháp có thể gửi thêm đáp án phù hợp và thói quen viết.</string>
+    <string name="ai_twin_unavailable">Kết nối qua HTTPS hoặc Tailscale. Cho phép điện thoại truy cập trên máy đã ghép nối hoặc tạo AI Twin trên Cloud cá nhân.</string>
+    <string name="ai_twin_failed">AI Twin chưa trả lời được. Hãy tải lại và thử lại.</string>
+    <string name="ai_twin_refresh">Tải lại</string>
+    <string name="ai_twin_match">Bài học có thể phù hợp</string>
+    <string name="ai_twin_approved">Bài học đã duyệt</string>
+    <string name="ai_twin_missing">Không tìm thấy bài học phù hợp.</string>
+    <string name="ai_twin_private_draft">Bản nháp riêng tư</string>
+    <string name="ai_twin_paused">AI Twin đang tạm dừng.</string>
 </resources>

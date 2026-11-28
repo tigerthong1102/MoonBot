@@ -28,6 +28,11 @@ export async function startFakeHarness(): Promise<FakeHarness> {
     const path = url.pathname;
     if (path === "/api/health") return void res.writeHead(200, { "content-type": "application/json" }).end('{"app":"openmausbot"}');
     if (path === "/api/config") return void res.writeHead(200, { "content-type": "application/json" }).end('{"computerName":"Test Mac"}');
+    if (path === "/api/ai-twin") {
+      return void res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({
+        device: req.headers["x-openmausbot-companion-device"], noDesktopOwner: req.headers["x-openmausbot-desktop-owner"] === undefined,
+      }));
+    }
     if (path === "/api/events") {
       const since = Number(req.headers["last-event-id"] ?? url.searchParams.get("since") ?? 0) || 0;
       res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache" });

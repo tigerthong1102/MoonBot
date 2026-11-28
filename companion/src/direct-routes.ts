@@ -92,6 +92,13 @@ export function routedAddresses(addresses: string[] = lanAddresses(), routes = c
   return addresses.filter((address) => (isTailnetAddress(address, tailnet) ? routes.tailscale : routes.wifi && isPrivateLanAddress(address)));
 }
 
+export function acceptsTailnetConnection(
+  localAddress: string | undefined, remoteAddress: string | undefined,
+  routes = current, tailnet = tailnetInterfaceAddresses(),
+): boolean {
+  return routes.tailscale && isTailnetAddress(localAddress, tailnet) && Boolean(remoteAddress && inTailscaleRange(bare(remoteAddress)));
+}
+
 /**
  * Security: the device port binds every interface, so a connection is answered only when both ends are private and it
  * arrived on a way in that is on: on the tailnet interface from a tailnet peer with Tailscale on, or on a private LAN
@@ -102,6 +109,6 @@ export function acceptsConnection(localAddress: string | undefined, remoteAddres
   const local = bare(localAddress);
   const remote = bare(remoteAddress);
   if (isLoopback(local)) return isLoopback(remote);
-  if (isTailnetAddress(local, tailnet)) return routes.tailscale && inTailscaleRange(remote);
+  if (isTailnetAddress(local, tailnet)) return acceptsTailnetConnection(local, remote, routes, tailnet);
   return routes.wifi && isPrivateLanAddress(local) && isPrivateLanAddress(remote) && !isLoopback(remote);
 }

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { api, useStore, type ConfigStatus } from "@/state/store";
 import { t } from "@/lib/i18n";
-import { localAiTwinAvailable } from "@/lib/ai-twin";
+import { aiTwinAvailable } from "@/lib/ai-twin";
 import { avatarMarks } from "@/lib/avatar-marks";
 import { saveTeamProfile } from "@/lib/own-profile";
 import { IMAGE_MAX_BYTES, imageAttachmentFromFile, isImageFile } from "@/lib/composer-attachments";
@@ -202,7 +202,7 @@ export function ProfileFields() {
         />
       </SettingsField>
       <AboutMeSettings />
-      {localAiTwinAvailable(state.config) && <SettingsLinkRow title={t("settings.aiTwin.title")}
+      {aiTwinAvailable(state.config) && <SettingsLinkRow title={t("settings.aiTwin.title")}
         onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: "aiTwin" })} />}
       <EveryBotRules />
     </div>

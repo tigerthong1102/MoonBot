@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinView } from "../../shared/ai-twin";
+import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinLearningExample, type AiTwinView } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { randomUuid } from "@/lib/random-uuid";
 import { api, ApiError } from "@/state/api";
+import { AiTwinControls } from "./AiTwinControls";
 import { AiTwinLessons } from "./AiTwinLessons";
 import { AiTwinPreview } from "./AiTwinPreview";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -11,6 +12,7 @@ import { Card, SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 export function AiTwinSettings() {
   const [view, setView] = useState<AiTwinView | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [example, setExample] = useState<AiTwinLearningExample | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -23,6 +25,9 @@ export function AiTwinSettings() {
   const nameInput = useRef<HTMLInputElement>(null);
   const alive = useRef(false);
   const twin = view?.twin;
+  const reviewableExample = example && twin && !twin.paused && view?.controls?.sourceIds.includes(example.thread) ? example : null;
+
+  useEffect(() => { if (!reviewableExample) setExample(null); }, [reviewableExample]);
 
   useEffect(() => {
     alive.current = true;
@@ -68,6 +73,7 @@ export function AiTwinSettings() {
       const result = await api<AiTwinView>(AI_TWIN_PATH, { method, body: JSON.stringify(body), timeoutMs: 8_000 });
       if (!alive.current) return;
       setView(result);
+      if (!result.twin) setExample(null);
       setEditing(false);
       setConfirming(false);
       requestKey.current = null;
@@ -142,10 +148,12 @@ export function AiTwinSettings() {
               {t("settings.aiTwin.delete")}
             </button>
           </div>
-          <AiTwinLessons key={twin.id} twin={twin} lessons={view?.lessons ?? []}
-            changed={setView} refresh={() => void reload()} />
-          {!twin.paused && <AiTwinPreview key={twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
-            twin={twin} provider={view?.preview} refresh={() => void reload()} />}
+          <AiTwinLessons key={"lessons:" + twin.id} twin={twin} lessons={view?.lessons ?? []}
+            changed={setView} refresh={() => void reload()} example={reviewableExample} />
+          {view && <AiTwinControls key={"controls:" + twin.id} view={view} changed={setView}
+            refresh={() => void reload()} reviewExample={(entry) => setExample({ ...entry })} />}
+          {!twin.paused && <AiTwinPreview key={"preview:" + twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
+            twin={twin} provider={view?.preview} allowSemantic={view?.lessons?.some((lesson) => lesson.allowProvider) === true} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>
             {t("settings.aiTwin.deleteBody")}
             {writeError && <span role="alert" className="mt-2 block text-danger">{writeError}</span>}

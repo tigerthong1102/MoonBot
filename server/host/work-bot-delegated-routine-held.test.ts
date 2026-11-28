@@ -33,7 +33,7 @@ it.each(["delegated", "legacy delegated", "own task"] as const)("refuses a secon
     const handoff = (targetThreadId: string) => {
       const message = store.appendMessage(sourceTask, { role: "user", kind: "text", text: "Fixture offer" });
       const link = { sourceBotId: source.id, sourceThreadId: sourceTask, sourceMessageId: message.id, targetBotId: worker.id, targetThreadId };
-      store.appendWorkBotContext(targetThreadId, [{ sourceId: message.id, message: { role: "user", kind: "text", text: message.text, at: now } }], undefined, link);
+      store.appendLinkedMessages(targetThreadId, [{ sourceId: message.id, message: { role: "user", kind: "text", text: message.text, at: now } }], undefined, link);
       return message.id;
     };
     const offer = handoff(targetTask);

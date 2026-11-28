@@ -1,5 +1,5 @@
 import { openUserSignIn } from "@/lib/user-sign-in";
-import { localAiTwinAvailable } from "@/lib/ai-twin";
+import { aiTwinAvailable } from "@/lib/ai-twin";
 import { ArrowUpRight } from "lucide-react";
 import { t } from "@/lib/i18n";
 import { CLOUD_PLAN_URL } from "@/lib/app-links";
@@ -49,7 +49,7 @@ export function AccountPage() {
         <a className="ui-button" href="http://127.0.0.1:8537/" target="_blank" rel="noreferrer">{t("pilot.open")}</a>
       </SettingRow></SettingsRows></SettingsGroup>
     )}
-    {localAiTwinAvailable(state.config) && <SettingsGroup block="ai-twin"><AiTwinSettings /></SettingsGroup>}
+    {aiTwinAvailable(state.config, session) && <SettingsGroup block="ai-twin"><AiTwinSettings /></SettingsGroup>}
     {personal && <SettingsGroup label={t("settings.account.mausbot", { app: productName() })} block="mausbot-account">
       <SettingsRows><SettingRow title={summary.email ?? t("cloudBuy.signIn.email")} leading={<YouAvatar size={32} />}>
         {summary.email

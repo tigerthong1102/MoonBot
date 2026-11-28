@@ -1701,6 +1701,19 @@ final class Session: ObservableObject {
         catch { if isCurrent(client, generation: requestGeneration) { actionError = error.localizedDescription }; return nil }
     }
 
+    func aiTwin() async -> AiTwinStatus? {
+        let generation = runtimeGeneration
+        guard let client else { return nil }
+        return try? currentResult(try await client.aiTwin(), using: client, generation: generation)
+    }
+
+    func askAiTwin(_ profile: AiTwinProfile, question: String, action: AiTwinAction, provider: AiTwinProvider?) async -> AiTwinAnswer? {
+        let generation = runtimeGeneration
+        guard let client else { return nil }
+        return try? currentResult(try await client.askAiTwin(profile, question: question, action: action, provider: provider),
+                                  using: client, generation: generation)
+    }
+
     func configStatus() async -> ConfigStatus? {
         let requestGeneration = runtimeGeneration
         guard let client else { return nil }

@@ -15,7 +15,7 @@ it("publishes the held state and restores the transferred text without schedulin
   const link = { sourceBotId: sourceBot.id, sourceThreadId: sourceBot.threadId, sourceMessageId: source.id, targetBotId: targetBot.id, targetThreadId: targetBot.threadId };
   const changes: string[] = [];
   const unsubscribe = store.onChange(change => { if (change.type === "message.patch" && change.message.id === source.id) changes.push(change.message.workBotRouting?.state ?? "missing"); });
-  const copied = store.appendWorkBotContext(targetBot.threadId, [{ sourceId: source.id, message: { role: "user", kind: "text", text: source.text, at: 1, sendId: `workbot-${source.id}`, requestPending: false, workBotReviewHold: true, workBotHandoffSource: { threadId: sourceBot.threadId, messageId: source.id, botId: sourceBot.id } } }], undefined, link, { expectedSourceLeaf: store.activeLeaf(sourceBot.threadId) });
+  const copied = store.appendLinkedMessages(targetBot.threadId, [{ sourceId: source.id, message: { role: "user", kind: "text", text: source.text, at: 1, sendId: `workbot-${source.id}`, requestPending: false, workBotReviewHold: true, workBotHandoffSource: { threadId: sourceBot.threadId, messageId: source.id, botId: sourceBot.id } } }], undefined, link, { expectedSourceLeaf: store.activeLeaf(sourceBot.threadId) });
   unsubscribe();
   expect(changes).toEqual(["held_for_review"]);
   expect(store.messagesFor(sourceBot.threadId).find(row => row.id === source.id)?.workBotRouting?.state).toBe("held_for_review");
@@ -36,7 +36,7 @@ it("keeps the durable hold recoverable if memory synchronization fails after com
   const link = { sourceBotId: sourceBot.id, sourceThreadId: sourceBot.threadId, sourceMessageId: source.id, targetBotId: targetBot.id, targetThreadId: targetBot.threadId };
   const patch = vi.spyOn(store, "patchMessage").mockReturnValueOnce(null);
   const rows = [{ sourceId: source.id, message: { role: "user" as const, kind: "text" as const, text: source.text, at: 1, sendId: `workbot-${source.id}`, requestPending: false, workBotReviewHold: true as const, workBotHandoffSource: { threadId: sourceBot.threadId, messageId: source.id, botId: sourceBot.id } } }];
-  expect(() => store.appendWorkBotContext(targetBot.threadId, rows, undefined, link, { expectedSourceLeaf: store.activeLeaf(sourceBot.threadId) })).toThrow(expect.objectContaining({ workBotCleanupFailed: true, workBotHeldCommitted: true }));
+  expect(() => store.appendLinkedMessages(targetBot.threadId, rows, undefined, link, { expectedSourceLeaf: store.activeLeaf(sourceBot.threadId) })).toThrow(expect.objectContaining({ workBotCleanupFailed: true, workBotHeldCommitted: true }));
   patch.mockRestore();
   flushLaterSaves();
   const reopened = new Store(() => ({ instanceId: "fixture", model: "fake" }));

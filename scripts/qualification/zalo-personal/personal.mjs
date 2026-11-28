@@ -10,7 +10,7 @@ export function normalizeText(accountId, allowed, message) {
   if ((data.uidFrom === accountId) !== isSelf) return null;
   if (kind === "group" && data.idTo !== message.threadId) return null;
   if (kind === "direct" && (isSelf ? data.idTo !== message.threadId : data.uidFrom !== message.threadId || data.idTo !== accountId)) return null;
-  if (typeof data.content !== "string" || !data.content.trim() || data.content.length > 8192) return null;
+  if (typeof data.content !== "string" || !data.content.trim() || data.content.length > 8000) return null;
   if (typeof data.ts !== "string" || !/^\d{13}$/.test(data.ts)) return null;
   return {
     adapter: "personal", accountId, conversationId: message.threadId, conversationType: kind,
@@ -22,7 +22,7 @@ export function normalizeText(accountId, allowed, message) {
 // The owner supplies the expected platform identity and explicit conversation scope before listening.
 export function createPersonalSessions() {
   const sessions = new Map();
-  function begin({ accountId, conversations, client, onState, onQr, onMessage }) {
+  function begin({ accountId, conversations, client, onState, onQr, onMessage, restoreCredentials }) {
     if (!id(accountId) || !Array.isArray(conversations) || conversations.length > 512 ||
         conversations.some((c) => !id(c?.id) || !["direct", "group"].includes(c.type))) {
       throw new Error("invalid_scope");
@@ -38,7 +38,7 @@ export function createPersonalSessions() {
       listener.on(event, fn);
     }
     let abortLogin;
-    let phase = "awaiting_qr";
+    let phase = restoreCredentials ? "restoring" : "awaiting_qr";
     const active = () => sessions.get(accountId) === lease;
     const set = (next) => { phase = next; onState(next); };
     function stop(reason = "disconnected") {
@@ -79,10 +79,18 @@ export function createPersonalSessions() {
         set("awaiting_confirmation");
       }
     }
-    set("awaiting_qr");
+    set(phase);
     const ready = (async () => {
       try {
-        const api = await client.loginQR(undefined, qr);
+        let api;
+        if (restoreCredentials) {
+          const credentials = await restoreCredentials();
+          if (!active()) return;
+          if (!credentials) { stop("authentication_required"); return; }
+          api = await client.login(credentials);
+        } else {
+          api = await client.loginQR(undefined, qr);
+        }
         if (!active()) return;
         abortLogin = undefined;
         if (api.getOwnId() !== accountId) { stop("account_mismatch"); return; }
@@ -101,7 +109,10 @@ export function createPersonalSessions() {
         stop("connector_error");
       }
     })();
-    return { ready, stop: () => stop(), status: () => phase };
+    return {
+      ready, stop: () => stop(), status: () => phase,
+      removeConversation: (type, thread) => scope.delete(scopeKey(type, thread)),
+    };
   }
   return { begin };
 }

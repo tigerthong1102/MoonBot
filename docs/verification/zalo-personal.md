@@ -20,7 +20,7 @@ OpenClaw ghi MIT © 2026 OpenClaw Foundation. zca-js ghi MIT © 2024–2025 RFS-
 - Adapter so sánh getOwnId() trước khi mở listener, rồi kiểm tra loại hội thoại, ID, chiều gửi và cấu trúc từng tin. Chỉ chuyển text có ID và timestamp hợp lệ thành ZaloEvent. Callback không đưa raw event, cookie, tên hiển thị, QR token hay URL ra ngoài.
 - Một manager giữ một lease trên mỗi tài khoản. Khi ngắt kết nối, callback cũ mất quyền, scope bị xóa, listener ngừng và các handler được tháo. Socket đóng chuyển sang coverage_unknown. Không có vòng lặp tự reconnect, gửi, trả lời, tự đánh dấu đã đọc, chạy công cụ, fallback trình duyệt hoặc nâng quyền.
 - Bộ chạy qualification tạo child với môi trường tối thiểu, thời hạn 20 giây, V8 old-space 96 MiB, output giới hạn 32 KiB. Child chỉ được đọc thư mục phòng thử, cấm mạng, ghi file, subprocess, worker và addon. Đây là giới hạn cho fixture tin cậy, chưa phải sandbox cho mã thù địch hoặc giới hạn tổng RSS/CPU cấp hệ điều hành.
-- Lịch sử, chỉnh sửa/thu hồi, media, lưu phiên hệ điều hành và khóa liên tiến trình chưa được chứng nhận. Trước khi gắn vào inbox bền vững cần xử lý thu hồi nguồn, lease liên tiến trình, timeout đăng nhập và vòng đời keychain. Gián đoạn có thể mất tin. Upstream đã có báo cáo về trùng listener, thiếu lịch sử và trạng thái listener trông còn hoạt động sau khi mất kết nối. [Trùng sự kiện](https://github.com/RFS-ADRENO/zca-js/issues/348) · [Lịch sử nhóm](https://github.com/RFS-ADRENO/zca-js/issues/402) · [Listener báo sai trạng thái](https://github.com/openclaw/openclaw/issues/181111)
+- Lịch sử, sự kiện chỉnh sửa/thu hồi của Zalo, media, keychain thật và giới hạn CPU cấp hệ điều hành chưa được chứng nhận. Thử nghiệm liên tiến trình, inbox và thu hồi quyền nội bộ được mô tả bên dưới. Gián đoạn có thể mất tin. Upstream đã có báo cáo về trùng listener, thiếu lịch sử và trạng thái listener trông còn hoạt động sau khi mất kết nối. [Trùng sự kiện](https://github.com/RFS-ADRENO/zca-js/issues/348) · [Lịch sử nhóm](https://github.com/RFS-ADRENO/zca-js/issues/402) · [Listener báo sai trạng thái](https://github.com/openclaw/openclaw/issues/181111)
 
 ## Chạy lại
 
@@ -30,11 +30,20 @@ Từ thư mục gốc, với Node >=26.4.
 cd scripts/qualification/zalo-personal
 npm ci --ignore-scripts
 npm test
+npm run test:integration
 npm audit --omit=dev
 npm run benchmark
 ```
 
 PASS trên macOS arm64, Node 26.4.0. Bộ test chạy SDK thật với fetch fixture trong bộ nhớ từ QR generate qua scan đến decline. Các test thành công đăng nhập dùng API/listener mô phỏng và constructor UserMessage/GroupMessage thật. Bộ test kiểm sai account, nhầm group/DM, hướng tin nhắn, scoped text, hai tài khoản cùng ID tin, listener trùng, stop và stale completion. Không dùng token hoặc tài khoản thật.
+
+### Khôi phục, thu hồi và kết quả gửi chưa biết
+
+Chạy test:integration sau khi cài cả dependency gốc của StartupBot và package thử. Hai bài PASS trên macOS arm64.
+
+1. Hai tiến trình Node độc lập tranh cùng tài khoản trong cùng thư mục local 0700. Mỗi tiến trình chỉ được đọc mã lab và đọc/ghi đúng file khóa dẫn xuất từ ID. SQLite giữ BEGIN EXCLUSIVE trên một file trống riêng cho tài khoản; file không chứa bản ghi. Hệ điều hành nhả khóa khi worker bị SIGKILL. Worker thứ hai có thể khôi phục sau khi worker đầu tiên đã chết. Không xóa file khóa khi còn worker. Phạm vi thử là các runner phối hợp cùng thư mục trên một máy, chưa bao gồm nhiều máy, ổ mạng, quyền ACL Windows hoặc keychain thật.
+2. Dùng helper readSecureCredentials/writeSecureCredentials thật của desktop với khóa mã hóa giả chỉ ở RAM và secret tổng hợp. Kiểm tra file mã hóa không chứa chuỗi thử ở dạng rõ. Worker khôi phục qua client.login giả, xác minh danh tính và phát một event từ constructor SDK thật qua Node IPC. Host ghi vào createZaloInbox/SQLite thật, đóng và mở lại DB; phát lại cùng event trả duplicate. Rớt kết nối báo coverage_unknown. Bỏ nhóm chặn event ngay trong worker. Thu hồi grant hủy quyền đọc phiên và chặn event trễ tại inbox. Xóa file phiên làm lần khôi phục sau báo authentication_required. Đăng nhập Zalo thành công và phục hồi keychain sau khởi động lại hệ điều hành chưa được thử.
+3. Kịch bản K dùng transport tổng hợp ngoài worker, trong DB fixture. Phê duyệt gắn grant, nguồn, tài khoản, loại hội thoại, người nhận, revision, digest nội dung và hạn dùng. Ghi trạng thái unknown trước dispatch. Transport nhận rồi làm mất xác nhận; sau khi mở lại DB, thử lại hoặc xin phê duyệt lại cùng nguồn đều không phát sinh lần chấp nhận thứ hai. Bộ test cũng kiểm thay nội dung, đổi người nhận, quá hạn và thu hồi. Mã này chỉ dùng cho bài kiểm chứng; Personal chưa có chức năng gửi thật hoặc bằng chứng xác nhận giao tin trên nền tảng.
 
 ### Benchmark 5.000 tin tổng hợp và 20 nhóm
 

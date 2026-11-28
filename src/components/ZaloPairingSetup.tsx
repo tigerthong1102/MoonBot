@@ -16,6 +16,10 @@ export function ZaloPairingSetup({ approvedSendPilot = false }: { approvedSendPi
   const [failed, setFailed] = useState(false);
   const [confirmRevoke, setConfirmRevoke] = useState(false);
 
+  const [sender, setSender] = useState("");
+  const [chat, setChat] = useState("");
+  const [days, setDays] = useState("7");
+
   async function update(body?: object) {
     if (pending.current) return;
     const controller = new AbortController();
@@ -23,6 +27,7 @@ export function ZaloPairingSetup({ approvedSendPilot = false }: { approvedSendPi
     setBusy(true);
     setFailed(false);
     setConfirmRevoke(false);
+    setSender(""); setChat(""); setDays("7");
     setStatus(undefined);
     try {
       const value = await api<Snapshot>(endpoint, { ...request, signal: controller.signal,
@@ -50,10 +55,6 @@ export function ZaloPairingSetup({ approvedSendPilot = false }: { approvedSendPi
   }, [status]);
 
   const candidate = status?.state === "candidate" ? status.participant : undefined;
-  const [sender, setSender] = useState("");
-  const [chat, setChat] = useState("");
-  const [days, setDays] = useState("7");
-  useEffect(() => { setSender(""); setChat(""); setDays("7"); }, [status?.revision]);
   const canApprove = candidate && sender === candidate.senderId && chat === candidate.conversationId &&
     Number.isInteger(Number(days)) && Number(days) >= 1 && Number(days) <= 365;
   function approve(event: FormEvent) {

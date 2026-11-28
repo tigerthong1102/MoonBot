@@ -84,7 +84,9 @@ Stopping the signer on the desktop prevents new signatures. An already signed re
 
 ### Generated replies while the desktop is online
 
-Generated replies have a separate Worker gate, `INBOX_GENERATED_ANSWER=1`, and start off. In AI Twin settings the owner chooses one to eight current DMs or groups they manage. The desktop and a second signed-in Inbox session confirm the model, provider destination, rooms, expiry and attempt limit. The room composer shows the provider notice before a participant types. Text sent by older clients or composed without that notice remains ordinary chat. The posted reply carries an AI-generated label.
+Generated replies have a separate Worker gate, `INBOX_GENERATED_ANSWER=1`, and start off. In AI Twin settings the owner can select one to eight current rooms or include all accepted direct conversations, all groups they own or manage, or both. The broad settings explicitly include future rooms. The desktop and a second signed-in Inbox session confirm the model, provider destination, rooms, expiry and attempt limit. The room composer shows the provider notice before a participant types. Text sent by older clients or composed without that notice remains ordinary chat. The posted reply carries an AI-generated label.
+
+A newly encountered room can use a broad permission after its first eligible sender opens the composer. D1 checks current membership and group management and binds a room to one provider. If multiple eligible owners have competing broad permissions in an unbound room, messages remain ordinary chat. A broad disclosure belongs to one sender and room. Losing access to manage a bound room ends the grant. The five-attempt limit is shared across every selected or future room.
 
 The provider receives the current eligible text and a fixed instruction. The prompt excludes room history, attachments, learned lessons, tools and workspace files. Each grant permits five source attempts within ten minutes, one at a time. A claimed attempt counts even if a provider fails. Existing spending controls also apply. Actual charges depend on the provider. Worker authorization and the provider request run on separate systems. A revocation can race with a request the Worker has already admitted. The provider can still receive or charge for that attempt. Central revocation suppresses a subsequent post and leaves previously posted messages in their normal lifecycle.
 
@@ -93,7 +95,8 @@ Run the local fixture from the repository root:
 ```sh
 node cloudflare/control-plane/inbox/prepare-assets.mjs
 node --experimental-strip-types scripts/verify-twin-inbox-pairing.mjs --generated
+node --experimental-strip-types scripts/verify-twin-inbox-pairing.mjs --generated-future
 node --test electron/twin-online-generated.node-test.mjs
 ```
 
-The fixture uses separate local Inbox sessions, an isolated Worker and D1, a synthetic HTTP provider, and the production Electron bridge. It inspects native dialog arguments and scripts approval. It sends a new DM question, checks the generated label and reply, revokes the grant, and counts provider requests. Hosted D1, live provider billing, installed packages and additional operating systems require separate verification.
+The fixture uses separate local Inbox sessions, an isolated Worker and D1, a synthetic HTTP provider, and the production Electron bridge. It inspects native dialog arguments and scripts approval. The future-room run creates its DM after both approvals. Each run sends a new DM question, checks the generated label and reply, revokes the grant, and counts provider requests. Hosted D1, live provider billing, installed packages and additional operating systems require separate verification.

@@ -1,5 +1,5 @@
 import { createHash, randomUUID, sign } from "node:crypto";
-import { generatedGrantMessage, generatedPostMessage, generatedRoomLimit } from "./twin-generated-message.mjs";
+import { generatedGrantMessage, generatedPostMessage, generatedRoomLimit, generatedRoomKinds } from "./twin-generated-message.mjs";
 
 const unavailable = () => Error("generated_reply_unavailable");
 const uuid = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
@@ -59,15 +59,16 @@ export function createOnlineGenerated({ state, check, profile, generate, inbox, 
       const selected = await choices();
       if (state() !== key || version !== epoch || !sameProvider(expected, selected.provider)) throw unavailable();
       const rooms = [...refs].sort();
-      const chosen = rooms.map(ref => selected.rooms.find(room => room.ref === ref && room.title && room.id));
+      const kinds = generatedRoomKinds(rooms);
+      const chosen = kinds.length ? [] : rooms.map(ref => selected.rooms.find(room => room.ref === ref && room.title && room.id));
       if (chosen.some(room => !room)) throw unavailable();
       const grant = { id: randomUUID(), owner: key.owner, pairing: key.id, origin, twin: key.twin, revision: key.revision,
         provider: { ...selected.provider }, rooms, expires: key.expires };
-      if (!await approve({ grant, chosen })) return false;
+      if (!await approve({ grant, chosen, kinds })) return false;
       if (!sameProvider(grant.provider, await provider(key)) || epoch !== version) throw unavailable();
       const signature = sign(null, Buffer.from(generatedGrantMessage(grant)), key.key).toString("hex");
       journal.add(grant);
-      const session = { grant, key, roomIds: new Set(chosen.map(room => room.id)), used: new Set(), abort: new AbortController() };
+      const session = { grant, key, kinds, roomIds: new Set(chosen.map(room => room.id)), used: new Set(), abort: new AbortController() };
       active = session;
       try {
         const result = await inbox("twin-generated", { action: "offer", id: grant.id, owner: grant.owner,
@@ -95,7 +96,7 @@ export function createOnlineGenerated({ state, check, profile, generate, inbox, 
       const started = monotonic(), result = await post("claim"), job = result.challenge;
       if (!job) return;
       if (!Number.isSafeInteger(result.now) || !Number.isSafeInteger(job.expires) || !Number.isSafeInteger(job.source) ||
-          job.source <= 0 || !uuid.test(job.nonce) || !session.roomIds.has(job.room) || job.expires > grant.expires ||
+          job.source <= 0 || !uuid.test(job.nonce) || (!uuid.test(job.room) || !(session.kinds.length ? session.kinds.includes(job.kind) : session.roomIds.has(job.room))) || job.expires > grant.expires ||
           job.expires - result.now > 60000 || used.has(job.source) || used.size >= 5) throw unavailable();
       const deadline = Math.min(key.deadline, started + job.expires - result.now);
       const ref = { source: job.source, nonce: job.nonce };

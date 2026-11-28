@@ -1,9 +1,19 @@
-import { dbNow as now, pairing, live, session, manages, scope, noticeScope } from "./inbox-generated-scope";
+import {
+  dbNow as now,
+  pairing,
+  live,
+  session,
+  manages,
+  scope,
+  matchesRoom,
+  noticeForViewer,
+} from "./inbox-generated-scope";
 import { z } from "zod";
 import {
   generatedGrantMessage,
   generatedPostMessage,
   generatedRoomLimit,
+  generatedRoomKinds,
 } from "../../../electron/twin-generated-message.mjs";
 import { holdsCredential, redactSecretsInText } from "../../../shared/redact";
 import { HTTPError, json, readBoundedJSON } from "./http";
@@ -37,9 +47,10 @@ const providerShape = z.strictObject({
     }),
 });
 const rooms = z
-  .array(z.string().regex(/^[a-f0-9-]{36}\.[a-f0-9]{32}$/))
+  .array(z.union([z.string().regex(/^[a-f0-9-]{36}\.[a-f0-9]{32}$/), z.enum(["all-direct", "all-managed-groups"])]))
   .min(1)
-  .max(generatedRoomLimit);
+  .max(generatedRoomLimit)
+  .refine((refs) => generatedRoomKinds(refs).length > 0 || refs.every((ref) => !ref.startsWith("all-")));
 const ref = z.strictObject({ owner: uuid, id: uuid });
 const job = { source: z.int().positive(), nonce: uuid };
 const postedText = z
@@ -58,7 +69,11 @@ const body = z.discriminatedUnion("action", [
     signature,
   }),
   ref.extend({ action: z.literal("inspect") }),
-  ref.extend({ action: z.literal("approve"), review: uuid, purpose: z.literal("generated-inbox-answer-v1") }),
+  ref.extend({
+    action: z.literal("approve"),
+    review: uuid,
+    purpose: z.enum(["generated-inbox-answer-v1", "generated-current-and-future-inbox-v2"]),
+  }),
   ref.extend({ action: z.literal("revoke") }),
   ref.extend({ action: z.literal("claim") }),
   ref.extend({ action: z.literal("dispatch"), ...job }),
@@ -69,7 +84,7 @@ const body = z.discriminatedUnion("action", [
 const missingRoom = (
   selected: string,
   owner: string,
-) => `EXISTS(SELECT 1 FROM json_each(${selected}) pick WHERE NOT EXISTS(
+) => `EXISTS(SELECT 1 FROM json_each(${selected}) pick WHERE pick.value NOT IN ('all-direct','all-managed-groups') AND NOT EXISTS(
  SELECT 1 ${scope} WHERE m.person=${owner} AND r.id||'.'||seat.stamp=pick.value AND ${manages}))`;
 const eligible = `FROM inbox_generated_grants g ${pairing}
  JOIN inbox_generated_rooms chosen ON chosen.grant_id=g.id
@@ -81,7 +96,7 @@ const eligible = `FROM inbox_generated_grants g ${pairing}
  WHERE ${session} AND ${manages} AND p.author!=g.owner AND p.seq>g.after_seq AND p.seq>m.after_seq AND p.seq>sender.after_seq
  AND NOT EXISTS(SELECT 1 FROM inbox_members audience WHERE audience.room=p.room AND audience.state='active' AND audience.after_seq>=p.seq)
  AND p.kind='text' AND p.bot_name IS NULL AND length(p.body) BETWEEN 1 AND 1000
- AND EXISTS(SELECT 1 FROM json_each(g.rooms) pick WHERE pick.value=r.id||'.'||seat.stamp)
+ AND ${matchesRoom}
  AND NOT EXISTS(SELECT 1 FROM inbox_blocks b WHERE (b.person=p.author AND b.sender=g.owner) OR (b.person=g.owner AND b.sender=p.author))
  AND NOT EXISTS(SELECT 1 FROM inbox_files f WHERE f.post=p.seq) AND NOT EXISTS(SELECT 1 FROM inbox_uploads u WHERE u.post=p.seq)
  AND NOT EXISTS(SELECT 1 FROM inbox_exact_receipts e WHERE e.owner=g.owner AND e.source=p.seq)
@@ -132,11 +147,10 @@ export async function inboxGeneratedAnswer(
     return json({ owner, rooms: visible.results });
   }
   if (req.method === "GET" && url.searchParams.has("notice")) {
-    const row = await db
-      .prepare(`SELECT g.id,g.provider ${noticeScope("?2", "?1", "?3")}`)
-      .bind(owner, url.searchParams.get("notice"), origin)
-      .first<{ id: string; provider: string }>();
-    if (!row) return json({ notice: null });
+    const room = url.searchParams.get("notice");
+    if (!uuid.safeParse(room).success || !room) return json({ notice: null });
+    const row = await noticeForViewer(db, room, owner, origin);
+    if (!row?.id) return json({ notice: null });
     const { name, model, destination } = providerShape.parse(JSON.parse(row.provider));
     return json({ notice: { id: row.id, provider: { name, model, destination } } });
   }
@@ -222,14 +236,17 @@ export async function inboxGeneratedAnswer(
     return json({ id: a.id, review });
   }
   if (a.action === "approve") {
-    const ok = await db
-      .prepare(
-        `UPDATE inbox_generated_grants SET review=NULL,after_seq=(SELECT COALESCE(max(seq),0) FROM inbox_posts)
-        WHERE ${reviewable} AND review=?5 AND NOT ${missingRoom("rooms", "?1")}
+    const [, ok] = await db.batch([
+      db.prepare(`DELETE FROM inbox_generated_grants WHERE expires<=${now}`),
+      db
+        .prepare(
+          `UPDATE inbox_generated_grants SET review=NULL,after_seq=(SELECT COALESCE(max(seq),0) FROM inbox_posts)
+        WHERE ${reviewable} AND review=?5 AND ?6=CASE WHEN EXISTS(SELECT 1 FROM json_each(rooms) WHERE value IN ('all-direct','all-managed-groups'))
+          THEN 'generated-current-and-future-inbox-v2' ELSE 'generated-inbox-answer-v1' END AND NOT ${missingRoom("rooms", "?1")}
         AND NOT EXISTS(SELECT 1 FROM inbox_generated_rooms old JOIN json_each(inbox_generated_grants.rooms) pick ON old.room=substr(pick.value,1,36))`,
-      )
-      .bind(...args, a.review)
-      .run();
+        )
+        .bind(...args, a.review, a.purpose),
+    ]);
     if (!ok.meta.changes) throw unavailable();
     return json({ id: a.id, enabled: true });
   }
@@ -249,7 +266,7 @@ export async function inboxGeneratedAnswer(
         .bind(...args, nonce),
       db
         .prepare(
-          "SELECT j.nonce,j.source,p.room,j.expires FROM inbox_generated_jobs j JOIN inbox_posts p ON p.seq=j.source WHERE j.owner=? AND j.nonce=?",
+          "SELECT j.nonce,j.source,p.room,r.kind,j.expires FROM inbox_generated_jobs j JOIN inbox_posts p ON p.seq=j.source JOIN inbox_rooms r ON r.id=p.room WHERE j.owner=? AND j.nonce=?",
         )
         .bind(owner, nonce),
     ]);
@@ -269,8 +286,8 @@ export async function inboxGeneratedAnswer(
   }
   const row = await db
     .prepare(
-      `SELECT p.body,p.room,g.pairing,k.public_key,j.expires,j.input_hash FROM
-    (SELECT p.body,p.room,g.pairing,k.public_key,p.seq,g.id ${eligible}${activeJob}) AS p
+      `SELECT p.body,p.room,p.room_kind,g.rooms,g.pairing,k.public_key,j.expires,j.input_hash FROM
+    (SELECT p.body,p.room,r.kind AS room_kind,g.pairing,k.public_key,p.seq,g.id ${eligible}${activeJob}) AS p
     JOIN inbox_generated_jobs j ON j.source=p.seq AND j.grant_id=p.id
     JOIN inbox_generated_grants g ON g.id=p.id JOIN inbox_twin_pairings k ON k.id=g.pairing`,
     )
@@ -278,6 +295,8 @@ export async function inboxGeneratedAnswer(
     .first<{
       body: string;
       room: string;
+      room_kind: string;
+      rooms: string;
       pairing: string;
       public_key: string;
       expires: number;
@@ -299,7 +318,13 @@ export async function inboxGeneratedAnswer(
   }
   if (row.input_hash !== inputHash) throw unavailable();
   if (a.action === "check") return json({ active: true });
-  if (!(await verified(row.public_key, generatedPostMessage({ ...a, ...row, origin, inputHash }), a.signature)))
+  if (
+    !(await verified(
+      row.public_key,
+      generatedPostMessage({ ...a, ...row, rooms: JSON.parse(row.rooms), kind: row.room_kind, origin, inputHash }),
+      a.signature,
+    ))
+  )
     throw unavailable();
   await limitInboxAction(db, owner, "inbox_post", 60, 60000);
   const inserted = await db

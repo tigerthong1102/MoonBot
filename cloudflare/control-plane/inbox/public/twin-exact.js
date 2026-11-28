@@ -52,8 +52,9 @@ export function installExactReview({ api, me, t, el, generated = false }) {
       const scope = await api(route + "?rooms=1");
       if (!live() || scope.owner !== owner) return;
       const all = !generated && g.rooms.length === 1 && g.rooms[0] === "*";
-      const selected = all ? [] : g.rooms.map((id) => scope.rooms.find((r) => r.ref === id && r.title));
-      const names = all
+      const future = generated && g.rooms.length > 0 && g.rooms.every(ref => ref === "all-direct" || ref === "all-managed-groups");
+      const selected = all || future ? [] : g.rooms.map((id) => scope.rooms.find((r) => r.ref === id && r.title));
+      const names = future ? g.rooms.map(ref => t(ref === "all-direct" ? "personalInbox.generatedAllDirect" : "personalInbox.generatedAllGroups")).join("\n") : all
         ? t("personalInbox.exactAll")
         : selected
             .map((r) =>
@@ -86,7 +87,7 @@ export function installExactReview({ api, me, t, el, generated = false }) {
       const inspected = await post("inspect");
       if (!live() || inspected.id !== g.id) return;
       button(generated ? "personalInbox.generatedAllow" : "personalInbox.exactAllow", () =>
-        post("approve", { review: inspected.review, purpose: generated ? "generated-inbox-answer-v1" : "one-exact-owner-lesson-v1" }),
+        post("approve", { review: inspected.review, purpose: future ? "generated-current-and-future-inbox-v2" : generated ? "generated-inbox-answer-v1" : "one-exact-owner-lesson-v1" }),
       );
     } catch {
       if (live()) status.textContent = t("personalInbox.exactUnavailable");

@@ -61,7 +61,8 @@ where they belong instead of adding new places.
   Stopping a learning source stops new learning. A saved conversation lesson still depends on current
   access to its original messages. Its approved private preview can use the selected provider.
   Rooms and online Inbox accept separately released answers the owner taught manually.
-  For generated Inbox replies, the owner separately chooses current DMs or groups they manage.
+  For generated Inbox replies, the owner can choose named rooms or all current and future
+  accepted DMs, groups they own or manage, or both.
   Both approval screens show the provider destination, model, rooms, expiry and paid attempt limit.
   Senders see the provider notice before composing. The provider receives the current text only,
   and the shared reply identifies itself as AI-generated.

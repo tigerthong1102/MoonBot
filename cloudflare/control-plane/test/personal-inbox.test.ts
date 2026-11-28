@@ -1394,7 +1394,7 @@ it.each(["selected", "all", "membership-race", "revoke-race", "expired-lease"] a
   15000,
 );
 
-async function generatedFixture(group = false, admin = false) {
+async function generatedFixture(group = false, admin = false, broad?: string[]) {
   const { generatedGrantMessage, generatedPostMessage } = await import("../../../electron/twin-generated-message.mjs");
   const enabled = { INBOX_GENERATED_ANSWER: "1" };
   const db = env.INBOX_DB,
@@ -1450,20 +1450,20 @@ async function generatedFixture(group = false, admin = false) {
   const roomRef = choices.rooms.find((r) => r.id === room)!.ref;
   const provider = { key: uuid(), name: "Fixture", model: "fixture-model", destination: "https://model.example.test" };
   const expires = Date.now() + 540000,
-    fields = { origin, owner, id, twin, revision: 1, pairing, provider, expires, rooms: [roomRef] };
+    fields = { origin, owner, id, twin, revision: 1, pairing, provider, expires, rooms: broad ?? [roomRef] };
   const grant = await api(desktop.cookie, {
     action: "offer",
     pairing,
     provider,
     expires,
-    rooms: [roomRef],
+    rooms: fields.rooms,
     signature: await sign(generatedGrantMessage(fields)),
   });
   expect(grant.status, await grant.clone().text()).toBe(201);
-  const approve = async () => {
+  const approve = async (purpose = broad ? "generated-current-and-future-inbox-v2" : "generated-inbox-answer-v1") => {
     const inspected = await api(reviewer.cookie, { action: "inspect" });
     const { review } = await inspected.json<{ review: string }>();
-    return api(reviewer.cookie, { action: "approve", review, purpose: "generated-inbox-answer-v1" });
+    return api(reviewer.cookie, { action: "approve", review, purpose });
   };
   const post = (body: string, notice: string | undefined = id) =>
     call(
@@ -1654,3 +1654,194 @@ it("requires new consent after group management is transferred away and back", a
   expect(await (await f.api(f.desktop.cookie)).json()).toMatchObject({ grant: null });
   expect(await f.claim()).toBeNull();
 });
+
+type GeneratedFixture = Awaited<ReturnType<typeof generatedFixture>>;
+
+async function generatedNotice(f: GeneratedFixture, room: string, sender = f.peer) {
+  return (await (await f.api(sender.cookie, undefined, "?notice=" + room)).json<{ notice: { id: string } | null }>())
+    .notice?.id;
+}
+
+async function futureGroup(f: GeneratedFixture, manager = f.desktop) {
+  const room = uuid(),
+    other = manager === f.desktop ? f.peer : f.desktop;
+  expect((await call("rooms", manager.cookie, { id: room, kind: "group", title: "A future fixture group" })).ok).toBe(
+    true,
+  );
+  expect((await call("rooms/" + room + "/invite", manager.cookie, { email: other.email })).ok).toBe(true);
+  expect((await call("rooms/" + room + "/accept", other.cookie, {})).ok).toBe(true);
+  return room;
+}
+
+async function scopedPost(f: GeneratedFixture, room: string, sender: typeof f.peer, notice?: string) {
+  return call(
+    "rooms/" + room + "/posts",
+    sender.cookie,
+    { kind: "text", body: "Current synthetic question?", nonce: uuid(), generatedNotice: notice },
+    f.enabled,
+  );
+}
+
+it.each([
+  { refs: ["all-direct"], direct: true, group: false },
+  { refs: ["all-managed-groups"], direct: false, group: true },
+  { refs: ["all-direct", "all-managed-groups"], direct: true, group: true },
+])(
+  "checks current and future scope at use for $refs",
+  async ({ refs, direct, group }) => {
+    const f = await generatedFixture(false, false, refs);
+    expect((await f.approve("generated-inbox-answer-v1")).status).toBe(409);
+    expect(await generatedNotice(f, f.room)).toBeUndefined();
+    expect((await f.approve()).ok).toBe(true);
+    expect(Boolean(await generatedNotice(f, f.room))).toBe(direct);
+    const managed = await futureGroup(f);
+    expect(Boolean(await generatedNotice(f, managed))).toBe(group);
+    const memberOnly = await futureGroup(f, f.peer);
+    expect(await generatedNotice(f, memberOnly)).toBeUndefined();
+    const third = await login("third@example.test"),
+      future = uuid();
+    expect((await call("rooms", f.desktop.cookie, { id: future, kind: "direct", email: third.email })).ok).toBe(true);
+    expect(await generatedNotice(f, future, third)).toBeUndefined();
+    expect((await call("rooms/" + future + "/accept", third.cookie, {})).ok).toBe(true);
+    const tag = await generatedNotice(f, future, third);
+    expect(Boolean(tag)).toBe(direct);
+    if (tag) {
+      expect(tag).not.toBe(f.id);
+      expect((await scopedPost(f, future, third, tag)).ok).toBe(true);
+      const job = (await f.claim())!;
+      expect(job).toMatchObject({ room: future, kind: "direct" });
+      const result = await (await f.dispatch(job)).json<{ inputHash: string }>();
+      expect((await f.api(f.desktop.cookie, await f.finish(job, result.inputHash, "A synthetic response."))).ok).toBe(
+        true,
+      );
+    }
+    expect((await f.api(f.reviewer.cookie, { action: "revoke" })).ok).toBe(true);
+    expect(await generatedNotice(f, future, third)).toBeUndefined();
+    expect(await generatedNotice(f, managed)).toBeUndefined();
+  },
+  20000,
+);
+
+it("binds disclosure to one sender, room and membership and stops on management loss", async () => {
+  const f = await generatedFixture(true, true, ["all-managed-groups"]);
+  expect((await f.approve()).ok).toBe(true);
+  const notice = (await generatedNotice(f, f.room))!,
+    next = await futureGroup(f),
+    other = await login("third@example.test");
+  expect((await call("rooms/" + f.room + "/invite", f.peer.cookie, { email: other.email })).ok).toBe(true);
+  expect((await call("rooms/" + f.room + "/accept", other.cookie, {})).ok).toBe(true);
+  expect((await scopedPost(f, f.room, other, notice)).ok).toBe(true);
+  expect((await scopedPost(f, next, f.peer, notice)).ok).toBe(true);
+  expect(await f.claim()).toBeNull();
+  await f.db.prepare("UPDATE inbox_members SET muted=1 WHERE person=? AND room=?").bind(f.peer.id, f.room).run();
+  await f.db.prepare("UPDATE inbox_members SET muted=0 WHERE person=? AND room=?").bind(f.peer.id, f.room).run();
+  expect((await scopedPost(f, f.room, f.peer, notice)).ok).toBe(true);
+  expect(await f.claim()).toBeNull();
+  const fresh = await generatedNotice(f, f.room);
+  expect(fresh).toBeTruthy();
+  expect(fresh).not.toBe(notice);
+  expect((await scopedPost(f, f.room, f.peer, fresh)).ok).toBe(true);
+  const job = (await f.claim())!;
+  expect((await f.dispatch(job)).ok).toBe(true);
+  await f.db.prepare("UPDATE inbox_members SET admin=0 WHERE person=? AND room=?").bind(f.desktop.id, f.room).run();
+  await f.db.prepare("UPDATE inbox_members SET admin=1 WHERE person=? AND room=?").bind(f.desktop.id, f.room).run();
+  expect((await f.dispatch(job, "check")).status).toBe(409);
+  expect(await generatedNotice(f, f.room)).toBeUndefined();
+  expect(await generatedNotice(f, next)).toBeUndefined();
+}, 20000);
+
+async function competingScope(f: GeneratedFixture, refs: string[], approved: boolean) {
+  const db = f.db,
+    id = uuid(),
+    pairing = uuid();
+  const desktop = (await db.prepare("SELECT id FROM session WHERE userId=?").bind(f.peer.id).first<{ id: string }>())!
+    .id;
+  const other = await login(f.peer.email);
+  const reviewer = (await db
+    .prepare("SELECT id FROM session WHERE userId=? AND id!=?")
+    .bind(f.peer.id, desktop)
+    .first<{ id: string }>())!.id;
+  await db
+    .prepare(
+      `INSERT INTO inbox_twin_pairings(id,origin,owner,desktop_session,review_session,inbox_session,public_key,fingerprint,twin,revision,expires,signed)
+    SELECT ?1,origin,?2,?3,?4,?4,public_key,fingerprint,?5,revision,expires,signed FROM inbox_twin_pairings WHERE id=?6`,
+    )
+    .bind(pairing, f.peer.id, desktop, reviewer, uuid(), f.pairing)
+    .run();
+  await db
+    .prepare(
+      `INSERT INTO inbox_generated_grants(id,owner,pairing,provider,rooms,expires)
+    SELECT ?,?,?,provider,?,expires FROM inbox_generated_grants WHERE id=?`,
+    )
+    .bind(id, f.peer.id, pairing, JSON.stringify(refs), f.id)
+    .run();
+  if (approved) await db.prepare("UPDATE inbox_generated_grants SET after_seq=0 WHERE id=?").bind(id).run();
+  return { id, other };
+}
+
+it.each([false,true])("keeps an unbound room quiet when two owners have competing grants (group %s)", async group => {
+  const scope = [group ? "all-managed-groups" : "all-direct"];
+  const f = await generatedFixture(group, false, scope);
+  expect((await f.approve()).ok).toBe(true);
+  let viewer = f.peer;
+  if (group) {
+    await f.db.prepare("UPDATE inbox_members SET admin=1 WHERE room=? AND person=?").bind(f.room, f.peer.id).run();
+    viewer = await login("third@example.test");
+    expect((await call("rooms/" + f.room + "/invite", f.desktop.cookie, { email: viewer.email })).ok).toBe(true);
+    expect((await call("rooms/" + f.room + "/accept", viewer.cookie, {})).ok).toBe(true);
+  }
+  const other = await competingScope(f, scope, true);
+  expect(await generatedNotice(f, f.room, viewer)).toBeUndefined();
+  expect(await f.db.prepare("SELECT 1 FROM inbox_generated_rooms WHERE room=?").bind(f.room).first()).toBeNull();
+  await f.db.prepare("DELETE FROM inbox_generated_grants WHERE id=?").bind(other.id).run();
+  expect(await generatedNotice(f, f.room, viewer)).toBeTruthy();
+});
+
+it("activates a pending named-room grant after an earlier broad room owner expires", async () => {
+  const f = await generatedFixture(false, false, ["all-direct"]);
+  expect((await f.approve()).ok).toBe(true);
+  expect(await generatedNotice(f, f.room)).toBeTruthy();
+  const seat = await f.db
+    .prepare("SELECT stamp FROM inbox_exact_seats WHERE room=? AND person=?")
+    .bind(f.room, f.peer.id)
+    .first<string>("stamp");
+  const competing = await competingScope(f, [f.room + "." + seat], false);
+  const review = await f.api(competing.other.cookie, { owner: f.peer.id, id: competing.id, action: "inspect" }),
+    data = await review.json<{ review: string }>();
+  expect(review.status).toBe(200);
+  await f.db.prepare("UPDATE inbox_generated_grants SET expires=0 WHERE id=?").bind(f.id).run();
+  expect(
+    (
+      await f.api(competing.other.cookie, {
+        owner: f.peer.id,
+        id: competing.id,
+        action: "approve",
+        review: data.review,
+        purpose: "generated-inbox-answer-v1",
+      })
+    ).status,
+  ).toBe(200);
+  expect(await generatedNotice(f, f.room, f.desktop)).toBe(competing.id);
+});
+
+it("shares the five-attempt ceiling across existing and future rooms", async () => {
+  const f = await generatedFixture(false, false, ["all-direct", "all-managed-groups"]);
+  expect((await f.approve()).ok).toBe(true);
+  const second = await futureGroup(f),
+    a = await generatedNotice(f, f.room),
+    b = await generatedNotice(f, second);
+  for (let i = 0; i < 5; i++) {
+    const room = i % 2 ? second : f.room;
+    expect((await scopedPost(f, room, f.peer, i % 2 ? b : a)).ok).toBe(true);
+    const [x, y] = await Promise.all([f.claim(), f.claim()]);
+    expect([x, y].filter(Boolean)).toHaveLength(1);
+    const job = (x ?? y)!;
+    expect(job.room).toBe(room);
+    expect((await f.dispatch(job)).ok).toBe(true);
+    await f.db.prepare("UPDATE inbox_generated_jobs SET expires=0 WHERE nonce=?").bind(job.nonce).run();
+  }
+  expect(await generatedNotice(f, second)).toBeUndefined();
+  expect(await generatedNotice(f, f.room)).toBeUndefined();
+  expect((await scopedPost(f, second, f.peer, b)).ok).toBe(true);
+  expect(await f.claim()).toBeNull();
+}, 20000);

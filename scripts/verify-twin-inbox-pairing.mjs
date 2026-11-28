@@ -19,7 +19,8 @@ const { launchVerificationServer } = await import(join(root, "scripts/control-om
 const scratch = mkdtempSync(join(tmpdir(), "sb-pair-ux-")),
   ownerToken = randomBytes(32).toString("base64url");
 const exact = process.argv.includes("--exact");
-const generated = process.argv.includes("--generated");
+const future = process.argv.includes("--generated-future");
+const generated = future || process.argv.includes("--generated");
 const all = (path) => readFileSync(path, "utf8");
 const executable = process.env.PAIR_FIXTURE_ELECTRON ?? require("electron");
 assert.match(basename(executable), /^electron(?:\.exe)?$/i, "Expected an Electron runtime");
@@ -185,7 +186,7 @@ try {
   if (exact || generated) {
     cookies.push(await login("peer@example.test"));
     const cookie = cookies[0].name + "=" + cookies[0].value;
-    assert.equal(
+    if (!future) assert.equal(
       (await call("rooms", cookie, { id: room, kind: "direct", email: "peer@example.test", instant: true }))
         .status,
       200,
@@ -280,7 +281,7 @@ try {
       cookies,
       ownerToken,
       exact,
-      generated, endpoint,
+      generated, future, endpoint,
       room,
       question,
       answer,

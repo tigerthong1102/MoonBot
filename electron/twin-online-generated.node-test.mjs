@@ -99,3 +99,16 @@ test("an uncertain text send preserves its nonce and loses its provider marker i
     assert.equal(prepareInboxPost(stripped, { ...text, generatedNotice: "first" }).generatedNotice, undefined);
   }
 });
+
+test("a future-room signature requires explicit kind consent and rejects a different room type", async t => {
+  for (const kind of ["group","direct"]) {
+    let shown;
+    const f = fixture(t, {approve: async detail => { shown = detail; return true; }});
+    await f.service.offer(f.provider, ["all-direct"]);
+    assert.deepEqual(shown.kinds, ["direct"]);
+    f.job.room = randomUUID();
+    f.job.kind = kind;
+    await f.service.tick();
+    assert.equal(f.generations(), kind === "direct" ? 1 : 0);
+  }
+});

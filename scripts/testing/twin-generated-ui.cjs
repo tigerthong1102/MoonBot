@@ -3,17 +3,26 @@ module.exports = async function verifyGenerated({ d, b, mobile, cfg, until, dela
   await until(d, '!!document.querySelector("[data-generated-release]")');
   await js(d, 'document.querySelector("[data-generated-release] summary").click()');
   await js(d, 'document.querySelector("[data-generated-release] fieldset button").click()');
-  await until(d, '!!document.querySelector("[data-generated-release] input[type=checkbox]")');
+  await until(d, '!!document.querySelector("[data-generated-release] select")');
   assert((await js(d, 'document.querySelector("[data-generated-release]").textContent')).includes(cfg.endpoint));
-  await js(d, 'document.querySelector("[data-generated-release] input").click()');
+  if (cfg.future) {
+    await js(d, '(()=>{const scope=document.querySelector("[data-generated-release] select");scope.value="all";scope.dispatchEvent(new Event("change",{bubbles:true}));})()');
+  } else {
+    await js(d, 'document.querySelector("[data-generated-release] input").click()');
+  }
   await js(d, 'Array.from(document.querySelectorAll("[data-generated-release] fieldset button")).find(b=>b.textContent.includes("Request Inbox approval")).click()');
   await until(d, 'document.querySelector("[data-generated-release] [role=status]").textContent.includes("another Inbox")');
   await js(b, 'document.querySelector("#twin-generated summary").click()');
   await until(b, 'document.querySelectorAll("#generated-terms button").length===2');
   const terms = await js(b, 'document.querySelector("#twin-generated").textContent');
-  for (const value of [cfg.endpoint,"fixture-model",cfg.room,cfg.origin]) assert(terms.includes(value), value);
+  const scopes=cfg.future ? await js(b,'import("/inbox-i18n.js").then(({t})=>[t("personalInbox.generatedAllDirect"),t("personalInbox.generatedAllGroups")])') : [cfg.room];
+  for (const value of [cfg.endpoint,"fixture-model",...scopes,cfg.origin]) assert(terms.includes(value), value);
   await js(b, 'document.querySelectorAll("#generated-terms button")[1].click()');
   await until(b, 'document.querySelectorAll("#generated-terms button").length===1');
+  if (cfg.future) {
+    const body=JSON.stringify({id:cfg.room,kind:"direct",email:"peer@example.test",instant:true});
+    assert.equal(await js(b, 'fetch("/api/rooms",{method:"POST",headers:{"content-type":"application/json"},body:'+JSON.stringify(body)+'}).then(r=>r.status)'),200);
+  }
   const peer = new BrowserWindow({show:false,webPreferences:{partition:"temporary-generated-peer",contextIsolation:true,sandbox:true}});
   try {
     await peer.webContents.session.cookies.set({url:cfg.origin,...cfg.cookies[3],path:"/",secure:true,httpOnly:true});
@@ -42,6 +51,6 @@ module.exports = async function verifyGenerated({ d, b, mobile, cfg, until, dela
     await until(mobile,'(async()=>!(await(await fetch("/api/twin-generated")).json()).grant)()');
     await send(); await delay(2500);
     assert.deepEqual(await js(peer,read),[cfg.answer]);
-    console.log("PASS: selected DM and provider in both approvals, visible sender notice, one provider answer posted, independent revocation read back.");
+    console.log("PASS: "+(cfg.future ? "future DM created after both approvals" : "selected DM")+", visible sender notice, one provider answer posted, independent revocation read back.");
   } finally { peer.destroy(); }
 };

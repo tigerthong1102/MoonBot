@@ -19,8 +19,13 @@ export function createFixtureDelivery(db, now, afterAcceptance) {
       throw new Error("invalid_approval");
     }
     const id = randomUUID();
-    db.prepare(`INSERT INTO zalo_fixture_approvals VALUES(?,?,?,?,?,?,'approved')`)
-      .run(id, d.grantId, d.sourceId, d.revision, digest(d.text), expires);
+    const saved = db.prepare(`INSERT INTO zalo_fixture_approvals VALUES(?,?,?,?,?,?,'approved')
+      ON CONFLICT(grantId,sourceId) DO UPDATE SET
+        id=excluded.id, revision=excluded.revision, digest=excluded.digest, expires=excluded.expires
+      WHERE state='approved' AND (excluded.revision>revision OR
+        (excluded.revision=revision AND excluded.digest=digest AND expires<=?))`)
+      .run(id, d.grantId, d.sourceId, d.revision, digest(d.text), expires, now());
+    if (saved.changes !== 1) throw new Error("approval_already_reserved");
     return id;
   }
   function attempt(id, d) {

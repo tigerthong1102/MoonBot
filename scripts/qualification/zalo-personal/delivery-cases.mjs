@@ -32,7 +32,7 @@ test("acceptance followed by lost receipt consumes exact approval across reopen"
     db.close();
     db = new DatabaseSync(file);
     const restored = createZaloInbox(db, now);
-    const delivery = createFixtureDelivery(db, now, () => accepted.push("52"));
+    const delivery = createFixtureDelivery(db, now, () => accepted.push("accepted"));
     assert.equal(delivery.attempt(id, draft), "unknown");
     assert.throws(() => delivery.approve(draft, time + 5000));
     assert.deepEqual(accepted, ["50"]);
@@ -40,13 +40,20 @@ test("acceptance followed by lost receipt consumes exact approval across reopen"
     const expired = delivery.approve(overdue, time + 1);
     time += 2;
     assert.equal(delivery.attempt(expired, overdue), "denied");
+    const renewed = delivery.approve(overdue, time + 2000);
+    assert.equal(delivery.attempt(expired, overdue), "denied");
+    const revised = { ...overdue, revision: 2, text: "Tôi sẽ hỏi lại." };
+    const edited = delivery.approve(revised, time + 1000);
+    assert.equal(delivery.attempt(renewed, overdue), "denied");
+    assert.throws(() => delivery.approve(overdue, time + 1000));
+    assert.equal(delivery.attempt(edited, revised), "confirmed");
     const confirmed = { ...draft, sourceId: "52" };
     const grant = delivery.approve(confirmed, time + 1000);
     assert.equal(delivery.attempt(grant, confirmed), "confirmed");
     assert.equal(delivery.attempt(grant, confirmed), "confirmed");
     restored.revoke(grantId);
     assert.equal(delivery.attempt(id, draft), "denied");
-    assert.deepEqual(accepted, ["50", "52"]);
+    assert.deepEqual(accepted, ["50", "accepted", "accepted"]);
   } finally {
     db.close();
     rmSync(directory, { recursive: true, force: true });

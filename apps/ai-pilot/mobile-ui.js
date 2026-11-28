@@ -65,7 +65,8 @@ document.documentElement.lang = translations[locale] ? locale : "en";
 const el = id => document.getElementById(id);
 for (const node of document.querySelectorAll("[data-t]")) node.textContent = t[node.dataset.t];
 let account, thread, busy = false, active, pending, connection;
-let conversations = [], before, consentedThread;
+let conversations = [], before, consentedThread, newThread;
+const drafts = new Map();
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("startupbot-account") : null;
 channel?.addEventListener("message", () => location.reload());
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
@@ -99,6 +100,8 @@ function signedOut() {
   if (el("menu").open) el("menu").close();
   el("chatNav").hidden = true;
   pending = undefined;
+  newThread = undefined;
+  drafts.clear();
   account = undefined;
   thread = undefined;
   consentedThread = undefined;
@@ -140,6 +143,10 @@ async function list() {
   if (account && account !== data.account) { location.reload(); return; }
   account = data.account;
   conversations = data.threads;
+  if (conversations.some(item => item.id === newThread)) newThread = undefined;
+  for (const id of drafts.keys()) {
+    if (id !== newThread && !conversations.some(item => item.id === id)) drafts.delete(id);
+  }
   connection = data.provider;
   for (const starter of document.querySelectorAll("[data-skill]")) starter.hidden = data.disabledSkills?.includes(starter.dataset.skill) ?? false;
   for (const option of el("skill").options) option.disabled = data.disabledSkills?.includes(option.value) ?? false;
@@ -199,13 +206,30 @@ function formatAnswer(element, text) {
   element.parentElement.append(copy);
 }
 async function show(id) {
-  thread = id || crypto.randomUUID();
+  if (thread) {
+    const prompt = el("prompt").value;
+    if (prompt || pending) drafts.set(thread, { prompt, skill:el("skill").value, provider:el("provider").value, pending });
+    else drafts.delete(thread);
+  }
+  if (!id && !newThread) newThread = crypto.randomUUID();
+  thread = id || newThread;
+  const draft = drafts.get(thread);
+  pending = draft?.pending;
   el("transcript").replaceChildren();
   el("compose").reset();
   consentedThread = undefined;
   el("consentNotice").hidden = false;
   el("send").textContent = t.agreeSend;
   el("threads").value = id || "";
+  if (draft) {
+    el("prompt").value = draft.prompt;
+    const option = [...el("skill").options].find(o => o.value === draft.skill && !o.disabled);
+    if (option) el("skill").value = option.value;
+    el("provider").value = draft.provider;
+  } else {
+    const option = [...el("skill").options].find(o => !o.disabled);
+    if (option) el("skill").value = option.value;
+  }
   payer();
   before = null;
   el("older").hidden = true;
@@ -249,7 +273,9 @@ async function openChat() {
   try { threads = await list(); } catch (error) { el("retry").hidden = !el("login").hidden; throw error; }
   el("chat").hidden = el("logout").hidden = el("chatNav").hidden = false;
   el("login").hidden = true;
-  await show("");
+  const existing = threads.some(item => item.id === thread) ? thread : threads[0]?.id;
+  try { await show(thread === newThread && newThread ? "" : existing || ""); }
+  catch (error) { el("retry").hidden = false; throw error; }
   if (callback) {
     const authorization = callback;
     callback = null;
@@ -258,9 +284,7 @@ async function openChat() {
     el("menu").showModal();
     el("providers").open = true;
   }
-  if (threads[0]) {
-    try { await show(threads[0].id); } catch (error) { el("retry").hidden = false; throw error; }
-  }
+
 }
 el("login").onsubmit = event => {
   event.preventDefault();
@@ -349,7 +373,14 @@ el("rename").onclick = () => action(async () => {
   if (title?.trim()) { await api("rename", { thread, title }); await list(); }
 });
 el("remove").onclick = () => action(async () => {
-  if (el("threads").value && window.confirm(t.confirm)) { await api("delete", { thread }); await list(); await show(""); }
+  if (el("threads").value && window.confirm(t.confirm)) {
+    await api("delete", { thread });
+    drafts.delete(thread);
+    thread = pending = undefined;
+    await list();
+    await show("");
+    el("menu").close();
+  }
 });
 el("stop").onclick = () => active?.abort();
 el("compose").onsubmit = event => {

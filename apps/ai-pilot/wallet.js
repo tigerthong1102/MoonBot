@@ -2,8 +2,8 @@ const el = (id) => document.getElementById(id);
 let token = "",
   wallet,
   busy = false;
-const labels = { monthly: "Gói tháng", annual: "Gói năm", topup: "Mua thêm credit" };
-const states = {
+const labels = { mobile_trial: "Credit dùng thử", monthly: "Gói tháng", annual: "Gói năm", topup: "Mua thêm credit" };
+const states = { granted: "Đã cấp",
   pending: "Chờ thanh toán",
   paid: "Đã thanh toán",
   expired: "Đã hết hạn",

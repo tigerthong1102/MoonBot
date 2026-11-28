@@ -34,6 +34,10 @@ export function catalog(file) {
     }
     if (typeof data.managedLimits.enabled !== "boolean") throw new Fault(503, "invalid_catalog");
   }
+  if (data.mobileTrial != null && (
+    !integer(data.mobileTrial.creditMicros, 1000000) || !integer(data.mobileTrial.days, 31) ||
+    !integer(data.mobileTrial.maxAccounts, 10000) || !data.managedLimits
+  )) throw new Fault(503, "invalid_catalog");
   return data;
 }
 
@@ -64,6 +68,7 @@ export class Ledger {
       CREATE TABLE IF NOT EXISTS allocations(owner TEXT NOT NULL, request TEXT NOT NULL, grantId TEXT NOT NULL REFERENCES grants(id),
         held INTEGER NOT NULL, PRIMARY KEY(owner,request,grantId), FOREIGN KEY(owner,request) REFERENCES requests(owner,id));
       CREATE TABLE IF NOT EXISTS managed_suspensions(owner TEXT PRIMARY KEY REFERENCES users(id));
+      CREATE INDEX IF NOT EXISTS mobile_trial_orders ON orders(sku) WHERE sku='mobile_trial';
       CREATE TABLE IF NOT EXISTS managed_rate(owner TEXT PRIMARY KEY REFERENCES users(id),start INTEGER NOT NULL,count INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS active_requests(owner TEXT NOT NULL,id TEXT NOT NULL,expires INTEGER NOT NULL,PRIMARY KEY(owner,id));
       CREATE INDEX IF NOT EXISTS active_expiry ON active_requests(expires);
@@ -113,13 +118,28 @@ export class Ledger {
     if (!row) throw new Fault(401, "invalid_pilot_token");
     return row.id;
   }
+  claimMobileTrial(owner, config) {
+    if (!config.mobileTrial || !config.managedLimits?.enabled) return;
+    const { creditMicros, days, maxAccounts } = config.mobileTrial;
+    this.tx(() => {
+      if (this.db.prepare("SELECT 1 FROM grants WHERE owner=? LIMIT 1").get(owner) ||
+          this.db.prepare("SELECT 1 FROM managed_suspensions WHERE owner=?").get(owner)) return;
+      if (this.db.prepare("SELECT count(*) n FROM orders WHERE sku='mobile_trial'").get().n >= maxAccounts) return;
+      if (!this.db.prepare("SELECT id FROM users WHERE id=?").get(owner)) this.issue(owner);
+      const id = "mobile-trial-" + digest(owner), now = Date.now();
+      this.db.prepare(`INSERT INTO orders(id,owner,sku,version,amount,currency,credits,created,state)
+        VALUES (?,?,'mobile_trial',?,0,?,?,?,'granted')`).run(id, owner, config.version, config.currency, creditMicros, now);
+      this.db.prepare("INSERT INTO grants(id,payment,owner,orderId,start,end,credits) VALUES (?,?,?,?,?,?,?)")
+        .run(id, id, owner, id, now, now + days * 86400000, creditMicros);
+    });
+  }
   recurringOrder(owner) {
     return this.db.prepare(`SELECT o.*,s.stripeId FROM orders o LEFT JOIN subscriptions s ON s.orderId=o.id
-      WHERE o.owner=? AND o.sku!='topup' AND o.state IN ('pending','paid') AND COALESCE(s.ended,0)=0
+      WHERE o.owner=? AND o.sku IN ('annual','monthly') AND o.state IN ('pending','paid') AND COALESCE(s.ended,0)=0
       ORDER BY o.created DESC LIMIT 1`).get(owner);
   }
   trackSubscription(order, sub) {
-    if (order.sku === "topup" || !sub.id || sub.metadata?.order !== order.id) throw new Fault(409, "subscription_mismatch");
+    if (!["annual","monthly"].includes(order.sku) || !sub.id || sub.metadata?.order !== order.id) throw new Fault(409, "subscription_mismatch");
     const ended = Number(["canceled","incomplete_expired"].includes(sub.status));
     const update = this.db.prepare(`INSERT INTO subscriptions VALUES (?,?,?)
       ON CONFLICT(orderId) DO UPDATE SET ended=max(ended,excluded.ended) WHERE stripeId=excluded.stripeId`).run(order.id,sub.id,ended);
@@ -135,7 +155,7 @@ export class Ledger {
       if (old && (old.owner !== owner || old.sku !== sku)) throw new Fault(409, "order_conflict");
       if (old) return old;
       if (sku !== "topup") {
-        const active = this.db.prepare("SELECT 1 FROM grants WHERE owner=? AND end>?").get(owner, Date.now());
+        const active = this.db.prepare("SELECT 1 FROM grants g JOIN orders o ON g.orderId=o.id WHERE g.owner=? AND g.end>? AND o.sku IN ('annual','monthly')").get(owner, Date.now());
         if (active || this.recurringOrder(owner)) throw new Fault(409, "subscription_active_or_pending");
       }
       this.db
@@ -175,7 +195,7 @@ export class Ledger {
       )
       .all(owner);
     return rows.map((g) => {
-      const revoked = Math.ceil(g.credits * Math.min(1, g.reversed / g.amount));
+      const revoked = g.reversed > 0 ? Math.ceil(g.credits * Math.min(1, g.reversed / g.amount)) : 0;
       const net = g.credits - revoked - g.spent;
       const valid = g.start <= now && (g.end === null || g.end > now);
       return { id: g.id, end: g.end, available: valid ? net : Math.min(0, net) };

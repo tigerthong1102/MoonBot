@@ -151,3 +151,30 @@ it("offers only allowlisted text skills and keeps the context window bounded", a
   expect(last.messages.length).toBe(4);
   expect(last.tools).toBeUndefined();
 });
+
+it("leaves a cancelled request unsent while the issuer is verifying its session", async () => {
+  const started = Promise.withResolvers(), release = Promise.withResolvers();
+  f.behavior.beforeMe = () => { started.resolve(); return release.promise; };
+  const ctl = new AbortController();
+  const result = f.call("/send", cookie, message(), { signal:ctl.signal }).catch(error => error.name);
+  await started.promise;
+  ctl.abort();
+  expect(await result).toBe("AbortError");
+  await new Promise(resolve => setTimeout(resolve, 30));
+  release.resolve();
+  await new Promise(resolve => setTimeout(resolve, 30));
+  expect(f.generations).toHaveLength(0);
+  expect(f.ledger.db.prepare("SELECT count(*) n FROM requests").get().n).toBe(0);
+});
+
+it("admits a verified new account once within an explicitly funded trial cohort", async () => {
+  f.config.mobileTrial = { creditMicros:30000, maxAccounts:1, days:2 };
+  f.save();
+  const trial = await f.login("trial"), late = await f.login("late");
+  expect(await (await f.call("/send", trial, message({ account:"trial" }))).text()).toContain("complete");
+  expect((await f.call("/send", late, message({ account:"late" }))).status).toBe(402);
+  expect(await (await f.call("/send", trial, message({ account:"trial" }))).text()).toContain("complete");
+  expect(f.ledger.summary("trial").included).toBe(29800);
+  expect(f.ledger.order("trial","monthly",f.config,randomUUID()).state).toBe("pending");
+  expect(f.ledger.db.prepare("SELECT count(*) n FROM orders WHERE sku='mobile_trial'").get().n).toBe(1);
+});

@@ -167,6 +167,7 @@ el("login").onsubmit = event => {
     } else {
       await api("login", { email, otp:el("otp").value });
       el("otp").value = "";
+      el("login").hidden = true;
       channel?.postMessage("changed");
       await openChat();
     }

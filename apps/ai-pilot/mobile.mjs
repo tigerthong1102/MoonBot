@@ -104,6 +104,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     if (!textSkills.has(skill)) throw new Fault(400, "unsupported_skill");
     const config = catalog(settings.catalog);
     if (!config.managedLimits?.enabled) throw new Fault(503, "managed_ai_paused");
+    if (res.destroyed) return;
+    ledger.claimMobileTrial(owner, config);
     if (!db.prepare("SELECT 1 FROM users WHERE id=?").get(owner) ||
         !ledger.balances(owner).some(b => b.available > 0)) throw new Fault(402, "personal_credit_exhausted");
     const isNew = !lookup.get(owner, thread);
@@ -132,6 +134,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     });
     const controller = new AbortController();
     res.on("close", () => controller.abort());
+    if (res.destroyed) controller.abort();
     const frame = (data) => {
       if (res.destroyed) throw new Error("disconnected");
       if (!res.headersSent) res.writeHead(200, { "content-type": "application/x-ndjson", "x-accel-buffering": "no" });

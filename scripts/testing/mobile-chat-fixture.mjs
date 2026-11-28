@@ -37,7 +37,10 @@ export async function startMobileFixture({ mobileOrigin = "https://mobile.exampl
         tokens.set(bearer, user);
         return Response.json({ user }, { headers:{ "set-auth-token":bearer } });
       }
-      if (url.pathname === "/v1/me" && tokens.has(token)) return Response.json({ user:tokens.get(token) });
+      if (url.pathname === "/v1/me" && tokens.has(token)) {
+        if (behavior.beforeMe) await behavior.beforeMe();
+        return Response.json({ user:tokens.get(token) });
+      }
       if (url.pathname.endsWith("/sign-out")) { tokens.delete(token); return Response.json({ success:true }); }
       return Response.json({ code:"unauthorized" }, { status:401 });
     }

@@ -5,12 +5,12 @@ import { score, type MemoryCase } from "./score.ts";
 it("keeps the answer-grounded corpus separate and reports an absent run", () => {
   const cases = corpus.cases as Array<MemoryCase & { context: string; answer: string; rationale: string }>;
   expect(corpus.version).toBe(2);
-  expect(cases).toHaveLength(112);
+  expect(cases).toHaveLength(225);
   expect(new Set(cases.map(row => row.id)).size).toBe(cases.length);
   expect(new Set(cases.map(row => JSON.stringify([row.saved, row.query]))).size).toBe(cases.length);
   for (const split of ["development", "held-out"]) {
     const rows = cases.filter(row => row.split === split);
-    expect(rows).toHaveLength(56);
+    expect(rows).toHaveLength(split === "development" ? 114 : 111);
     expect(rows.some(row => row.expected === "match")).toBe(true);
     expect(rows.some(row => row.expected === "none")).toBe(true);
   }

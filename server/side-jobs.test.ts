@@ -1,4 +1,6 @@
 import { deferred } from "./testing/deferred.ts";
+import { createServer } from "node:http";
+import { once } from "node:events";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -62,7 +64,7 @@ function backgroundEngine(instanceId: string, driverKind: string) {
 
 const bot = (id: string, instanceId: string): SideJobBot => ({ id, name: `Bot ${id}`, threadId: `main-${id}`, modelSelection: { instanceId } });
 
-function setup(options: { backgroundModel?: SideJobsDeps["backgroundModel"]; helper?: { instanceId: string; model?: string } | null; modelAllowed?: SideJobsDeps["modelAllowed"]; smallModels?: SideJobsDeps["smallModels"]; slots?: SideJobsDeps["slots"] } = {}) {
+function setup(options: { backgroundModel?: SideJobsDeps["backgroundModel"]; helper?: { instanceId: string; model?: string } | null; modelAllowed?: SideJobsDeps["modelAllowed"]; smallModels?: SideJobsDeps["smallModels"]; slots?: SideJobsDeps["slots"]; withoutChangeCheck?: boolean } = {}) {
   const claude = textEngine("claude", "claudeAgent");
   const openrouter = textEngine("openrouter", "openai-compat");
   const acp = backgroundEngine("grok", "grokAgent");
@@ -79,6 +81,7 @@ function setup(options: { backgroundModel?: SideJobsDeps["backgroundModel"]; hel
     ]),
     bots: new Map<string, SideJobBot>(["claude", "openrouter", "grok", "codex", "pi", "muse"].map((id) => [id, bot(id, id)])),
     refused: new Set<string>(),
+    changing: new Set<string>(),
     overBudget: false,
     booked: [] as Booked[],
     logs: [] as string[],
@@ -86,6 +89,7 @@ function setup(options: { backgroundModel?: SideJobsDeps["backgroundModel"]; hel
   const jobs = createSideJobs({
     bot: (id) => state.bots.get(id),
     instance: (id) => state.instances.get(id) ?? null,
+    ...(options.withoutChangeCheck ? {} : { isChanging: (id: string) => state.changing.has(id) }),
     refusal: (instance) => (state.refused.has(instance.instanceId) ? "the organisation does not allow this engine" : undefined),
     helper: () => state.helper, backgroundModel: options.backgroundModel,
     ...(options.modelAllowed ? { modelAllowed: options.modelAllowed } : {}),
@@ -706,6 +710,96 @@ it("uses only isolated source-capable models and charges the person and conversa
   expect(() => codex.calls[0]?.options?.beforeRequest?.()).toThrow(/spend limit/);
   await expect(writer.generateText("next question")).rejects.toThrow(/spend limit/);
   expect(codex.calls).toHaveLength(1);
+});
+
+it("uses only a prepared verified transport through the actual queue and rechecks its budget at dispatch", async () => {
+  const slots = createJobSlots(1), { jobs, state } = setup({ slots });
+  const release = deferred<string>(), entered = deferred<void>();
+  state.instances.set("claude", { ...state.instances.get("claude")!, generateText: () => { entered.resolve(); return release.promise; } });
+  const requests: string[] = [];
+  const server = createServer((req, res) => { requests.push(String(req.headers.authorization)); res.end("answer"); });
+  server.listen(0, "127.0.0.1"); await once(server, "listening");
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") throw new Error("Fixture address unavailable");
+    const url = `http://127.0.0.1:${address.port}`, instance = state.instances.get("openrouter")!;
+    expect(jobs.verifiedSourceAnswer("openrouter", { instanceId: "openrouter", model: "selected" }, "thread", { kind: "user" })).toBeNull();
+    state.instances.set("openrouter", { ...instance, prepareVerifiedText: () => ({ destination: url, generateText: async (prompt, options) => {
+      options.beforeRequest();
+      const response = await fetch(url, { method: "POST", redirect: "error", headers: { authorization: "Bearer fixture-secret" }, body: prompt });
+      options.onUsage?.({ model: "selected", input: 2, output: 1 });
+      return response.text();
+    } }) });
+    const make = () => jobs.verifiedSourceAnswer("openrouter", { instanceId: "openrouter", model: "selected" }, "thread", { kind: "user" })!;
+    const held = jobs.text("memory", "claude")!.generateText("hold slot"); await entered.promise;
+    const queued = make().generateText("source"), rejected = expect(queued).rejects.toThrow(/spend limit/);
+    expect(slots.waiting).toBe(1); state.overBudget = true; release.resolve("done"); await held;
+    await rejected; expect(requests).toEqual([]);
+    state.overBudget = false;
+    await expect(make().generateText("source", { beforeRequest: () => { throw new Error("source revoked"); } })).rejects.toThrow("source revoked");
+    expect(requests).toEqual([]);
+    const writer = make(); expect(writer.destination).toBe(url); expect(JSON.stringify(writer)).not.toContain("fixture-secret");
+    expect(await writer.generateText("source")).toBe("answer");
+    await expect(writer.generateText("source")).rejects.toThrow(/already used/);
+    expect(requests).toEqual(["Bearer fixture-secret"]);
+    expect(state.booked).toMatchObject([{ row: { instanceId: "openrouter", model: "selected", trigger: { kind: "user" } }, notificationThreadId: "thread" }]);
+    const changing = make(); state.changing.add("openrouter");
+    expect(jobs.verifiedSourceAnswer("openrouter", { instanceId: "openrouter", model: "selected" }, "thread", { kind: "user" })).toBeNull();
+    await expect(changing.generateText("source")).rejects.toThrow(/provider changed/);
+    state.changing.clear();
+    const slotEntered = deferred<void>(), releaseSlot = deferred<void>();
+    const blocker = slots.run(async () => { slotEntered.resolve(); await releaseSlot.promise; }); await slotEntered.promise;
+    const removed = make().generateText("source"), removedResult = expect(removed).rejects.toThrow(/provider changed/);
+    state.bots.delete("openrouter"); releaseSlot.resolve(); await blocker; await removedResult;
+    state.bots.set("openrouter", bot("openrouter", "openrouter"));
+    const changedBot = make(); state.bots.get("openrouter")!.modelSelection.model = "different";
+    await expect(changedBot.generateText("source")).rejects.toThrow(/provider changed/);
+    delete state.bots.get("openrouter")!.modelSelection.model;
+    expect(requests).toHaveLength(1);
+    state.instances.set("openrouter", { ...instance, prepareVerifiedText: () => ({ destination: url, generateText: async (_prompt, options) => {
+      options.beforeRequest(); options.onUsage?.({ model: "selected", input: 1, output: 1 }); state.overBudget = true; return "paid answer";
+    } }) });
+    expect(await make().generateText("source")).toBe("paid answer"); state.overBudget = false;
+    const stale = make();
+    state.instances.set("openrouter", { ...state.instances.get("openrouter")! });
+    await expect(stale.generateText("source")).rejects.toThrow(/provider changed/);
+    expect(requests).toHaveLength(1);
+    const atDispatch = deferred<void>(), continueDispatch = deferred<void>();
+    state.instances.set("openrouter", { ...instance, prepareVerifiedText: () => ({ destination: url, generateText: async (_prompt, options) => {
+      atDispatch.resolve(); await continueDispatch.promise; options.beforeRequest();
+      return "unreachable";
+    } }) });
+    const delayed = make().generateText("source"), denied = expect(delayed).rejects.toThrow(/spend limit/);
+    await atDispatch.promise; state.overBudget = true; continueDispatch.resolve(); await denied;
+    expect(requests).toHaveLength(1);
+    state.overBudget = false;
+    const providerStarted = deferred<void>(), providerReply = deferred<string>();
+    state.instances.set("openrouter", { ...instance, prepareVerifiedText: () => ({ destination: url, generateText: async (_prompt, options) => {
+      options.beforeRequest(); providerStarted.resolve(); return providerReply.promise;
+    } }) });
+    const controller = new AbortController(), cancelled = make().generateText("source", { signal: controller.signal });
+    const cancelResult = expect(cancelled).rejects.toThrow();
+    await providerStarted.promise; controller.abort(); providerReply.resolve("answer"); await cancelResult;
+    const beforeDispatch = deferred<void>(), resumeDispatch = deferred<void>();
+    state.instances.set("openrouter", { ...instance, prepareVerifiedText: () => ({ destination: url, generateText: async (_prompt, options) => {
+      beforeDispatch.resolve(); await resumeDispatch.promise; options.beforeRequest();
+      await fetch(url, { method: "POST", body: "source" }); return "unreachable";
+    } }) });
+    const abort = new AbortController(), aborted = make().generateText("source", { signal: abort.signal });
+    const abortedResult = expect(aborted).rejects.toThrow();
+    await beforeDispatch.promise; abort.abort(); resumeDispatch.resolve(); await abortedResult;
+    expect(requests).toHaveLength(1);
+    state.instances.set("openrouter", { ...instance, prepareVerifiedText: () => ({ destination: url, generateText: async () => "unchecked" }) });
+    await expect(make().generateText("source")).rejects.toThrow(/did not check dispatch/);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+it("does not prepare a verified transport without provider-change tracking", () => {
+  const { jobs, state } = setup({ withoutChangeCheck: true });
+  const prepare = vi.fn(() => ({ destination: "fixture", generateText: async () => "answer" }));
+  state.instances.set("openrouter", { ...state.instances.get("openrouter")!, prepareVerifiedText: prepare });
+  expect(jobs.verifiedSourceAnswer("openrouter", { instanceId: "openrouter", model: "selected" }, "thread", { kind: "user" })).toBeNull();
+  expect(prepare).not.toHaveBeenCalled();
 });
 
 it("shares one provider limit between upkeep and source answers, including cancellation and spend changes in the queue", async () => {

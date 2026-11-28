@@ -571,6 +571,12 @@ export interface SmallModelFallback {
   onRefused: (model: string) => void;
 }
 
+/** A driver-owned, immutable, one-use text transport. The driver must invoke beforeRequest immediately before every network dispatch, refuse redirects and route changes, and must never expose credentials in destination. */
+export interface VerifiedTextTransport {
+  readonly destination: string;
+  generateText(prompt: string, options: TextGenerationOptions & { beforeRequest(): void }): Promise<string>;
+}
+
 export interface ProviderInstance {
   readonly instanceId: InstanceId;
   readonly driverKind: DriverKind;
@@ -599,6 +605,8 @@ export interface ProviderInstance {
   snapshot(): Promise<ProviderSnapshot>;
   /** Cheap one-shot text call (titles, summaries); the signal is a best-effort cap. */
   generateText?(prompt: string, options?: TextGenerationOptions): Promise<string>;
+  /** Prepare a destination-bound isolated text transport; absence means unsupported. */
+  prepareVerifiedText?(model: string): VerifiedTextTransport | null;
   /** One-shot text for background steps only, on engines whose turns are whole agent processes; never for titles or compaction. */
   generateMemoryText?(prompt: string, options?: TextGenerationOptions): Promise<string>;
   /** Isolated, tool-free permission review; separate from generateText so no security capability is inferred from a generic helper. */

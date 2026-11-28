@@ -1,6 +1,16 @@
 # Quyết định kiến trúc cho Mobile Standalone
 
-Ngày khảo sát 28/11/2026. Base MoonBot `3d35516862f78414208146c1fd3f766af0e845e2`. PR đang mở #123 thuộc AI Twin. #4, #51, #63, #91 và #111 đã merge. Issues bị tắt. Upstream OpenMausBot ban đầu theo ref cục bộ `868a4746d`, sau đó đã đối chiếu `upstream/main` tại `e1cc6a290d024203be40f41928f5cf1ee3ba83b6`. [Upstream PR #1137](https://github.com/milind-soni/OpenMausBot/pull/1137) đề xuất server driver và tài khoản provider toàn cục. Luồng này cần thêm danh tính người dùng Mobile, lịch sử theo owner và kiểm soát bên chi trả. Cây nguồn OSS dùng Apache-2.0, giữ NOTICE và các ghi chú sửa đổi riêng của iOS/Android. Không đưa thành phần enterprise vào thiết kế.
+Ngày khảo sát 28/11/2026. Base MoonBot `3d35516862f78414208146c1fd3f766af0e845e2`. Tại thời điểm khảo sát ban đầu, #123 thuộc AI Twin. #4, #51, #63, #91 và #111 đã merge. Issues bị tắt. Upstream OpenMausBot ban đầu theo ref cục bộ `868a4746d`, sau đó đã đối chiếu `upstream/main` tại `e1cc6a290d024203be40f41928f5cf1ee3ba83b6`. [Upstream PR #1137](https://github.com/milind-soni/OpenMausBot/pull/1137) đề xuất server driver và tài khoản provider toàn cục. Luồng này cần thêm danh tính người dùng Mobile, lịch sử theo owner và kiểm soát bên chi trả. Cây nguồn OSS dùng Apache-2.0, giữ NOTICE và các ghi chú sửa đổi riêng của iOS/Android. Không đưa thành phần enterprise vào thiết kế.
+
+## Cập nhật từ MausBot
+
+Mục tiêu mobile-first là dùng ngay StartupBot trên điện thoại, kể cả khi chưa có máy tính để ghép đôi. Màn hình chào, Cài đặt, luồng ghép đôi và chat native tiếp tục theo giao diện hiện có. Phần standalone nằm ở gateway cùng với tài khoản và chat. Hai client native chỉ cần URL HTTPS đã cấu hình, thành phần nút riêng và bản dịch trong tài nguyên riêng. Khung chat web dùng trực tiếp stylesheet của Inbox. So sánh bộ sinh skin trước và sau khi dùng chung cho kết quả giống nhau từng byte (22.177 byte tại commit được kiểm tra).
+
+Nguồn native của bản fork được nêu trong [hồ sơ nhập mã](../STARTUPBOT_MOBILE_INTERNAL.md). Kiểm tra refs phát hành công khai ngày 28/11/2026 cho kết quả Android v1.5.0 ở `16ad4080f` và iOS build13 ở `37a9d185d`, đúng hai bản đã nhập. `upstream/main` tại `e1cc6a290` không chứa hai cây native. [Android v1.5.0](https://github.com/milind-soni/OpenMausBot/tree/android-release/v1.5.0/android) · [iOS build13](https://github.com/milind-soni/OpenMausBot/tree/ios-release/build13/ios)
+
+Tại `d5e2db0e6`, khi bỏ sáu dòng gọi `MobileChatButton()`, nội dung bốn file Onboarding và Settings bằng từng byte với fork trước nhiệm vụ `3d3551686`. Để thử trên mã phát hành, chạy `git merge-file -p <file đã thêm nút> <file ở base của fork> <file ở bản phát hành>` cho từng file. Bốn lần trả mã 0 và giữ đủ sáu điểm vào. Hai bộ catalog ngôn ngữ gốc và màn hình chat native cũng giữ nguyên so với base. Khi cập nhật, thay đối số cuối bằng file của bản phát hành mới và chạy CI native trên hai nền tảng.
+
+Ở cấp monorepo, so danh sách từ `git merge-tree --write-tree --name-only --no-messages <revision> upstream/main` cho base của fork và nhánh mobile. Cả hai trả mã 1 với cùng tập 474 đường dẫn xung đột, không thêm hoặc mất đường dẫn. Kết quả này đo tại hai revision cụ thể. Phép thử native kiểm tra văn bản nguồn, build và simulator nằm ở bước CI riêng.
 
 ## Tài sản hiện có
 

@@ -1,6 +1,6 @@
 # StartupBot Mobile Standalone — báo cáo cho founder
 
-Ngày 28/11/2026. Phạm vi gồm năm draft PR. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
+Ngày 28/11/2026. Phạm vi gồm sáu draft PR. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
 
 ## A. Người dùng làm được gì?
 
@@ -8,7 +8,13 @@ Trong pilot được cấu hình, người mới có bốn bước để nhận 
 
 Chat hỗ trợ hiển thị text ngay khi provider phát, Dừng, lịch sử, đặt tên, xóa, đổi hội thoại, sao chép, code fence và một số định dạng Markdown. Có thể dịch, tóm tắt, soạn thảo, lập kế hoạch chiến dịch và soạn email tiếp cận. Hai chức năng sau dùng phần hướng dẫn văn bản trong catalog có sẵn. Giao diện không gửi email, đọc MISA hoặc chạy một chương trình. Tác vụ máy tính được tách bằng lựa chọn trong UI và một số mẫu yêu cầu trực tiếp. Các câu tự nhiên khác dựa vào câu trả lời hướng dẫn của model; đây chưa phải bộ phân loại tổng quát.
 
-**Đã kiểm chứng** luồng trình duyệt qua gateway đến Better Auth/D1 thật chạy trên máy thử, email đi vào hộp thư local, model trả dữ liệu mô phỏng. Catalog mặc định của pilot chỉ định GPT-4.1 mini. Chưa có inference trả phí hoặc đánh giá chất lượng Anh/Việt của model thật. Đăng nhập có email OTP. Kết nối OpenRouter là lựa chọn bên chi trả, không thay đổi tài khoản StartupBot. Người dùng có thể xem các máy đã đăng ký, sau đó ghép đôi theo giao thức native riêng. [Ảnh Chrome 390 × 844, tiếng Việt, dữ liệu fixture](assets/mobile-standalone-fixture-vi.png)
+**Đã kiểm chứng** luồng trình duyệt qua gateway đến Better Auth/D1 thật chạy trên máy thử, email đi vào hộp thư local, model trả dữ liệu mô phỏng. Catalog mặc định của pilot chỉ định GPT-4.1 mini. Chưa có inference trả phí hoặc đánh giá chất lượng Anh/Việt của model thật. Đăng nhập có email OTP. Kết nối OpenRouter là lựa chọn bên chi trả, không thay đổi tài khoản StartupBot. Người dùng có thể xem các máy đã đăng ký, sau đó ghép đôi theo giao thức native riêng. [Ảnh Chrome 390 × 844, tiếng Việt, dữ liệu fixture](assets/mobile-standalone-shared-inbox-vi.png)
+
+### Màn hình trên điện thoại và cập nhật từ MausBot
+
+Người dùng vẫn thấy màn hình chào, ghép đôi và chat native quen thuộc. Bản bật pilot thêm lựa chọn **Chat không cần máy tính** ở màn hình chào, màn hình chưa ghép đôi và Cài đặt. Khi chạm, người dùng chat trong Safari tích hợp trên iOS hoặc Custom Tab trên Android. Phần này dùng cùng CSS, màu và cách trình bày tin nhắn với StartupBot Inbox. Chromium và WebKit đều qua luồng chat HTTPS, đổi hội thoại và giữ bản nháp trên màn hình hẹp. Ở 320 × 568, dark mode, cỡ chữ gốc 125%, chiều rộng nội dung là 320 px và đáy nút Gửi ở 554 px. Đây là phép đo trình duyệt với nhà cung cấp AI giả lập.
+
+Sáu dòng gọi nút là toàn bộ phần chênh ở bốn file màn hình native so với trước nhiệm vụ. Đối chiếu với hai nhánh phát hành công khai ngày 28/11, cả bốn file nhận được sáu dòng qua thử ghép ba chiều. Mô phỏng ghép cả monorepo với upstream/main cho cùng 474 đường dẫn xung đột trước và sau thay đổi, không phát sinh đường dẫn mới tại lần đo này. Các đợt cập nhật tương lai vẫn cần chạy lại phép thử. [Nguồn và cách kiểm tra](../architecture/mobile-standalone-assessment.md#cập-nhật-từ-mausbot)
 
 ## B. Thay đổi so với main
 
@@ -29,8 +35,9 @@ Chat hỗ trợ hiển thị text ngay khi provider phát, Dừng, lịch sử, 
 | 1. Tài khoản, gateway, chat | `feat/mobile-independent-chat` · `c9ac5d336` | [PR #124](https://github.com/tigerthong1102/MoonBot/pull/124) · [CI](https://github.com/tigerthong1102/MoonBot/actions/runs/46092081606) |
 | 2. Native, dựa trên 1 | `feat/mobile-native-account-entry` · `52ac916ce` | [PR #125](https://github.com/tigerthong1102/MoonBot/pull/125) · [Native CI](https://github.com/tigerthong1102/MoonBot/actions/runs/46090251617) |
 | 3. OpenRouter cá nhân, dựa trên 2 | `feat/mobile-openrouter-connection` · `cd9d821ec` | [PR #126](https://github.com/tigerthong1102/MoonBot/pull/126) · [CI](https://github.com/tigerthong1102/MoonBot/actions/runs/46090749139) |
-| 4. Ngân sách, catalog, registry và báo cáo, dựa trên 3 | `perf/mobile-managed-budget-admission` · `d32095798` đến `1902f5375`, tích hợp bản sửa test ở `dea4a2d2c` | [PR #127](https://github.com/tigerthong1102/MoonBot/pull/127) · [Trạng thái CI hiện tại](https://github.com/tigerthong1102/MoonBot/pull/127/checks) |
-| 5. Quản lý phiên và kiểm soát, dựa trên 4 | `feat/mobile-account-controls` · `abfce8c0e` | [PR #128](https://github.com/tigerthong1102/MoonBot/pull/128) · [CI](https://github.com/tigerthong1102/MoonBot/pull/128/checks) |
+| 4. Ngân sách, catalog, registry và báo cáo, dựa trên 3 | `perf/mobile-managed-budget-admission` · `d32095798` đến `1902f5375`, head `28af38c4e` | [PR #127](https://github.com/tigerthong1102/MoonBot/pull/127) · [Trạng thái CI hiện tại](https://github.com/tigerthong1102/MoonBot/pull/127/checks) |
+| 5. Quản lý phiên và kiểm soát, dựa trên 4 | `feat/mobile-account-controls` · `13d6e79a7` | [PR #128](https://github.com/tigerthong1102/MoonBot/pull/128) · [CI](https://github.com/tigerthong1102/MoonBot/pull/128/checks) |
+| 6. Trải nghiệm mobile theo giao diện hiện có, dựa trên 5 | `feat/mobile-first-chat-experience` · `d5e2db0e6` | [PR #129](https://github.com/tigerthong1102/MoonBot/pull/129) · [CI](https://github.com/tigerthong1102/MoonBot/pull/129/checks) |
 
 Base là `3d35516862f78414208146c1fd3f766af0e845e2`. Các mô-đun chính là `apps/ai-pilot/mobile*.{mjs,js,html}`, `managed-budget.mjs`, `ledger.mjs`, `router.mjs`, `electron/control-plane-client.mjs`, `ios/App/MobileChatButton.swift` và `MobileChatButton.kt` trong Android UI. Các skill dùng nguyên nguồn đã có trong `skills/catalog/campaign-plan` và `skills/catalog/draft-outreach`, có LICENSE và SOURCE.md. [Đánh giá kiến trúc](../architecture/mobile-standalone-assessment.md) · [Cấu hình, đối soát và rollback](../../apps/ai-pilot/README.md)
 
@@ -38,7 +45,7 @@ Base là `3d35516862f78414208146c1fd3f766af0e845e2`. Các mô-đun chính là `a
 
 | Loại bằng chứng | Kết quả và môi trường |
 |---|---|
-| Unit/integration có đếm | **2.487 PASS, 0 FAIL, 13 SKIP** trên macOS arm64, Node 26.4.0. Bảy suite gateway/ví/PKCE/quota/client/i18n/Desktop gồm **70 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
+| Unit/integration có đếm | **2.489 PASS, 0 FAIL, 13 SKIP** trên macOS arm64, Node 26.4.0. Tám suite gateway/ví/PKCE/quota/client/i18n/Desktop gồm **72 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
 | Browser HTTPS end-to-end | Chrome thật, viewport mobile, issuer chạy local với 18 D1 migrations, OTP từ email sink. Đăng ký mới → suất trial → xác nhận registry trống → nhận stream → reload history → logout; issuer trả 200, dùng lại chính bearer cũ trả 401. Một lượt khác kiểm tra desktop-required. Ở chiều rộng 320 px, dark mode và font 125%, trang không tràn ngang. Provider inference là fixture. |
 | Browser BYOK | Chrome + issuer local; mô phỏng trang authorize và exchange của OpenRouter. Callback S256, gửi bằng personal key; sau disconnect, gửi lại bị từ chối. Từ chối cấp quyền ở provider rồi mở chat mới vẫn gửi được. Tests kiểm tra khác phiên, state một lần, race, key hash và giới hạn chi phí. |
 | Desktop | Harness cô lập, doctor không có problem. Tạo bot, gửi, chờ và đọc lại câu trả lời fake engine. Đây là luồng server trên macOS. Chưa kiểm thử phiên bản đóng gói mới trên macOS, Windows hoặc Linux bằng máy người dùng thật. |
@@ -116,4 +123,4 @@ Local AI là một runtime khác, cần kiểm tra khả năng thiết bị, RAM
 - Mục 21 và 27 có lượt đo bổ sung 128/128 stream qua HTTP/SQLite fixture, 32 account. Tới delta đầu P50/P95/P99 là 70/88/88 ms; hoàn tất 70/88/91 ms. Thời lượng cả lượt 403 ms. Chưa có inference trả phí hay WAN trong số liệu này.
 - Mục 26 được kiểm riêng theo từng ca, gồm cả ca chưa chạy và tính năng hoãn. Ma trận bổ sung ở đầu báo cáo thay cho cách chỉ đếm nhóm. Cổng store bổ sung có báo cáo nội dung ngay trong app ở Play, review native utility, IAP/restore theo thị trường và xóa account. Xem ADR để đối chiếu chính sách chính thức.
 
-**Số ca theo nguyên văn mục 26.** Trong 128 ca, 56 đạt ở phạm vi ghi rõ, 40 đạt một phần, 23 chưa chạy, 5 có blocker và 4 thuộc tính năng hoãn. Một ca có thể cần nhiều test tự động; 2.487 là số test đạt của các lệnh đã chạy. Năm blocker theo ca là tạo tài khoản trên iPhone vật lý, chuyển mạng thật, screen reader, store restore và xóa account xuyên hệ sinh thái.
+**Số ca theo nguyên văn mục 26.** Trong 128 ca, 56 đạt ở phạm vi ghi rõ, 40 đạt một phần, 23 chưa chạy, 5 có blocker và 4 thuộc tính năng hoãn. Một ca có thể cần nhiều test tự động; 2.489 là số test đạt của các lệnh đã chạy. Năm blocker theo ca là tạo tài khoản trên iPhone vật lý, chuyển mạng thật, screen reader, store restore và xóa account xuyên hệ sinh thái.

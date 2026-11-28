@@ -321,7 +321,7 @@ it("binds email sign-in to the invited StartupBot ID and reuses its wallet acros
   const { invite } = await import("../../apps/ai-pilot/accounts.mjs");
   settings.accountOrigin = "https://account.fixture.test";
   invite(ledger, "account-a", "tester@example.test");
-  const who = { id: "account-a", email: "tester@example.test" },
+  const who = { id: "account-a", email: "tester@example.test", emailVerified: true },
     code = { email: who.email, otp: "12345678" };
   const send = () => call("/wallet/request-code", "", code),
     verify = () => call("/wallet/verify-code", "", code);
@@ -335,6 +335,7 @@ it("binds email sign-in to the invited StartupBot ID and reuses its wallet acros
         { user: who, token: "never-use-raw-token" },
         { headers: { "set-auth-token": "signed-fixture-bearer-only-for-test" } },
       );
+    if (path === "/api/auth/get-session") return Response.json({ session:{ id:"fixture-wallet-id" } });
     if (path === "/v1/me") {
       expect(new Headers(init.headers).get("authorization")).toBe("Bearer signed-fixture-bearer-only-for-test");
       return Response.json({ user: who });

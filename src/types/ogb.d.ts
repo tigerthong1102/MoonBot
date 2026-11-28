@@ -403,6 +403,7 @@ const __APP_VERSION__: string;
        * when no terminal could be launched; the clipboard still has it. */
       openInstallTerminal?(command: string): Promise<boolean>;
       /** Writes plain text to the system clipboard; false on failure. Absent on older builds. */
+      mobileDraft?(action: "open" | "poll" | "close" | "ack", listener: string, id?: string): Promise<{id:string;prompt:string;expires:number} | null>;
       copyText?(text: string): Promise<boolean>;
       /** Opens an http(s) link in the user's default browser. */
       openExternal?(url: string): Promise<boolean>;

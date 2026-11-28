@@ -73,6 +73,28 @@ it.each(["stream", "text", "text-fallback"])("%s capture stays complete while an
   }
 });
 
+it("retains complete turn captures when two processes write the same latest dump", async () => {
+  const home = mkdtempSync(join(tmpdir(), "omb-claude-history-")), dump = join(home, "latest.json");
+  const children: ChildProcess[] = [];
+  try {
+    for (const prompt of ["fixture turn one", "fixture turn two"]) {
+      const child = spawn(process.execPath, [fileURLToPath(new URL("fake-claude-cli.ts", import.meta.url)), "--output-format", "stream-json"], {
+        cwd: home, env: { ...process.env, HOME: home, USERPROFILE: home, FAKE_CLAUDE_MODE: "happy", FAKE_CLAUDE_EXIT_AFTER_TURN: "1",
+          FAKE_CLAUDE_DUMP: dump, FAKE_CLAUDE_DUMP_HISTORY_DIR: home }, stdio: ["pipe", "pipe", "pipe"],
+      });
+      children.push(child); child.stdout!.resume(); child.stderr!.resume();
+      child.stdin!.end(JSON.stringify({ type: "user", message: { role: "user", content: prompt } }) + "\n");
+    }
+    await Promise.all(children.map(child => waitForExit(child)));
+    expect(children.map(child => child.exitCode)).toEqual([0, 0]);
+    const history = readdirSync(home).filter(file => file.endsWith(".json") && file !== "latest.json");
+    expect(history).toHaveLength(2);
+    const prompts = history.map(file => JSON.parse(readFileSync(join(home, file), "utf8")).prompt.message.content).sort();
+    expect(prompts).toEqual(["fixture turn one", "fixture turn two"]);
+    expect(prompts).toContain(JSON.parse(readFileSync(dump, "utf8")).prompt.message.content);
+  } finally { await Promise.all(children.map(child => waitForExit(child, { signal: "SIGTERM" }))); await removeTempDir(home); }
+});
+
 it("keeps the server's connection check out of every turn and one-shot capture, logging it on its own", async () => {
   const home = mkdtempSync(join(tmpdir(), "omb-claude-dump-"));
   const dump = join(home, "capture.json");

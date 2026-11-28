@@ -10,5 +10,9 @@ const bytes = readFileSync(new URL(contextual ? "./context-cases.json" : "./case
 const corpus = JSON.parse(bytes.toString("utf8")) as { version: number; cases: MemoryCase[] };
 const digest = corpusSha256(bytes);
 const predictionPath = args[0];
-const predictions = predictionPath ? readPredictions(JSON.parse(readFileSync(predictionPath, "utf8")), corpus.version, digest) : [];
-console.log(JSON.stringify({ corpus: contextual ? "context" : "question-only", corpusVersion: corpus.version, corpusSha256: digest, ...score(corpus.cases, predictions) }, null, 2));
+const envelope: unknown = predictionPath ? JSON.parse(readFileSync(predictionPath, "utf8")) : undefined;
+const predictions = predictionPath ? readPredictions(envelope, corpus.version, digest) : [];
+const metadata = envelope && typeof envelope === "object" && !Array.isArray(envelope) ? (envelope as Record<string, unknown>).metadata : undefined;
+const declaredFake = Boolean(metadata && typeof metadata === "object" && !Array.isArray(metadata) && (metadata as Record<string, unknown>).kind === "deterministic-fake");
+const provenance = !predictionPath ? "NOT_RUN" : declaredFake ? "DECLARED_SYNTHETIC_FAKE_NOT_MODEL" : "UNVERIFIED";
+console.log(JSON.stringify({ corpus: contextual ? "context" : "question-only", corpusVersion: corpus.version, corpusSha256: digest, provenance, ...score(corpus.cases, predictions) }, null, 2));

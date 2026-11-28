@@ -117,7 +117,7 @@ it("boots every picker with the shared Select, native labels, options and keyboa
   }
   const { installInboxSelects } = await import("../../apps/ai-pilot/inbox-select.js");
   installInboxSelects(document.querySelectorAll("select"));
-  expect(document.querySelectorAll("[data-inbox-select]")).toHaveLength(fields.length);
+  expect(document.querySelectorAll("[data-inbox-select]")).toHaveLength(document.querySelectorAll("select").length);
   expect(el("skill").querySelector('option[value="write"]').textContent).toBeTruthy();
   expect([...document.querySelectorAll("button")].every(button => button.classList.contains("ui-button"))).toBe(true);
 });

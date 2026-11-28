@@ -318,3 +318,37 @@ it("revokes the selected wallet and retires local access even when the issuer re
   expect(f.ledger.authenticate(other.token, true)).toBe("bob");
   expect((await f.call("/threads", cookie)).status).toBe(401);
 });
+
+it("checks issuer revocation on wallet and inference, preserves sessions during outages and keeps engine credentials independent", async () => {
+  const email = "alice@example.test", scope = { email, otp:"12345678" };
+  invite(f.ledger, "alice", email);
+  await f.call("/code", null, { email });
+  const verified = await fetch(f.url + "/wallet/verify-code", { method:"POST",
+    headers:{ "content-type":"application/json" }, body:JSON.stringify(scope) });
+  expect(verified.status).toBe(200);
+  const { token } = await verified.json();
+  const issuerToken = [...f.tokens.keys()].at(-1);
+  const stored = f.ledger.db.prepare("SELECT origin,sealed FROM wallet_issuer_credentials WHERE wallet=?").get(digest(token));
+  expect(stored.origin).toBe(f.settings.accountOrigin);
+  expect(Buffer.from(stored.sealed).includes(Buffer.from(issuerToken))).toBe(false);
+  const call = (path, bearer, body) => fetch(f.url + path, { method:body ? "POST" : "GET",
+    headers:{ authorization:"Bearer " + bearer, "content-type":"application/json" }, body:body && JSON.stringify(body) });
+  const engine = f.ledger.issueEngineToken("alice");
+  f.behavior.authOffline = true;
+  expect((await call("/wallet", token)).status).toBe(503);
+  expect((await call("/wallet/engine-token", token, {})).status).toBe(503);
+  expect((await call("/v1/models", engine)).status).toBe(200);
+  f.behavior.authOffline = false;
+  expect((await call("/wallet", token)).status).toBe(200);
+  f.tokens.delete(issuerToken); // The issuer revoked this credential without calling the mobile gateway.
+  expect((await call("/v1/chat/completions", token, {})).status).toBe(401);
+  expect((await call("/wallet", token)).status).toBe(401);
+  expect((await call("/v1/models", engine)).status).toBe(200);
+  expect(f.generations).toHaveLength(0);
+  expect(f.ledger.db.prepare("SELECT count(*) AS n FROM wallet_issuer_credentials").get().n).toBe(0);
+
+  const legacy = "sbpilot_session_" + randomUUID();
+  f.ledger.db.prepare("INSERT INTO wallet_sessions VALUES (?,?,?)").run(digest(legacy),"alice",Date.now()+60000);
+  expect((await call("/wallet", legacy)).status).toBe(401);
+  expect(f.ledger.db.prepare("SELECT 1 FROM wallet_sessions WHERE token=?").get(digest(legacy))).toBeUndefined();
+});

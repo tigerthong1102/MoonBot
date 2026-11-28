@@ -6,7 +6,7 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
@@ -15,4 +15,9 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run server/workspace-restore-holders.test.ts
+      - run: node --input-type=commonjs -e "require('electron')"
+      - run: pnpm exec vitest run --shard=11/16 --reporter=default --reporter=github-actions
+        env:
+          OMB_VITEST_E2E: host
+          OMB_VITEST_SUBSET: ""
+          OMB_VITEST_WORKERS: "1"

@@ -1,0 +1,33 @@
+# Quyết định kiến trúc cho Mobile Standalone
+
+Ngày khảo sát 28/11/2026. Base MoonBot `3d35516862f78414208146c1fd3f766af0e845e2`. PR đang mở #123 thuộc AI Twin. #4, #51, #63, #91 và #111 đã merge. Issues bị tắt. Upstream OpenMausBot theo ref cục bộ `868a4746d`. Cây nguồn OSS dùng Apache-2.0, giữ NOTICE và các ghi chú sửa đổi riêng của iOS/Android. Không đưa thành phần enterprise vào thiết kế.
+
+## Tài sản hiện có
+
+| Bề mặt | Bằng chứng | Ý nghĩa |
+|---|---|---|
+| App và onboarding | `ios/project.yml`, `ios/App/CompanionApp.swift`, `OnboardingViews.swift`, `android/app/build.gradle.kts`, `OnboardingScreens.kt` | SwiftUI và Kotlin Compose, hai toolchain riêng. Có thể bỏ qua ghép đôi ở lần mở đầu. Màn hình chưa ghép đôi hướng người dùng quay lại kết nối. |
+| Chat companion | `ios/Sources/CompanionCore/{Client,Store,SSE}.swift`, `ios/App/Session.swift`, `android/core`, `companion/` | Bot, thread ID, trang lịch sử và stream sự kiện đến từ harness. Client có HTTP, cache trạng thái và logic reconnect. Offline không có inference, tạo phiên desktop giả sẽ làm sai ngữ nghĩa của approval. |
+| Danh tính và thiết bị | `cloudflare/control-plane/src/{auth,index,installations,otp-rate-limit,push,relay}.ts`, migrations 0001–0018, `electron/control-plane-client.mjs` | Better Auth, D1, email OTP tám số, cho đăng ký, bearer có chữ ký, /v1/me. Có registry installation, relay, push và thu hồi. Device token có phạm vi khác account. Có deep link pairing và iOS Keychain. Chưa xác nhận recovery nhiều tài khoản trên điện thoại thật. |
+| Inbox | `cloudflare/control-plane/src/personal-inbox*.ts`, `ios/App/PersonalInboxView.swift`, Android PersonalInboxScreen | Chat người với người, file, bot đã claim, bridge native và storage riêng. Tái sử dụng web UI này cho AI dễ trộn quyền và transcript. |
+| Desktop | `server/`, `shared/`, `electron/`, `docs/{approval-levels,computer-use-integration,usage-caps,memory,routine-schedules}.md` | Desktop Electron/Vite + harness local, cơ sở dữ liệu và quyền tool tại host. Engine, scheduler, skill, memory, pairing và luồng phê duyệt có trước. Owner của chat Mobile không tự sở hữu thiết bị nào. |
+| Managed AI | `apps/ai-pilot/{accounts,server,router,ledger,payments}.mjs`, #111 | Gateway Node/SQLite một writer, credit và entitlement đã thanh toán sandbox, khóa theo account mã hóa AES-GCM, định giá catalog và hold trước inference. SSE cũ đợi JSON đầy đủ. Ví giới hạn bằng lời mời và token ví, chưa có chat riêng của điện thoại. |
+| Vận hành | `pnpm-workspace.yaml`, `.github/workflows/{ci,startupbot-vietnamese}.yml`, `docs/verification/README.md` | Monorepo pnpm, CI đã có Android/iOS và desktop tests. Baseline chạy local trên macOS với provider giả, 17/17 pass. Không suy từ CI cũ ra chứng nhận thiết bị. |
+
+## Lựa chọn và phản biện
+
+Dùng HTTPS trên trình duyệt hệ thống mở từ app, cùng một giao diện và gateway cho iOS/Android. Định danh bằng account ID do control plane xác minh. Chỉ chuyển nội dung người dùng nhập trong luồng này cho provider. Có lời giải thích trước khi lưu lịch sử vào account. Các thiết bị cùng tài khoản có thể mở lại lịch sử đó. Không import file, memory, API key, pairing hoặc transcript Desktop. Không có cầu thực thi lệnh. Lợi ích là có thể viết, dịch và hỏi đáp trước khi mua máy hoặc cấp quyền. Mức chuyển đổi sang Desktop và lợi thế so với chatbot khác còn là giả thuyết.
+
+Phương án native kép giữ trải nghiệm liền mạch hơn nhưng nhân đôi luồng tài khoản, lưu trữ, streaming và test. Worker inference riêng có lợi cho độ trễ nhưng phải tái triển khai sổ cái, khóa, đối soát và migration. Cloud VM mỗi user có chi phí idle và không giải quyết nhu cầu chat. Một tiến trình stateless hoàn toàn chưa phù hợp với SQLite địa phương của pilot. Giữ một gateway và volume riêng trong giai đoạn kiểm thử. Trước khi chạy nhiều replica phải có chung một authority giao dịch cho quota, transcript và reservations.
+
+Không bật guest vì OTP và entitlement đã có, chi phí mỗi lần cấp quyền thử là một quyết định kinh doanh. Apple/Google social login cần registration và xử lý liên kết bằng reauthentication. Không nối account theo email giống nhau. API khách tự trả (BYOK), đăng nhập bằng dịch vụ thuê bao, Local AI, Cloud Agent và task hoãn đều có ranh giới dữ liệu/chi phí riêng. Không tự fallback. OpenRouter có PKCE S256. Trước khi bật cần callback đăng ký, state một lần, thu hồi và kiểm tra lưu khóa. Tài liệu xác thực Codex không xác lập quyền của ứng dụng này để đổi thuê bao thành API. Anthropic đặt điều kiện riêng cho sử dụng Claude Code trong sản phẩm. Chưa có phê duyệt hay app registration cho StartupBot. [OpenRouter OAuth](https://openrouter.ai/docs/guides/overview/auth/oauth) · [OpenAI authentication](https://developers.openai.com/codex/auth/) · [Claude Code commercial conditions](https://code.claude.com/docs/en/legal-and-compliance)
+
+## Threat model và rollout
+
+Email bị chiếm có thể mở nội dung account. Giữ validation server từng request, session thu hồi được, origin riêng được cấu hình, chống CSRF, không persist credential ở JS. Chặn truy cập thread khác owner tại truy vấn SQL. Tránh arbitrary endpoint, HTML từ model, tool loop, guest, và upload tài liệu kế toán. Khi provider timeout giữa chừng, giữ khoản dự phòng để đối soát và hiển thị gián đoạn. Sai lệch hóa đơn hoặc cost vượt hold là sự cố cần tắt inference. Budget áp dụng ngay cả với nhiều request đồng thời. Không có social recovery trong pilot.
+
+Kiểm tra nâng cấp bằng DB có dữ liệu, restart/idempotency, stream từng phần, quyền liên tài khoản, revoke, quota, kill switch, i18n, các luồng ghép đôi cũ và hai app build. Release public NO-GO cho đến khi hoàn thành flow với email thật + model thật có ngân sách, kiểm thử điện thoại, backup/restore, đo tải và phê duyệt giá/quyền riêng tư. Tắt điểm vào mobile và ngừng admission trước rollback, đợi request đang chạy, giữ ledger để đối soát. Không downgrade bằng cách xóa bảng.
+
+## Kinh tế cần kiểm chứng
+
+OpenRouter hiển thị GPT-4.1 mini ở $0,40/$1,60 trên một triệu token input/output. Catalog pilot có hai trần giá 1/4 USD cho routing và có thể đổi model. Không có benchmark chất lượng Anh/Việt hoặc SLA riêng. Một yêu cầu với 1.000 token vào và 250 ra có giá mô phỏng $0,0008. Context dài gấp mười làm input tăng tương ứng. Vòng lặp 20 lần nhân số lượt tính phí, vì vậy đường mobile chỉ gọi model một lần. Giá cần kiểm lại trước mở pilot. [Model pricing](https://openrouter.ai/openai/gpt-4.1-mini) · [Streaming protocol](https://openrouter.ai/docs/api_reference/streaming)

@@ -28,6 +28,12 @@ export function catalog(file) {
   ) {
     throw new Fault(503, "invalid_catalog");
   }
+  if (data.managedLimits != null) {
+    for (const field of ["monthlyMicros", "dailyMicros", "requestsPerMinute", "concurrent"]) {
+      if (!integer(data.managedLimits[field], Number.MAX_SAFE_INTEGER)) throw new Fault(503, "invalid_catalog");
+    }
+    if (typeof data.managedLimits.enabled !== "boolean") throw new Fault(503, "invalid_catalog");
+  }
   return data;
 }
 
@@ -57,6 +63,12 @@ export class Ledger {
         PRIMARY KEY(owner,requestId), FOREIGN KEY(owner,requestId) REFERENCES requests(owner,id));
       CREATE TABLE IF NOT EXISTS allocations(owner TEXT NOT NULL, request TEXT NOT NULL, grantId TEXT NOT NULL REFERENCES grants(id),
         held INTEGER NOT NULL, PRIMARY KEY(owner,request,grantId), FOREIGN KEY(owner,request) REFERENCES requests(owner,id));
+      CREATE TABLE IF NOT EXISTS managed_suspensions(owner TEXT PRIMARY KEY REFERENCES users(id));
+      CREATE TABLE IF NOT EXISTS managed_rate(owner TEXT PRIMARY KEY REFERENCES users(id),start INTEGER NOT NULL,count INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS active_requests(owner TEXT NOT NULL,id TEXT NOT NULL,expires INTEGER NOT NULL,PRIMARY KEY(owner,id));
+      CREATE INDEX IF NOT EXISTS active_expiry ON active_requests(expires);
+      CREATE INDEX IF NOT EXISTS requests_created ON requests(created);
+      CREATE INDEX IF NOT EXISTS requests_state ON requests(state);
       CREATE INDEX IF NOT EXISTS by_owner ON grants(owner,end);
     `);
   }
@@ -207,7 +219,7 @@ export class Ledger {
       orders,
     };
   }
-  reserve(owner, id, fingerprint, amount, model = null) {
+  reserve(owner, id, fingerprint, amount, model = null, limits = null) {
     if (!Number.isSafeInteger(amount) || amount <= 0) throw new Fault(400, "invalid_hold");
     this.tx(() => {
       const old = this.db.prepare("SELECT fingerprint,state FROM requests WHERE id=? AND owner=?").get(id, owner);
@@ -217,6 +229,12 @@ export class Ledger {
         this.db.prepare("DELETE FROM allocations WHERE owner=? AND request=?").run(owner,id);
         this.db.prepare("DELETE FROM usage_details WHERE owner=? AND requestId=?").run(owner,id);
         this.db.prepare("DELETE FROM requests WHERE owner=? AND id=?").run(owner,id);
+      }
+      if (this.db.prepare("SELECT 1 FROM managed_suspensions WHERE owner=?").get(owner)) throw new Fault(403, "managed_access_revoked");
+      if (limits) {
+        this.db.prepare("DELETE FROM active_requests WHERE expires<=?").run(Date.now());
+        this.checkManagedLimits(owner, amount, limits);
+        this.db.prepare("INSERT INTO active_requests VALUES (?,?,?)").run(owner, id, Date.now() + 5 * 60000);
       }
       const extras = this.db.prepare("SELECT spendExtras FROM users WHERE id=?").get(owner).spendExtras;
       const buckets = this.balances(owner).filter((b) => b.end || extras || b.available < 0);
@@ -234,6 +252,25 @@ export class Ledger {
         if (!amount) break;
       }
     });
+  }
+  checkManagedLimits(owner, amount, limits) {
+    if (!limits.enabled) throw new Fault(503, "managed_ai_paused");
+    const now = Date.now();
+    const active = this.db.prepare("SELECT count(*) n FROM active_requests WHERE owner=?").get(owner).n;
+    this.db.prepare(`INSERT INTO managed_rate VALUES (?,?,1) ON CONFLICT(owner) DO UPDATE SET
+      count=CASE WHEN start<=excluded.start-60000 THEN 1 ELSE count+1 END,
+      start=CASE WHEN start<=excluded.start-60000 THEN excluded.start ELSE start END`).run(owner, now);
+    const recent = this.db.prepare("SELECT count FROM managed_rate WHERE owner=?").get(owner).count;
+    if (active >= limits.concurrent || recent > limits.requestsPerMinute) throw new Fault(429, "account_rate_limit");
+    const day = new Date(now);
+    day.setUTCHours(0, 0, 0, 0);
+    const month = new Date(day);
+    month.setUTCDate(1);
+    const exposure = this.db.prepare(`SELECT coalesce(sum(CASE WHEN r.state='held' THEN
+        (SELECT sum(held) FROM allocations a WHERE a.owner=r.owner AND a.request=r.id)
+        ELSE r.cost END),0) total FROM requests r WHERE r.state='held' OR r.created>=?`);
+    if (exposure.get(+day).total + amount > limits.dailyMicros ||
+        exposure.get(+month).total + amount > limits.monthlyMicros) throw new Fault(429, "managed_budget_exhausted");
   }
   settle(owner, id, generation, cost, tokens = {}, retryable = false) {
     if (!Number.isSafeInteger(cost) || cost < 0 || !generation || (retryable && cost !== 0)) throw new Fault(503, "reconciliation_required");

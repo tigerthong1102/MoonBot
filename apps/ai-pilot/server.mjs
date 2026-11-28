@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { accountSignIn, invite } from "./accounts.mjs";
+import { accountSignIn, invite, validateWalletIssuer } from "./accounts.mjs";
 import { Ledger, Fault, catalog, digest } from "./ledger.mjs";
 import { budgetExposure } from "./managed-budget.mjs";
 import { mobileService } from "./mobile.mjs";
@@ -88,11 +88,18 @@ export function pilotServer(ledger, settings, http = fetch) {
       const bearer = req.headers.authorization?.match(/^Bearer (sbpilot_[\w-]+)$/)?.[1];
       if (!bearer) throw new Fault(401, "invalid_pilot_token");
       const owner = ledger.authenticate(bearer, path?.startsWith("/v1/"));
+      const body = method === "POST" ? await readObject(req) : null;
+      if (method === "POST" && path === "/wallet/sign-out") {
+        ledger.db.prepare("DELETE FROM wallet_sessions WHERE token=? AND owner=?").run(digest(bearer), owner);
+        return json(200, { ok: true });
+      }
+      if (bearer.startsWith("sbpilot_session_"))
+        await validateWalletIssuer(ledger, settings.accountOrigin, http, bearer, owner);
       const config = catalog(settings.catalog);
       if (method === "GET" && path === "/wallet")
         return json(200, {
           account: owner,
-          ...ledger.summary(owner),
+          ...ledger.summary(owner, config.managedLimits?.trialPaused),
           currency: config.currency,
           offers: config.offers,
           model: config.model,
@@ -104,11 +111,7 @@ export function pilotServer(ledger, settings, http = fetch) {
           data: [{ id: config.model, object: "model", owned_by: "startupbot-pilot" }],
         });
       if (method !== "POST") throw new Fault(404, "not_found");
-      const body = await readObject(req);
-      if (path === "/wallet/sign-out") {
-        ledger.db.prepare("DELETE FROM wallet_sessions WHERE token=? AND owner=?").run(digest(bearer), owner);
-        return json(200, { ok: true });
-      }
+
       if (path === "/wallet/engine-token") return json(200, { token: ledger.issueEngineToken(owner) });
       if (path === "/wallet/checkout") {
         const existing = ledger.db

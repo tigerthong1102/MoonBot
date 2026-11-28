@@ -274,6 +274,24 @@ export function createControlPlaneClient({
     return { response, payload };
   };
 
+  async function activeAccountSessions(token) {
+    if (!boundedSecret(token)) throw new ControlPlaneError("signed_out", 401);
+    const { payload } = await request("/api/auth/list-sessions", { token, allowEmpty: true });
+    if (!Array.isArray(payload) || !payload.every(s =>
+      typeof s?.id === "string" && s.id.length > 0 && s.id.length <= 256 &&
+      typeof s.token === "string" && Number.isFinite(Date.parse(s.createdAt)) &&
+      Number.isFinite(Date.parse(s.expiresAt)))) throw new ControlPlaneError("invalid_response");
+    return payload;
+  }
+
+  async function currentAccountSessionId(token) {
+    if (!boundedSecret(token)) throw new ControlPlaneError("signed_out", 401);
+    const { payload } = await request("/api/auth/get-session", { token });
+    const id = payload.session?.id;
+    if (typeof id !== "string" || !id || id.length > 256) throw new ControlPlaneError("invalid_response");
+    return id;
+  }
+
   const accountInstallations = async (accountToken) => {
     if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
     const { payload } = await request("/v1/installations", { token: accountToken });
@@ -494,6 +512,29 @@ export function createControlPlaneClient({
         token: accountToken,
         allowEmpty: true,
       });
+    },
+
+    currentAccountSessionId,
+
+    async listAccountSessions(accountToken) {
+      const [sessions, current] = await Promise.all([
+        activeAccountSessions(accountToken), currentAccountSessionId(accountToken),
+      ]);
+      return sessions.map(({ id, createdAt, expiresAt }) => ({ id, createdAt, expiresAt, current: id === current }));
+    },
+
+    async revokeAccountSessions(accountToken, sessionId = null, beforeRevoke = () => {}) {
+      if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
+      let path = "/api/auth/revoke-sessions", body = {};
+      if (sessionId !== null) {
+        const target = (await activeAccountSessions(accountToken)).find(s => s.id === sessionId);
+        if (!target) throw new ControlPlaneError("session_not_found", 404);
+        path = "/api/auth/revoke-session";
+        body = { token: target.token };
+      }
+      beforeRevoke();
+      const { payload } = await request(path, { method: "POST", token: accountToken, body });
+      if (payload.status !== true) throw new ControlPlaneError("invalid_response");
     },
 
     async signOut(accountToken) {

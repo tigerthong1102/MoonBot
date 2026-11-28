@@ -38,12 +38,33 @@ export async function startMobileFixture({ mobileOrigin = "https://mobile.exampl
         return Response.json({ user }, { headers:{ "set-auth-token":bearer } });
       }
       if (url.pathname === "/v1/me" && tokens.has(token)) {
+        const user = tokens.get(token);
         if (behavior.beforeMe) await behavior.beforeMe();
-        return Response.json({ user:tokens.get(token) });
+        return Response.json({ user });
       }
       if (url.pathname === "/v1/installations" && tokens.has(token)) {
         return Response.json({ installations:[{ id:randomUUID(), clientInstanceId:randomUUID(),
           name:tokens.get(token).id + " laptop", platform:"darwin", appVersion:"1.0.0" }] });
+      }
+      if (tokens.has(token) && url.pathname.endsWith("/get-session")) {
+        const id = "id-" + token.slice(0,8);
+        if (behavior.beforeCurrent) await behavior.beforeCurrent();
+        return Response.json({ session:{ id } });
+      }
+      if (tokens.has(token) && url.pathname.endsWith("/list-sessions")) {
+        const sessions = [...tokens].filter(([,user]) => user.id === tokens.get(token).id);
+        return Response.json(sessions.map(([raw]) => ({ id:"id-" + raw.slice(0,8), token:raw,
+          createdAt:new Date().toISOString(), expiresAt:new Date(Date.now()+3600000).toISOString() })));
+      }
+      if (tokens.has(token) && url.pathname.endsWith("/revoke-session")) {
+        if (tokens.get(body.token)?.id === tokens.get(token).id) tokens.delete(body.token);
+        return Response.json({ status:true });
+      }
+      if (tokens.has(token) && url.pathname.endsWith("/revoke-sessions")) {
+        const owner = tokens.get(token).id;
+        for (const [raw,user] of tokens) if (user.id === owner) tokens.delete(raw);
+        if (behavior.loseRevocationResponse) throw new Error("fixture response lost");
+        return Response.json({ status:true });
       }
       if (url.pathname.endsWith("/sign-out")) {
         if (!init.body || new Headers(init.headers).get("content-type") !== "application/json")

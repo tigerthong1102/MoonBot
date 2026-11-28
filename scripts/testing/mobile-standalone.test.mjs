@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { Ledger } from "../../apps/ai-pilot/ledger.mjs";
+import { invite } from "../../apps/ai-pilot/accounts.mjs";
+import { digest, Ledger } from "../../apps/ai-pilot/ledger.mjs";
 import { startMobileFixture } from "./mobile-chat-fixture.mjs";
 
 let f, cookie, thread;
@@ -222,9 +224,148 @@ it("pages older turns once with deterministic ordering for identical timestamps"
   expect([...older.turns,...first.turns].map(r => r.id)).toEqual(ids);
 });
 
+it("lists redacted sessions and revokes one or all at the issuer without affecting another account", async () => {
+  const second = await f.login("alice"), bob = await f.login("bob");
+  const scope = { account:"alice" };
+  const sessions = (await (await f.call("/sessions", cookie, scope)).json()).sessions;
+  expect(sessions).toHaveLength(2);
+  for (const view of sessions) expect(Object.keys(view).sort()).toEqual(["createdAt","current","expiresAt","id"]);
+  expect(sessions.map(s => s.current)).toEqual([true,false]);
+  const foreign = (await (await f.call("/sessions", bob, { account:"bob" })).json()).sessions[0];
+  expect((await f.call("/sessions/revoke", cookie, { ...scope, sessionId:foreign.id })).status).toBe(404);
+  expect((await f.call("/sessions/revoke", cookie, { ...scope, sessionId:sessions[1].id })).status).toBe(200);
+  expect((await f.call("/threads", second)).status).toBe(401);
+  const third = await f.login("alice");
+  const walletToken = "sbpilot_session_" + randomUUID();
+  f.ledger.db.prepare("INSERT INTO wallet_sessions VALUES (?,?,?)").run(digest(walletToken),"alice",Date.now()+60000);
+  expect(f.ledger.authenticate(walletToken, true)).toBe("alice");
+  f.behavior.authOffline = true;
+  expect((await f.call("/sessions/logout-all", cookie, scope)).status).toBe(503);
+  f.behavior.authOffline = false;
+  expect((await f.call("/sessions/logout-all", cookie, { account:"bob" })).status).toBe(409);
+  expect((await f.call("/sessions/logout-all", cookie, scope)).status).toBe(200);
+  expect(() => f.ledger.authenticate(walletToken, true)).toThrow();
+  for (const handle of [third,cookie]) expect((await f.call("/threads", handle)).status).toBe(401);
+  expect((await f.call("/threads", bob)).status).toBe(200);
+});
+
+it("pauses skills, denies unbound runtime requests and reports account credit without acquiring a trial", async () => {
+  const before = f.generations.length;
+  f.config.disabledMobileSkills = ["translate"];
+  f.save();
+  for (const runtime of ["cloud","local","document","future"]) {
+    expect((await f.call("/send", cookie, message({ runtime }))).status).toBe(409);
+  }
+  expect((await f.call("/send", cookie, message({ skill:"translate" }))).status).toBe(409);
+  const usage = await (await f.call("/account-usage", cookie, { account:"alice" })).json();
+  expect(usage.available).toBeGreaterThan(0);
+  expect(usage.byokTodayUTC).toEqual({ settled:0, pending:0 });
+  expect((await f.call("/account-usage", cookie, { account:"bob" })).status).toBe(409);
+  expect(f.generations).toHaveLength(before);
+  f.config.mobileTrial = { creditMicros:30000, days:2, maxAccounts:3 };
+  f.save();
+  const bob = await f.login("bob");
+  expect((await (await f.call("/account-usage", bob, { account:"bob" })).json()).available).toBe(0);
+  await (await f.call("/send", bob, message({ account:"bob" }))).text();
+  expect(f.generations).toHaveLength(before+1);
+  f.config.managedLimits.trialPaused = true;
+  f.save();
+  expect((await f.call("/send", bob, message({ account:"bob" }))).status).toBe(402);
+  expect((await (await f.call("/account-usage", bob, { account:"bob" })).json()).available).toBe(0);
+  const paid = await f.call("/send", cookie, message());
+  expect(paid.status).toBe(200);
+  await paid.text();
+});
+
+it("does not issue a wallet session from a verification that overlapped logout everywhere", async () => {
+  const email = "alice@example.test";
+  invite(f.ledger, "alice", email);
+  await f.call("/code", null, { email });
+  const started = Promise.withResolvers(), release = Promise.withResolvers();
+  f.behavior.beforeCurrent = async () => {
+    f.behavior.beforeCurrent = undefined;
+    started.resolve();
+    await release.promise;
+  };
+  const verifying = fetch(f.url + "/wallet/verify-code", { method:"POST",
+    headers:{ "content-type":"application/json" }, body:JSON.stringify({ email, otp:"12345678" }) });
+  await started.promise;
+  try {
+    expect((await f.call("/sessions/logout-all", cookie, { account:"alice" })).status).toBe(200);
+  } finally { release.resolve(); }
+  expect((await verifying).status).toBe(401);
+  expect(f.ledger.db.prepare("SELECT count(*) AS n FROM wallet_sessions WHERE owner='alice'").get().n).toBe(0);
+});
+
+it("revokes the selected wallet and retires local access even when the issuer response is lost", async () => {
+  async function wallet(account) {
+    const email = account + "@example.test";
+    invite(f.ledger, account, email);
+    await f.call("/code", null, { email });
+    const result = await fetch(f.url + "/wallet/verify-code", { method:"POST",
+      headers:{ "content-type":"application/json" }, body:JSON.stringify({ email, otp:"12345678" }) });
+    expect(result.status).toBe(200);
+    const { token } = await result.json();
+    const { issuerSession } = f.ledger.db.prepare("SELECT issuerSession FROM wallet_issuer_sessions WHERE wallet=?").get(digest(token));
+    return { token, issuerSession };
+  }
+  const first = await wallet("alice"), second = await wallet("alice"), other = await wallet("bob");
+  expect((await f.call("/sessions/revoke", cookie, { account:"alice", sessionId:first.issuerSession })).status).toBe(200);
+  expect(() => f.ledger.authenticate(first.token, true)).toThrow();
+  expect(f.ledger.authenticate(second.token, true)).toBe("alice");
+  f.behavior.loseRevocationResponse = true;
+  expect((await f.call("/sessions/logout-all", cookie, { account:"alice" })).status).toBe(503);
+  expect(() => f.ledger.authenticate(second.token, true)).toThrow();
+  expect(f.ledger.authenticate(other.token, true)).toBe("bob");
+  expect((await f.call("/threads", cookie)).status).toBe(401);
+});
+
+it("uses the same stylesheet as the existing mobile Inbox and its shared skin tokens", async () => {
+  const page = await f.call("");
+  expect(page.headers.get("content-security-policy")).toContain("style-src 'self'");
+  expect(await page.text()).toContain('href="/mobile/inbox.css"');
+  const sheet = await f.call("/inbox.css"), skin = await f.call("/skin.css");
+  expect(await sheet.text()).toBe(readFileSync(new URL("../../cloudflare/control-plane/inbox/public/inbox.css", import.meta.url), "utf8"));
+  expect(await skin.text()).toContain("--color-bubble-user:");
+});
+
+it("checks issuer revocation on wallet and inference, preserves sessions during outages and keeps engine credentials independent", async () => {
+  const email = "alice@example.test", scope = { email, otp:"12345678" };
+  invite(f.ledger, "alice", email);
+  await f.call("/code", null, { email });
+  const verified = await fetch(f.url + "/wallet/verify-code", { method:"POST",
+    headers:{ "content-type":"application/json" }, body:JSON.stringify(scope) });
+  expect(verified.status).toBe(200);
+  const { token } = await verified.json();
+  const issuerToken = [...f.tokens.keys()].at(-1);
+  const stored = f.ledger.db.prepare("SELECT origin,sealed FROM wallet_issuer_credentials WHERE wallet=?").get(digest(token));
+  expect(stored.origin).toBe(f.settings.accountOrigin);
+  expect(Buffer.from(stored.sealed).includes(Buffer.from(issuerToken))).toBe(false);
+  const call = (path, bearer, body) => fetch(f.url + path, { method:body ? "POST" : "GET",
+    headers:{ authorization:"Bearer " + bearer, "content-type":"application/json" }, body:body && JSON.stringify(body) });
+  const engine = f.ledger.issueEngineToken("alice");
+  f.behavior.authOffline = true;
+  expect((await call("/wallet", token)).status).toBe(503);
+  expect((await call("/wallet/engine-token", token, {})).status).toBe(503);
+  expect((await call("/v1/models", engine)).status).toBe(200);
+  f.behavior.authOffline = false;
+  expect((await call("/wallet", token)).status).toBe(200);
+  f.tokens.delete(issuerToken); // The issuer revoked this credential without calling the mobile gateway.
+  expect((await call("/v1/chat/completions", token, {})).status).toBe(401);
+  expect((await call("/wallet", token)).status).toBe(401);
+  expect((await call("/v1/models", engine)).status).toBe(200);
+  expect(f.generations).toHaveLength(0);
+  expect(f.ledger.db.prepare("SELECT count(*) AS n FROM wallet_issuer_credentials").get().n).toBe(0);
+
+  const legacy = "sbpilot_session_" + randomUUID();
+  f.ledger.db.prepare("INSERT INTO wallet_sessions VALUES (?,?,?)").run(digest(legacy),"alice",Date.now()+60000);
+  expect((await call("/wallet", legacy)).status).toBe(401);
+  expect(f.ledger.db.prepare("SELECT 1 FROM wallet_sessions WHERE token=?").get(digest(legacy))).toBeUndefined();
+});
+
 it("serves a browser-ready shared clipboard module and uses neutral reference-skin primary colors", async () => {
   const page = await (await fetch(f.url + "/mobile")).text();
-  expect(page).toMatch(/\.ui-button-primary\{[^}]*background:var\(--color-ink\);color:var\(--color-app\)/);
+  expect(page).toContain('href="/mobile/inbox.css"');
   const entry = await (await fetch(f.url + "/mobile/app.js")).text();
   expect(entry).toContain('import { copyText } from "./clipboard-write.js"');
   const response = await fetch(f.url + "/mobile/clipboard-write.js");

@@ -31,6 +31,8 @@ const freeMarginal = unitInference(free,defaultModelPrice)+free.computePerUser+f
 console.log(JSON.stringify({
   assumptions, referenceUSDPerMillionTokens:defaultModelPrice, costsAreIllustrative:true,
   scenarios:sizes.map(n => estimate(n,assumptions,defaultModelPrice)),
+  upsideAssumptions:{ ...assumptions, managedShare:0.6, payingShare:0.05 },
+  upside:sizes.map(n => estimate(n,{ ...assumptions, managedShare:0.6, payingShare:0.05 },defaultModelPrice)),
   allFreeMonthlyCapacity:[50,100,500].map(budget => ({ budget, users:Math.max(0,Math.floor((budget-free.computeBase-free.databaseBase)/freeMarginal)) })),
   stressBeforeCircuitBreakers:sizes.map(n => estimate(n,{ ...assumptions, payingShare:0, managedShare:1, tokensIn:10000, tokensOut:1000 },{ input:1,output:4 }))
 },null,2));

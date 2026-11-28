@@ -211,3 +211,25 @@ it("reconnects without replacing an unsaved conversation or its newer draft", as
   expect(send.mock.calls[1][0].thread).toBe(send.mock.calls[0][0].thread);
   expect(send.mock.calls[1][0].id).toBe(send.mock.calls[0][0].id);
 });
+
+it("starts New conversation with a fresh thread after a saved reply and a failed list refresh", async () => {
+  send.mockResolvedValueOnce(success()).mockResolvedValueOnce(success());
+  threads.mockRejectedValueOnce(new TypeError("temporarily offline"));
+  submit();
+  await idle();
+  expect(el("transcript").textContent).toContain("hello");
+  expect(el("retry").hidden).toBe(false);
+  const saved = send.mock.calls[0][0].thread;
+
+  el("new").click();
+  await idle();
+  expect(el("transcript").textContent).toBe("");
+  el("prompt").value = "separate topic";
+  el("consent").checked = true;
+  submit();
+  await idle();
+  const second = send.mock.calls[1][0];
+  expect(second.prompt).toBe("separate topic");
+  expect(second.thread).toBeTruthy();
+  expect(second.thread).not.toBe(saved);
+});

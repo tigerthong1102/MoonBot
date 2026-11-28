@@ -203,7 +203,7 @@ export function nativeChat(ledger, lists, origin) {
         if (previous.thread !== thread.id || typeof body.text !== "string" || receipt?.fingerprint !== session.draftFingerprint(body.sendId,body.text)) throw new Fault(409,"request_exists");
         json(200,{ok:true,threadId:thread.id}); return;
       }
-      if (previous?.thread === thread.id && previous.prompt === body.text && ["running","complete","limited"].includes(previous.state)) {
+      if (previous?.thread === thread.id && previous.prompt === body.text && ["running","complete","limited","computer_needed"].includes(previous.state)) {
         json(200,{ok:true,threadId:thread.id}); return;
       }
       return { account:owner, thread:thread.id, id:body.sendId, prompt:body.text, save:true, provider:thread.provider };

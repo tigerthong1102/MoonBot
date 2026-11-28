@@ -8603,6 +8603,7 @@
   "mobileChat.managed_budget_exhausted": "共有AI予算の上限に達しました。",
   "mobileChat.managed_ai_paused": "AIは一時停止中です。",
   "mobileChat.signed_out": "続けるにはログインしてください。",
+  "mobileChat.computerNeeded": "この操作にはパソコンが必要です。",
   "mobileChat.desktop_required": "コンピュータの接続が必要です。StartupBotでコンピュータの接続を開いてください。何も実行されていません。",
   "mobileChat.thread_full": "新しい会話を始めてください。",
   "mobileChat.history_full": "会話を削除して空きを作ってください。",

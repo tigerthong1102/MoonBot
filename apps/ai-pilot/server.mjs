@@ -175,6 +175,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     origin: "http://127.0.0.1:" + port,
     catalog: process.env.STARTUPBOT_PILOT_CATALOG || new URL("./catalog.example.json", import.meta.url),
     openRouterOAuth: process.env.STARTUPBOT_MOBILE_OPENROUTER_OAUTH === "1",
+    mobileAccountChat: process.env.STARTUPBOT_MOBILE_ACCOUNT_CHAT === "1",
     mobileDesktopHandoff: process.env.STARTUPBOT_MOBILE_DESKTOP_HANDOFF === "1",
     mobileOrigin: process.env.STARTUPBOT_MOBILE_ORIGIN,
     accountOrigin: process.env.STARTUPBOT_PILOT_ACCOUNT_ORIGIN,

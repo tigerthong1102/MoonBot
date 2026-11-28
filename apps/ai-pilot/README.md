@@ -86,3 +86,7 @@ Với Worker pilot riêng, module `cloudflare-pilot-handoff.mjs` dùng lại cá
 3. Khi đúng máy xác nhận mở bản nháp, điện thoại báo đã nhận và giữ bản gốc. Đọc lại rồi bấm **Gửi** ở desktop để sử dụng quyền, công cụ và quy trình duyệt sẵn có. Mất mạng hoặc chưa có máy nhận thì vẫn dùng được chat văn bản. Hệ thống không xếp lịch tự chạy khi máy bật lại.
 
 Worker kiểm tra phiên email và chủ sở hữu installation. Mỗi ô soạn mở khóa nhận riêng. Nội dung đi qua broker dưới dạng bản mã AES-GCM, khóa được dẫn xuất bằng ECDH P-256 và giữ trong bộ nhớ desktop. Mã yêu cầu giữ nguyên khi thử lại. Biên nhận hết hạn sau một ngày; gói tin hết hạn không đọc được qua API và được dọn theo cron. Biên nhận xác nhận đã mở bản nháp; kết quả MISA/Excel do desktop trả về sau khi thực thi.
+
+### Chat đồng bộ theo tài khoản
+
+Bật `STARTUPBOT_MOBILE_ACCOUNT_CHAT=1` ở gateway để iPhone và máy tính đọc cùng hội thoại sau khi đăng nhập. Khi cửa sổ đang hiển thị, danh sách hội thoại và nội dung mới được cập nhật tự động. Yêu cầu cần ứng dụng trên máy tính hiện một thông báo trong hội thoại và có thể đọc lại khi máy lên mạng. Trong pilot Electron, đặt `STARTUPBOT_ACCOUNT_CHAT_ORIGIN` bằng origin HTTPS đã cấu hình trong `OMB_CONTROL_PLANE_URL` để mở chat tài khoản bằng phiên đăng nhập desktop hiện tại.

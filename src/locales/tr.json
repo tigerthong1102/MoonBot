@@ -6510,6 +6510,7 @@
   "mobileChat.managed_budget_exhausted": "Ortak yapay zekâ bütçesi sınırına ulaşıldı.",
   "mobileChat.managed_ai_paused": "Yapay zekâ duraklatıldı.",
   "mobileChat.signed_out": "Devam etmek için giriş yapın.",
+  "mobileChat.computerNeeded": "Bu iş için bilgisayar gerekiyor.",
   "mobileChat.desktop_required": "Bu işlem bağlı bir bilgisayar gerektirir. StartupBot’ta bilgisayar bağlama seçeneğini açın. Hiçbir işlem yapılmadı.",
   "mobileChat.thread_full": "Devam etmek için yeni bir sohbet başlatın.",
   "mobileChat.history_full": "Yer açmak için bir sohbeti silin.",

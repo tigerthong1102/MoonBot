@@ -39,7 +39,6 @@ afterEach(() => { vi.unstubAllGlobals(); history.replaceState(null, "", "/mobile
 
 it("can send from the same page after a provider denies its callback", async () => {
   const sends = await open("/mobile/callback?error=access_denied", false);
-  el("consent").checked = true;
   el("prompt").value = "hello";
   el("compose").dispatchEvent(new Event("submit", { cancelable:true }));
   await idle();
@@ -47,13 +46,12 @@ it("can send from the same page after a provider denies its callback", async () 
   expect(sends[0]).toMatchObject({ thread:expect.stringMatching(/^[a-f0-9-]{36}$/), provider:"managed" });
 });
 
-it("requires fresh consent when disconnecting personal credit before the first send", async () => {
+it("keeps the selected funding source when personal credit disconnects", async () => {
   await open("/mobile", true);
   el("provider").value = "openrouter";
-  el("consent").checked = true;
   el("disconnectProvider").click();
   await idle();
-  expect(el("provider").value).toBe("managed");
-  expect(el("consent").checked).toBe(false);
-  expect(el("billing").hidden).toBe(true);
+  expect(el("provider").value).toBe("openrouter");
+  expect(el("consent")).toBeNull();
+  expect(el("billing").hidden).toBe(false);
 });

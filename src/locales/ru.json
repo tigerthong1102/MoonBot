@@ -7827,6 +7827,7 @@
   "mobileChat.managed_budget_exhausted": "Общий бюджет ИИ исчерпан.",
   "mobileChat.managed_ai_paused": "Работа ИИ приостановлена.",
   "mobileChat.signed_out": "Войдите, чтобы продолжить.",
+  "mobileChat.computerNeeded": "Для этой задачи нужен компьютер.",
   "mobileChat.desktop_required": "Нужен подключённый компьютер. Откройте подключение компьютера в StartupBot. Никаких действий не выполнено.",
   "mobileChat.thread_full": "Чтобы продолжить, начните новый чат.",
   "mobileChat.history_full": "Удалите чат, чтобы освободить место.",

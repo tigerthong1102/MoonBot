@@ -118,6 +118,14 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
         return json(200, body.client === "companion" ? { desktopHandoff:settings.mobileDesktopHandoff === true } : { ok:true });
       }
       if (method === "POST" && path === "/mobile/login") {
+        if (body.client === "desktop-account" && settings.mobileAccountChat === true) {
+          const bearer = /^Bearer (\S{1,8192})$/.exec(req.headers.authorization ?? "")?.[1];
+          if (!bearer) throw new Fault(401, "signed_out");
+          const user = await accounts.me(bearer, { requireVerifiedEmail:true });
+          if (!body.email || user.email !== body.email || user.id !== body.account) throw new Fault(401, "signed_out");
+          sessions.issue(res, user.id, bearer);
+          return json(200, { ok:true });
+        }
         const { accountToken, user } = await accounts.verifyOTP(body.email, body.otp);
         if (body.client === "companion") {
           const token = sessions.issue(res, user.id, accountToken, true, settings.mobileDesktopHandoff && body.desktopDrafts === "allow");
@@ -180,7 +188,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       body = input;
       path = "/mobile/send";
     }
-    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, desktopHandoff:settings.mobileDesktopHandoff === true, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
+    const threadList = () => ({ account: owner, desktopHandoff:settings.mobileDesktopHandoff === true, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
+    if (method === "GET" && path === "/mobile/threads") return json(200, threadList());
     if (method !== "POST") throw new Fault(404, "not_found");
     if (body.account !== owner) throw new Fault(409, "account_changed");
     if (settings.mobileDesktopHandoff && path === "/mobile/desktop-status" && uuid.test(body.id))
@@ -201,6 +210,15 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     }
     const thread = body.thread;
     if (!uuid.test(thread)) throw new Fault(400, "invalid_thread");
+    if (path === "/mobile/sync") {
+      const data = threadList();
+      const page = history.all(owner, thread, Number.MAX_SAFE_INTEGER, "");
+      const revision = digest(JSON.stringify([data, page.map(turn => [turn.id, turn.state, turn.answer.length])]));
+      if (body.revision === revision) return json(200, { unchanged:true });
+      const turns = page.slice(0,12).reverse();
+      const next = page.length > 12 ? {created:turns[0].created,id:turns[0].id} : null;
+      return json(200, { ...data, revision, turns, next });
+    }
     if (path !== "/mobile/send" && !lookup.get(owner, thread)) throw new Fault(404, "not_found");
     if (path === "/mobile/history") {
       const before = body.before;
@@ -225,6 +243,35 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const config = catalog(settings.catalog);
     if (!["desktop","text"].includes(body.runtime ?? "text")) throw new Fault(409,"runtime_unavailable");
     if (needsDesktop(body.prompt, body.runtime)) {
+      if (settings.mobileAccountChat === true) {
+        if (config.disabledMobileSkills?.includes("desktop")) throw new Fault(409, "skill_paused");
+        const notice = mobileCatalog(body.language || preferredMobileLanguage(req.headers["accept-language"])).messages.computerNeeded;
+        const answer = ledger.tx(() => {
+          const saved = db.prepare("SELECT thread,prompt,answer,state FROM mobile_turns WHERE owner=? AND id=?").get(owner,body.id);
+          if (saved) {
+            if (saved.thread !== thread || saved.prompt !== body.prompt || saved.state !== "computer_needed") throw new Fault(409, "request_exists");
+            return saved.answer;
+          }
+          const now = Date.now();
+          if (!lookup.get(owner,thread)) {
+            if (lists.all(owner).length >= 50) throw new Fault(409,"history_full");
+            db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run(owner,thread,body.prompt.trim().slice(0,80),now);
+            if (body.provider === "openrouter") {
+              const key = personalAI.keyHash(session);
+              if (!key) throw new Fault(409,"provider_disconnected");
+              db.prepare("INSERT INTO mobile_byok_threads VALUES (?,?,?)").run(owner,thread,key);
+            }
+          }
+          if (db.prepare("SELECT count(*) n FROM mobile_turns WHERE owner=? AND thread=?").get(owner,thread).n >= 80) throw new Fault(409,"thread_full");
+          db.prepare("INSERT INTO mobile_turns(owner,thread,id,prompt,answer,state,created) VALUES (?,?,?,?,?,'computer_needed',?)").run(owner,thread,body.id,body.prompt,notice,now);
+          db.prepare("UPDATE mobile_threads SET updated=? WHERE owner=? AND id=?").run(now,owner,thread);
+          return notice;
+        });
+        native.changed(owner);
+        if (companion) return json(200, {ok:true,threadId:thread});
+        res.writeHead(200, {"content-type":"application/x-ndjson"});
+        return res.end(JSON.stringify({text:answer})+"\n"+JSON.stringify({state:"complete"})+"\n");
+      }
       if (!settings.mobileDesktopHandoff) throw new Fault(409, "desktop_required");
       if (config.disabledMobileSkills?.some(value => value === "desktop" || value === skill)) throw new Fault(409,"skill_paused");
       const input = { id:body.id, prompt:body.prompt };

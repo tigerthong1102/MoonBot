@@ -5,9 +5,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expect, it, vi } from "vitest";
-import { assertRestoreDatabasesIdle } from "./workspace-restore-holders.ts";
+import { assertRestoreDatabasesIdle, assertWindowsRestoreProbe } from "./workspace-restore-holders.ts";
 
 const procView = vi.hoisted(() => ({ mode: "normal", systemPython: true }));
+
+it("classifies a Windows probe refusal, timeout and failure without opening the restore gate", () => {
+  expect(() => assertWindowsRestoreProbe({ status: 0 })).not.toThrow();
+  expect(() => assertWindowsRestoreProbe({ status: 2 })).toThrow("Another process has a workspace SQLite file open");
+  expect(() => assertWindowsRestoreProbe({ status: null, error: Object.assign(new Error("private path"), { code: "ETIMEDOUT" }) }))
+    .toThrow("Cannot access SQLite files for the restore preflight (ETIMEDOUT)");
+  expect(() => assertWindowsRestoreProbe({ status: 1 })).toThrow("Cannot access SQLite files for the restore preflight (exit 1)");
+  expect(() => assertWindowsRestoreProbe({ status: 0, error: Object.assign(new Error("failure"), { code: "EIO" }) })).toThrow();
+});
 vi.mock("node:fs", async importOriginal => {
   const fs = await importOriginal<typeof import("node:fs")>();
   return {

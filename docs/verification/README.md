@@ -352,6 +352,8 @@ The [Gemini speech fixture](gemini-speech.md) checks write-only credentials,
 voice selection and WAV synthesis against an offline provider in an isolated
 server, with manual steps for real Google access and playback.
 
+The [Zalo browser comparison and SQLite endurance fixture](zalo-load.md) measures local processing time, duplicate handling, and restart recovery with synthetic messages.
+
 The [persistence responsiveness benchmark](persistence-performance.md) measures
 synthetic message/log bursts and history scans, with isolated chat, visibility
 and packaged-worker checks. It is not a production capacity qualification.

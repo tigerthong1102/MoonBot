@@ -2,7 +2,9 @@
 
 Đối chiếu file giao việc ngày 28/11/2026. Các mục dưới đây bám theo số trong bản gốc. [Báo cáo founder và liên kết PR](startupbot-mobile-standalone-final-report.md) · [Quyết định kiến trúc](../architecture/mobile-standalone-assessment.md)
 
-**Ưu tiên trải nghiệm trên điện thoại.** Bản pilot giữ ba điểm vào trên màn hình hiện có của mỗi nền tảng. Luồng độc lập mở giao diện chat dùng lại StartupBot Inbox ngay trong app. Đối chiếu sáu dòng tích hợp ở bốn file với hai bản phát hành native của MausBot, cùng kết quả Chromium/WebKit ở 320 và 390 px, được ghi trong [báo cáo founder](startupbot-mobile-standalone-final-report.md). Kiểm thử bàn phím hệ thống và trình đọc màn hình trên thiết bị vật lý vẫn còn mở.
+**Ưu tiên trải nghiệm trên điện thoại.** Bản pilot giữ ba điểm vào trên màn hình hiện có của mỗi nền tảng. Luồng độc lập dùng màn hình chat gốc SwiftUI và Compose sau khi xác minh email. Bản web dùng cùng gateway. [Báo cáo founder](startupbot-mobile-standalone-final-report.md)
+
+Kiểm thử bàn phím hệ thống và trình đọc màn hình trên thiết bị vật lý vẫn còn mở.
 
 ## 36 mục của nhiệm vụ
 

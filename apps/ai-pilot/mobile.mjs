@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
+import { revokeWalletSessions } from "./accounts.mjs";
 import { mobileOpenRouter } from "./mobile-openrouter.mjs";
 import { mobileTextSkills } from "./mobile-text-skills.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
@@ -77,18 +78,22 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       if (method === "POST" && ["/mobile/sessions", "/mobile/sessions/revoke", "/mobile/sessions/logout-all"].includes(path)) {
         if (body.account !== owner) throw new Fault(409, "account_changed");
         if (path === "/mobile/sessions") return json(200, { sessions: await accounts.listAccountSessions(session.token) });
-        if (path === "/mobile/sessions/revoke") {
-          if (typeof body.sessionId !== "string" || !body.sessionId || body.sessionId.length > 256)
-            throw new Fault(400, "invalid_session");
-          await accounts.revokeAccountSessions(session.token, body.sessionId);
-        } else {
-          await accounts.revokeAccountSessions(session.token);
-          ledger.tx(() => {
-            db.prepare(`INSERT INTO wallet_session_generations(owner,generation) SELECT id,1 FROM users WHERE id=?
-              ON CONFLICT(owner) DO UPDATE SET generation=generation+1`).run(owner);
-            db.prepare("DELETE FROM wallet_sessions WHERE owner=?").run(owner);
-            db.prepare("DELETE FROM mobile_sessions WHERE owner=?").run(owner);
+        const all = path === "/mobile/sessions/logout-all";
+        const target = all ? null : body.sessionId;
+        if (!all && (typeof target !== "string" || !target || target.length > 256)) throw new Fault(400, "invalid_session");
+        let dispatched = false;
+        const retire = () => revokeWalletSessions(ledger, owner, target);
+        try {
+          await accounts.revokeAccountSessions(session.token, target, () => {
+            retire();
+            dispatched = true;
           });
+        } finally {
+          // Also protect against wallet verification racing an issuer response, including a lost response.
+          if (dispatched) retire();
+        }
+        if (all) {
+          db.prepare("DELETE FROM mobile_sessions WHERE owner=?").run(owner);
           sessions.revoke(res, session.hash);
         }
         return json(200, { ok: true });

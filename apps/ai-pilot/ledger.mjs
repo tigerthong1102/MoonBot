@@ -57,6 +57,8 @@ export class Ledger {
       CREATE TABLE IF NOT EXISTS invites(owner TEXT PRIMARY KEY REFERENCES users(id),email TEXT NOT NULL UNIQUE);
       CREATE TABLE IF NOT EXISTS wallet_session_generations(owner TEXT PRIMARY KEY REFERENCES users(id),generation INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS wallet_sessions(token TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS wallet_issuer_sessions(wallet TEXT PRIMARY KEY REFERENCES wallet_sessions(token) ON DELETE CASCADE,
+        issuerSession TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS orders(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(id), sku TEXT NOT NULL,
         version TEXT NOT NULL, amount INTEGER NOT NULL, currency TEXT NOT NULL, credits INTEGER NOT NULL, session TEXT UNIQUE,
         created INTEGER NOT NULL, url TEXT, state TEXT NOT NULL DEFAULT 'pending');

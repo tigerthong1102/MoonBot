@@ -269,8 +269,8 @@ it("does not issue a wallet session from a verification that overlapped logout e
   invite(f.ledger, "alice", email);
   await f.call("/code", null, { email });
   const started = Promise.withResolvers(), release = Promise.withResolvers();
-  f.behavior.beforeMe = async () => {
-    f.behavior.beforeMe = undefined;
+  f.behavior.beforeCurrent = async () => {
+    f.behavior.beforeCurrent = undefined;
     started.resolve();
     await release.promise;
   };
@@ -282,4 +282,27 @@ it("does not issue a wallet session from a verification that overlapped logout e
   } finally { release.resolve(); }
   expect((await verifying).status).toBe(401);
   expect(f.ledger.db.prepare("SELECT count(*) AS n FROM wallet_sessions WHERE owner='alice'").get().n).toBe(0);
+});
+
+it("revokes the selected wallet and retires local access even when the issuer response is lost", async () => {
+  async function wallet(account) {
+    const email = account + "@example.test";
+    invite(f.ledger, account, email);
+    await f.call("/code", null, { email });
+    const result = await fetch(f.url + "/wallet/verify-code", { method:"POST",
+      headers:{ "content-type":"application/json" }, body:JSON.stringify({ email, otp:"12345678" }) });
+    expect(result.status).toBe(200);
+    const { token } = await result.json();
+    const { issuerSession } = f.ledger.db.prepare("SELECT issuerSession FROM wallet_issuer_sessions WHERE wallet=?").get(digest(token));
+    return { token, issuerSession };
+  }
+  const first = await wallet("alice"), second = await wallet("alice"), other = await wallet("bob");
+  expect((await f.call("/sessions/revoke", cookie, { account:"alice", sessionId:first.issuerSession })).status).toBe(200);
+  expect(() => f.ledger.authenticate(first.token, true)).toThrow();
+  expect(f.ledger.authenticate(second.token, true)).toBe("alice");
+  f.behavior.loseRevocationResponse = true;
+  expect((await f.call("/sessions/logout-all", cookie, { account:"alice" })).status).toBe(503);
+  expect(() => f.ledger.authenticate(second.token, true)).toThrow();
+  expect(f.ledger.authenticate(other.token, true)).toBe("bob");
+  expect((await f.call("/threads", cookie)).status).toBe(401);
 });

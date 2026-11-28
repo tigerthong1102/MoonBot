@@ -38,7 +38,7 @@ Base là `3d35516862f78414208146c1fd3f766af0e845e2`. Các mô-đun chính là `a
 
 | Loại bằng chứng | Kết quả và môi trường |
 |---|---|
-| Unit/integration có đếm | **2.486 PASS, 0 FAIL, 13 SKIP** trên macOS arm64, Node 26.4.0. Bảy suite gateway/ví/PKCE/quota/client/i18n/Desktop gồm **69 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
+| Unit/integration có đếm | **2.487 PASS, 0 FAIL, 13 SKIP** trên macOS arm64, Node 26.4.0. Bảy suite gateway/ví/PKCE/quota/client/i18n/Desktop gồm **70 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
 | Browser HTTPS end-to-end | Chrome thật, viewport mobile, issuer chạy local với 18 D1 migrations, OTP từ email sink. Đăng ký mới → suất trial → xác nhận registry trống → nhận stream → reload history → logout; issuer trả 200, dùng lại chính bearer cũ trả 401. Một lượt khác kiểm tra desktop-required. Ở chiều rộng 320 px, dark mode và font 125%, trang không tràn ngang. Provider inference là fixture. |
 | Browser BYOK | Chrome + issuer local; mô phỏng trang authorize và exchange của OpenRouter. Callback S256, gửi bằng personal key; sau disconnect, gửi lại bị từ chối. Từ chối cấp quyền ở provider rồi mở chat mới vẫn gửi được. Tests kiểm tra khác phiên, state một lần, race, key hash và giới hạn chi phí. |
 | Desktop | Harness cô lập, doctor không có problem. Tạo bot, gửi, chờ và đọc lại câu trả lời fake engine. Đây là luồng server trên macOS. Chưa kiểm thử phiên bản đóng gói mới trên macOS, Windows hoặc Linux bằng máy người dùng thật. |
@@ -111,9 +111,9 @@ Local AI là một runtime khác, cần kiểm tra khả năng thiết bị, RAM
 
 ## Kết quả sau khi đọc lại đặc tả
 
-- Mục 7.2 đã có danh sách phiên rút gọn, dấu phiên hiện tại, thu hồi riêng và đăng xuất mọi thiết bị. Worker/D1 thật chạy local đã xác minh thu hồi bearer A và B độc lập. Mobile và ví email cùng ledger thu hồi phiên theo owner. Credential máy và khóa API được cấp độc lập có quy trình thu hồi riêng.
+- Mục 7.2 đã có danh sách phiên rút gọn, dấu phiên hiện tại, thu hồi riêng và đăng xuất mọi thiết bị. Worker/D1 thật chạy local đã xác minh thu hồi bearer A và B độc lập. Mobile và ví email cùng ledger hỗ trợ thu hồi từng phiên đã liên kết và thu hồi toàn owner. Ví cũ thiếu liên kết được thu hồi bảo thủ theo owner. Mất phản hồi từ issuer không duy trì quyền chi từ các phiên ví tương ứng. Credential máy và khóa API được cấp độc lập có quy trình thu hồi riêng.
 - Mục 11, 16 và 23 bổ sung từ chối runtime chưa được hỗ trợ, tạm ngưng một skill và dừng chi trial đã cấp. Người dùng có thể xem số dư theo chính sách và khoản BYOK đã tính/tạm giữ trong ngày UTC. Tín hiệu registry chưa chứng minh máy đang online.
 - Mục 21 và 27 có lượt đo bổ sung 128/128 stream qua HTTP/SQLite fixture, 32 account. Tới delta đầu P50/P95/P99 là 70/88/88 ms; hoàn tất 70/88/91 ms. Thời lượng cả lượt 403 ms. Chưa có inference trả phí hay WAN trong số liệu này.
 - Mục 26 được kiểm riêng theo từng ca, gồm cả ca chưa chạy và tính năng hoãn. Ma trận bổ sung ở đầu báo cáo thay cho cách chỉ đếm nhóm. Cổng store bổ sung có báo cáo nội dung ngay trong app ở Play, review native utility, IAP/restore theo thị trường và xóa account. Xem ADR để đối chiếu chính sách chính thức.
 
-**Số ca theo nguyên văn mục 26.** Trong 128 ca, 56 đạt ở phạm vi ghi rõ, 40 đạt một phần, 23 chưa chạy, 5 có blocker và 4 thuộc tính năng hoãn. Một ca có thể cần nhiều test tự động; 2.486 là số test đạt của các lệnh đã chạy. Năm blocker theo ca là tạo tài khoản trên iPhone vật lý, chuyển mạng thật, screen reader, store restore và xóa account xuyên hệ sinh thái.
+**Số ca theo nguyên văn mục 26.** Trong 128 ca, 56 đạt ở phạm vi ghi rõ, 40 đạt một phần, 23 chưa chạy, 5 có blocker và 4 thuộc tính năng hoãn. Một ca có thể cần nhiều test tự động; 2.487 là số test đạt của các lệnh đã chạy. Năm blocker theo ca là tạo tài khoản trên iPhone vật lý, chuyển mạng thật, screen reader, store restore và xóa account xuyên hệ sinh thái.

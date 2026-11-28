@@ -335,6 +335,7 @@ it("binds email sign-in to the invited StartupBot ID and reuses its wallet acros
         { user: who, token: "never-use-raw-token" },
         { headers: { "set-auth-token": "signed-fixture-bearer-only-for-test" } },
       );
+    if (path === "/api/auth/get-session") return Response.json({ session:{ id:"fixture-wallet-id" } });
     if (path === "/v1/me") {
       expect(new Headers(init.headers).get("authorization")).toBe("Bearer signed-fixture-bearer-only-for-test");
       return Response.json({ user: who });

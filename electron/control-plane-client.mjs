@@ -284,6 +284,14 @@ export function createControlPlaneClient({
     return payload;
   }
 
+  async function currentAccountSessionId(token) {
+    if (!boundedSecret(token)) throw new ControlPlaneError("signed_out", 401);
+    const { payload } = await request("/api/auth/get-session", { token });
+    const id = payload.session?.id;
+    if (typeof id !== "string" || !id || id.length > 256) throw new ControlPlaneError("invalid_response");
+    return id;
+  }
+
   const accountInstallations = async (accountToken) => {
     if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
     const { payload } = await request("/v1/installations", { token: accountToken });
@@ -506,15 +514,16 @@ export function createControlPlaneClient({
       });
     },
 
+    currentAccountSessionId,
+
     async listAccountSessions(accountToken) {
       const [sessions, current] = await Promise.all([
-        activeAccountSessions(accountToken), request("/api/auth/get-session", { token: accountToken }),
+        activeAccountSessions(accountToken), currentAccountSessionId(accountToken),
       ]);
-      if (typeof current.payload.session?.id !== "string") throw new ControlPlaneError("invalid_response");
-      return sessions.map(({ id, createdAt, expiresAt }) => ({ id, createdAt, expiresAt, current: id === current.payload.session.id }));
+      return sessions.map(({ id, createdAt, expiresAt }) => ({ id, createdAt, expiresAt, current: id === current }));
     },
 
-    async revokeAccountSessions(accountToken, sessionId = null) {
+    async revokeAccountSessions(accountToken, sessionId = null, beforeRevoke = () => {}) {
       if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
       let path = "/api/auth/revoke-sessions", body = {};
       if (sessionId !== null) {
@@ -523,6 +532,7 @@ export function createControlPlaneClient({
         path = "/api/auth/revoke-session";
         body = { token: target.token };
       }
+      beforeRevoke();
       const { payload } = await request(path, { method: "POST", token: accountToken, body });
       if (payload.status !== true) throw new ControlPlaneError("invalid_response");
     },

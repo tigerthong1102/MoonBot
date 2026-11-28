@@ -7,6 +7,7 @@ import { mobileTextSkills } from "./mobile-text-skills.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
 import { catalog, Fault } from "./ledger.mjs";
 
+
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
 const assets = new Map([["/mobile", ["./mobile.html", "text/html"]], ["/mobile/callback", ["./mobile.html", "text/html"]], ["/mobile/inbox.css", ["../../cloudflare/control-plane/inbox/public/inbox.css", "text/css"]], ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]]]);
 const instructions = "You are StartupBot on a phone. Answer in the user's language. You can write, translate and explain text. You have no access to a computer, local files, apps, cloud agent or tools. If a request needs them, explain that it needs a connected computer. Never state that an external action was performed.";
@@ -196,7 +197,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
         throw new Fault(409, "turn_in_progress");
       const count = db.prepare("SELECT count(*) n FROM mobile_turns WHERE owner=? AND thread=?").get(owner, thread).n;
       if (count >= 80) throw new Fault(409, "thread_full");
-      const previous = db.prepare("SELECT prompt,answer FROM mobile_turns WHERE owner=? AND thread=? AND state='complete' ORDER BY created DESC,rowid DESC LIMIT 8").all(owner, thread);
+      const previous = db.prepare("SELECT prompt,answer FROM mobile_turns WHERE owner=? AND thread=? AND state IN ('complete','limited') ORDER BY created DESC,rowid DESC LIMIT 8").all(owner, thread);
       const context = [];
       let size = Buffer.byteLength(body.prompt);
       for (const turn of previous) {

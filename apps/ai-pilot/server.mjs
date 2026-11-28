@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { accountSignIn, invite } from "./accounts.mjs";
 import { Ledger, Fault, catalog, digest } from "./ledger.mjs";
+import { budgetExposure } from "./managed-budget.mjs";
 import { mobileService } from "./mobile.mjs";
 import { payments } from "./payments.mjs";
 import { asEventStream, router } from "./router.mjs";
@@ -178,7 +179,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     masterKey: process.env.STARTUPBOT_PILOT_ENCRYPTION_KEY,
   };
   const [command, owner, id, generation] = process.argv.slice(2);
-  if (command === "issue-token") console.log(ledger.issue(owner ?? ""));
+  if (command === "budget-status") {
+    const limits = catalog(settings.catalog).managedLimits ?? null;
+    const exposure = budgetExposure(ledger.db);
+    const unresolved = ledger.db.prepare("SELECT count(*) requests,min(created) oldest FROM requests WHERE state='held'").get();
+    const fraction = limits ? Math.max(exposure.day / limits.dailyMicros, exposure.month / limits.monthlyMicros) : null;
+    console.log(JSON.stringify({ limits, exposure, unresolved, level:fraction === null ? "unconfigured" :
+      fraction >= 0.95 ? "critical" : fraction >= 0.8 ? "warning" : "normal" }));
+  } else if (command === "issue-token") console.log(ledger.issue(owner ?? ""));
   else if (command === "invite") invite(ledger, owner, id);
   else if (command === "revoke-token")
     ledger.tx(() => {

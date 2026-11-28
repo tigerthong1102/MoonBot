@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
 import { mobileOpenRouter } from "./mobile-openrouter.mjs";
+import { mobileTextSkills } from "./mobile-text-skills.mjs";
 import { mobileCatalog, preferredMobileLanguage, renderMobilePage } from "./mobile-catalog.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
 import { catalog, Fault } from "./ledger.mjs";
@@ -20,12 +21,6 @@ const assets = new Map([
 ]);
 const instructions = "You are StartupBot on a phone. Answer in the user's language. You can write, translate and explain text. You have no access to a computer, local files, apps, cloud agent or tools. If a request needs them, explain that it needs a connected computer. Never state that an external action was performed.";
 
-const textSkills = new Map([
-  ["chat", ""], ["write", "Help draft the requested text."],
-  ["translate", "Translate only the supplied text into the language requested. Ask for the target language when missing."],
-  ["summarize", "Summarize only the text supplied by the user. Ask for the text when missing."]
-]);
-
 export function mobileService(ledger, settings, gateway, http, readObject) {
   if (!settings.mobileOrigin) return null;
   const origin = new URL(settings.mobileOrigin);
@@ -35,6 +30,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
   const clipboard = stripTypeScriptTypes(readFileSync(new URL("../../src/lib/clipboard-write.ts", import.meta.url), "utf8"));
   const skin = inboxSkinCSS(readFileSync(new URL("../../src/styles.css", import.meta.url), "utf8"));
   const sessions = mobileSessions(db);
+  const textSkills = mobileTextSkills();
   db.exec(`
     CREATE TABLE IF NOT EXISTS mobile_threads(owner TEXT NOT NULL,id TEXT NOT NULL,title TEXT NOT NULL,updated INTEGER NOT NULL,
       PRIMARY KEY(owner,id));
@@ -52,7 +48,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
   const lists = db.prepare(`SELECT t.id,t.title,t.updated,CASE WHEN b.thread IS NULL THEN 'managed' ELSE 'openrouter' END AS provider
     FROM mobile_threads t LEFT JOIN mobile_byok_threads b ON b.owner=t.owner AND b.thread=t.id
     WHERE t.owner=? ORDER BY t.updated DESC,t.id LIMIT 50`);
-  const history = db.prepare("SELECT id,prompt,answer,state,created FROM mobile_turns WHERE owner=? AND thread=? ORDER BY created,rowid LIMIT 80");
+  const history = db.prepare(`SELECT id,prompt,answer,state,created FROM mobile_turns WHERE owner=? AND thread=?
+    AND (created,id)<(?,?) ORDER BY created DESC,id DESC LIMIT 13`);
   const lookup = db.prepare("SELECT id FROM mobile_threads WHERE owner=? AND id=?");
   const finish = db.prepare("UPDATE mobile_turns SET state=?,answer=? WHERE owner=? AND id=? AND state='running'");
   function recover(owner) {
@@ -109,6 +106,11 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       const user = await accounts.me(session.token, { requireVerifiedEmail: true });
       if (user.id !== session.owner) throw new Fault(401, "signed_out");
       owner = user.id;
+      if (method === "POST" && path === "/mobile/devices") {
+        if (body.account !== owner) throw new Fault(409, "account_changed");
+        const installations = await accounts.listInstallations(session.token);
+        return json(200, { devices:installations.map(({ name, platform, appVersion }) => ({ name, platform, appVersion })) });
+      }
     } catch (error) {
       if (!(error instanceof ControlPlaneError)) throw error;
       if (error.status === 429) throw new Fault(429, "account_rate_limit");
@@ -125,7 +127,14 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const thread = body.thread;
     if (!uuid.test(thread)) throw new Fault(400, "invalid_thread");
     if (path !== "/mobile/send" && !lookup.get(owner, thread)) throw new Fault(404, "not_found");
-    if (path === "/mobile/history") return json(200, { turns: history.all(owner, thread) });
+    if (path === "/mobile/history") {
+      const before = body.before;
+      if (before != null && (!Number.isSafeInteger(before.created) || !uuid.test(before.id))) throw new Fault(400, "invalid_cursor");
+      const page = history.all(owner, thread, before?.created ?? Number.MAX_SAFE_INTEGER, before?.id ?? "");
+      const turns = page.slice(0, 12).reverse();
+      const next = page.length > 12 ? { id:turns[0].id, created:turns[0].created } : null;
+      return json(200, { turns, next });
+    }
     if (path === "/mobile/delete" || path === "/mobile/rename") {
       if (path.endsWith("delete")) db.prepare("DELETE FROM mobile_threads WHERE owner=? AND id=?").run(owner, thread);
       else {

@@ -19,7 +19,7 @@ if (catalog) {
   for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
 }
 let account, thread, busy = false, active, pending, connection;
-let conversations = [];
+let conversations = [], before;
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("startupbot-account") : null;
 channel?.addEventListener("message", () => location.reload());
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
@@ -44,6 +44,8 @@ function signedOut() {
   el("email").readOnly = false;
   el("loginButton").textContent = t("code");
   el("transcript").replaceChildren();
+  el("devices").open = false;
+  el("deviceList").replaceChildren();
   el("threads").replaceChildren();
   el("login").reset();
   el("compose").reset();
@@ -89,13 +91,13 @@ function payer() {
   }
   el("provider").options[1].disabled = !connection?.connected;
 }
-function bubble(speaker, text) {
+function bubble(speaker, text, container = el("transcript")) {
   const block = document.createElement("article"), label = document.createElement("strong"), paragraph = document.createElement("p");
   label.textContent = speaker;
   paragraph.dir = "auto";
   paragraph.textContent = text;
   block.append(label, paragraph);
-  el("transcript").append(block);
+  container.append(block);
   return paragraph;
 }
 function formatAnswer(element, text) {
@@ -136,21 +138,27 @@ async function show(id) {
   el("compose").reset();
   el("threads").value = id || "";
   payer();
-  if (id) await refreshTranscript();
+  before = null;
+  el("older").hidden = true;
+  if (id) await loadHistory();
 }
-async function refreshTranscript() {
-  const { turns } = await (await api("history", { thread })).json();
-  el("transcript").replaceChildren();
+async function loadHistory(replace = false) {
+  const { turns, next } = await (await api("history", { thread, before:replace ? null : before })).json();
+  const fragment = document.createDocumentFragment();
   for (const turn of turns) {
-    bubble(t("you"), turn.prompt);
-    const answer = bubble(t("bot"), "");
+    bubble(t("you"), turn.prompt, fragment);
+    const answer = bubble(t("bot"), "", fragment);
     if (turn.answer) formatAnswer(answer, turn.answer);
     if (t(turn.state)) answer.append(document.createTextNode(t(turn.state)));
   }
+  if (replace) el("transcript").replaceChildren(fragment);
+  else el("transcript").prepend(fragment);
+  before = next;
+  el("older").hidden = !before;
 }
 function lock(value) {
   busy = value;
-  for (const id of ["threads","new","rename","remove","send","logout","loginButton","changeEmail","connectProvider","disconnectProvider"]) el(id).disabled = value;
+  for (const id of ["threads","new","older","rename","remove","send","logout","loginButton","changeEmail","connectProvider","disconnectProvider"]) el(id).disabled = value;
 }
 async function action(work) {
   if (busy) return;
@@ -173,7 +181,9 @@ async function openChat() {
     await list();
     el("providers").open = true;
   }
-  if (threads[0]) await show(threads[0].id);
+  if (threads[0]) {
+    try { await show(threads[0].id); } catch (error) { el("retry").hidden = false; throw error; }
+  }
 }
 el("login").onsubmit = event => {
   event.preventDefault();
@@ -200,12 +210,22 @@ el("retry").onclick = () => action(async () => {
   el("retry").hidden = true;
   try {
     const saved = await list();
-    if (saved?.some(item => item.id === thread)) await refreshTranscript();
+    if (saved?.some(item => item.id === thread)) await loadHistory(true);
   } catch (error) {
     el("retry").hidden = !account;
     throw error;
   }
 });
+el("devices").ontoggle = async () => {
+  if (!el("devices").open) return;
+  const viewer = account;
+  try {
+    const { devices } = await (await api("devices", {})).json();
+    if (!account || viewer !== account) return;
+    el("deviceList").replaceChildren(...(devices.length ? devices.map(d => [d.name, d.platform, d.appVersion].filter(Boolean).join(" · ")) : [t("noDevices")])
+      .map(text => { const item = document.createElement("li"); item.textContent = text; return item; }));
+  } catch (error) { status(error.message); }
+};
 el("connectProvider").onclick = () => action(async () => {
   const { url } = await (await api("provider/start", {})).json();
   location.assign(url);
@@ -214,6 +234,7 @@ el("disconnectProvider").onclick = () => action(async () => { await api("provide
 el("changeEmail").onclick = signedOut;
 el("logout").onclick = () => action(async () => { await api("logout", {}); signedOut(); channel?.postMessage("changed"); });
 el("threads").onchange = () => action(() => show(el("threads").value));
+el("older").onclick = () => action(loadHistory);
 el("new").onclick = () => action(() => show(""));
 el("rename").onclick = () => action(async () => {
   if (!el("threads").value) return;
@@ -266,7 +287,7 @@ el("compose").onsubmit = event => {
       status(notice, [reply, notice].filter(Boolean).join("\n"));
     } catch (error) {
       if (error.code !== "request_exists") throw error;
-      await refreshTranscript();
+      await loadHistory(true);
       if (el("prompt").value === submitted) el("prompt").value = "";
       pending = undefined;
       status(t("interrupted"));

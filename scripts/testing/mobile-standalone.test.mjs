@@ -192,6 +192,36 @@ it("admits a verified new account once within an explicitly funded trial cohort"
   expect(f.ledger.db.prepare("SELECT count(*) n FROM orders WHERE sku='mobile_trial'").get().n).toBe(1);
 });
 
+it("uses only reviewed text instructions from the bundled campaign and outreach skills", async () => {
+  for (const [skill, expected] of [["campaign-plan","Campaign Brief Structure"],["draft-outreach","Relevance line"]]) {
+    const response = await f.call("/send", cookie, message({ skill }));
+    expect(await response.text()).toContain("complete");
+    const request = f.generations.at(-1);
+    expect(request.messages[0].content).toContain(expected);
+    expect(request.messages[0].content).not.toContain("Step 4 - Create the draft");
+    expect(request.tools).toBeUndefined();
+  }
+});
+
+it("lists the signed-in owner's registered computer labels without granting computer access", async () => {
+  expect((await (await f.call("/devices",cookie,{account:"alice"})).json()).devices)
+    .toEqual([{ name:"alice laptop", platform:"darwin", appVersion:"1.0.0" }]);
+  expect((await f.call("/devices", cookie, {account:"bob"})).status).toBe(409);
+  expect((await f.call("/devices", null, {account:"alice"})).status).toBe(401);
+});
+
+it("pages older turns once with deterministic ordering for identical timestamps", async () => {
+  const db = f.ledger.db, stamp = Date.now(), ids = Array.from({length:15}, () => randomUUID()).sort();
+  db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run("alice",thread,"History",stamp);
+  for (const id of ids) db.prepare("INSERT INTO mobile_turns VALUES (?,?,?,?,?,?,?)").run("alice",thread,id,"q","a","complete",stamp);
+  const scope = {account:"alice",thread};
+  const first = await (await f.call("/history",cookie,scope)).json();
+  const older = await (await f.call("/history",cookie,{...scope,before:first.next})).json();
+  expect(first.turns).toHaveLength(12);
+  expect(older.next).toBe(null);
+  expect([...older.turns,...first.turns].map(r => r.id)).toEqual(ids);
+});
+
 it("serves a browser-ready shared clipboard module and uses neutral reference-skin primary colors", async () => {
   const page = await (await fetch(f.url + "/mobile")).text();
   expect(page).toMatch(/\.ui-button-primary\{[^}]*background:var\(--color-ink\);color:var\(--color-app\)/);

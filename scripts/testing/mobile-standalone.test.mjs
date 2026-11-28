@@ -22,6 +22,7 @@ it("enters chat with an email code, requires a verified account and invalidates 
   expect((await f.call("/threads", cookie)).status).toBe(401);
   member.emailVerified = true;
   expect((await f.call("/logout", cookie, {})).status).toBe(200);
+  expect(f.tokens.size).toBe(0);
   expect((await f.call("/threads", cookie)).status).toBe(401);
 });
 

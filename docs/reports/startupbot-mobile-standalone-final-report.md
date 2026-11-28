@@ -16,6 +16,14 @@ Người dùng vẫn thấy màn hình chào, ghép đôi và chat native quen t
 
 Sáu dòng gọi nút là toàn bộ phần chênh ở bốn file màn hình native so với trước nhiệm vụ. Đối chiếu với hai nhánh phát hành công khai ngày 28/11, cả bốn file nhận được sáu dòng qua thử ghép ba chiều. Mô phỏng ghép cả monorepo với upstream/main cho cùng 474 đường dẫn xung đột trước và sau thay đổi, không phát sinh đường dẫn mới tại lần đo này. Các đợt cập nhật tương lai vẫn cần chạy lại phép thử. [Nguồn và cách kiểm tra](../architecture/mobile-standalone-assessment.md#cập-nhật-từ-mausbot)
 
+### Audit trước khi merge
+
+Ở bản tích hợp `0eaab3742`, 58 test gateway, ví, OpenRouter, locale và tương tác giao diện đạt, cùng với lint và typecheck. Các ca ở vòng này có giao với số 2.489 ở vòng trước. Hai trình duyệt đều giữ được nội dung gõ khi đang chờ trả lời, lưu nháp khi mất mạng và theo được tin trả lời cho một câu hỏi nhiều dòng. Các test bổ sung kiểm tra gửi lại sau khi đã ghi nhận cùng yêu cầu, từ chối kết nối OpenRouter, đổi bên chi trả và nối tiếp câu trả lời bị giới hạn đầu ra.
+
+Với Better Auth và D1 chạy trong workerd, hai mã OTP qua hộp thư cục bộ đã tạo hai phiên độc lập. Sau khi đăng xuất phiên ví trực tiếp ở issuer, cùng bearer từ HTTP 200 chuyển sang 401 ở gateway. Phiên chat ở điện thoại vẫn nhận 200, sau đó trả 401 khi người dùng đăng xuất riêng phiên đó. Provider AI vẫn là fixture. Phiên ví email thiếu thông tin xác minh từ issuer cần đăng nhập lại một lần.
+
+80 nhãn standalone đi qua catalog hiện có của 16 ngôn ngữ. Chromium đã hiển thị đúng nhãn đăng nhập và nhãn trợ năng cho tiếng Pháp Canada, Nhật, Hoa phồn thể Hong Kong, Bồ Đào Nha Brazil và Việt. Bản dịch mới chưa được biên tập viên bản ngữ nghiệm thu. Kiểm tra ghép với main của fork tại `46d3ed2a6` không có xung đột. Kiểm tra monorepo MausBot vẫn cho cùng 474 đường dẫn như trước nhiệm vụ. Kết quả Codex review và CI trên từng commit được cập nhật trong các PR bên dưới.
+
 ## B. Thay đổi so với main
 
 | Phần | Trước | Bản thử nghiệm |
@@ -45,7 +53,7 @@ Base là `3d35516862f78414208146c1fd3f766af0e845e2`. Các mô-đun chính là `a
 
 | Loại bằng chứng | Kết quả và môi trường |
 |---|---|
-| Unit/integration có đếm | **2.489 PASS, 0 FAIL, 13 SKIP** trên macOS arm64, Node 26.4.0. Tám suite gateway/ví/PKCE/quota/client/i18n/Desktop gồm **72 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
+| Unit/integration có đếm | **2.489 PASS, 0 FAIL, 13 SKIP** ở vòng kiểm thử trước audit trên macOS arm64, Node 26.4.0. Tám suite gateway/ví/PKCE/quota/client/i18n/Desktop gồm **72 PASS**. Toàn bộ Worker workerd/D1 có **230 PASS** trên 11 suite. Electron có **2.187 PASS, 13 SKIP** trên 2.200 case. Baseline 17/17 là lượt riêng. |
 | Browser HTTPS end-to-end | Chrome thật, viewport mobile, issuer chạy local với 18 D1 migrations, OTP từ email sink. Đăng ký mới → suất trial → xác nhận registry trống → nhận stream → reload history → logout; issuer trả 200, dùng lại chính bearer cũ trả 401. Một lượt khác kiểm tra desktop-required. Ở chiều rộng 320 px, dark mode và font 125%, trang không tràn ngang. Provider inference là fixture. |
 | Browser BYOK | Chrome + issuer local; mô phỏng trang authorize và exchange của OpenRouter. Callback S256, gửi bằng personal key; sau disconnect, gửi lại bị từ chối. Từ chối cấp quyền ở provider rồi mở chat mới vẫn gửi được. Tests kiểm tra khác phiên, state một lần, race, key hash và giới hạn chi phí. |
 | Desktop | Harness cô lập, doctor không có problem. Tạo bot, gửi, chờ và đọc lại câu trả lời fake engine. Đây là luồng server trên macOS. Chưa kiểm thử phiên bản đóng gói mới trên macOS, Windows hoặc Linux bằng máy người dùng thật. |

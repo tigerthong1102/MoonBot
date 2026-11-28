@@ -2,6 +2,13 @@ import { expect, it } from "vitest";
 import { needsDesktop } from "../../apps/ai-pilot/mobile-desktop-task.mjs";
 it.each([
   "Mở Excel",
+  "Nhờ mở Excel",
+  "Mở ứng dụng quản lý kho",
+  "Please launch the app Acme Books",
+  "Mở Microsoft Word",
+  "Open /Users/me/Documents/report.pdf",
+  "Mở tệp doanh-thu.xlsx",
+  "Nhờ bạn mở MISA",
   "Hãy đối chiếu sổ sách trong MISA",
   "Nhập hóa đơn vào MISA",
   "Please open the file on my computer",
@@ -11,7 +18,10 @@ it.each([
 );
 it.each([
   "Hướng dẫn tôi mở MISA",
+  "Nhờ bạn hướng dẫn tôi mở Excel",
   "Viết công thức Excel tính thuế",
+  "Mở rộng bài viết về ứng dụng quản lý kho",
+  "Explain how to open Microsoft Word",
   "Explain how QuickBooks works",
   "Dịch tài liệu này sang tiếng Anh",
   "Lập kế hoạch chiến dịch",

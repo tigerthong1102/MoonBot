@@ -40,6 +40,25 @@ it("keeps the excerpt local, preserves source lines and clears the review on clo
       expect(panel.querySelector(selector)).toBeNull();
     }
     expect(api).not.toHaveBeenCalled();
+    const preview = panel.querySelector<HTMLButtonElement>("li button[aria-expanded]")!;
+    const target = panel.querySelector<HTMLElement>(`[id="${preview.getAttribute("aria-controls")}"]`)!;
+    expect(preview.getAttribute("aria-expanded")).toBe("false");
+    expect(target.hidden).toBe(true);
+    expect(target.childNodes).toHaveLength(0);
+    vi.mocked(api).mockImplementationOnce(() => new Promise(() => {}));
+    await act(async () => preview.click());
+    expect(preview.getAttribute("aria-expanded")).toBe("true");
+    expect(target.hidden).toBe(false);
+    expect(target.querySelector('[role="status"]')).not.toBeNull();
+    expect(api).toHaveBeenCalledTimes(1);
+    const [, request] = vi.mocked(api).mock.calls[0]!;
+    expect(request?.body).toBeUndefined();
+    await act(async () => preview.click());
+    expect(preview.getAttribute("aria-expanded")).toBe("false");
+    expect(target.hidden).toBe(true);
+    expect(target.childNodes).toHaveLength(0);
+    expect(request?.signal?.aborted).toBe(true);
+    expect(api).toHaveBeenCalledTimes(1);
     await act(async () => button("Review a Zalo excerpt").click());
     await act(async () => button("Review a Zalo excerpt").click());
     expect(panel.querySelector("textarea")?.value).toBe("");

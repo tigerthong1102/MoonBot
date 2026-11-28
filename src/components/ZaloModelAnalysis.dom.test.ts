@@ -18,7 +18,14 @@ it("separates a text-free provider preview from explicit submission of a chosen 
       rows: [{ line: 2, text: "private unrelated line" }, { line: 5, text: "Nhờ xuất hóa đơn" }],
     })));
     expect(api).not.toHaveBeenCalled();
-    await act(async () => button("Analyze selected lines").click());
+    const disclosure = button("Analyze selected lines");
+    const target = panel.querySelector<HTMLElement>(`[id="${disclosure.getAttribute("aria-controls")}"]`)!;
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    expect(target.hidden).toBe(true);
+    expect(target.childNodes).toHaveLength(0);
+    await act(async () => disclosure.click());
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    expect(target.hidden).toBe(false);
     expect(vi.mocked(api).mock.calls[0]?.[1]?.body).toBeUndefined();
     expect(button("Send selected lines").disabled).toBe(true);
     expect(panel.textContent).toContain("Loopback");
@@ -31,5 +38,11 @@ it("separates a text-free provider preview from explicit submission of a chosen 
     await act(async () => (panel.querySelectorAll('input[type=checkbox]')[0] as HTMLInputElement).click());
     expect(panel.querySelector("q")).toBeNull();
     expect(button("Review the model again")).toBeTruthy();
+    await act(async () => disclosure.click());
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    expect(target.hidden).toBe(true);
+    expect(target.childNodes).toHaveLength(0);
+    expect(panel.textContent).not.toContain("private unrelated line");
+    expect(api).toHaveBeenCalledTimes(2);
   } finally { await act(async () => root.unmount()); }
 });

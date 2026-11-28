@@ -10,7 +10,7 @@ vi.mock("./PhonesList", () => ({ PhonesList: () => null }));
 vi.mock("./PhoneSetupFlow", () => ({
   companionBridge: () => f.bridge,
   companionAccountBridge: () => null,
-  usePhoneSetupController: () => ({ state: f.state, busy: false, accountBusy: false, account: f.account, accountAct: () => undefined, act: vi.fn(), accountError: null, error: null, useLocal: vi.fn(), start: vi.fn(), cancel: vi.fn(), refreshTailscale: vi.fn() }),
+  usePhoneSetupController: () => ({ state: f.state, email: "", busy: false, accountBusy: false, account: f.account, accountAct: () => undefined, act: vi.fn(), accountError: null, error: null, useLocal: vi.fn(), start: vi.fn(), cancel: vi.fn(), refreshTailscale: vi.fn() }),
   PhoneSetupFlowView: () => "PAIRING_CODE_VIEW",
   companionAccountActionError: () => null,
   loadCompanionBridgeState: () => null,
@@ -38,6 +38,19 @@ beforeEach(() => {
 });
 
 describe("Phone & devices", () => {
+  it("shows an account sign-in directly on the pilot settings page before pairing", () => {
+    f.account = { available: true, status: "signed-out" };
+    vi.stubGlobal("window", { ogb: { mobileDraft: vi.fn() } });
+    try {
+      expect(page(true)).toContain('autoComplete="email"');
+      f.account = { available: true, status: "ready", email: "ada@example.test" };
+      expect(page(true)).toContain("ada@example.test");
+      expect(page(true)).not.toContain('autoComplete="email"');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("with nothing paired and no way in on, shows one task: pair, with where to get the app in plain words and the ways in folded into one row", () => {
     const html = page(true);
     // One untitled card: the row says "Your phone" and what to do, and the code (with "scan this code") is only in the dialog.

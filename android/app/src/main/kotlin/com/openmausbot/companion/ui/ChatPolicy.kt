@@ -131,7 +131,7 @@ data class ChatAction(
 )
 
 object ChatActions {
-    fun sheet(chat: Chat, hasPendingApproval: Boolean, canAddAttachment: Boolean): List<ChatAction> {
+    fun sheet(chat: Chat, hasPendingApproval: Boolean, canAddAttachment: Boolean, desktopControls: Boolean = true): List<ChatAction> {
         val bot = (chat as? Chat.BotChat)?.bot
         val out = mutableListOf<ChatAction>()
         out += ChatAction(
@@ -161,11 +161,13 @@ object ChatActions {
             )
             out += ChatAction(
                 id = ChatActionId.SETTINGS,
+                enabled = desktopControls,
                 title = R.string.ui_bot_settings,
                 subtitle = R.string.chat_model_profile_voice_and_notifications,
             )
             out += ChatAction(
                 id = ChatActionId.WATCH_COMPUTER,
+                enabled = desktopControls,
                 title = R.string.chat_watch_computer,
                 subtitle = R.string.chat_live_view_of_what_1_s_is_doing,
                 subject = bot.name,

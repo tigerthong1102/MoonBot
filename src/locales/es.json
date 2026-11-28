@@ -7039,6 +7039,8 @@
   "mobileChat.managed_budget_exhausted": "Se alcanzó el límite del presupuesto de IA compartido.",
   "mobileChat.managed_ai_paused": "La IA está en pausa.",
   "mobileChat.signed_out": "Inicia sesión para continuar.",
+  "mobileChat.useWallet": "Usar el saldo de StartupBot en esta conversación",
+  "mobileChat.computerNeeded": "Esta tarea requiere un ordenador.",
   "mobileChat.desktop_required": "Esta acción necesita un equipo conectado. Abre la opción de conectar un equipo en StartupBot. No se ha ejecutado ninguna acción.",
   "mobileChat.thread_full": "Inicia otra conversación para continuar.",
   "mobileChat.history_full": "Elimina una conversación para liberar espacio.",

@@ -1,3 +1,4 @@
+import { AccountCodeFields } from "./AccountCodeFields";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { t } from "@/lib/i18n";
 import { SettingsSkeletonCard } from "./settings/SettingsStates";
@@ -453,6 +454,19 @@ export function PhoneDevicesSection({ profileEmail = "", focusRequest = 0, simpl
   return (
     <div className="flex flex-col gap-6 focus:outline-none" ref={pairingFlow} tabIndex={-1} data-phone-pairing="computer">
       {top}
+      {globalThis.window?.ogb?.mobileDraft && !remoteBlocked && c.account?.available && !pairing && (
+        <SettingsGroup label={t("mobileChat.desktopListen")} block="mobile-account">
+          {c.account.status === "ready" ? (
+            <p role="status" className="text-sm text-ink-secondary">{c.account.email}</p>
+          ) : (
+            <div className="max-w-md">
+              <p className="text-sm text-ink-secondary">{t("phone.signIn.emailPrompt")}</p>
+              <AccountCodeFields controller={c} mode="account" actionError={accountActionError} />
+              {accountActionError && <p role="alert" className="mt-2 text-sm text-danger">{accountActionError}</p>}
+            </div>
+          )}
+        </SettingsGroup>
+      )}
       <RouteNotices c={c} notices={state.notices ?? []} />
       {pairing && <PairDeviceDialog c={c} state={state} placeName={placeName} onClose={() => setPairing(false)} secureAddress={pairing === "https"} />}
 

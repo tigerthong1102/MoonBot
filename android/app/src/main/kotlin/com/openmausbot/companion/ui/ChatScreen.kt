@@ -408,7 +408,10 @@ private fun LoadedChat(
     }
     val draft = composer.text
     val supportsCouncil = (chat as? Chat.RoomChat)?.room?.let { it.councilAvailable && it.dm != true } == true
-    val canAddAttachment = AttachmentImportRules.canAdd(attachments.size, preparingAttachments, sendingMessage) &&
+    val connection by session.connection.collectAsState()
+    val desktopControls = connection?.serverEnvironmentId?.startsWith("startupbot-mobile:") != true
+    val canAddAttachment = desktopControls &&
+        AttachmentImportRules.canAdd(attachments.size, preparingAttachments, sendingMessage) &&
         (!supportsCouncil || composer.council == RoomCouncilMode.OFF)
     var hudOpen by remember(draftKey, chatDrafts) {
         mutableStateOf(SlashCommands.openOnEntry(composer.text))
@@ -452,7 +455,6 @@ private fun LoadedChat(
     LaunchedEffect(showingProfile) { if (showingProfile) dictation.stop() }
     LaunchedEffect(showingCall) { if (showingCall) dictation.stop() }
 
-    val connection by session.connection.collectAsState()
     LaunchedEffect(chatId, threadId, connection?.id) {
         environment.chatPreferences.rememberThread(chat, connection?.id)
     }
@@ -500,7 +502,7 @@ private fun LoadedChat(
     }
 
     val bot = (chat as? Chat.BotChat)?.bot
-    val commands = SlashCommands.forChat(chat)
+    val commands = if (desktopControls) SlashCommands.forChat(chat) else SlashCommands.IN_ROOM
     val onAction: (ChatActionId) -> Unit = { action ->
         when (action) {
             ChatActionId.PHOTOS -> {
@@ -735,6 +737,7 @@ private fun LoadedChat(
 
                 ChatHeader(
                     chat = chat,
+                    desktopControls = desktopControls,
                     face = remember(chat, rawTranscript) {
                         MausState.forChat(chat, rawTranscript.lastOrNull())
                     },
@@ -855,8 +858,8 @@ private fun LoadedChat(
 
         PlusSheet(
             open = showingPlus,
-            actions = remember(chat, pendingApproval, canAddAttachment) {
-                ChatActions.sheet(chat, hasPendingApproval = pendingApproval, canAddAttachment = canAddAttachment)
+            actions = remember(chat, pendingApproval, canAddAttachment, desktopControls) {
+                ChatActions.sheet(chat, hasPendingApproval = pendingApproval, canAddAttachment = canAddAttachment, desktopControls = desktopControls)
             },
             onDismiss = { showingPlus = false },
             onAction = {
@@ -933,6 +936,7 @@ private val HEADER_CLEARANCE = 128.dp
 @Composable
 private fun ChatHeader(
     chat: Chat,
+    desktopControls: Boolean,
     face: MausState,
     unreadElsewhere: Int,
     onBack: () -> Unit,
@@ -971,12 +975,14 @@ private fun ChatHeader(
                 ChromeButton(
                     painter = painterResource(R.drawable.ic_phone),
                     contentDescription = stringResource(R.string.ui_call, chat.name),
+                    enabled = desktopControls,
                     onClick = onCall,
                 )
                 Spacer(Modifier.size(8.dp))
                 ChromeButton(
                     painter = painterResource(R.drawable.ic_display),
                     contentDescription = stringResource(R.string.ui_watch_s_computer, chat.name),
+                    enabled = desktopControls,
                     onClick = onWatchComputer,
                 )
             } else {
@@ -996,7 +1002,7 @@ private fun ChatHeader(
                 chat = chat,
                 size = 60.dp,
                 state = face,
-                modifier = if (chat is Chat.BotChat) {
+                modifier = if (chat is Chat.BotChat && desktopControls) {
                     Modifier
                         .clickable(role = Role.Button, onClick = onOpenProfile)
                         .semantics { contentDescription = settingsLabel }

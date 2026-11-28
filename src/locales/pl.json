@@ -7803,6 +7803,8 @@
   "mobileChat.managed_budget_exhausted": "Wyczerpano wspólny budżet AI.",
   "mobileChat.managed_ai_paused": "AI jest wstrzymana.",
   "mobileChat.signed_out": "Zaloguj się, aby kontynuować.",
+  "mobileChat.useWallet": "Użyj portfela StartupBot w tej rozmowie",
+  "mobileChat.computerNeeded": "To zadanie wymaga komputera.",
   "mobileChat.desktop_required": "To działanie wymaga połączonego komputera. Otwórz opcję połączenia komputera w StartupBot. Nie wykonano żadnej operacji.",
   "mobileChat.thread_full": "Rozpocznij nową rozmowę, aby kontynuować.",
   "mobileChat.history_full": "Usuń rozmowę, aby zwolnić miejsce.",

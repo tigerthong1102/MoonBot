@@ -42,6 +42,7 @@ final class Session: ObservableObject {
     @Published private(set) var state = CompanionState()
     @Published private(set) var connection: Connection?
     @Published private(set) var connections: [Connection] = []
+    var isMobileAccount: Bool { connection?.serverEnvironmentId?.hasPrefix("startupbot-mobile:") == true }
     var canAdminister: Bool { connection?.canAdminister ?? false }
     @Published private(set) var status: Status = .unpaired
     @Published var actionError: String?
@@ -286,6 +287,21 @@ final class Session: ObservableObject {
             stored.id = existing.id
         }
         try commitPairing(stored, token: paired.token, winner: winner)
+    }
+
+    func signInToMobile(_ connection: Connection, email: String, code: String, allowDrafts: Bool) async throws {
+        let result = try await CompanionClient(connection: connection, token: nil).mobileLogin(email: email, code: code, allowDrafts: allowDrafts)
+        try Task.checkCancellation()
+        guard let origin = connection.activeEndpoint?.url,
+              result.environment.environmentId == "startupbot-mobile:" + origin,
+              result.token.hasPrefix("sb_mobile_") else { throw APIError.badURL }
+        var stored = connection
+        stored.establishRoutePolicyFromInvite()
+        stored.name = result.environment.label
+        stored.serverEnvironmentId = result.environment.environmentId
+        stored.serverScopes = ["chat"]
+        stored.id = result.connectionId
+        try commitPairing(stored, token: result.token)
     }
 
     /// Device tokens must remain in Keychain, separate from backed-up connection metadata.

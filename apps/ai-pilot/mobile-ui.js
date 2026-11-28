@@ -19,7 +19,7 @@ if (catalog) {
   for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
 }
 let account, thread, busy = false, active, pending, connection;
-let conversations = [], before, newThread;
+let conversations = [], before, newThread, syncRevision, syncTimer, syncing = false, viewVersion = 0, explicitNew = false;
 const drafts = new Map();
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("startupbot-account") : null;
 channel?.addEventListener("message", () => location.reload());
@@ -31,6 +31,10 @@ function status(message = "", announcement = message) {
   if (live.textContent !== announcement) live.textContent = announcement;
 }
 function signedOut() {
+  clearTimeout(syncTimer);
+  syncRevision = undefined;
+  explicitNew = false;
+  viewVersion++;
   el("handoffTargets").hidden = true;
   pending = newThread = undefined;
   drafts.clear();
@@ -73,7 +77,9 @@ async function api(path, body, signal) {
   return response;
 }
 async function list() {
-  const data = await (await api("threads")).json();
+  return applyList(await (await api("threads")).json());
+}
+function applyList(data) {
   if (account && account !== data.account) { location.reload(); return; }
   account = data.account;
   conversations = data.threads;
@@ -82,7 +88,6 @@ async function list() {
     if (id !== newThread && !conversations.some(item => item.id === id)) drafts.delete(id);
   }
   connection = data.provider;
-  el("desktopConsent").hidden = !data.desktopHandoff;
   for (const option of el("skill").options) option.disabled = data.disabledSkills?.includes(option.value) ?? false;
   if (el("skill").selectedOptions[0]?.disabled) el("skill").value = [...el("skill").options].find(o => !o.disabled)?.value ?? "";
   el("providers").hidden = !connection?.enabled && !connection?.connected;
@@ -97,13 +102,10 @@ async function list() {
 }
 function payer() {
   const saved = conversations.find(item => item.id === thread);
-  el("billing").hidden = !connection?.connected && saved?.provider !== "openrouter";
+  el("billing").hidden = !connection?.connected && saved?.provider !== "openrouter" && el("provider").value !== "openrouter";
+  if (el("useWallet")) el("useWallet").hidden = saved?.provider !== "openrouter";
   el("provider").disabled = Boolean(saved);
   if (saved) el("provider").value = saved.provider;
-  else if (!connection?.connected && el("provider").value === "openrouter") {
-    el("provider").value = "managed";
-    el("consent").checked = false;
-  }
   el("provider").options[1].disabled = !connection?.connected;
 }
 function bubble(speaker, text, container = el("transcript")) {
@@ -152,6 +154,8 @@ function formatAnswer(element, text) {
   element.parentElement.append(copy);
 }
 async function show(id) {
+  syncRevision = undefined;
+  viewVersion++;
   el("handoffTargets").hidden = true;
   if (thread) {
     const prompt = el("prompt").value;
@@ -179,15 +183,27 @@ async function show(id) {
   el("older").hidden = true;
   if (id) { await loadHistory(); el("history").scrollTop = el("history").scrollHeight; }
 }
-async function loadHistory(replace = false) {
-  const { turns, next } = await (await api("history", { thread, before:replace ? null : before })).json();
-  const fragment = document.createDocumentFragment();
+function renderAnswer(answer, turn) {
+  answer.parentElement.querySelector("button")?.remove();
+  answer.replaceChildren();
+  if (turn.answer) formatAnswer(answer, turn.answer);
+  if (t(turn.state)) answer.append(document.createTextNode(t(turn.state)));
+  answer.dataset.state = turn.state;
+}
+function appendTurns(turns, container) {
   for (const turn of turns) {
-    bubble(t("you"), turn.prompt, fragment);
-    const answer = bubble(t("bot"), "", fragment);
-    if (turn.answer) formatAnswer(answer, turn.answer);
-    if (t(turn.state)) answer.append(document.createTextNode(t(turn.state)));
+    const user = bubble(t("you"), turn.prompt, container), answer = bubble(t("bot"), "", container);
+    user.closest("article").dataset.turn = answer.closest("article").dataset.turn = turn.id;
+    answer.dataset.answer = turn.id;
+    renderAnswer(answer, turn);
   }
+}
+async function loadHistory(replace = false) {
+  const version = viewVersion, owner = account;
+  const { turns, next } = await (await api("history", { thread, before:replace ? null : before })).json();
+  if (version !== viewVersion || owner !== account) return;
+  const fragment = document.createDocumentFragment();
+  appendTurns(turns, fragment);
   if (replace) el("transcript").replaceChildren(fragment);
   else el("transcript").prepend(fragment);
   before = next;
@@ -199,11 +215,69 @@ function lock(value) {
 }
 async function action(work) {
   if (busy) return;
+  viewVersion++;
   lock(true);
   status();
   try { await work(); } catch (error) { status(error.name === "AbortError" ? t("interrupted") : ["TypeError", "SyntaxError"].includes(error.name) ? t("error") : error.message); }
   finally { lock(false); }
 }
+function scheduleSync(delay = 4000) {
+  clearTimeout(syncTimer);
+  if (account && !document.hidden) syncTimer = setTimeout(refreshAccountChat, delay);
+}
+async function refreshAccountChat() {
+  if (!account || document.hidden) return;
+  if (busy || syncing) return scheduleSync();
+  const version = viewVersion, owner = account;
+  syncing = true;
+  let delay = 4000;
+  try {
+    const data = await (await api("sync", { thread, revision:syncRevision })).json();
+    if (owner !== account || busy || version !== viewVersion || data.unchanged) return;
+    const selected = conversations.some(item => item.id === thread);
+    applyList(data);
+    const known = conversations.some(item => item.id === thread);
+    if (selected && !known && (pending || el("prompt").value)) {
+      const prompt = el("prompt").value, provider = el("provider").value, skill = el("skill").value, removed = thread;
+      newThread = undefined;
+      await show("");
+      drafts.delete(removed);
+      explicitNew = true;
+      el("prompt").value = prompt;
+      el("provider").value = provider;
+      el("skill").value = skill;
+    } else if (!known && !pending && !el("prompt").value && !explicitNew && (selected || conversations.length)) {
+      await show(conversations[0]?.id || "");
+    } else if (known && data.turns) {
+      const history = el("history"), following = history.scrollHeight - history.clientHeight - history.scrollTop < 64;
+      const transcript = el("transcript");
+      const existing = new Set([...transcript.querySelectorAll("[data-turn]")].map(node => node.dataset.turn));
+      const incoming = new Set(data.turns.map(turn => turn.id));
+      const overlap = data.turns.some(turn => existing.has(turn.id));
+      if (!overlap) {
+        transcript.replaceChildren();
+        appendTurns(data.turns,transcript);
+        before = data.next;
+        el("older").hidden = !before;
+      } else if (data.turns.some(turn => !existing.has(turn.id)) || transcript.querySelector("article:not([data-turn])")) {
+        for (const node of transcript.querySelectorAll(":scope > article")) {
+          if (!node.dataset.turn || incoming.has(node.dataset.turn)) node.remove();
+        }
+        appendTurns(data.turns,transcript);
+      } else {
+        for (const turn of data.turns) {
+          const answer = transcript.querySelector('[data-answer="' + turn.id + '"]');
+          if (answer && answer.dataset.state !== turn.state) renderAnswer(answer,turn);
+        }
+      }
+      if (following) history.scrollTop = history.scrollHeight;
+    }
+    if (version === viewVersion) syncRevision = data.revision;
+  } catch { delay = 12000; }
+  finally { syncing = false; scheduleSync(delay); }
+}
+document.addEventListener("visibilitychange", () => scheduleSync(0));
+window.addEventListener("focus", () => scheduleSync(0));
 async function openChat() {
   el("retry").hidden = true;
   let threads;
@@ -225,7 +299,7 @@ async function openChat() {
     }
   }
   const existing = threads.some(item => item.id === thread) ? thread : threads[0]?.id;
-  try { await show(thread && newThread === thread ? "" : existing || ""); }
+  try { await show(thread && newThread === thread ? "" : existing || ""); scheduleSync(); }
   catch (error) { el("retry").hidden = !account; throw error; }
 }
 el("login").onsubmit = event => {
@@ -312,12 +386,16 @@ el("connectProvider").onclick = () => action(async () => {
   const { url } = await (await api("provider/start", {})).json();
   location.assign(url);
 });
+if (el("useWallet")) el("useWallet").onclick = () => action(async () => {
+  await api("provider/use-wallet", {thread});
+  await list();
+});
 el("disconnectProvider").onclick = () => action(async () => { await api("provider/disconnect", {}); await list(); });
 el("changeEmail").onclick = signedOut;
 el("logout").onclick = () => action(async () => { await api("logout", {}); signedOut(); channel?.postMessage("changed"); });
 el("threads").onchange = () => action(async () => { await show(el("threads").value); el("tools").open = false; });
 el("older").onclick = () => action(loadHistory);
-el("new").onclick = () => action(async () => { await show(""); el("tools").open = false; el("prompt").focus(); });
+el("new").onclick = () => action(async () => { explicitNew = true; await show(""); el("tools").open = false; el("prompt").focus(); });
 el("rename").onclick = () => action(async () => {
   if (!el("threads").value) return;
   const title = window.prompt(t("rename"), el("threads").selectedOptions[0].textContent);
@@ -352,7 +430,7 @@ el("compose").onsubmit = event => {
     status(t("waiting"));
     let refreshThreads = true;
     try {
-      const response = await api("send", { thread, id, prompt, provider, target:pending.target, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
+      const response = await api("send", { thread, id, prompt, provider, language:locale, target:pending.target, runtime:skill === "desktop" ? "desktop" : "text", skill, save:true }, active.signal);
       if (response.headers.get("content-type")?.includes("application/json")) {
         refreshThreads = false;
         el("stop").hidden = true;
@@ -368,7 +446,7 @@ el("compose").onsubmit = event => {
             button.textContent = device.name + " · " + device.code;
             button.onclick = () => {
               if (pending?.id !== id || pending.thread !== thread || el("prompt").value !== submitted ||
-                  el("skill").value !== skill || el("provider").value !== provider || !el("consent").checked) { targets.hidden = true; return; }
+                  el("skill").value !== skill || el("provider").value !== provider) { targets.hidden = true; return; }
               pending.target = device.id;
               targets.hidden = true;
               el("compose").requestSubmit();
@@ -394,7 +472,7 @@ el("compose").onsubmit = event => {
         }
         return;
       }
-      if (newThread === thread) newThread = undefined;
+      if (newThread === thread) { newThread = undefined; explicitNew = false; }
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
       if (el("prompt").value === submitted) el("prompt").value = "";
       const history = el("history");
@@ -429,7 +507,7 @@ el("compose").onsubmit = event => {
       status(notice, [reply, notice].filter(Boolean).join("\n"));
     } catch (error) {
       if (error.code !== "request_exists") throw error;
-      if (newThread === thread) newThread = undefined;
+      if (newThread === thread) { newThread = undefined; explicitNew = false; }
       await loadHistory(true);
       if (el("prompt").value === submitted) el("prompt").value = "";
       pending = undefined;

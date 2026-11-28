@@ -1412,6 +1412,21 @@ describe("Companion account on demand", () => {
     }
   });
 
+  it("registers an opt-in draft receiver before a tunnel, and provisions the tunnel on explicit pairing", async () => {
+    const f = onDemandFixture({ initial: {}, deferTunnelOnSignIn: true });
+    f.companion.on = false;
+    f.companion.need = null;
+    await f.service.requestCode("ada@example.com");
+    const state = await f.service.verifyCode("ada@example.com", "12345678");
+    expect(state.status).toBe("ready");
+    expect(f.client.ensureInstallation).toHaveBeenCalledOnce();
+    expect(f.client.ensureEndpoint).not.toHaveBeenCalled();
+    f.companion.on = true;
+    await f.service.prepare();
+    expect(f.client.ensureEndpoint).toHaveBeenCalledOnce();
+    f.service.dispose();
+  });
+
   it("needs a tunnel only for an old phone seen this month once the encrypted connection is on", () => {
     const now = LAUNCH_AT;
     const on = (devices, extra = {}) => ({ enabled: true, devices, pairing: null, e2e: { enabled: true }, ...extra });

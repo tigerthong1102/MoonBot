@@ -12,9 +12,9 @@ Chat hỗ trợ hiển thị text ngay khi provider phát, Dừng, lịch sử, 
 
 ### Màn hình trên điện thoại và cập nhật từ MausBot
 
-Người dùng vẫn thấy màn hình chào, ghép đôi và chat native quen thuộc. Bản bật pilot thêm lựa chọn **Chat không cần máy tính** ở màn hình chào, màn hình chưa ghép đôi và Cài đặt. Khi chạm, người dùng chat trong Safari tích hợp trên iOS hoặc Custom Tab trên Android. Phần này dùng cùng CSS, màu và cách trình bày tin nhắn với StartupBot Inbox. Chromium và WebKit đều qua luồng chat HTTPS, đổi hội thoại và giữ bản nháp trên màn hình hẹp. Ở 320 × 568, dark mode, cỡ chữ gốc 125%, chiều rộng nội dung là 320 px và đáy nút Gửi ở 554 px. Đây là phép đo trình duyệt với nhà cung cấp AI giả lập.
+Bản bật pilot có lựa chọn **Chat không cần máy tính** ở màn hình chào, màn hình chưa ghép đôi và Cài đặt. Email và OTP được nhập trong app. Gateway cấp phiên chat và phục vụ API Companion cho danh sách bot, các thread và tin nhắn. App tiếp tục vào màn hình chat SwiftUI hoặc Compose đang có. Bản web ở `/mobile` dùng cùng tài khoản và lịch sử.
 
-Sáu dòng gọi nút là toàn bộ phần chênh ở bốn file màn hình native so với trước nhiệm vụ. Đối chiếu với hai nhánh phát hành công khai ngày 28/11, cả bốn file nhận được sáu dòng qua thử ghép ba chiều. Mô phỏng ghép cả monorepo với upstream/main cho cùng 474 đường dẫn xung đột trước và sau thay đổi, không phát sinh đường dẫn mới tại lần đo này. Các đợt cập nhật tương lai vẫn cần chạy lại phép thử. [Nguồn và cách kiểm tra](../architecture/mobile-standalone-assessment.md#cập-nhật-từ-mausbot)
+Các số đo Chromium/WebKit và phép ghép upstream của bản pilot Inbox trước đây chỉ áp dụng cho phiên bản đó. Có thể kiểm tra luồng native bằng `scripts/testing/mobile-native-chat.test.mjs` và bộ kiểm tra onboarding trên mỗi nền tảng. [Phạm vi phép đo ban đầu](../architecture/mobile-standalone-assessment.md#cập-nhật-từ-mausbot)
 
 ### Chuyển yêu cầu sang máy tính
 
@@ -35,7 +35,7 @@ Với Better Auth và D1 chạy trong workerd, hai mã OTP qua hộp thư cục 
 | Phần | Trước | Bản thử nghiệm |
 |---|---|---|
 | Tài khoản | Better Auth/D1 và email OTP đã có ở control plane. | Mobile dùng lại cùng issuer và ID bất biến; phiên browser có expiry, logout, kiểm tra lại issuer. |
-| Điện thoại | Có thể bỏ qua ghép đôi nhưng chat tác vụ cần harness/host. | Có entry ở Welcome, màn hình chưa ghép đôi và Settings; Safari trong app/Android Custom Tabs mở cùng giao diện HTTPS. Build thiếu origin vẫn dùng onboarding cũ. |
+| Điện thoại | Có thể bỏ qua ghép đôi nhưng chat tác vụ cần harness/host. | Có entry ở Welcome, màn hình chưa ghép đôi và Settings; email OTP mở phiên chat trên màn hình gốc của app. Build thiếu origin vẫn dùng onboarding cũ. |
 | Desktop/Cloud | History, pairing, quyền tool, thiết bị và server có trước. | Chat standalone không có đường thực thi lệnh. Registry chỉ đọc trả tên, nền tảng và phiên bản. Pairing và phê duyệt hành động vẫn ở companion. |
 | AI và skill | Gateway OpenRouter/ví sandbox đã có; SSE bên ví đợi cả JSON. | Đường mới tiêu thụ từng chunk thật, giới hạn context và output, chọn skill từ allowlist, hỗ trợ credit StartupBot hoặc BYOK phiên riêng. |
 | Dữ liệu và quyền | Desktop local-first; Inbox có room, file và bot riêng. | Lưu hội thoại Mobile sau consent, chỉ truy vấn theo owner. Tối đa 50 hội thoại × 80 lượt; lịch sử phân trang 12 lượt, đọc context tối đa 8 cặp, 16 KiB gồm prompt hiện tại, ngoài system instruction. Không tự import lịch sử Desktop hay file. |

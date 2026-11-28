@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { accountSignIn, invite, validateWalletIssuer } from "./accounts.mjs";
 import { Ledger, Fault, catalog, digest } from "./ledger.mjs";
 import { budgetExposure } from "./managed-budget.mjs";
+import { nativePath } from "./native-chat.mjs";
 import { mobileService } from "./mobile.mjs";
 import { payments } from "./payments.mjs";
 import { asEventStream, router } from "./router.mjs";
@@ -56,7 +57,7 @@ export function pilotServer(ledger, settings, http = fetch) {
     try {
       const path = req.url?.split("?")[0],
         method = req.method;
-      if (path === "/mobile" || path?.startsWith("/mobile/")) {
+      if (path === "/mobile" || path?.startsWith("/mobile/") || nativePath(path)) {
         if (!mobile) throw new Fault(404, "not_found");
         return await mobile(req, res, path, json);
       }
@@ -174,6 +175,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     origin: "http://127.0.0.1:" + port,
     catalog: process.env.STARTUPBOT_PILOT_CATALOG || new URL("./catalog.example.json", import.meta.url),
     openRouterOAuth: process.env.STARTUPBOT_MOBILE_OPENROUTER_OAUTH === "1",
+    mobileAccountChat: process.env.STARTUPBOT_MOBILE_ACCOUNT_CHAT === "1",
     mobileDesktopHandoff: process.env.STARTUPBOT_MOBILE_DESKTOP_HANDOFF === "1",
     mobileOrigin: process.env.STARTUPBOT_MOBILE_ORIGIN,
     accountOrigin: process.env.STARTUPBOT_PILOT_ACCOUNT_ORIGIN,

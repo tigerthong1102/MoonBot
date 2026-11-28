@@ -89,6 +89,7 @@ export declare function createCompanionAccountService(options: {
   firstEndpointCheckMs?: number;
   /** Hold the address only while something needs it (the desktop app). */
   onDemand?: boolean;
+  deferTunnelOnSignIn?: boolean;
   managedEndpointNeeded?: () => Promise<boolean | "unused" | null>;
   /** MausBot Relay: `capable` lets a "no" from managedEndpointNeeded hold even right after sign-in. */
   relay?: { capable: () => boolean; legacyDevices: () => Promise<number | null> };

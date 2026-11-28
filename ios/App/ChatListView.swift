@@ -400,6 +400,8 @@ struct ChatListView: View {
             searchButton
             if session.canAdminister {
                 sectionButton
+            }
+            if session.canAdminister || session.isMobileAccount {
                 newBotButton
             }
         }
@@ -425,6 +427,8 @@ struct ChatListView: View {
                 .buttonStyle(.plain)
                 .glassCapsule()
                 .accessibilityLabel("Create")
+            } else if session.isMobileAccount {
+                newBotButton
             }
         }
     }

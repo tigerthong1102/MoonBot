@@ -10877,5 +10877,13 @@
   "mobileChat.error": "無法完成要求，請檢查連線後再試。",
   "mobileChat.unavailable": "帳號服務暫時無法使用。",
   "mobileChat.account_changed": "帳號已變更，請重新開啟對話。",
-  "mobileChat.invalid_message": "請縮短訊息並確認儲存選項。"
+  "mobileChat.invalid_message": "請縮短訊息並確認儲存選項。",
+  "mobileChat.desktopListen": "接收手機上的工作",
+  "mobileChat.desktopListening": "正在等候手機 · 停止",
+  "mobileChat.desktopChoose": "請選擇電腦。",
+  "mobileChat.desktopWaiting": "正在等候電腦開啟草稿…",
+  "mobileChat.desktopReceived": "草稿已在電腦上開啟。請在電腦上確認後傳送。",
+  "mobileChat.desktopUnconfirmed": "尚未確認送達。重試前請檢查電腦。",
+  "mobileChat.desktop_unavailable": "沒有就緒的電腦。請在電腦的個人聊天中清空輸入欄並啟用接收手機工作。",
+  "mobileChat.desktopConsent": "需要電腦的工作會以私人草稿傳到我正在等候接收的電腦。"
 }

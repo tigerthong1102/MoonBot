@@ -441,6 +441,26 @@ describe("control-plane migrations and health", () => {
 });
 
 describe("Better Auth email OTP and bearer boundary", () => {
+  it("revokes one or all verified email sessions while preserving another account", async () => {
+    const first = await signIn("sessions-a@example.com");
+    const second = await signIn("sessions-a@example.com");
+    const other = await signIn("sessions-b@example.com");
+    const active = await call("/api/auth/list-sessions", { token:first.token });
+    expect(active.status).toBe(200);
+    const rows = await active.json<Array<{ id: string; token: string; createdAt: string; expiresAt: string }>>();
+    const current = await call("/api/auth/get-session", { token:first.token });
+    expect(current.status).toBe(200);
+    const session = await current.json<{ session: { id: string } }>();
+    expect(rows.find(row => row.id === session.session.id)?.token).toBe(first.rawToken);
+    expect(rows.map(row => row.token).sort()).toEqual([first.rawToken, second.rawToken].sort());
+    expect(rows.every(row => row.id && Date.parse(row.expiresAt) > Date.parse(row.createdAt))).toBe(true);
+    expect((await call("/api/auth/revoke-session", { method:"POST", token:first.token, body:{ token:second.rawToken } })).status).toBe(200);
+    expect((await call("/v1/me", { token:second.token })).status).toBe(401);
+    expect((await call("/api/auth/revoke-sessions", { method:"POST", token:first.token, body:{} })).status).toBe(200);
+    expect((await call("/v1/me", { token:first.token })).status).toBe(401);
+    expect((await call("/v1/me", { token:other.token })).status).toBe(200);
+  });
+
   it("sends enumeration-safe OTP responses and stores only a hash", async () => {
     const response = await call("/api/auth/email-otp/send-verification-otp", {
       method: "POST",

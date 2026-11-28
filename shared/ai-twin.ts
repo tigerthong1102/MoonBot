@@ -43,6 +43,7 @@ export interface AiTwinView {
   lessons?: AiTwinLesson[];
   controls?: AiTwinControls;
   canEnablePhone?: boolean;
+  canReviewOwnerStyle?: true;
 }
 
 export interface AiTwinScope {

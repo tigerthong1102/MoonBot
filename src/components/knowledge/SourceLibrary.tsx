@@ -8,7 +8,7 @@ import { Select } from "../Select";
 import { libraryKey, readLibrary } from "./source-cache";
 import { t } from "@/lib/i18n";
 import type { Bot } from "@/state/store";
-import { api } from "@/state/api";
+import { api, ApiError } from "@/state/api";
 import { randomUuid } from "@/lib/random-uuid";
 import { PdfGaps } from "./PdfGaps";
 import { findPassages, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
@@ -137,7 +137,12 @@ function OpenLibrary({ bot, close, lastReader, unsaved, submission, query, setQu
           void restore(false, background).catch(() => { if (live() && !access.controller.signal.aborted) setCacheFailed(true); });
         });
         await restore(!syncedScope, !!syncedScope);
-      } catch { if (live() && owner.current) setCacheFailed(true); }
+      } catch (cause) {
+        if (live() && owner.current) {
+          if (cause instanceof ApiError || cause instanceof TypeError) unavailable(sourceAnswerIssue(cause));
+          else setCacheFailed(true);
+        }
+      }
       finally { if (live()) setStarting(false); }
     }
     const begin = (syncedScope?: string) => {

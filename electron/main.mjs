@@ -78,6 +78,7 @@ import {
 } from "./desktop-companion-client.mjs";
 import { isKnownSkin, skinChrome } from "./skin-overlay.cjs";
 import { credentialResult, installCredentialStoreIpc, readSecureCredentials, writeSecureCredentials } from "./secure-credentials.mjs";
+import { createMobileDraftReceiver } from "./mobile-draft-receiver.mjs";
 import { createControlPlaneClient } from "./control-plane-client.mjs";
 import {
   companionAccountCleanupPending, companionTunnelRetired,
@@ -1942,6 +1943,7 @@ function createWindow({ deferNavigation = false } = {}) {
       contextIsolation: true,
       preload: path.join(__dirname, "preload.cjs"),
       additionalArguments: [...desktopCompanionRendererArguments(rendererOrigin(), desktopRemoteAccess),
+        ...(process.env.STARTUPBOT_MOBILE_DESKTOP_HANDOFF === "1" ? ["--startupbot-mobile-handoff"] : []),
         ...(inbox.origin() ? ["--startupbot-personal-inbox"] : []),
         ...(app.isPackaged && !desktopRemoteAccess ? ["--omb-company-desktop=1"] : []), `--omb-app-version=${app.getVersion()}`, ...(linuxSoftwareRendering ? [SOFTWARE_RENDERING_ARG] : [])],
     },
@@ -2184,6 +2186,13 @@ ipcMain.handle("engine:open-terminal", localOnly("engine:open-terminal", async (
   return openBlankTerminal();
 }));
 
+const receiveMobileDraft = createMobileDraftReceiver({
+  credentials: () => secureCredentialState?.read() ?? secureCredentials,
+  client: () => createControlPlaneClient({ baseURL:resolveCompanionControlPlaneURL({isPackaged:app.isPackaged,environment:process.env}) }),
+  allowed: sender => process.env.STARTUPBOT_MOBILE_DESKTOP_HANDOFF === "1" && !desktopRemoteAccess &&
+    !sender.isDestroyed() && mainWindow?.webContents === sender && mainWindow.isVisible() && mainWindow.isFocused(),
+});
+ipcMain.handle("mobile-draft:receive", localOnly("mobile-draft:receive", (event,...args) => receiveMobileDraft(event.sender,...args)));
 ipcMain.handle("clipboard:write-text", localOnly("clipboard:write-text", (_event, text) => writeClipboardText(clipboard, text)));
 
 ipcMain.handle("desktop:pick-folder", localOnly("desktop:pick-folder", async (event, current) => {

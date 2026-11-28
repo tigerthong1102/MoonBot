@@ -10,6 +10,8 @@ import { t } from "@/lib/i18n";
 import { importOutcome, localSetupImport, setupImportApi, skillsSummary, toolsSummary, type SetupImportClient } from "@/lib/setup-import";
 import { useStore } from "@/state/store";
 import { detectionCount, detectionSources, type SetupDetection, type SetupImportResult, type SetupSource } from "../../shared/setup-import";
+import { ZaloOfficialSetup } from "./ZaloOfficialSetup";
+import { ZaloImportSection } from "./ZaloImportSection";
 import { GrokBotMark } from "./GrokBotMark";
 import { GrokMoveDialog } from "./lazy-screens";
 import { ClaudeMark, CodexMark, CursorMark, PresetProviderMark } from "./ProviderIcons";
@@ -243,11 +245,15 @@ export function GrokImportSection() {
 
 export function ImportSettings({ client = setupImportApi, children }: { client?: SetupImportClient; children?: ReactNode }) {
   const { state } = useStore();
+  const local = localSetupImport(state.config?.cloudHome === true);
+  const bot = state.bots?.find(item => item.id === state.selectedId);
+  const zalo = local && <><ZaloOfficialSetup /><ZaloImportSection key={bot?.threadId} bot={bot} twinEnabled={state.config?.features?.aiTwin === true} /></>;
   if (useContext(SettingsLook)) {
     return (
       <SettingsRows>
         <GrokImportSection />
-        <AiAppsImport client={client} local={localSetupImport(state.config?.cloudHome === true)} />
+        <AiAppsImport client={client} local={local} />
+        {zalo}
         {children}
       </SettingsRows>
     );
@@ -255,7 +261,8 @@ export function ImportSettings({ client = setupImportApi, children }: { client?:
   return (
     <div className="flex flex-col gap-4">
       <GrokImportSection />
-      <AiAppsImport client={client} local={localSetupImport(state.config?.cloudHome === true)} />
+      <AiAppsImport client={client} local={local} />
+      {zalo}
       {children}
     </div>
   );

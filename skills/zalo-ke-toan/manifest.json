@@ -1,0 +1,11 @@
+{
+  "id": "zalo-ke-toan",
+  "name": "Rà soát yêu cầu kế toán",
+  "version": "1.0.0",
+  "description": "Tìm yêu cầu hóa đơn, chứng từ thiếu và đối chiếu công nợ trong phần hội thoại được chọn.",
+  "defaultEnabled": false,
+  "triggerTerms": [
+    "$zalo-ke-toan"
+  ],
+  "requiredCapabilities": []
+}

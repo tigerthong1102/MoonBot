@@ -20,6 +20,7 @@ export function createAiTwinHost(deps: {
   workspace: string;
   store: Store;
   preview: TwinRoutes["preview"];
+  zaloRecipe?: TwinRoutes["zaloRecipe"];
   blocked: () => boolean;
   liveSession: (auth: RequestAuth) => boolean;
   sessionRecord: (id: string) => SessionRecord | null;
@@ -140,7 +141,7 @@ export function createAiTwinHost(deps: {
     },
     revokeDevice(device: string) { revokedDevices.add(device); },
     routes: createAiTwinRoutes({
-      store: privateStore, preview: deps.preview, owner, phone, canEnablePhone: desktop, learning,
+      store: privateStore, preview: deps.preview, zaloRecipe: deps.zaloRecipe, owner, phone, canEnablePhone: desktop, learning,
       learnedStyle: (auth, sources) => recentTwinStyle(learnedRows(auth, sources, true)),
       blocked: deps.blocked,
     }),

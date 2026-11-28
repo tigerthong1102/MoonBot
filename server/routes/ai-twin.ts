@@ -1,3 +1,4 @@
+import { ZALO_RECIPES, type ZaloRecipe } from "../../shared/zalo-intelligence.ts";
 import { z } from "zod";
 import {
   AI_TWIN_DELEGATION_PATH, AI_TWIN_LEARNING_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH,
@@ -17,8 +18,10 @@ const previewInput = twinVersionInput.extend({
   question: z.string().trim().min(1).max(AI_TWIN_QUESTION_MAX),
   ...providerFields,
   useMemory: z.literal(true).optional(),
+  zaloRecipe: z.enum(ZALO_RECIPES).optional(),
+  zaloSource: z.strictObject({ source: z.string().trim().min(1).max(120), line: z.int().min(1).max(5_000) }).optional(),
 });
-const semanticInput = lookupTwinLessonInput.extend(providerFields);
+const semanticInput = lookupTwinLessonInput.extend({ ...providerFields, zaloRecipe: z.never().optional(), zaloSource: z.never().optional() });
 const paths = new Map([
   [AI_TWIN_PATH, ["GET", "POST", "PATCH", "DELETE"]],
   [AI_TWIN_LOOKUP_PATH, ["POST"]],
@@ -32,6 +35,7 @@ const paths = new Map([
 export function createAiTwinRoutes(deps: {
   store: ReturnType<typeof createAiTwinStore>;
   preview: Parameters<typeof createAiTwinPreview>[0];
+  zaloRecipe?: (id: ZaloRecipe) => string | undefined;
   owner: (auth: RequestAuth) => boolean;
   phone: (auth: RequestAuth) => boolean;
   canEnablePhone: boolean;
@@ -123,6 +127,10 @@ export function createAiTwinRoutes(deps: {
         const current = store.get();
         const twin = current.twin;
         if (!twin || twin.paused || id !== twin.id || revision !== twin.revision) throw new TwinConflict();
+        const { zaloRecipe: recipeId, zaloSource } = input.data;
+        if (Boolean(recipeId) !== Boolean(zaloSource)) return json(res, 400, { error: "invalid_zalo_source" });
+        const recipe = recipeId && owner && auth.kind === "loopback" && auth.desktopOwner === true && !auth.companionDevice ? deps.zaloRecipe?.(recipeId) : undefined;
+        if (recipeId && !recipe) return json(res, 403, { error: "recipe_unavailable" });
         const useMemory = isLookup || ("useMemory" in input.data && input.data.useMemory === true);
         const disconnected = new AbortController();
         const close = () => disconnected.abort();
@@ -141,7 +149,7 @@ export function createAiTwinRoutes(deps: {
           if (isLookup) return json(res, 200, { lesson, ...(lesson && !exactMatch ? { match: "semantic" } : {}) });
 
           const style = useMemory ? deps.learnedStyle(auth, current.controls?.sourceIds ?? []) : undefined;
-          const draft = await drafts.draft(twin, question, key, disconnected.signal, { lesson, style });
+          const draft = await drafts.draft(twin, question, key, disconnected.signal, { lesson, style, recipe, zaloSource });
           assertCurrent();
           if (style && JSON.stringify(style) !== JSON.stringify(deps.learnedStyle(auth, current.controls?.sourceIds ?? []))) {
             throw new TwinConflict();

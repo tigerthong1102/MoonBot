@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ZaloPairingSetup } from "./ZaloPairingSetup";
 import { t } from "@/lib/i18n";
 import { localSetupImport } from "@/lib/setup-import";
 import { api, ApiError } from "@/state/api";
@@ -17,6 +18,7 @@ interface Probe {
 export function ZaloOfficialSetup() {
   const input = useRef<HTMLInputElement>(null);
   const pending = useRef<AbortController | null>(null);
+  const [pairingPilot, setPairingPilot] = useState(false);
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Probe | null>(null);
@@ -24,8 +26,11 @@ export function ZaloOfficialSetup() {
   useEffect(() => {
     if (!localPage()) return;
     const controller = new AbortController();
-    void api<{ enabled: boolean }>(path, { ...request, signal: controller.signal }).then(value => {
-      if (!controller.signal.aborted) setAvailable(value.enabled === true);
+    void api<{ enabled: boolean; pairingPilot?: boolean }>(path, { ...request, signal: controller.signal }).then(value => {
+      if (!controller.signal.aborted) {
+        setAvailable(value.enabled === true);
+        setPairingPilot(value.pairingPilot === true);
+      }
     }).catch(() => {});
     return () => { controller.abort(); pending.current?.abort(); };
   }, []);
@@ -72,5 +77,6 @@ export function ZaloOfficialSetup() {
       <p>{t("zaloOfficial.identity", { bot: result.accountName ? `${result.accountName} (${result.accountId})` : result.accountId })}</p>
       <p>{t(result.webhookConfigured === null ? "zaloOfficial.unknown" : result.webhookConfigured ? "zaloOfficial.webhook" : "zaloOfficial.empty")}</p>
     </div>}
+    {pairingPilot && <ZaloPairingSetup />}
   </section>;
 }

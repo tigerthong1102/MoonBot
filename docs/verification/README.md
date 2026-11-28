@@ -84,6 +84,7 @@ Use only mapped, tested commands:
 - [Internal Zalo Official webhook and one-time pairing](zalo-official-webhook.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
 - [AI Twin local owner-written Zalo style sample](zalo-owner-style.md)
+- [Analyze selected Zalo excerpts with the bot model](zalo-bot-model-analysis.md)
 - [Zalo excerpt review, intelligence and release evidence](zalo-intelligence.md)
 - [Duyệt đề xuất quy trình từ một dòng Zalo](zalo-workflow-review.md)
 - [In-chat team coordination](room-coordination.md)

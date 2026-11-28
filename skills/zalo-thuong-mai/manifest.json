@@ -1,0 +1,11 @@
+{
+  "id": "zalo-thuong-mai",
+  "name": "Rà soát yêu cầu đơn hàng",
+  "version": "1.0.0",
+  "description": "Tìm yêu cầu hỏi đơn, đổi trả và khiếu nại từ các dòng đã chọn.",
+  "defaultEnabled": false,
+  "triggerTerms": [
+    "$zalo-thuong-mai"
+  ],
+  "requiredCapabilities": []
+}

@@ -435,6 +435,13 @@ describe("Codex generateMemoryText (fake CLI)", () => {
     expect(usage).not.toHaveBeenCalled();
   });
 
+  it("checks the selected source before spawning a one-shot process", async () => {
+    const spawn = vi.fn(spawnCli);
+    await expect(runCodexOneShot({ spawn, kill: killCliTree, cli: FAKE_CLI, env: {}, prompt: "private fixture", model: "fixture", providerArgs: [],
+      options: { beforeRequest: () => { throw Error("revoked"); } } })).rejects.toThrow("revoked");
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   it("waits as long as the caller's options say", async () => {
     const env = { ...process.env, FAKE_CODEX_TEXT_MODE: "hang", FAKE_CODEX_TEXT_LOG: log };
     const started = Date.now();

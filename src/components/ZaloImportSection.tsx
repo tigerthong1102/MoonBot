@@ -4,6 +4,7 @@ import { api } from "@/state/api";
 import type { Bot } from "@/state/store";
 import { AI_TWIN_PATH, AI_TWIN_QUESTION_MAX, type AiTwinView } from "../../shared/ai-twin";
 import { buildZaloReport, matchesZaloReport, reviewZaloExcerpt, ZALO_IMPORT_LIMIT, ZALO_RECIPES, type ZaloRecipe, type ZaloSourceLine, type ZaloReportFilter, type ZaloReportRow } from "../../shared/zalo-intelligence";
+import { ZaloModelAnalysis } from "./ZaloModelAnalysis";
 import { ZaloReportControls } from "./ZaloReportControls";
 import { Layer } from "./Layer";
 import { Select } from "./Select";
@@ -84,6 +85,8 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
   function clear() { setRows(null); setSource(""); setInput(""); closeBrain(); setReminder(null); setFilter("all"); move(0); }
   return <section className="flex flex-col gap-3">
     <ZaloReportControls rows={rows} source={source} filter={filter} onFilter={next => { setFilter(next); move(0); }} />
+    {bot && visible.length > 0 && <ZaloModelAnalysis key={JSON.stringify([bot.id, bot.threadId, filter, page])} bot={bot} source={source}
+      rows={visible.slice(page * pageSize, (page + 1) * pageSize)} />}
     {!visible.length && <p role="status">{t("zalo.report.empty")}</p>}
     <ol className="flex flex-col gap-3">{visible.slice(page * pageSize, (page + 1) * pageSize).map(row =>
       <li key={row.line} className="flex flex-col gap-1">

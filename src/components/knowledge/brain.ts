@@ -1,3 +1,4 @@
+import { announceBrainChange } from "./brain-erasure";
 import { browserRecord } from "@/lib/browser-records";
 import { sha256Hex } from "@/lib/sha256";
 import { randomUuid } from "@/lib/random-uuid";
@@ -44,9 +45,10 @@ export const newPage = (owner: string, evidence: BrainEvidence): BrainPage => ({
 });
 
 export async function pageHistory(owner: string) {
-  return browserRecord<BrainPage[]>("readonly", (store) =>
+  const records = await browserRecord<(BrainPage | { forgotten: true })[]>("readonly", (store) =>
     store.getAll(IDBKeyRange.bound(["brain", owner], ["brain", owner, []])),
   );
+  return records.filter((page): page is BrainPage => !("forgotten" in page));
 }
 
 export function latestPages(history: BrainPage[]) {
@@ -67,7 +69,7 @@ function passage(index: Library, ref: { path?: string; digest: string; start: nu
 }
 
 export function brainOwner(signal: AbortSignal, background: boolean) {
-  return libraryOwner((input, init) => apiFetch(input,{ ...init,signal,background,timeoutMs:30000 }),true);
+  return libraryOwner((input, init) => apiFetch(input,{ ...init,signal,background,timeoutMs:30000 }),true,true);
 }
 
 // The cache lives for one read or approval only. A later action checks the viewer and source again.
@@ -133,12 +135,12 @@ export async function verifiedPages(owner: string, signal: AbortSignal, backgrou
 export async function approvePage(draft: BrainPage, signal: AbortSignal) {
   if (!draft.title.trim() || !draft.body.trim() || draft.title.length > 180 || draft.body.length > 4000)
     throw new Error("invalid_draft");
-  const owner = await libraryOwner(undefined, true);
+  const owner = await libraryOwner(undefined, true, true);
   if (
     !owner ||
     owner !== draft.owner ||
     !(await evidenceReader(owner, signal)(draft.source)) ||
-    (await libraryOwner(undefined, true)) !== owner
+    (await libraryOwner(undefined, true, true)) !== owner
   )
     throw new Error("source_unavailable");
   const page = {
@@ -152,6 +154,7 @@ export async function approvePage(draft: BrainPage, signal: AbortSignal) {
     signal.throwIfAborted();
     return store.add(page, ["brain", owner, page.id, page.version]);
   });
+  announceBrainChange();
   return page;
 }
 

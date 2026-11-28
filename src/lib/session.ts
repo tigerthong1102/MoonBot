@@ -42,10 +42,19 @@ export function rememberedTeamSignIn(): string | null {
   try { return globalThis.localStorage?.getItem(TEAM_SIGN_IN_KEY) ?? null; } catch { return null; }
 }
 
-export async function readSessionState(fetchImpl: typeof fetch = fetch): Promise<SessionState> {
+function hasExplicitIdentity(record: Record<string, unknown>): boolean {
+  if (typeof record.environmentId !== "string" || !record.environmentId.trim() || !Array.isArray(record.scopes) ||
+    !record.scopes.length || !record.scopes.every(scope => scope === "admin" || scope === "client")) return false;
+  if (record.kind === "loopback") return record.trust === "service" || (record.trust === undefined && record.scopes.includes("admin"));
+  return record.kind === "session" && typeof record.id === "string" && !!record.id.trim() && record.id !== "local" &&
+    typeof record.label === "string" && typeof record.expiresAt === "number" && Number.isFinite(record.expiresAt) &&
+    (record.via === "cookie" || record.via === "bearer" || record.via === "ticket");
+}
+
+export async function readSessionState(fetchImpl: typeof fetch = fetch, requireIdentity = false): Promise<SessionState> {
   let res: Response;
   try {
-    res = await fetchImpl("/api/auth/session", { credentials: "same-origin" });
+    res = await fetchImpl("/api/auth/session", { credentials: "same-origin", ...(requireIdentity && { cache: "no-store", redirect: "error" }) });
   } catch (error) {
     return { kind: "unreachable", error: error instanceof Error ? error.message : String(error) };
   }
@@ -56,6 +65,7 @@ export async function readSessionState(fetchImpl: typeof fetch = fetch): Promise
   }
   if (!res.ok) return { kind: "unreachable", error: `${res.status} ${res.statusText}`,
     ...(res.status === 503 && isWorkspaceMaintenanceCode(record.code) ? { code: record.code } : {}) };
+  if (requireIdentity && !hasExplicitIdentity(record)) return { kind: "unreachable", error: "Invalid session response" };
   if (record.kind === "session" && typeof record.id === "string") {
     return {
       kind: "session",

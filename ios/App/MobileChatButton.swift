@@ -26,7 +26,7 @@ struct MobileChatButton: View {
                 Label("Chat without a computer", systemImage: "bubble.left.and.bubble.right")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .sheet(isPresented: $presenting) { MobileChatBrowser(address: address).ignoresSafeArea() }
         }

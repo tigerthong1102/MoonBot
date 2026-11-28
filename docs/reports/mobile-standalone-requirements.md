@@ -13,7 +13,7 @@
 | 5. Audit | Đã kiểm tra source native, Desktop, issuer, ví, registry, Inbox, giấy phép và upstream. | Chưa chứng nhận mọi bản phát hành hay khả năng phục hồi trên máy khách. |
 | 6. Phản biện | ADR ghi lựa chọn shared gateway, native/browser, phân quyền, guest, chi phí và rollback. | Chất lượng model, tỷ lệ quay lại và hiệu quả kinh doanh cần pilot thật. |
 | 7. Universal Account | OTP, ID bất biến, owner được issuer xác minh, nhiều phiên, liệt kê và thu hồi một hoặc tất cả phiên. Xác minh lại email sau hết hạn. | Chưa có refresh token riêng ở Mobile, quy trình mất quyền truy cập email, liên kết SSO, MFA hoặc xóa account xuyên subsystem. |
-| 8. Onboarding | Email vào chat, credit hoặc trial, điều khiển provider trong phần tùy chọn. Có nhãn vi/en/pt trên web. | Native cần kiểm tra thực địa, đọc màn hình, bàn phím và xoay màn hình. |
+| 8. Onboarding | Email vào chat, credit hoặc trial, điều khiển provider trong phần tùy chọn. Có nhãn vi/en/pt trên web. Chat là CTA chính, menu gom tính năng phụ. Chrome/WebKit đã kiểm 320 px và font 125%. | Native cần kiểm tra thực địa, đọc màn hình, bàn phím và xoay màn hình. |
 | 9. Chat | Stream, stop, retry có định danh, code block, copy, rename/delete, lịch sử theo trang, bounded context. | Model do operator chọn; regenerate, file, thoại, search và memory cá nhân chưa có trên bề mặt mới. |
 | 10. Provider | Managed OpenRouter và OAuth PKCE cá nhân có ledger riêng, khóa phiên, cancellation và không tự đổi payer. | ChatGPT cần partner grant, Claude subscription không sử dụng. Chưa có live OAuth/inference, lựa chọn model nâng cao hoặc adapter Mobile cho mọi API. |
 | 11. Execution Router | Text skill allowlist, chặn thao tác Desktop được nhận diện, từ chối runtime không được hỗ trợ trước inference. | Chưa có discovery khả năng host trực tuyến hoặc bộ định tuyến hiểu đầy đủ yêu cầu ngôn ngữ tự nhiên. |
@@ -193,7 +193,7 @@ Có text allowlist và kill riêng skill. Chặn runtime document/cloud tại AP
 
 ### I. Network và Mobile Lifecycle
 
-Có stream lỗi khi mất kết nối fixture, idempotency, đọc lịch sử sau reload. Không thay việc đo handoff mạng di động, RAM, OS background/foreground/kill.
+Có stream lỗi khi mất kết nối fixture, idempotency, đọc lịch sử sau reload. Đã dùng browser offline mode kiểm giữ nháp và không tự gửi khi có mạng. Vẫn cần đo handoff mạng di động, RAM và OS background/foreground/kill.
 
 | Ca | Yêu cầu gốc | Kết quả |
 |---|---|---|

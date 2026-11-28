@@ -4,7 +4,7 @@ import android.content.ActivityNotFoundException
 import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -23,7 +23,7 @@ internal fun MobileChatButton() {
     val language = LocalConfiguration.current.locales[0].toLanguageTag()
     val address = origin.buildUpon().path("/mobile").appendQueryParameter("lang", language).build()
     val unavailable = stringResource(R.string.mobile_browser_unavailable)
-    OutlinedButton(onClick = {
+    Button(onClick = {
         try {
             CustomTabsIntent.Builder().build().launchUrl(context, address)
         } catch (_: ActivityNotFoundException) {

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -64,13 +65,20 @@ object OnboardingCopy {
 }
 
 @Composable
+private fun ComputerEntryButton(label: String, onConnect: () -> Unit) {
+    if (mobileChatOrigin() == null) {
+        Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) { Text(label) }
+    } else {
+        OutlinedButton(onClick = onConnect, modifier = Modifier.fillMaxWidth()) { Text(label) }
+    }
+}
+
+@Composable
 fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
     OnboardingLayout(
         actions = {
             MobileChatButton()
-            Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.ui_onboardingcopy_welcome_connect))
-            }
+            ComputerEntryButton(stringResource(R.string.ui_onboardingcopy_welcome_connect), onConnect)
             TextButton(onClick = onSkip, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_not_now))
             }
@@ -93,22 +101,24 @@ fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
             color = secondaryTint,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(6.dp))
-        Benefit(
-            icon = Icons.AutoMirrored.Filled.Send,
-            title = stringResource(R.string.ui_your_chats_in_your_pocket),
-            detail = stringResource(R.string.ui_pick_up_the_same_conversations_from_your_computer),
-        )
-        Benefit(
-            icon = Icons.Filled.CheckCircle,
-            title = stringResource(R.string.ui_respond_when_a_bot_needs_you),
-            detail = stringResource(R.string.ui_review_approvals_without_going_back_to_your_desk),
-        )
-        Benefit(
-            icon = Icons.Filled.Lock,
-            title = stringResource(R.string.ui_private_by_design),
-            detail = stringResource(R.string.ui_you_choose_which_trusted_computer_this_phone_connects_to),
-        )
+        if (mobileChatOrigin() == null) {
+            Spacer(Modifier.height(6.dp))
+            Benefit(
+                icon = Icons.AutoMirrored.Filled.Send,
+                title = stringResource(R.string.ui_your_chats_in_your_pocket),
+                detail = stringResource(R.string.ui_pick_up_the_same_conversations_from_your_computer),
+            )
+            Benefit(
+                icon = Icons.Filled.CheckCircle,
+                title = stringResource(R.string.ui_respond_when_a_bot_needs_you),
+                detail = stringResource(R.string.ui_review_approvals_without_going_back_to_your_desk),
+            )
+            Benefit(
+                icon = Icons.Filled.Lock,
+                title = stringResource(R.string.ui_private_by_design),
+                detail = stringResource(R.string.ui_you_choose_which_trusted_computer_this_phone_connects_to),
+            )
+        }
     }
 }
 
@@ -137,14 +147,12 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
         OnboardingLayout(
             actions = {
                 MobileChatButton()
-                Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.ui_onboardingcopy_unpaired_home_connect))
-                }
+                ComputerEntryButton(stringResource(R.string.ui_onboardingcopy_unpaired_home_connect), onConnect)
             },
         ) {
             OnboardingHero(Icons.Filled.Phone)
             Text(
-                text = stringResource(R.string.ui_onboardingcopy_unpaired_home_title),
+                text = stringResource(if (mobileChatOrigin() == null) R.string.ui_onboardingcopy_unpaired_home_title else R.string.ui_onboardingcopy_welcome_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -155,12 +163,14 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
                 color = secondaryTint,
                 textAlign = TextAlign.Center,
             )
-            Text(
-                text = stringResource(R.string.ui_onboardingcopy_unpaired_home_hint),
-                fontSize = 13.sp,
-                color = secondaryTint,
-                textAlign = TextAlign.Center,
-            )
+            if (mobileChatOrigin() == null) {
+                Text(
+                    text = stringResource(R.string.ui_onboardingcopy_unpaired_home_hint),
+                    fontSize = 13.sp,
+                    color = secondaryTint,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }

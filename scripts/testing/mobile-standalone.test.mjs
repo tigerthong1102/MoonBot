@@ -306,3 +306,16 @@ it("revokes the selected wallet and retires local access even when the issuer re
   expect(f.ledger.authenticate(other.token, true)).toBe("bob");
   expect((await f.call("/threads", cookie)).status).toBe(401);
 });
+
+it("serves the mobile layout and same-origin brand asset under the page's content policy", async () => {
+  const page = await f.call("");
+  const policy = page.headers.get("content-security-policy");
+  expect(policy).toContain("style-src 'self'");
+  expect(policy).toContain("img-src 'self'");
+  const html = await page.text();
+  expect(html).toContain('href="/mobile/chat.css"');
+  expect(html).toContain('aria-describedby="consentNotice"');
+  const css = await f.call("/chat.css");
+  expect(css.headers.get("content-type")).toMatch(/^text\/css/);
+  expect((await f.call("/logo.png")).headers.get("content-type")).toBe("image/png");
+});

@@ -7,7 +7,7 @@ import { mobileSessions } from "./mobile-sessions.mjs";
 import { catalog, Fault } from "./ledger.mjs";
 
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
-const assets = new Map([["/mobile", ["./mobile.html", "text/html"]], ["/mobile/callback", ["./mobile.html", "text/html"]], ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]]]);
+const assets = new Map([["/mobile", ["./mobile.html", "text/html"]], ["/mobile/callback", ["./mobile.html", "text/html"]], ["/mobile/chat.css", ["./mobile.css", "text/css"]], ["/mobile/logo.png", ["./mobile-logo.png", "image/png"]], ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]]]);
 const instructions = "You are StartupBot on a phone. Answer in the user's language. You can write, translate and explain text. You have no access to a computer, local files, apps, cloud agent or tools. If a request needs them, explain that it needs a connected computer. Never state that an external action was performed.";
 
 export function mobileService(ledger, settings, gateway, http, readObject) {
@@ -49,7 +49,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       throw new Fault(403, "origin_denied");
     if (assets.has(path) && method === "GET") {
       const [file, type] = assets.get(path);
-      res.writeHead(200, { "content-type": type + "; charset=utf-8" });
+      res.writeHead(200, { "content-type": type === "image/png" ? type : type + "; charset=utf-8" });
       return res.end(readFileSync(new URL(file, import.meta.url)));
     }
     const body = method === "POST" ? await readObject(req) : {};

@@ -19,8 +19,9 @@ const previewInput = twinVersionInput.extend({
   ...providerFields,
   useMemory: z.literal(true).optional(),
   zaloRecipe: z.enum(ZALO_RECIPES).optional(),
+  zaloSource: z.strictObject({ source: z.string().trim().min(1).max(120), line: z.int().min(1).max(5_000) }).optional(),
 });
-const semanticInput = lookupTwinLessonInput.extend({ ...providerFields, zaloRecipe: z.never().optional() });
+const semanticInput = lookupTwinLessonInput.extend({ ...providerFields, zaloRecipe: z.never().optional(), zaloSource: z.never().optional() });
 const paths = new Map([
   [AI_TWIN_PATH, ["GET", "POST", "PATCH", "DELETE"]],
   [AI_TWIN_LOOKUP_PATH, ["POST"]],
@@ -126,7 +127,8 @@ export function createAiTwinRoutes(deps: {
         const current = store.get();
         const twin = current.twin;
         if (!twin || twin.paused || id !== twin.id || revision !== twin.revision) throw new TwinConflict();
-        const recipeId = input.data.zaloRecipe;
+        const { zaloRecipe: recipeId, zaloSource } = input.data;
+        if (Boolean(recipeId) !== Boolean(zaloSource)) return json(res, 400, { error: "invalid_zalo_source" });
         const recipe = recipeId && owner && auth.kind === "loopback" && auth.desktopOwner === true && !auth.companionDevice ? deps.zaloRecipe?.(recipeId) : undefined;
         if (recipeId && !recipe) return json(res, 403, { error: "recipe_unavailable" });
         const useMemory = isLookup || ("useMemory" in input.data && input.data.useMemory === true);
@@ -147,7 +149,7 @@ export function createAiTwinRoutes(deps: {
           if (isLookup) return json(res, 200, { lesson, ...(lesson && !exactMatch ? { match: "semantic" } : {}) });
 
           const style = useMemory ? deps.learnedStyle(auth, current.controls?.sourceIds ?? []) : undefined;
-          const draft = await drafts.draft(twin, question, key, disconnected.signal, { lesson, style, recipe });
+          const draft = await drafts.draft(twin, question, key, disconnected.signal, { lesson, style, recipe, zaloSource });
           assertCurrent();
           if (style && JSON.stringify(style) !== JSON.stringify(deps.learnedStyle(auth, current.controls?.sourceIds ?? []))) {
             throw new TwinConflict();

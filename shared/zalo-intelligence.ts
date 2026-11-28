@@ -1,5 +1,9 @@
 export const ZALO_RECIPES = ["zalo-bat-dong-san", "zalo-ke-toan", "zalo-quan-ly"] as const;
 export type ZaloRecipe = typeof ZALO_RECIPES[number];
+export interface ZaloSourceLine {
+  source: string;
+  line: number;
+}
 export const ZALO_IMPORT_LIMIT = 512_000;
 export const ZALO_LINE_LIMIT = 5_000;
 export const ZALO_INTENTS = ["invoice", "reconciliation", "viewing", "buy", "rent", "approval", "quote", "other"] as const;

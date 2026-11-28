@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from "node:crypto";
 import { digest, Fault } from "./ledger.mjs";
 
 const name = "__Host-startupbot-mobile";
@@ -38,6 +38,7 @@ export function mobileSessions(db) {
     const secret = Buffer.from(handle, "base64url"), owner = row.owner;
     return {
       hash, owner, token: open(secret, owner, row.sealed),
+      draftFingerprint: (id, prompt) => createHmac("sha256",secret).update(JSON.stringify(["desktop-draft",owner,id,prompt])).digest("hex"),
       seal: (purpose, value) => seal(secret, JSON.stringify([owner, purpose]), value),
       open: (purpose, value) => open(secret, JSON.stringify([owner, purpose]), value),
     };

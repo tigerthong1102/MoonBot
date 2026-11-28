@@ -11894,5 +11894,13 @@
   "mobileChat.error": "Falha na solicitação. Verifique a conexão e tente novamente.",
   "mobileChat.unavailable": "O serviço de contas está temporariamente indisponível.",
   "mobileChat.account_changed": "Sua conta mudou. Reabra a conversa.",
-  "mobileChat.invalid_message": "Reduza a mensagem e confirme o armazenamento."
+  "mobileChat.invalid_message": "Reduza a mensagem e confirme o armazenamento.",
+  "mobileChat.desktopListen": "Receber tarefas do celular",
+  "mobileChat.desktopListening": "Aguardando o celular · Parar",
+  "mobileChat.desktopChoose": "Escolha um computador.",
+  "mobileChat.desktopWaiting": "Aguardando o computador…",
+  "mobileChat.desktopReceived": "Rascunho aberto no computador. Revise e envie por lá.",
+  "mobileChat.desktopUnconfirmed": "Entrega não confirmada. Verifique o computador antes de tentar de novo.",
+  "mobileChat.desktop_unavailable": "Nenhum computador disponível. Ative o recebimento em um chat pessoal vazio no computador.",
+  "mobileChat.desktopConsent": "Para tarefas que precisam de computador, envie a solicitação como rascunho privado ao meu computador disponível."
 }

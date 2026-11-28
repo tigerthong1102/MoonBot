@@ -74,3 +74,13 @@ Trong catalog, đặt `managedLimits.trialPaused` thành `true` để dừng c�
 Mục Phiên đăng nhập hiển thị phiên tài khoản do issuer xác minh. Thu hồi một phiên tác động tới bearer issuer và phiên ví liên kết. Phiên ví cũ thiếu liên kết issuer được thu hồi theo owner khi có yêu cầu thu hồi riêng; đăng xuất mọi thiết bị thu hồi phiên issuer và các phiên Mobile/ví email trên ledger này. Credential máy đã được cấp riêng cần đi qua quản lý installation. Cookie Mobile giới hạn tám giờ và người dùng xác minh lại email khi hết hạn. Tạm dừng ingress trước khi rollback sang code không hiểu cờ dừng trial hoặc không kiểm thế hệ phiên ví.
 
 Phiên ví đăng nhập bằng email xác minh lại với issuer ở mỗi lần đọc hoặc ghi cần quyền, kể cả inference. Gateway giữ bearer issuer dưới dạng mã hóa, khóa giải mã đến từ secret của phiên ví. Lần nâng cấp yêu cầu đăng nhập email lại cho phiên ví cũ chưa có bearer mã hóa. Khi issuer gián đoạn, gateway tạm từ chối request và giữ phiên để người dùng thử lại. Thu hồi tại issuer có hiệu lực ở lần xác minh tiếp theo. Token do quản trị cấp và credential engine có cơ chế thu hồi riêng.
+
+### Chuyển việc từ điện thoại đến máy tính
+
+Tài khoản email OTP, sổ cái của ví và cổng OpenRouter phục vụ cả pilot mobile. Tác vụ văn bản chạy tại gateway. Khi gặp yêu cầu cần ứng dụng hoặc tệp trên máy, gateway kiểm tra máy nhận trước bước cấp ngân sách AI. Trong pilot nội bộ, áp dụng migration control-plane `0019_mobile_desktop_drafts.sql` rồi đặt `STARTUPBOT_MOBILE_DESKTOP_HANDOFF=1` trên Worker tài khoản, gateway và ứng dụng desktop. Tắt cờ để dừng nhận yêu cầu mới; tác vụ dọn dẹp vẫn xóa các gói hết hạn.
+
+1. Trên máy tính, đăng nhập cùng tài khoản, mở ô soạn **trống** trong chat riêng của bot và bấm **Nhận việc từ điện thoại**. Giữ cửa sổ đó hoạt động.
+2. Trên mobile, gửi yêu cầu như “Đối chiếu sổ sách trong MISA”, hoặc chọn **Làm việc trên máy tính**. Một máy đang nhận sẽ được chọn tự động. Khi nhiều máy cùng nhận, chọn tên và mã đang hiển thị trên máy mong muốn.
+3. Khi đúng máy xác nhận mở bản nháp, điện thoại báo đã nhận và giữ bản gốc. Đọc lại rồi bấm **Gửi** ở desktop để sử dụng quyền, công cụ và quy trình duyệt sẵn có. Mất mạng hoặc chưa có máy nhận thì vẫn dùng được chat văn bản. Hệ thống không xếp lịch tự chạy khi máy bật lại.
+
+Worker kiểm tra phiên email và chủ sở hữu installation. Mỗi ô soạn mở khóa nhận riêng. Nội dung đi qua broker dưới dạng bản mã AES-GCM, khóa được dẫn xuất bằng ECDH P-256 và giữ trong bộ nhớ desktop. Mã yêu cầu giữ nguyên khi thử lại. Biên nhận hết hạn sau một ngày; gói tin hết hạn không đọc được qua API và được dọn theo cron. Biên nhận xác nhận đã mở bản nháp; kết quả MISA/Excel do desktop trả về sau khi thực thi.

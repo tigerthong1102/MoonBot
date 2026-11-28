@@ -11894,5 +11894,13 @@
   "mobileChat.error": "Unable to complete the request. Check your connection and try again.",
   "mobileChat.unavailable": "The account service is temporarily unavailable.",
   "mobileChat.account_changed": "Your account changed. Reopen the conversation.",
-  "mobileChat.invalid_message": "Shorten your message and confirm the storage choice."
+  "mobileChat.invalid_message": "Shorten your message and confirm the storage choice.",
+  "mobileChat.desktopListen": "Receive work from my phone",
+  "mobileChat.desktopListening": "Listening for my phone · Stop",
+  "mobileChat.desktopChoose": "Choose a computer for this request.",
+  "mobileChat.desktopWaiting": "Waiting for the computer to open the draft…",
+  "mobileChat.desktopReceived": "Draft opened on your computer. Review it there and press Send.",
+  "mobileChat.desktopUnconfirmed": "Delivery unconfirmed. Check your computer before trying again.",
+  "mobileChat.desktop_unavailable": "No computer is ready. Open an empty personal chat in StartupBot on your computer and select “Receive work from my phone”.",
+  "mobileChat.desktopConsent": "For work that needs my computer, send this request as a private draft to my receiving computer."
 }

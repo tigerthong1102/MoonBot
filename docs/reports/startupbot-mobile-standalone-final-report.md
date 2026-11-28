@@ -1,6 +1,6 @@
 # StartupBot Mobile Standalone — báo cáo cho founder
 
-Ngày 28/11/2026. Phạm vi gồm sáu PR, từ #124 đến #129. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
+Ngày 28/11/2026. Phạm vi gồm sáu PR nền tảng (#124–#129) và PR bổ sung chuyển việc sang máy tính. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
 
 ## A. Người dùng làm được gì?
 
@@ -15,6 +15,10 @@ Chat hỗ trợ hiển thị text ngay khi provider phát, Dừng, lịch sử, 
 Người dùng vẫn thấy màn hình chào, ghép đôi và chat native quen thuộc. Bản bật pilot thêm lựa chọn **Chat không cần máy tính** ở màn hình chào, màn hình chưa ghép đôi và Cài đặt. Khi chạm, người dùng chat trong Safari tích hợp trên iOS hoặc Custom Tab trên Android. Phần này dùng cùng CSS, màu và cách trình bày tin nhắn với StartupBot Inbox. Chromium và WebKit đều qua luồng chat HTTPS, đổi hội thoại và giữ bản nháp trên màn hình hẹp. Ở 320 × 568, dark mode, cỡ chữ gốc 125%, chiều rộng nội dung là 320 px và đáy nút Gửi ở 554 px. Đây là phép đo trình duyệt với nhà cung cấp AI giả lập.
 
 Sáu dòng gọi nút là toàn bộ phần chênh ở bốn file màn hình native so với trước nhiệm vụ. Đối chiếu với hai nhánh phát hành công khai ngày 28/11, cả bốn file nhận được sáu dòng qua thử ghép ba chiều. Mô phỏng ghép cả monorepo với upstream/main cho cùng 474 đường dẫn xung đột trước và sau thay đổi, không phát sinh đường dẫn mới tại lần đo này. Các đợt cập nhật tương lai vẫn cần chạy lại phép thử. [Nguồn và cách kiểm tra](../architecture/mobile-standalone-assessment.md#cập-nhật-từ-mausbot)
+
+### Chuyển yêu cầu sang máy tính
+
+Trong pilot có bật nhận việc, một máy đang nhận cùng tài khoản được chọn tự động. Nhiều máy thì điện thoại hiện tên và mã để chọn. Desktop xác nhận sau khi đưa nguyên văn yêu cầu vào ô soạn riêng đang trống. Người dùng bấm Gửi trên máy để chạy với quyền và phê duyệt tại chỗ. Điện thoại giữ bản gốc khi mất mạng. Smoke bằng OTP và Worker/D1 cục bộ đã xác nhận email mới nhận trial, chat văn bản qua provider giả lập, sau đó chuyển yêu cầu MISA mà số lượt gọi model không tăng. Một cửa sổ Electron thử nghiệm trên macOS đã mở đúng nội dung trong ô soạn; trạng thái được đọc lại từ DOM và đối chiếu với biên nhận của Worker. [Bật pilot và kiểm tra](../../apps/ai-pilot/README.md#chuyển-việc-từ-điện-thoại-đến-máy-tính)
 
 ### Audit trước khi merge
 
@@ -114,10 +118,10 @@ Kịch bản cơ sở giả định mỗi MAU có 30 request/tháng, 1.000 token
 | Trạng thái | Hạng mục |
 |---|---|
 | COMPLETE trong fixture | Email OTP, tài khoản chung, session và logout/issuer revocation, admission/kill switch, Managed AI với provider giả, stream tăng dần, cancel, idempotency, lịch sử cùng owner, text skills, kiểm soát payer và migration sổ cái. |
-| PARTIAL | Mobile native có điểm vào thật; chưa nghiệm thu hardware. BYOK/PKCE có luồng kỹ thuật và smoke giả provider. Registry chỉ liệt kê thiết bị; handoff Desktop là thao tác ghép đôi chủ động. Sync giới hạn ở chat standalone đã đồng ý lưu. |
+| PARTIAL | Mobile native có điểm vào thật; chưa nghiệm thu hardware. BYOK/PKCE có luồng kỹ thuật và smoke giả provider. Trong pilot có bản nháp chuyển tự động đến máy cùng tài khoản đang mở nhận; người dùng xác nhận thực thi trên máy đích. Sync giới hạn ở chat standalone đã đồng ý lưu. |
 | BLOCKED cho live | Email và inference được phê duyệt ngân sách, activity/cost readback OpenRouter, phê duyệt ChatGPT partner, kiểm thử thiết bị và store. |
 | NOT STARTED | Xóa account toàn hệ sinh thái với retention tài chính, SSO Apple/Google, production billing/store restore, shared worker đa vùng, analytics cohort production. |
-| DEFERRED | Mobile Local AI, handoff tự động, deferred task có TTL/approval, file/MISA/Excel trên cloud, push riêng cho chat standalone, selective sync Desktop. |
+| DEFERRED | Mobile Local AI, tự chạy tác vụ trên máy đang tắt, deferred task có TTL/approval, file/MISA/Excel trên cloud, push riêng cho chat standalone, selective sync Desktop. |
 | NOT RECOMMENDED trong pilot | VM Cloud Agent cho từng user, miễn phí vô hạn, tự chuyển local/BYOK sang managed, biến thuê bao Claude cá nhân thành backend. |
 
 Lợi thế sản phẩm cần kiểm chứng là từ một bản nháp hay kế hoạch có thể đi tiếp sang workflow Desktop đã được người dùng cấp quyền. Một màn hình chat đơn thuần chưa chứng minh được lợi thế thị trường. Hai skill catalog là nơi phù hợp để đo giá trị ban đầu. Trước khi thêm orchestration mới, đo xem người dùng có quay lại để chỉnh nội dung và có ghép đôi nhằm làm tiếp trên máy tính hay không.

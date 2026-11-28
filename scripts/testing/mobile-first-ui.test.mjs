@@ -86,3 +86,32 @@ it("completes the provider callback once when the saved conversation history nee
   expect(el("transcript").textContent).toContain("restored answer");
   expect(complete).toHaveBeenCalledExactlyOnceWith({ account:"fixture", code:"fixture-code", state:"fixture-state" });
 });
+
+it("shows the receiving machine and retains both the phone draft and its receipt on retry", async () => {
+  const sends=[];
+  vi.stubGlobal("fetch", async (path,init) => {
+    if (path.endsWith("/threads")) return Response.json({account:"owner",threads:[],desktopHandoff:true});
+    if (path.endsWith("/send")) {
+      const body=JSON.parse(init.body);sends.push(body);
+      const desktop=body.target ? {state:"received"} : {state:"choose",devices:[{id:saved,name:"Desktop",code:"abcd1234"}]};
+      return Response.json({desktop});
+    }
+    throw Error(path);
+  });
+  await import("../../apps/ai-pilot/mobile-ui.js");
+  await idle();
+  el("consent").checked=true;el("skill").value="desktop";el("prompt").value="Review my file";
+  const submit=()=>el("compose").dispatchEvent(new Event("submit",{cancelable:true}));
+  submit();await idle();
+  expect(el("handoffTargets").textContent).toContain("abcd1234");
+  el("skill").value="chat";el("handoffTargets").firstChild.click();await idle();
+  expect(sends).toHaveLength(1);
+  el("skill").value="desktop";submit();await idle();
+  el("compose").requestSubmit=submit;
+  el("handoffTargets").firstChild.click();await idle();
+  expect(sends.at(-1).target).toBe(saved);
+  expect(el("prompt").value).toBe("Review my file");
+  expect(el("status").textContent).toContain("Draft opened");
+  submit();await idle();
+  expect(new Set(sends.map(one=>one.id)).size).toBe(1);
+});

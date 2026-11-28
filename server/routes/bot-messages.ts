@@ -61,7 +61,7 @@ export interface BotMessageRouteDeps {
   knowledge?: Pick<KnowledgeAnswerDeps, "accessible" | "unavailable" | "writer" | "contextChanged">;
   store: Pick<Store,
     | "activeLeaf" | "activePath" | "appendMessage" | "bot" | "botByThread" | "bots" | "groupByThread" | "messagesFor"
-    | "patchMessage" | "patchTask" | "projectBotForTask" | "setActiveLeaf" | "setTaskAskedAt" | "taskByThread" | "tasks">;
+    | "onChange" | "patchMessage" | "patchTask" | "projectBotForTask" | "setActiveLeaf" | "setTaskAskedAt" | "taskByThread" | "tasks">;
   registry: Pick<ProviderRegistry, "get">;
   /** On a team: the words for a turn with no AI to answer with, having told who can connect one. */
   noAiRefusal?(threadId: string, sender: ResolvedSender | undefined, instanceId?: string): Error | null;

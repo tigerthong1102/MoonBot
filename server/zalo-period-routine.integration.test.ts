@@ -11,12 +11,12 @@ import { zaloPeriodService } from "./routes/zalo-period-report.ts";
 import { createZaloInbox } from "./zalo-inbox.ts";
 import type { ZaloPeriodView } from "../shared/zalo-period-report.ts";
 
-it.each([true, false])("publishes on the next due millisecond when the HTTP save notifies the running Routine clock: %s", async (notify) => {
+it.each([true, false])("publishes on the next due millisecond when the HTTP save notifies the running Routine clock: %s", async (notifyClockOnSave) => {
   const home = mkdtempSync(join(tmpdir(), "zalo-period-host-"));
   const dir = join(home, ".startupbot-qualification", "zalo-official"); mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = join(dir, "inbox.sqlite"), db = new DatabaseSync(file); chmodSync(file, 0o600);
   let time = Date.parse("2026-11-28T11:59:59Z");
-  const service = zaloPeriodService(true, { home: () => home, now: () => time, onChanged: () => { if (notify) manager.pokeSchedule(); } });
+  const service = zaloPeriodService(true, { home: () => home, now: () => time, onChanged: () => { if (notifyClockOnSave) manager.pokeSchedule(); } });
   const startTurn = vi.fn(async () => { throw Error("unexpected agent dispatch"); });
   const manager = new RoutineManager({ file: join(home, "routines.json"), now: () => time, localReportSchedule: service,
     botState: () => "ready", createTask: () => { throw Error("unexpected task allocation"); }, startTurn });
@@ -46,10 +46,9 @@ it.each([true, false])("publishes on the next due millisecond when the HTTP save
     expect(service.next()).toBe(Date.parse("2026-11-28T12:00:00Z"));
     time += 499; await vi.advanceTimersByTimeAsync(499);
     expect((await view())!.periods).toHaveLength(0);
-    // No explicit tick: the saved schedule must have armed the existing Routine timer.
     time += 1; await vi.advanceTimersByTimeAsync(1);
-    expect((await view())!.periods).toHaveLength(notify ? 1 : 0);
-    if (!notify) await manager.tick(); // Negative control: an unnotified timer has to wait for a later pass.
+    expect((await view())!.periods).toHaveLength(notifyClockOnSave ? 1 : 0);
+    if (!notifyClockOnSave) await manager.tick();
     expect((await view())!.periods[0]).toMatchObject({ count: 1, urgent: 1 });
     inbox.revoke(grant); time += 86_400_000; await manager.tick();
     expect(await view()).toBeNull();

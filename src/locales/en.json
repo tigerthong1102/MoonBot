@@ -11561,7 +11561,7 @@
   "personalInbox.generatedOnce": "One 10-minute permission",
   "personalInbox.generatedWhileOnline": "While this desktop stays open",
   "personalInbox.generatedDailyLimit": "Maximum attempts per rolling 24 hours (1–720)",
-  "personalInbox.generatedOngoingTerms": "While this desktop stays open, it automatically renews permission every 10 minutes for the same provider and rooms. Up to 5 attempts per rolling 10 minutes and {count} per rolling 24 hours may incur charges, including unfinished replies. Closing the desktop, changing the account, Twin or provider, or ending either Inbox session stops renewal. Stop in Inbox to revoke centrally. An in-flight request may still be charged.",
+  "personalInbox.generatedOngoingTerms": "While this desktop stays open, it automatically renews permission every 10 minutes for the same provider and rooms. Up to 5 attempts per rolling 10 minutes and {count} per rolling 24 hours may incur charges, including unfinished replies. These limits count all AI-generated attempts on this Inbox account across providers and permissions. The daily limit continues for 24 hours after the last approval or use, unless you approve a new while-open limit. Closing the desktop, changing the account, Twin or provider, or ending either Inbox session stops renewal. Stop in Inbox to revoke centrally. An in-flight request may still be charged.",
   "personalInbox.generatedOngoingEnabled": "While-open permission is active, with up to {count} attempts per rolling 24 hours.",
   "personalInbox.generatedOngoingWaiting": "Waiting for this desktop to renew. The daily limit is {count} attempts.",
   "personalInbox.generatedTitle": "AI-generated Inbox replies",

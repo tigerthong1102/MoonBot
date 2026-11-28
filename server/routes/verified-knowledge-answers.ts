@@ -15,7 +15,7 @@ const request = z.strictObject({
   allowProvider: z.literal(true),
 });
 const response = z.strictObject({
-  paragraphs: z.array(z.strictObject({ text: z.string().trim().min(1).max(4_000), sources: z.array(z.number().int().min(1).max(3)).max(3) })).min(1).max(12),
+  paragraphs: z.array(z.strictObject({ text: z.string().trim().min(1).max(4_000), sources: z.array(z.number().int().min(1).max(3)).min(1).max(3) })).min(1).max(12),
 });
 
 class VerificationRefused extends Error {}
@@ -55,13 +55,14 @@ export function createVerifiedKnowledgeAnswers(deps: KnowledgeAnswerDeps, pendin
     const refused = refusal();
     if (refused) return json(res, refused.status, refused.body);
     const writer = deps.writer(auth, bot, threadId);
-    if (!writer || "code" in writer || writer.selection.instanceId !== provider.instanceId || writer.selection.model !== provider.model) {
+    const providerIdentity = deps.providerIdentity?.(provider.instanceId);
+    if (!providerIdentity || !writer || "code" in writer || writer.selection.instanceId !== provider.instanceId || writer.selection.model !== provider.model) {
       return json(res, 409, { error: "provider_changed_or_unavailable" });
     }
     const snapshot = JSON.stringify(sources), leaf = deps.store.activeLeaf(threadId), abort = new AbortController();
     let started = false;
     const stillValid = () => allowed() && !deps.busy(botId, threadId) && deps.store.activeLeaf(threadId) === leaf &&
-      !refusal() && JSON.stringify(select()) === snapshot;
+      !refusal() && deps.providerIdentity?.(provider.instanceId) === providerIdentity && JSON.stringify(select()) === snapshot;
     const close = () => abort.abort();
     if (res.destroyed) return;
     res.once("close", close); pending.add(threadId); principals.add(principal);

@@ -16,10 +16,10 @@ function fixture() {
   const bot = store.createBot({ name: "Fixture" }), other = store.createBot({ name: "Other" });
   const source = store.appendMessage(bot.threadId, { role: "user", kind: "text", text: "Approved period: 30 days." });
   const outsider = store.appendMessage(other.threadId, { role: "user", kind: "text", text: "Private second conversation." });
-  let allowed = true, writerEnabled = true;
+  let allowed = true, writerEnabled = true, providerIdentity = {};
   const generate = vi.fn<SideJobText["generateText"]>(async (_prompt, options) => { options?.started?.(); return result; });
   const route = createKnowledgeAnswers({ store, accessible: () => allowed, unavailable: () => null, busy: () => false,
-    refusal: () => null, sender: () => undefined, contextChanged: () => {},
+    refusal: () => null, sender: () => undefined, contextChanged: () => {}, providerIdentity: () => providerIdentity,
     writer: () => writerEnabled ? ({ via: "engine", selection: { instanceId: "fixture", model: "fixture-model" }, generateText: generate }) : null,
   } satisfies KnowledgeAnswerDeps);
   const path = `/api/bots/${bot.id}/knowledge-answers/verified`;
@@ -33,7 +33,7 @@ function fixture() {
     }).then(() => ({ status, answer }));
     return { done, disconnect: () => res.emit("close") };
   }
-  return { store, bot, source, outsider, generate, send, setAllowed: (next: boolean) => { allowed = next; }, setWriter: (next: boolean) => { writerEnabled = next; } };
+  return { store, bot, source, outsider, generate, send, setAllowed: (next: boolean) => { allowed = next; }, setWriter: (next: boolean) => { writerEnabled = next; }, replaceProvider: () => { providerIdentity = {}; } };
 }
 
 it("answers from selected server messages and rejects client-supplied text, cross-thread IDs and missing consent", async () => {
@@ -75,6 +75,14 @@ it("rejects invalid source indexes from the provider", async () => {
   expect((await f.send().done).status).toBe(502);
 });
 
+it("rejects uncited paragraphs and oversized model output", async () => {
+  const f = fixture();
+  for (const raw of [JSON.stringify({ paragraphs: [{ text: "Unsupported", sources: [] }] }), "x".repeat(64_001)]) {
+    f.generate.mockImplementationOnce(async (_prompt, options) => { options?.started?.(); return raw; });
+    expect(await f.send().done).toEqual({ status: 502, answer: { error: "invalid_source_answer" } });
+  }
+});
+
 it("withholds recognizable credentials from provider requests and masks them in responses", async () => {
   const f = fixture(), secret = "sk-" + "x".repeat(24);
   expect((await f.send({ question: `What is ${secret}?` }).done).status).toBe(400);
@@ -102,16 +110,24 @@ it("denies sessions, ordinary loopback, companion and service callers", async ()
   expect(f.generate).not.toHaveBeenCalled();
 });
 
-it.each(["permission", "source"]) ("refuses %s changes before the queued provider starts", async (changed) => {
+it.each(["permission", "source", "provider configuration"]) ("refuses %s changes before the queued provider starts", async (changed) => {
   const f = fixture(), waiting = deferred<void>(), resume = deferred<void>();
   const transmitted: string[] = [];
   f.generate.mockImplementationOnce(async (prompt, options) => { waiting.resolve(); await resume.promise; options?.started?.(); transmitted.push(prompt); return result; });
   const pending = f.send(); await waiting.promise;
   if (changed === "permission") f.setAllowed(false);
-  else f.source.text = "Revised source.";
+  else if (changed === "source") f.source.text = "Revised source.";
+  else f.replaceProvider();
   resume.resolve();
   expect((await pending.done).status).toBe(409);
   expect(transmitted).toEqual([]);
+});
+
+it("withholds the response after the provider configuration changes during generation", async () => {
+  const f = fixture(), waiting = deferred<void>(), resume = deferred<void>();
+  f.generate.mockImplementationOnce(async (_prompt, options) => { options?.started?.(); waiting.resolve(); await resume.promise; return result; });
+  const pending = f.send(); await waiting.promise; f.replaceProvider(); resume.resolve();
+  expect((await pending.done).status).toBe(409);
 });
 
 it("does not return an answer when an authorized source changes while the model is running", async () => {

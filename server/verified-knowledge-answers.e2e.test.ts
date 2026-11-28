@@ -1,11 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { launchVerificationServer, runControlOmb } from "../scripts/control-omb.ts";
 
-it("uses the authenticated desktop's actual conversation as the only model evidence", async () => {
+it("blocks verified source answers without a verified destination", async () => {
   const dir = mkdtempSync(join(tmpdir(), "verified-knowledge-"));
   const routes = join(dir, "routes.json"), log = join(dir, "calls.jsonl");
   const owner = randomBytes(32).toString("base64url");
@@ -39,10 +39,10 @@ it("uses the authenticated desktop's actual conversation as the only model evide
     expect(forged.status).toBe(400);
     const response = await fetch(path, { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
     const payload = await response.json();
-    expect(response.status, JSON.stringify(payload)).toBe(200);
-    expect(payload).toMatchObject({ paragraphs: [{ text: "Fixture answer.", sources: [1] }], sources: [{ messageId: source.id }] });
-    const prompts = readFileSync(log, "utf8");
-    expect(prompts).toContain(text);
+    expect(response.status, JSON.stringify(payload)).toBe(409);
+    expect(payload).toEqual({ error: "provider_changed_or_unavailable" });
+    const prompts = existsSync(log) ? readFileSync(log, "utf8") : "";
+    expect(prompts).not.toContain("Answer only from the selected conversation messages");
     expect(prompts).not.toContain("Forged source");
   } finally { await fixture.close(); rmSync(dir, { recursive: true, force: true }); }
 }, 90_000);

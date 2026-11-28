@@ -82,6 +82,7 @@ export interface KnowledgeAnswerDeps {
   busy(botId: string, threadId: string): boolean;
   sender(auth: RequestAuth): Message["sender"];
   writer(auth: RequestAuth, bot: BotRecord, threadId: string): ReturnType<typeof sourceWriter>;
+  providerIdentity?(instanceId: string): object | null;
   contextChanged(bot: BotRecord, threadId: string): void;
 }
 

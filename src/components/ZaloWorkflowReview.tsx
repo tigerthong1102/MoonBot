@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
 import { effectivePlace } from "@/lib/place";
 import { api } from "@/state/api";
-import { useStore, type Bot } from "@/state/store";
+import { visibleMessages } from "@/state/snapshot-navigation";
+import { currentTaskBot, useStore, type Bot } from "@/state/store";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
 import { usePlaceViews } from "./PlaceChip";
 import { Select } from "./Select";
@@ -15,7 +16,7 @@ type Status = "loading" | "ready" | "failed" | "changed" | "prepared";
 export default function ZaloWorkflowReview({ bot, source, line }: { bot: Bot; source: string; line: number }) {
   const { state, dispatch } = useStore();
   const { capabilities, ready } = useDesktopCapabilities();
-  const { local } = usePlaceViews(bot);
+  const { local } = usePlaceViews(currentTaskBot(bot));
   const [workflows, setWorkflows] = useState<ReviewedWorkflow[]>([]);
   const [choice, setChoice] = useState("");
   const [status, setStatus] = useState<Status>("loading");
@@ -74,7 +75,7 @@ export default function ZaloWorkflowReview({ bot, source, line }: { bot: Bot; so
     if (messageId) dispatch({ type: "focusMessage", threadId: bot.threadId, messageId });
   }
 
-  const saved = bot.messages?.findLast(message => message.savedSteps?.learned || message.savedSteps?.replayed);
+  const saved = visibleMessages(bot)?.findLast(message => message.savedSteps?.learned || message.savedSteps?.replayed);
   return <section className="flex flex-col items-start gap-2 border-l border-hairline pl-3" aria-label={t("zalo.workflow.review")}>
     <p>{t("zalo.workflow.source", { source, line })}</p>
     <p>{t("zalo.workflow.scope")}</p>

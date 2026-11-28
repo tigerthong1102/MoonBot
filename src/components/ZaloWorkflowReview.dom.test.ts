@@ -9,7 +9,7 @@ import { ZaloImportSection } from "./ZaloImportSection";
 const env = vi.hoisted(() => ({ connected: true, platform: "win32", dispatch: vi.fn(), ready: true }));
 vi.mock("@/state/api", async load => ({ ...await load<object>(), api: vi.fn() }));
 vi.mock("@/state/store", async load => ({ ...await load<object>(), useStore: () => ({ state: { connected: env.connected, selectedId: "bot-a" }, dispatch: env.dispatch }) }));
-vi.mock("./PlaceChip", () => ({ usePlaceViews: () => ({ local: { reachable: env.ready } }) }));
+vi.mock("./PlaceChip", () => ({ usePlaceViews: (profile: Bot) => ({ local: { reachable: env.ready && profile.modelSelection?.instanceId !== "no-computer" } }) }));
 vi.mock("./DesktopCapabilities", () => ({ useDesktopCapabilities: () => ({ ready: true, capabilities: { host: { platform: env.platform, label: "Fixture computer" }, localComputer: { available: true, enabled: true } } }) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const bot = { id: "bot-a", threadId: "test-thread", computer: "local", messages: [{ id: "local-record", savedSteps: { learned: true } }] } as unknown as Bot;
@@ -19,12 +19,12 @@ const answer = { workflows: [workflow] };
 
 afterEach(() => { setDraft(localStorage, id, ""); env.platform = "win32"; env.connected = true; env.ready = true; env.dispatch.mockReset(); vi.mocked(api).mockReset(); });
 
-async function open() {
+async function open(profile: Bot = bot) {
   await import("./ZaloWorkflowReview");
   const host = document.createElement("div");
   const root = createRoot(host);
   const button = (text: string) => [...host.querySelectorAll("button")].find(element => element.textContent?.includes(text))!;
-  const draw = () => act(async () => root.render(createElement(ZaloImportSection, { bot, twinEnabled: false })));
+  const draw = () => act(async () => root.render(createElement(ZaloImportSection, { bot: profile, twinEnabled: false })));
   const fill = (element: HTMLInputElement | HTMLTextAreaElement, text: string) => {
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), "value")!.set!.call(element, text);
     element.dispatchEvent(new Event("input", { bubbles: true }));
@@ -88,5 +88,17 @@ it("invalidates an in-flight approval when the operator clears the source", asyn
     await act(async () => view.button("Clear").click());
     await act(async () => finish(answer));
     expect(getDraft(localStorage, id)).toBe("");
+  } finally { view.close(); }
+});
+
+it("uses the task's model capability and links Saved Steps only on the visible branch", async () => {
+  vi.mocked(api).mockResolvedValue(answer);
+  const profile = { ...bot, activeLeafId: "visible", tasks: [{ threadId: bot.threadId, modelSelection: { instanceId: "no-computer" } }],
+    messages: [{ id: "root" }, { id: "visible", parentId: "root", savedSteps: { learned: true } }, { id: "abandoned", parentId: "root", savedSteps: { replayed: true } }] } as unknown as Bot;
+  const view = await open(profile);
+  try {
+    expect(view.button("Approve the workflow proposal").disabled).toBe(true);
+    await act(async () => view.button("View the last Saved Steps").click());
+    expect(env.dispatch).toHaveBeenCalledWith({ type: "focusMessage", threadId: bot.threadId, messageId: "visible" });
   } finally { view.close(); }
 });

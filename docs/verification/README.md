@@ -82,6 +82,7 @@ Use only mapped, tested commands:
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
 - [Zalo excerpt review, intelligence and release evidence](zalo-intelligence.md)
+- [Duyệt đề xuất quy trình từ một dòng Zalo](zalo-workflow-review.md)
 - [In-chat team coordination](room-coordination.md)
 - [Question cards: a teammate's question, in its chat and the person's inbox](question-cards.md)
 - [Chief authority over additional departments](team-access.md)

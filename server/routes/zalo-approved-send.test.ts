@@ -37,7 +37,8 @@ it("smokes real owner HTTP preview/approve/status with synthetic transport, refu
     return Response.json({ ok: true, result: method === "getMe" ? { id: scope.accountId } : { message_id: "fixture-receipt" } });
   };
   const owner: RequestAuth = { kind: "loopback", scopes: ["admin"], desktopOwner: true };
-  let auth = owner, local = true;
+  let auth: RequestAuth = owner;
+  let local = true;
   const observed: unknown[] = [];
   const app = createServer(async (req, res) => {
     const url = new URL(req.url!, "http://127.0.0.1");
@@ -53,8 +54,12 @@ it("smokes real owner HTTP preview/approve/status with synthetic transport, refu
   const text = "synthetic owner-only approved body";
   const common = { grantId, sourceId: "fixture-source", text };
   try {
-    for (const attempt of [{ ...owner, desktopOwner: false }, { ...owner, companionDevice: "fixture" }, { ...owner, trust: "service" as const },
-      { ...owner, kind: "session" as const }]) {
+    const denied: RequestAuth[] = [
+      { kind: "loopback", scopes: ["admin"] }, { ...owner, companionDevice: "fixture" }, { ...owner, trust: "service" },
+      { kind: "session", via: "bearer", scopes: ["admin"], session: { id: "fixture", tokenHash: "0".repeat(64),
+        label: "test", scopes: ["admin"], createdAt: 1, lastSeenAt: 1, expiresAt: 2 } },
+    ];
+    for (const attempt of denied) {
       auth = attempt;
       expect((await call()).status).toBe(403);
       expect((await call({ token, action: "send" })).status).toBe(403);

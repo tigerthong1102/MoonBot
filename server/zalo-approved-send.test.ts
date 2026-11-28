@@ -158,3 +158,19 @@ it("reads a provider acknowledgement after closing and reopening the private inb
     expect(t.calls).toEqual(["getMe", "sendMessage"]);
   } finally { reopened.close(); }
 });
+
+it("retains only the account-wide unknown-send guard when a different grant replaces the erased source", async () => {
+  const f = fixture(), p = f.draft(), t = transport(undefined, () => ok({}));
+  expect((await f.store.send(from(p), token, signal(), t.request)).status).toBe("unknown");
+  f.pilot.remove(f.endpoint.endpoint);
+  const scope = { accountId: "fixture-bot", senderId: "new-participant", conversationId: "new-private-chat",
+    adapter: "official" as const, conversationType: "direct" as const };
+  const endpoint = f.pilot.register(scope.accountId);
+  const grantId = f.inbox.enroll({ ...scope, retentionDays: 1 });
+  f.db.prepare("UPDATE zalo_webhook_endpoints SET grantId=? WHERE endpoint=?").run(grantId, endpoint.endpoint);
+  f.inbox.accept({ ...scope, timestamp: f.now(), direction: "incoming", messageId: "new-source", text: "new fixture" }, grantId);
+  expect(f.db.prepare("SELECT COUNT(*) AS n FROM zalo_reply_actions").get()?.n).toBe(0);
+  expect(f.store.source()).toMatchObject({ grantId, accountHeld: true, sourceId: "new-source" });
+  expect(f.store.preview({ grantId, sourceId: "new-source" }, "different message")).toBeUndefined();
+  expect(t.calls).toEqual(["getMe", "sendMessage"]);
+});

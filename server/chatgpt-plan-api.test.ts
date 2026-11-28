@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { verificationServerEnvironment } from "../scripts/control-omb.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { excludedWorkspaceAuthPath } from "./workspace-backup-policy.ts";
 
@@ -69,8 +70,8 @@ beforeAll(async () => {
     const health = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(1_000) });
     expect(health.status).toBe(200);
     expect((await health.json() as { pid: number }).pid).toBe(child!.pid);
-  }, { timeout: 20_000, interval: 100 });
-}, 30_000);
+  }, { timeout: hostTimeout(20_000), interval: 100 });
+}, hostTimeout(30_000));
 
 afterAll(async () => {
   await waitForExit(child, { signal: "SIGTERM" });

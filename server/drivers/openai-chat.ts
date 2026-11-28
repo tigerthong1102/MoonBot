@@ -124,6 +124,8 @@ const MAX_ANNOUNCEMENT_NUDGES = 3;
 const stoppedAfter = (count: string) =>
   `Stopped after ${count} without a final answer. The steps so far already ran, so ask only for what's left.`;
 
+type CompletionRequestOptions = Pick<TextGenerationOptions, "beforeRequest" | "requireIsolatedText"> & { logicalRequestId?: string };
+
 interface DeliveredUserMessage {
   text: string;
   sent: string;
@@ -238,7 +240,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     signal?: AbortSignal,
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
-    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, logicalRequestId?: string,
+    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, request: CompletionRequestOptions = {},
   ): Promise<Completion> => {
     const timeoutController = new AbortController();
     let idleTimer: NodeJS.Timeout | null = null;
@@ -265,12 +267,13 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
           ...(route === "chat-reasoning-off" ? (options.reasoningOffBody?.(served) ?? { reasoning_effort: "none" }) : {}),
           ...(tools.length ? { tools } : {}),
         });
+      const hasImages = messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url"));
       const send = options.timeoutMs > FETCH_LIMIT_MS ? fetchPastLimit : fetch;
       const response = await send(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
         method: "POST",
-        ...(messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url")) ? { redirect: "error" as const } : {}),
+        redirect: request.requireIsolatedText || hasImages ? "error" : "follow",
         headers: { authorization: `Bearer ${options.apiKey}`, "content-type": "application/json",
-          ...(options.apiKey.startsWith("sbpilot_engine_") ? { "idempotency-key": createHash("sha256").update(logicalRequestId ?? newId()).update(payload).digest("hex") } : {}) },
+          ...(options.apiKey.startsWith("sbpilot_engine_") ? { "idempotency-key": createHash("sha256").update(request.logicalRequestId ?? newId()).update(payload).digest("hex") } : {}) },
         body: payload,
         signal: activeSignal,
       });
@@ -442,16 +445,16 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     signal?: AbortSignal,
     onDelta?: (delta: string, kind: "assistant_text" | "reasoning_text") => void,
     tools: ChatToolDefinition[] = [],
-    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, beforeRequest?: () => void, logicalRequestId?: string,
+    onUsage?: TextGenerationOptions["onUsage"], variant?: string, threadId?: string, request: CompletionRequestOptions = {},
   ): Promise<Completion> => {
     for (;;) {
       let replied = false;
       try {
-        beforeRequest?.();
+        request.beforeRequest?.();
         return await completeOn(routes.routeFor(model, tools.length > 0), messages, model, stream, signal, onDelta && ((text, kind) => {
           replied = true;
           onDelta(text, kind);
-        }), tools, onUsage, variant, threadId, logicalRequestId);
+        }), tools, onUsage, variant, threadId, request);
       } catch (error) {
         if (!(error instanceof ModelRouteRefused) || replied || signal?.aborted) throw error;
         if (!routes.advance(model, error.refusal)) throw new ChatProtocolError(noRouteLeft(error.message));
@@ -637,7 +640,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
                 if (streamKind === "assistant_text") answerStreamed = true;
                 const shown = holdback && streamKind === "assistant_text" ? holdback.feed(text) : text;
                 if (shown) delta(shown, streamKind);
-              }, tools.definitions, undefined, turn.variant, turn.threadId, turn.requestBudget?.before, `${turnId}/${round}`);
+              }, tools.definitions, undefined, turn.variant, turn.threadId, { beforeRequest: turn.requestBudget?.before, logicalRequestId: `${turnId}/${round}` });
               // A reply cut off at the token limit may be a call cut short; running half of one is worse than saying so.
               const written = holdback && !completion.toolCalls.length && completion.finishReason !== "length" ? textToolCalls(completion.text, tools.definitions) : null;
               unreadable = written?.kind === "unreadable" && !askedAgain;
@@ -969,9 +972,9 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return () => listeners.delete(listener);
       },
     },
-    generateText: async (prompt, { signal, onUsage, model: named, comparison, beforeRequest } = {}) => {
+    generateText: async (prompt, { signal, onUsage, model: named, comparison, beforeRequest, requireIsolatedText } = {}) => {
       const model = named ?? options.generateModel?.() ?? options.models().default;
-      const { text, reasoning, toolCalls } = await complete([{ role: "user", content: prompt }], model, false, signal, undefined, [], onUsage, comparison?.variant, undefined, beforeRequest);
+      const { text, reasoning, toolCalls } = await complete([{ role: "user", content: prompt }], model, false, signal, undefined, [], onUsage, comparison?.variant, undefined, { beforeRequest, requireIsolatedText });
       if (toolCalls.length) throw new ChatProtocolError("provider returned tool calls to a text-only helper");
       return text.trim() ? text : reasoning;
     },

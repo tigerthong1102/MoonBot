@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { api } from "@/state/api";
 import { t } from "@/lib/i18n";
 import {
@@ -12,6 +12,7 @@ import { searchPages } from "./brain";
 const localRequest = { mode: "same-origin", redirect: "error", cache: "no-store" } as const;
 
 export function ZaloPrivateKnowledge({ query, open, setOpen }: { query: string; open: boolean; setOpen: (open: boolean) => void }) {
+  const contentId = useId();
   const [enabled, setEnabled] = useState(false);
   const [items, setItems] = useState<ZaloKnowledgeItem[]>([]);
   const [changed, setChanged] = useState(false);
@@ -114,6 +115,7 @@ export function ZaloPrivateKnowledge({ query, open, setOpen }: { query: string; 
         type="button"
         className="ui-button"
         aria-expanded={open}
+        aria-controls={contentId}
         onClick={() => {
           request.current?.abort();
           setItems([]);
@@ -123,8 +125,8 @@ export function ZaloPrivateKnowledge({ query, open, setOpen }: { query: string; 
       >
         {t("zaloKnowledgeShelf.title")}
       </button>
-      {open && (
-        <>
+      <div id={contentId} hidden={!open}>
+        {open && <>
           <p className="my-2">{t("zaloKnowledgeShelf.scope")}</p>
           <p>
             {t("zaloKnowledgeShelf.marker")} <code>{ZALO_PRIVATE_KNOWLEDGE_MARKER}</code>
@@ -157,8 +159,8 @@ export function ZaloPrivateKnowledge({ query, open, setOpen }: { query: string; 
               </li>
             ))}
           </ul>
-        </>
-      )}
+        </>}
+      </div>
     </section>
   );
 }

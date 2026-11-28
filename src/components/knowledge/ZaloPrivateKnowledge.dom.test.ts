@@ -42,16 +42,35 @@ it("reads on demand, confirms a reference without posting its text and erases th
     }
     flushSync(() => root.render(createElement(Shelf)));
     await vi.waitFor(() => expect(button("Private Zalo references")).toBeDefined());
+    const disclosure = button("Private Zalo references")!;
+    const content = document.getElementById(disclosure.getAttribute("aria-controls") ?? "");
+    expect(content).not.toBeNull();
     expect(calls).toHaveLength(1);
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    expect(content!.hidden).toBe(true);
+    expect(content!.childElementCount).toBe(0);
+    disclosure.focus();
+    disclosure.click();
+    await vi.waitFor(() => expect(content!.textContent).toContain(entry.quote));
+    expect(disclosure.getAttribute("aria-expanded")).toBe("true");
+    expect(content!.hidden).toBe(false);
+    expect(document.activeElement).toBe(disclosure);
+    flushSync(() => disclosure.click());
+    expect(disclosure.getAttribute("aria-expanded")).toBe("false");
+    expect(content!.hidden).toBe(true);
+    expect(content!.childElementCount).toBe(0);
     expect(el.textContent).not.toContain(entry.quote);
-    button("Private Zalo references")!.click();
-    await vi.waitFor(() => expect(el.textContent).toContain(entry.quote));
+    expect(document.activeElement).toBe(disclosure);
+    disclosure.click();
+    await vi.waitFor(() => expect(content!.textContent).toContain(entry.quote));
     button("Approve private bookmark")!.click();
     await vi.waitFor(() => expect(el.textContent).toContain("Saved in private knowledge"));
     expect(writes).toEqual([{ sourceId: "msg", grantId: "grant", revision: "first", save: true, reviewed: true }]);
     items = [];
     window.dispatchEvent(new Event("startupbot-zalo-scope-changed"));
-    await vi.waitFor(() => expect(el.textContent).not.toContain(entry.quote));
+    await vi.waitFor(() => expect(content!.querySelector("blockquote")).toBeNull());
+    expect(el.textContent).not.toContain(entry.quote);
+    expect(content!.hidden).toBe(false);
     expect(writes).toHaveLength(1);
   } finally {
     flushSync(() => root.unmount());

@@ -7257,9 +7257,9 @@ class DirectSendRefused extends Error {
   }
 }
 
-function directSendRefusal(botId: string, threadId: string): DirectSendRefused | null { const standIn = store.standIns.get(botId); if (standIn) return new DirectSendRefused(409, { error: botMoveRefusal(standIn)!, code: "moved" });
+function directSendRefusal(botId: string, threadId: string, admit = true): DirectSendRefused | null { const standIn = store.standIns.get(botId); if (standIn) return new DirectSendRefused(409, { error: botMoveRefusal(standIn)!, code: "moved" });
   try {
-    assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(botId, true, threadLanguage(threadId));
+    if (admit) { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(botId, true, threadLanguage(threadId)); }
   } catch (error) {
     return new DirectSendRefused(409, { error: error instanceof Error ? error.message : String(error), code: "spend_cap" });
   }

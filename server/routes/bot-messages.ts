@@ -43,6 +43,7 @@ import { startFresh } from "../fresh-start.ts";
 import { parseMentionPicks } from "../../shared/room-mentions.ts";
 import { pinnedClientThreadGuard } from "./pinned-client-thread.ts";
 import { refusalBody, refusalText, userError } from "../user-errors.ts";
+import { createZaloModelAnalysis } from "./zalo-model-analysis.ts";
 import { createKnowledgeAnswers, type KnowledgeAnswerDeps } from "./knowledge-answers.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -76,7 +77,7 @@ export interface BotMessageRouteDeps {
   cloudHome: boolean;
   DirectSendRefused: abstract new (...args: never[]) => { readonly status: number; readonly body: Record<string, unknown> };
   acceptDirectSend(input: DirectSendInput, guardedStart?: (currentAtStart: BotRecord) => Promise<DirectSendReceipt>): Promise<DirectSendReceipt>;
-  directSendRefusal(botId: string, threadId: string): { status: number; body: Record<string, unknown> } | null;
+  directSendRefusal(botId: string, threadId: string, admit?: boolean): { status: number; body: Record<string, unknown> } | null;
   transferredSend?(botId: string, threadId: string, sendId: string): boolean;
   startTurn(botId: string, text: string, opts?: {
     threadId?: string; replyTo?: Message; sendId?: string; sender?: ResolvedSender; trigger?: UsageTrigger; relayed?: boolean;
@@ -184,7 +185,9 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
     cancelGroupTurnOperations, closeOpenApprovals, harnessCardOutcome, pressRecords, serverPress, relayedReaction, answeredIn, fromPhone, notePhoneSend, goals,
   } = deps; const owners = routeRunOwners(deps.runOwners, deps.runActor);
   const pinnedClientThread = pinnedClientThreadGuard(store);
-  const knowledge = deps.knowledge && createKnowledgeAnswers({ ...deps.knowledge, store, refusal: directSendRefusal, busy: threadBusy, sender: messageSender });
+  const sourceDeps = deps.knowledge && { ...deps.knowledge, store, refusal: directSendRefusal, busy: threadBusy, sender: messageSender };
+  const knowledge = sourceDeps && createKnowledgeAnswers(sourceDeps);
+  const zaloAnalysis = sourceDeps && createZaloModelAnalysis(sourceDeps, DESKTOP_MANAGED && !CLOUD_HOME, id => deps.registry.get(id));
   /** Security: a bot's own shell must never approve its own card, so a local request counts only from the desktop app, or
    * from a browser while every bot is idle. */
   const ownerReview = (auth: RequestAuth, req: IncomingMessage) => auth.kind === "loopback"
@@ -195,6 +198,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
   const appMessageRate = new AppMessageRate();
   const route: RouteHandler = async (ctx) => {
     const { req, res, path, method, auth, json, readBody } = ctx;
+    if (path.endsWith("/zalo-model-analysis") && zaloAnalysis) return zaloAnalysis(ctx);
     if (path.endsWith("/knowledge-answers") && knowledge) return knowledge(ctx);
     let m: RegExpMatchArray | null = null;
     const requirePinnedClientThread = pinnedClientThread(auth, req);

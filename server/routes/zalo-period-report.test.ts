@@ -25,7 +25,7 @@ it("requires both pilot flags, the report flag, desktop owner and a valid timezo
   expect((await request(true, owner)).status).toBe(403);
   vi.stubEnv("STARTUPBOT_ZALO_LOCAL_REPORTS", "1"); vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID", "fixture");
   expect((await request(false, owner)).status).toBe(403);
-  expect((await request(true, { ...owner, desktopOwner: false })).status).toBe(403);
+  expect((await request(true, { kind: "loopback", scopes: ["admin"] })).status).toBe(403);
   expect((await request(true, { ...owner, trust: "service" })).status).toBe(403);
   expect(await request(true, owner)).toEqual({ status: 200, raw: { view: null } });
   expect((await request(true, owner, "POST", { revision: "a".repeat(64), schedule: { cadence: "daily", hour: 17, minute: 0, timeZone: "Wrong/Place" } })).status).toBe(400);

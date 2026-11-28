@@ -617,6 +617,7 @@ describe("encrypted full workspace backups", () => {
     }
     for (const [name, content] of [
       ["team-computers.json", '{"computers":[{"id":"foreign-computer","section":"Design"}]}'],
+      [".startupbot-qualification/zalo-official/inbox.sqlite", "synthetic pre-revocation payload"],
       ["workspace-credentials.json", '{"xaiApiKey":"secret"}'],
       ["external-runtimes.json", '{"bot-id":"external-runtime-secret"}'],
       ["External-Runtimes.json", "external-runtime-secret"],

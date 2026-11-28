@@ -79,6 +79,7 @@ Use only mapped, tested commands:
 - [Phone web app installation and safe areas](phone-web-app.md)
 - [Welcome flow and guided tour](onboarding.md)
 - [Channels](channels.md)
+- [Erase a paired Zalo source and verify workspace restore](zalo-source-erasure.md)
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
 - [Operator-driven Zalo Official round-trip qualification](zalo-official-roundtrip.md)
 - [Internal Zalo Official webhook and one-time pairing](zalo-official-webhook.md)

@@ -132,7 +132,7 @@ it("only makes a consented, tool-free text preview through the selected provider
   const promptLog = join(scratch, "prompts.jsonl");
   const question = "PROBE_TWIN: Mời khách đặt lịch trao đổi thế nào?";
   const sample = "Mời bạn gửi hai khung giờ thuận tiện để trao đổi.";
-  writeFileSync(routes, JSON.stringify({ PROBE_TWIN: sample }));
+  writeFileSync(routes, JSON.stringify({ PROBE_TWIN: sample, PROBE_ZALO: "Cần đối chiếu công nợ." }));
 
   try {
     const { fixture, url, owner, call } = await launchTwin({
@@ -156,6 +156,15 @@ it("only makes a consented, tool-free text preview through the selected provider
       expect((await preview({ ...input, key: randomUUID() })).status).toBe(409);
       expect((await preview(input, { "x-openmausbot-desktop-owner": "wrong" })).status).toBeGreaterThanOrEqual(400);
       expect(recorded()).not.toContain("PROBE_TWIN");
+
+      expect((await preview({ ...input, zaloRecipe: "arbitrary-tool" })).status).toBe(400);
+      expect((await preview({ ...input, zaloRecipe: "zalo-ke-toan" })).status).toBe(400);
+      const industry = await preview({ ...input, question: "PROBE_ZALO: Xin đối chiếu công nợ", zaloRecipe: "zalo-ke-toan", zaloSource: { source: "Nhóm mẫu", line: 42 } });
+      expect(industry.status).toBe(200);
+      expect(recorded()).toContain("Rà soát yêu cầu kế toán");
+      expect(recorded()).toContain("Nhóm mẫu");
+      expect(recorded()).toContain("42");
+      expect(recorded().match(/PROBE_ZALO/g)).toHaveLength(1);
 
       const response = await preview(input);
       expect(response.status).toBe(200);

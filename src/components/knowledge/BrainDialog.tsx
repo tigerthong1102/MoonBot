@@ -21,17 +21,17 @@ import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { Select } from "../Select";
 import { SourceCitation } from "./SourceCitation";
 import { useStore } from "@/state/store";
-import { closeConversationDialog as close } from "../conversation-share/conversation-share";
+import { closeConversationDialog } from "../conversation-share/conversation-share";
 
 const field = "my-1 block w-full rounded-lg border border-hairline bg-inset p-2 text-ink";
 
-export default function BrainDialog({ threadId, selection }: { threadId: string; selection?: BrainSelection }) {
+export default function BrainDialog({ threadId, selection, initialQuery = "", close = closeConversationDialog }: { threadId: string; selection?: BrainSelection; initialQuery?: string; close?: () => void }) {
   const panel = useRef<HTMLDivElement>(null);
   useModalDialog(panel, close);
   const { state, dispatch } = useStore();
   const [pages, setPages] = useState<VerifiedPage[]>([]);
   const [draft, setDraft] = useState<VerifiedPage | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [error, setError] = useState(false);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -118,7 +118,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
       window.removeEventListener("startupbot-document-sync", documentSync);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [threadId, selection, epoch]);
+  }, [threadId, selection, epoch, close]);
 
   async function approve() {
     const signal = view.current?.signal;
@@ -195,6 +195,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
               dispatch({ type: "select", id: bot.id });
               if (bot.threadId !== src.threadId)
                 dispatch({ type: "switchTask", botId: bot.id, threadId: src.threadId });
+              dispatch({ type: "revealThread", threadId: src.threadId });
               dispatch({ type: "focusMessage", threadId: src.threadId, messageId: src.messageId });
               close();
             }}

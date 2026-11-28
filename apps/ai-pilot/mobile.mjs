@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
+import { mobileOpenRouter } from "./mobile-openrouter.mjs";
 import { mobileCatalog, preferredMobileLanguage, renderMobilePage } from "./mobile-catalog.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
 import { catalog, Fault } from "./ledger.mjs";
@@ -10,6 +11,7 @@ import { inboxSkinCSS } from "../../cloudflare/control-plane/inbox/skin-css.mjs"
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
 const inboxPublic = "../../cloudflare/control-plane/inbox/public/";
 const assets = new Map([
+  ["/mobile/callback", ["./mobile.html", "text/html"]],
   ["/mobile", ["./mobile.html", "text/html"]],
   ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]],
   ["/mobile/inbox-select.js", [inboxPublic + "inbox-select.js", "application/javascript"]],
@@ -46,7 +48,10 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
   db.prepare("INSERT OR IGNORE INTO mobile_identity_authority VALUES (1,?)").run(accounts.origin);
   if (db.prepare("SELECT origin FROM mobile_identity_authority WHERE singleton=1").get().origin !== accounts.origin)
     throw new Error("Mobile account issuer differs from the existing database");
-  const lists = db.prepare("SELECT id,title,updated FROM mobile_threads WHERE owner=? ORDER BY updated DESC,id LIMIT 50");
+  const personalAI = mobileOpenRouter(ledger, settings, http);
+  const lists = db.prepare(`SELECT t.id,t.title,t.updated,CASE WHEN b.thread IS NULL THEN 'managed' ELSE 'openrouter' END AS provider
+    FROM mobile_threads t LEFT JOIN mobile_byok_threads b ON b.owner=t.owner AND b.thread=t.id
+    WHERE t.owner=? ORDER BY t.updated DESC,t.id LIMIT 50`);
   const history = db.prepare("SELECT id,prompt,answer,state,created FROM mobile_turns WHERE owner=? AND thread=? ORDER BY created,rowid LIMIT 80");
   const lookup = db.prepare("SELECT id FROM mobile_threads WHERE owner=? AND id=?");
   const finish = db.prepare("UPDATE mobile_turns SET state=?,answer=? WHERE owner=? AND id=? AND state='running'");
@@ -82,7 +87,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       return res.end(source);
     }
     const body = method === "POST" ? await readObject(req) : {};
-    let owner;
+    let owner, session;
     try {
       if (method === "POST" && path === "/mobile/code") {
         await accounts.requestOTP(body.email);
@@ -93,7 +98,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
         sessions.issue(res, user.id, accountToken);
         return json(200, { ok: true });
       }
-      const session = sessions.read(req);
+      session = sessions.read(req);
       if (method === "POST" && path === "/mobile/logout") {
         sessions.revoke(res, session.hash);
         try { await accounts.signOut(session.token); } catch (error) {
@@ -111,9 +116,12 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       throw new Fault(401, "signed_out");
     }
     recover(owner);
-    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, threads: lists.all(owner) });
+    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, provider: personalAI.info(session), threads: lists.all(owner) });
     if (method !== "POST") throw new Fault(404, "not_found");
     if (body.account !== owner) throw new Fault(409, "account_changed");
+    if (path === "/mobile/provider/start") return json(200, personalAI.start(session));
+    if (path === "/mobile/provider/complete") return json(200, await personalAI.complete(session, body));
+    if (path === "/mobile/provider/disconnect") return json(200, personalAI.disconnect(session));
     const thread = body.thread;
     if (!uuid.test(thread)) throw new Fault(400, "invalid_thread");
     if (path !== "/mobile/send" && !lookup.get(owner, thread)) throw new Fault(404, "not_found");
@@ -134,18 +142,32 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const skill = body.skill ?? "chat";
     if (!textSkills.has(skill)) throw new Fault(400, "unsupported_skill");
     const config = catalog(settings.catalog);
-    if (!config.managedLimits?.enabled) throw new Fault(503, "managed_ai_paused");
+    const provider = body.provider ?? "managed";
+    if (!["managed","openrouter"].includes(provider)) throw new Fault(400, "unsupported_provider");
+    const ownKey = provider === "openrouter";
     if (res.destroyed) return;
-    ledger.claimMobileTrial(owner, config);
-    if (!db.prepare("SELECT 1 FROM users WHERE id=?").get(owner) ||
-        !ledger.balances(owner).some(b => b.available > 0)) throw new Fault(402, "personal_credit_exhausted");
     const isNew = !lookup.get(owner, thread);
+    if (!isNew) {
+      const pinned = db.prepare("SELECT keyHash FROM mobile_byok_threads WHERE owner=? AND thread=?").get(owner, thread);
+      const current = ownKey && personalAI.keyHash(session);
+      if (Boolean(pinned) !== ownKey || (pinned && current && pinned.keyHash !== current)) throw new Fault(409, "provider_conflict");
+    }
+    if (ownKey) {
+      const connection = personalAI.info(session);
+      if (!connection.enabled || !connection.connected) throw new Fault(409, "provider_disconnected");
+    } else {
+      if (!config.managedLimits?.enabled) throw new Fault(503, "managed_ai_paused");
+      ledger.claimMobileTrial(owner, config);
+      if (!db.prepare("SELECT 1 FROM users WHERE id=?").get(owner) ||
+          !ledger.balances(owner).some(b => b.available > 0)) throw new Fault(402, "personal_credit_exhausted");
+    }
     const messages = ledger.tx(() => {
       if (db.prepare("SELECT 1 FROM mobile_turns WHERE owner=? AND id=?").get(owner, body.id))
         throw new Fault(409, "request_exists");
       if (!lookup.get(owner, thread)) {
         if (lists.all(owner).length >= 50) throw new Fault(409, "history_full");
         db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run(owner, thread, body.prompt.trim().slice(0, 80), Date.now());
+        if (ownKey) db.prepare("INSERT INTO mobile_byok_threads VALUES (?,?,?)").run(owner, thread, personalAI.keyHash(session));
       }
       if (db.prepare("SELECT 1 FROM mobile_turns WHERE owner=? AND thread=? AND state='running'").get(owner, thread))
         throw new Fault(409, "turn_in_progress");
@@ -173,9 +195,10 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     };
     res.setHeader("x-request-id", body.id);
     try {
-      const result = await gateway.run(owner, body.id, { model: config.model, messages }, config, {
-        signal: controller.signal, delta: text => frame({ text }),
-      });
+      const stream = { signal:controller.signal, delta:text => frame({ text }) };
+      const request = { model:config.model, messages };
+      const result = ownKey ? await personalAI.run(session, body.id, request, config, stream)
+        : await gateway.run(owner, body.id, request, config, stream);
       const choice = result.choices[0];
       const state = choice.finish_reason === "stop" ? "complete" : "limited";
       finish.run(state, choice.message.content, owner, body.id);
@@ -183,7 +206,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       res.end();
     } catch (error) {
       const charge = db.prepare("SELECT state FROM requests WHERE owner=? AND id=?").get(owner, body.id);
-      if (!charge || charge.state === "retryable") {
+      const personalCharge = ownKey && db.prepare("SELECT 1 FROM mobile_byok_usage WHERE owner=? AND id=?").get(owner, body.id);
+      if (!personalCharge && (!charge || charge.state === "retryable")) {
         ledger.tx(() => {
           db.prepare("DELETE FROM mobile_turns WHERE owner=? AND id=? AND state='running'").run(owner, body.id);
           if (isNew) db.prepare("DELETE FROM mobile_threads WHERE owner=? AND id=? AND NOT EXISTS (SELECT 1 FROM mobile_turns WHERE owner=? AND thread=?)").run(owner, thread, owner, thread);

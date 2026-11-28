@@ -17,7 +17,7 @@ export async function startMobileFixture({ mobileOrigin = "https://mobile.exampl
   const save = () => writeFileSync(settings.catalog, JSON.stringify(config));
   save();
   const tokens = new Map(), codes = new Set(), generations = [];
-  const behavior = { delay:5, finish:"stop", disconnect:false, authOffline:false };
+  const behavior = { oauthLimit:1, keyCalls:0, chatKeys:[], delay:5, finish:"stop", disconnect:false, authOffline:false };
   function grant(id) {
     ledger.issue(id);
     const order = ledger.order(id, "topup", config, randomUUID());
@@ -50,9 +50,21 @@ export async function startMobileFixture({ mobileOrigin = "https://mobile.exampl
       return Response.json({ code:"unauthorized" }, { status:401 });
     }
     if (url.origin !== "https://openrouter.ai") throw Error("Unexpected fixture origin");
-    if (url.pathname.endsWith("/keys")) return Response.json({ key:randomUUID(), data:{ hash:randomUUID() } });
+    if (url.pathname === "/api/v1/auth/keys") {
+      behavior.exchange = body;
+      if (behavior.beforeExchange) await behavior.beforeExchange();
+      behavior.personalKey = randomUUID();
+      return Response.json({ key:behavior.personalKey });
+    }
+    if (url.pathname === "/api/v1/key") return Response.json({ data:{ limit_remaining:behavior.oauthLimit } });
+    if (url.pathname.endsWith("/keys")) {
+      behavior.keyCalls++;
+      return Response.json({ key:randomUUID(), data:{ hash:randomUUID() } });
+    }
     if (!url.pathname.endsWith("/chat/completions")) throw Error("Unexpected fixture route");
+    if (behavior.chatRejection) return Response.json({ error:"rejected" }, { status:behavior.chatRejection });
     generations.push(body);
+    behavior.chatKeys.push(new Headers(init.headers).get("authorization"));
     const id = "gen-" + randomUUID(), encoder = new TextEncoder();
     let timer;
     const stream = new ReadableStream({

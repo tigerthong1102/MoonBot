@@ -5,15 +5,26 @@ const name = "__Host-startupbot-mobile";
 const flags = "; Path=/; HttpOnly; SameSite=Strict; Secure";
 const lifetime = 8 * 3600;
 
+function seal(secret, scope, value) {
+  const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", secret, iv);
+  cipher.setAAD(Buffer.from(scope));
+  return Buffer.concat([iv, cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
+}
+function open(secret, scope, sealed) {
+  const data = Buffer.from(sealed);
+  const decipher = createDecipheriv("aes-256-gcm", secret, data.subarray(0, 12));
+  decipher.setAAD(Buffer.from(scope));
+  decipher.setAuthTag(data.subarray(-16));
+  return Buffer.concat([decipher.update(data.subarray(12, -16)), decipher.final()]).toString("utf8");
+}
+
 export function mobileSessions(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS mobile_sessions(handle TEXT PRIMARY KEY,owner TEXT NOT NULL,sealed BLOB NOT NULL,expires INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS mobile_session_expiry ON mobile_sessions(expires)`);
   function issue(res, owner, bearer) {
-    const secret = randomBytes(32), handle = secret.toString("base64url"), iv = randomBytes(12);
+    const secret = randomBytes(32), handle = secret.toString("base64url");
     // A database backup cannot decrypt an issuer token without the browser's random session secret.
-    const cipher = createCipheriv("aes-256-gcm", secret, iv);
-    cipher.setAAD(Buffer.from(owner));
-    const sealed = Buffer.concat([iv, cipher.update(bearer, "utf8"), cipher.final(), cipher.getAuthTag()]);
+    const sealed = seal(secret, owner, bearer);
     db.prepare("DELETE FROM mobile_sessions WHERE expires<=?").run(Date.now());
     db.prepare("INSERT INTO mobile_sessions VALUES (?,?,?,?)").run(digest(handle), owner, sealed, Date.now() + lifetime * 1000);
     res.setHeader("Set-Cookie", name + "=" + handle + flags + "; Max-Age=" + lifetime);
@@ -24,12 +35,12 @@ export function mobileSessions(db) {
     const hash = digest(handle);
     const row = db.prepare("SELECT owner,sealed FROM mobile_sessions WHERE handle=? AND expires>?").get(hash, Date.now());
     if (!row) throw new Fault(401, "signed_out");
-    const data = Buffer.from(row.sealed);
-    const decipher = createDecipheriv("aes-256-gcm", Buffer.from(handle, "base64url"), data.subarray(0,12));
-    decipher.setAAD(Buffer.from(row.owner));
-    decipher.setAuthTag(data.subarray(-16));
-    const token = Buffer.concat([decipher.update(data.subarray(12,-16)), decipher.final()]).toString("utf8");
-    return { hash, token, owner:row.owner };
+    const secret = Buffer.from(handle, "base64url"), owner = row.owner;
+    return {
+      hash, owner, token: open(secret, owner, row.sealed),
+      seal: (purpose, value) => seal(secret, JSON.stringify([owner, purpose]), value),
+      open: (purpose, value) => open(secret, JSON.stringify([owner, purpose]), value),
+    };
   }
   function revoke(res, hash) {
     db.prepare("DELETE FROM mobile_sessions WHERE handle=?").run(hash);

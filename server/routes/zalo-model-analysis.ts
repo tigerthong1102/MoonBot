@@ -7,7 +7,9 @@ import type { KnowledgeAnswerDeps } from "./knowledge-answers.ts";
 import { zaloModelEvidence, zaloModelRequest } from "../zalo-model-evidence.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
-type Deps = Pick<KnowledgeAnswerDeps, "store" | "accessible" | "unavailable" | "writer" | "refusal" | "busy">;
+type Deps = Pick<KnowledgeAnswerDeps, "store" | "accessible" | "unavailable" | "writer" | "busy"> & {
+  refusal(botId: string, threadId: string, admit?: boolean): ReturnType<KnowledgeAnswerDeps["refusal"]>;
+};
 type Destination = { instance: ProviderInstance; selection: ModelSelection };
 class SelectionChanged extends Error {}
 export function createZaloModelAnalysis(deps: Deps, desktop: boolean, instance: (id: string) => ProviderInstance | undefined | null): RouteHandler {
@@ -23,9 +25,10 @@ export function createZaloModelAnalysis(deps: Deps, desktop: boolean, instance: 
     if (!enabled()) return json(res, 403, { error: "desktop_owner_required" });
     if (method !== "GET" && method !== "POST") return json(res, 405, { error: "method_not_allowed" });
     const available = () => enabled() && deps.store.taskByThread(botId, threadId) && deps.accessible(auth, botId, threadId);
-    const destination = () => {
+    const destination = (admit = true) => {
       const bot = deps.store.bot(botId);
-      if (!bot || !available() || deps.unavailable(botId) || deps.refusal(botId, threadId) || deps.busy(botId, threadId)) return null;
+      if (!bot || !available() || deps.unavailable(botId) || deps.refusal(botId, threadId, admit) ||
+          (admit && deps.busy(botId, threadId))) return null;
       const writer = deps.writer(auth, bot, threadId);
       if (!writer || "code" in writer) return null;
       const target = instance(writer.selection.instanceId);
@@ -55,8 +58,8 @@ export function createZaloModelAnalysis(deps: Deps, desktop: boolean, instance: 
     const stop = () => disconnected.abort();
     res.once("close", stop);
     const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(65_000)]);
-    function check() {
-      const actual = destination();
+    function check(admit = true) {
+      const actual = destination(admit);
       if (signal.aborted || !actual || offer!.expires <= Date.now() || actual.instance !== offer!.instance ||
           !sameModelSelection(actual.selection, offer!.selection)) throw new SelectionChanged();
       return actual;
@@ -68,7 +71,7 @@ export function createZaloModelAnalysis(deps: Deps, desktop: boolean, instance: 
       const raw = await selected.writer.generateText(evidence.prompt, {
         signal, timeoutMs: 65_000, started: check, beforeRequest: check,
       });
-      check();
+      check(false);
       const output = evidence.validate(raw);
       return output ? json(res, 200, { findings: output }) : json(res, 502, { error: "unsupported_model_evidence" });
     } catch (error) {

@@ -18,7 +18,7 @@ function fixture() {
   const store = new Store(() => selection);
   const bot = store.createBot({ name: "Thu" });
   const accessible = vi.fn(() => true);
-  const refusal = vi.fn<KnowledgeAnswerDeps["refusal"]>(() => null);
+  const refusal = vi.fn<(bot: string, thread: string, admit?: boolean) => ReturnType<KnowledgeAnswerDeps["refusal"]>>(() => null);
   const generate = vi.fn<SideJobText["generateText"]>(async (_prompt, options) => {
     options?.started?.(); options?.beforeRequest?.(); return JSON.stringify({ findings: [finding] });
   });
@@ -89,6 +89,16 @@ describe("manual Zalo analysis with the selected bot", () => {
     });
     expect((await f.run(await f.prepare())).status).toBe(409);
     expect(dispatch).not.toHaveBeenCalled();
+  });
+  it("returns a paid result when its own charge reaches the admission cap", async () => {
+    const f = fixture();
+    f.generate.mockImplementation(async (_prompt, options) => {
+      options?.beforeRequest?.();
+      f.refusal.mockImplementation((_bot, _thread, admit) => admit ? { status: 409, body: { code: "spend_cap" } } : null);
+      return JSON.stringify({ findings: [finding] });
+    });
+    expect(await f.run(await f.prepare())).toEqual({ status: 200, data: { findings: [finding] } });
+    expect((await f.call("GET")).status).toBe(422);
   });
   it("rechecks source access before returning delayed output", async () => {
     const f = fixture();

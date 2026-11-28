@@ -77,7 +77,7 @@ export interface BotMessageRouteDeps {
   cloudHome: boolean;
   DirectSendRefused: abstract new (...args: never[]) => { readonly status: number; readonly body: Record<string, unknown> };
   acceptDirectSend(input: DirectSendInput, guardedStart?: (currentAtStart: BotRecord) => Promise<DirectSendReceipt>): Promise<DirectSendReceipt>;
-  directSendRefusal(botId: string, threadId: string): { status: number; body: Record<string, unknown> } | null;
+  directSendRefusal(botId: string, threadId: string, admit?: boolean): { status: number; body: Record<string, unknown> } | null;
   transferredSend?(botId: string, threadId: string, sendId: string): boolean;
   startTurn(botId: string, text: string, opts?: {
     threadId?: string; replyTo?: Message; sendId?: string; sender?: ResolvedSender; trigger?: UsageTrigger; relayed?: boolean;

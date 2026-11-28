@@ -81,6 +81,7 @@ Use only mapped, tested commands:
 - [Channels](channels.md)
 - [Erase a paired Zalo source and verify workspace restore](zalo-source-erasure.md)
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
+- [Desktop owner approval for one private Zalo reply](zalo-official-approved-send.md)
 - [Operator-driven Zalo Official round-trip qualification](zalo-official-roundtrip.md)
 - [Internal Zalo Official webhook and one-time pairing](zalo-official-webhook.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)

@@ -91,7 +91,7 @@ function failure(code: number, method: Method): Failure {
   return "protocol";
 }
 
-function officialClient(token: string, request: typeof fetch) {
+function officialClient(token: string, request: typeof fetch, strictSuccess = false) {
   if (!/^\d{1,32}:[A-Za-z0-9_-]{1,256}$/.test(token)) {
     throw new ZaloOfficialError("configuration");
   }
@@ -121,16 +121,20 @@ function officialClient(token: string, request: typeof fetch) {
       if (method === "getUpdates" && payload.error_code === 408 && (response.ok || response.status === 408)) return null;
       throw new ZaloOfficialError(failure(payload.error_code, method));
     }
-    if (!response.ok || payload.result == null) throw new ZaloOfficialError("protocol");
+    if (!response.ok || (strictSuccess && (response.status !== 200 || (payload.error_code !== undefined && payload.error_code !== 0))) || payload.result == null) throw new ZaloOfficialError("protocol");
     return payload.result;
   }
 
-  async function probe(expectedId?: string, signal?: AbortSignal) {
+  async function verifyIdentity(expectedId?: string, signal?: AbortSignal) {
     const identity = z.object({ id, account_name: z.string().min(1).max(128).optional().catch(undefined) }).safeParse(await call("getMe", signal));
     if (!identity.success) throw new ZaloOfficialError("protocol");
     const accountId = identity.data.id;
     if (expectedId !== undefined && accountId !== expectedId) throw new ZaloOfficialError("identity-mismatch");
-    const info = { accountId, ...(identity.data.account_name ? { accountName: identity.data.account_name } : {}) };
+    return { accountId, ...(identity.data.account_name ? { accountName: identity.data.account_name } : {}) };
+  }
+
+  async function probe(expectedId?: string, signal?: AbortSignal) {
+    const info = await verifyIdentity(expectedId, signal);
     try {
       const webhook = z.object({ url: z.string() }).safeParse(await call("getWebhookInfo", signal));
       if (!webhook.success) throw new ZaloOfficialError("unverified-webhook");
@@ -141,7 +145,30 @@ function officialClient(token: string, request: typeof fetch) {
     }
   }
 
-  return { probe, call };
+  return { probe, call, verifyIdentity };
+}
+
+export const verifyZaloOfficialIdentity = (token: string, accountId: string, signal: AbortSignal, request: typeof fetch = fetch) =>
+  officialClient(token, request, true).verifyIdentity(accountId, signal);
+
+export async function sendZaloPrivateText(token: string, chatId: string, text: string, signal: AbortSignal, request: typeof fetch = fetch) {
+  requireEnabled();
+  if (!/^\d{1,32}:[A-Za-z0-9_-]{1,256}$/.test(token) || !id.safeParse(chatId).success || !text.length || text.length > 2000) {
+    throw new ZaloOfficialError("configuration");
+  }
+  const deadline = AbortSignal.any([signal, AbortSignal.timeout(5000)]);
+  deadline.throwIfAborted();
+  try {
+    const response = await request(`https://bot-api.zaloplatforms.com/bot${token}/sendMessage`, {
+      method: "POST", redirect: "error", signal: deadline, headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+    if (response.status !== 200) { await response.body?.cancel(); throw new Error(); }
+    const payload = await readZaloOfficialEnvelope(response, deadline);
+    deadline.throwIfAborted();
+    if (!payload.ok || (payload.error_code !== undefined && payload.error_code !== 0)) throw new Error();
+    return z.object({ message_id: id }).parse(payload.result).message_id;
+  } catch { throw new ZaloOfficialError("receipt-unknown"); }
 }
 
 export const probeZaloOfficialToken = (token: string, signal?: AbortSignal, request: typeof fetch = fetch) =>

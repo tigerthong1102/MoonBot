@@ -129,6 +129,9 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            all {
+                it.systemProperty("robolectric.dependency.repo.url", providers.gradleProperty("robolectricMavenMirror").get())
+            }
         }
     }
 }

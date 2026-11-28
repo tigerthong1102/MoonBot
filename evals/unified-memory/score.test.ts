@@ -24,8 +24,10 @@ describe("semantic recall score", () => {
   });
   it("has unique hand-authored cases in both splits and outcome classes", () => {
     expect(new Set(cases.map(row => row.id)).size).toBe(cases.length);
+    expect(new Set(cases.map(row => JSON.stringify([row.saved, row.query]))).size).toBe(cases.length);
     for (const split of ["development", "held-out"]) {
       const selected = cases.filter(row => row.split === split);
+      expect(selected).toHaveLength(48);
       expect(selected.some(row => row.expected === "match")).toBe(true);
       expect(selected.some(row => row.expected === "none")).toBe(true);
     }

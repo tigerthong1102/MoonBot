@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
-import { api } from "@/state/api";
-import type { ZaloPeriodView, ZaloReportSchedule } from "../../shared/zalo-period-report";
+import { ApiError, api } from "@/state/api";
+import { reportTimeZone, type ZaloPeriodView, type ZaloReportSchedule } from "../../shared/zalo-period-report";
 
 const route = "/api/zalo-official/reports";
 const changed = "omb:zalo-period-reports";
-const defaultSchedule = (): ZaloReportSchedule => ({ cadence: "daily", hour: 17, minute: 0, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
+const defaultSchedule = (): ZaloReportSchedule => ({ cadence: "daily", hour: 17, minute: 0, timeZone: reportTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone) ?? "UTC" });
 const stamp = (value: number, timeZone: string) => new Intl.DateTimeFormat(undefined, { timeZone, dateStyle: "short", timeStyle: "short" }).format(value);
 
 export function ZaloPeriodReports({ manage = false }: { manage?: boolean }) {
@@ -20,24 +20,33 @@ export function ZaloPeriodReports({ manage = false }: { manage?: boolean }) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let revision: string | undefined;
     const invalidate = () => { controller.abort(); pending.current?.abort(); pending.current = null; setView(null); setBusy(false); setRefresh(value => value + 1); };
-    const load = async (first: boolean) => {
+    let request = 0;
+    const load = async (first = false) => {
+      const latest = ++request;
+      clearTimeout(timer);
       try {
         const result = await api<{ view: ZaloPeriodView | null }>(route, { signal: controller.signal });
-        if (controller.signal.aborted) return;
-        if (manage && !first && result.view?.revision !== revision) {
+        if (controller.signal.aborted || latest !== request) return;
+        if (manage && !first && revision !== undefined && result.view?.revision !== revision) {
           setView(null); setError(true); return;
         }
+        const initialize = revision === undefined;
         revision = result.view?.revision;
         setView(result.view);
         if (!result.view) return;
-        if (first) setForm(result.view.schedule ?? defaultSchedule());
-        timer = setTimeout(() => void load(false), 30_000);
-      } catch { if (!controller.signal.aborted) setView(null); }
+        if (first || initialize) setForm(result.view.schedule ?? defaultSchedule());
+        timer = setTimeout(() => void load(), 30_000);
+      } catch (cause) {
+        if (controller.signal.aborted || latest !== request) return;
+        setView(null);
+        if (!(cause instanceof ApiError && [401, 403].includes(cause.status))) timer = setTimeout(() => void load(), 30_000);
+      }
     };
     void load(true);
+    const focused = () => { void load(); };
     window.addEventListener(changed, invalidate);
-    window.addEventListener("focus", invalidate);
-    return () => { controller.abort(); pending.current?.abort(); clearTimeout(timer); window.removeEventListener(changed, invalidate); window.removeEventListener("focus", invalidate); };
+    window.addEventListener("focus", focused);
+    return () => { controller.abort(); pending.current?.abort(); clearTimeout(timer); window.removeEventListener(changed, invalidate); window.removeEventListener("focus", focused); };
   }, [manage, refresh]);
   async function save(schedule: ZaloReportSchedule | null) {
     if (!view || pending.current) return;

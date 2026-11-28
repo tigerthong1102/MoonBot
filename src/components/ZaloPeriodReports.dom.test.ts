@@ -39,3 +39,26 @@ it("saves the owner's hourly local schedule with its current revision and suppor
     expect(posts().at(-1)).toEqual(["/api/zalo-official/reports", { revision: "first", schedule: null }]);
   } finally { act(() => root.unmount()); vi.mocked(api).mockReset(); }
 });
+
+it("retains unsaved fields through a focus refresh and recovers after temporary storage contention", async () => {
+  vi.useFakeTimers();
+  const host = document.createElement("div"), root = createRoot(host);
+  const view = { revision: "same", source, schedule, next: 1000, periods: [] };
+  vi.mocked(api).mockResolvedValue({ view });
+  try {
+    await act(async () => root.render(createElement(ZaloPeriodReports, { manage: true })));
+    await act(async () => {
+      const select = host.querySelector("select")!; select.value = "hourly"; select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(host.querySelector("select")!.value).toBe("hourly");
+    vi.mocked(api).mockRejectedValueOnce(Error("temporary"));
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(host.querySelector("form")).toBeNull();
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(host.querySelector("select")!.value).toBe("hourly");
+    vi.mocked(api).mockResolvedValue({ view: { ...view, revision: "new" } });
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(host.querySelector("form")).toBeNull();
+  } finally { act(() => root.unmount()); vi.useRealTimers(); vi.mocked(api).mockReset(); }
+});

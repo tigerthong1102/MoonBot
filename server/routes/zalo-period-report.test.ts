@@ -1,3 +1,4 @@
+import { reportTimeZone } from "../../shared/zalo-period-report.ts";
 import { once } from "node:events";
 import { createServer } from "node:http";
 import { afterEach, expect, it, vi } from "vitest";
@@ -30,4 +31,11 @@ it("requires both pilot flags, the report flag, desktop owner and a valid timezo
   expect(await request(true, owner)).toEqual({ status: 200, raw: { view: null } });
   expect((await request(true, owner, "POST", { revision: "a".repeat(64), schedule: { cadence: "daily", hour: 17, minute: 0, timeZone: "Wrong/Place" } })).status).toBe(400);
   expect((await request(true, owner, "POST", { revision: "a".repeat(64), schedule: null })).status).toBe(409);
+});
+
+it("normalizes UTC aliases consistently with the shared Routine timezone calculator", () => {
+  for (const zone of ["+00:00", "-00:00", "GMT", "UTC", "Etc/UTC"]) expect(reportTimeZone(zone)).toBe("UTC");
+  expect(reportTimeZone("+05:00")).toBeUndefined();
+  expect(reportTimeZone("Wrong/Place")).toBeUndefined();
+  expect(reportTimeZone("Asia/Ho_Chi_Minh")).toBe("Asia/Ho_Chi_Minh");
 });

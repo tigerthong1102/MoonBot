@@ -2,7 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
+import { webhookClock } from "./zalo-webhook-clock.ts";
 import { createZaloInbox } from "./zalo-inbox.ts";
 import { zaloPeriodReports } from "./zalo-period-report.ts";
 
@@ -65,4 +66,26 @@ it("keeps hourly output local to the selected bot and labels bounded urgency sam
     expect(store.view()!.periods.map(p => [p.count, p.examined, p.urgent])).toEqual([[0, 0, 0], [203, 200, 200]]);
     expect(zaloPeriodReports(db, "other", () => time).view()).toBeNull();
   } finally { db.close(); }
+});
+
+it("retains each completed period's timing warning when the same source warning recurs next period", () => {
+  const db = new DatabaseSync(":memory:");
+  vi.stubEnv("STARTUPBOT_ZALO_LOCAL_REPORTS", "1");
+  try {
+    let time = Date.parse("2026-11-28T08:05:00Z");
+    const inbox = createZaloInbox(db, () => time), id = inbox.enroll(scope);
+    db.prepare("INSERT INTO zalo_webhook_endpoints VALUES(?,?,?,?)").run("e", scope.accountId, Buffer.from("fixture"), id);
+    const store = zaloPeriodReports(db, scope.accountId, () => time), clock = webhookClock(db);
+    store.configure(store.view()!.revision, { ...daily, cadence: "hourly" });
+    const warn = () => clock.assess("e", "fixture-secret", { ...scope, direction: "incoming", messageId: String(time),
+      text: "Fixture", timestamp: time + 10 * 60_000 }, inbox.grant(id), id, time);
+    time += 12_000; expect(warn()).toBe(503);
+    time = Date.parse("2026-11-28T09:00:00Z"); store.tick();
+    expect(store.view()!.periods[0]!.gaps).toBe(1);
+    time += 60_000; expect(warn()).toBe(503);
+    time = Date.parse("2026-11-28T10:00:00Z"); store.tick();
+    expect(store.view()!.periods.map(p => p.gaps)).toEqual([1, 1]);
+    inbox.revoke(id);
+    expect(db.prepare("SELECT COUNT(*) n FROM zalo_period_timing").get()!.n).toBe(0);
+  } finally { db.close(); vi.unstubAllEnvs(); }
 });

@@ -1,3 +1,4 @@
+import { reportTimeZone } from "../../shared/zalo-period-report.ts";
 import { homedir } from "node:os";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
@@ -10,8 +11,10 @@ const bodySchema = z.object({
   revision: z.string().regex(/^[a-f0-9]{64}$/),
   schedule: z.object({
     cadence: z.enum(["hourly", "daily"]), hour: z.number().int().min(0).max(23), minute: z.number().int().min(0).max(59),
-    timeZone: z.string().min(1).max(100).refine(zone => {
-      try { new Intl.DateTimeFormat("en", { timeZone: zone }); return true; } catch { return false; }
+    timeZone: z.string().min(1).max(100).transform((value, ctx) => {
+      const zone = reportTimeZone(value);
+      if (zone) return zone;
+      ctx.addIssue({ code: "custom", message: "Invalid routine timezone" }); return z.NEVER;
     }),
   }).strict().nullable(),
 }).strict();
@@ -48,6 +51,6 @@ export function zaloPeriodService(local: boolean, { home = homedir, now = Date.n
   return {
     route,
     next: () => { try { return withStore(store => store.next()); } catch { return null; } },
-    tick: () => { try { withStore(store => store.tick()); } catch { /* The Routine clock rechecks availability on later passes. */ } },
+    tick: () => { try { withStore(store => store.tick()); } catch { return; } },
   };
 }

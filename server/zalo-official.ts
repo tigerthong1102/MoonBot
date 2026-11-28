@@ -20,7 +20,7 @@ const update = z.object({
 });
 
 type Method = "getMe" | "getWebhookInfo" | "getUpdates";
-type Failure = "disabled" | "configuration" | "identity-mismatch" | "unverified-webhook" | "webhook-configured" |
+type Failure = "disabled" | "configuration" | "identity-mismatch" | "webhook-not-found" | "unverified-webhook" | "webhook-configured" |
   "network" | "timeout" | "cancelled" | "protocol" | "authentication" | "access-denied" | "rate-limited" | "poll-in-progress" | "receipt-unknown";
 
 export class ZaloOfficialError extends Error {
@@ -67,7 +67,8 @@ async function boundedPayload(response: Response, signal: AbortSignal) {
   }
 }
 
-function failure(code: number): Failure {
+function failure(code: number, method: Method): Failure {
+  if (code === 404 && method === "getWebhookInfo") return "webhook-not-found";
   if (code === 401) return "authentication";
   if (code === 403 || code === 422) return "access-denied";
   if (code === 429) return "rate-limited";
@@ -96,12 +97,12 @@ export function createZaloOfficialReader(accountId: string, token: string, reque
     }
     if (!response.ok && !(response.status === 408 && method === "getUpdates")) {
       await response.body?.cancel().catch(() => {});
-      throw new ZaloOfficialError(failure(response.status));
+      throw new ZaloOfficialError(failure(response.status, method));
     }
     const payload = await boundedPayload(response, requestSignal);
     if (!payload.ok) {
       if (method === "getUpdates" && payload.error_code === 408 && (response.ok || response.status === 408)) return null;
-      throw new ZaloOfficialError(failure(payload.error_code));
+      throw new ZaloOfficialError(failure(payload.error_code, method));
     }
     if (!response.ok || payload.result == null) throw new ZaloOfficialError("protocol");
     return payload.result;
@@ -111,9 +112,14 @@ export function createZaloOfficialReader(accountId: string, token: string, reque
     const identity = z.object({ id }).safeParse(await call("getMe", signal));
     if (!identity.success) throw new ZaloOfficialError("protocol");
     if (identity.data.id !== accountId) throw new ZaloOfficialError("identity-mismatch");
-    const webhook = z.object({ url: z.string() }).safeParse(await call("getWebhookInfo", signal));
-    if (!webhook.success) throw new ZaloOfficialError("unverified-webhook");
-    return { accountId, webhookConfigured: webhook.data.url !== "" };
+    try {
+      const webhook = z.object({ url: z.string() }).safeParse(await call("getWebhookInfo", signal));
+      if (!webhook.success) throw new ZaloOfficialError("unverified-webhook");
+      return { accountId, webhookConfigured: webhook.data.url !== "" };
+    } catch (error) {
+      if (!(error instanceof ZaloOfficialError) || error.code === "disabled" || error.code === "cancelled") throw error;
+      return { accountId, webhookConfigured: null, webhookError: error.code };
+    }
   }
 
   return {
@@ -137,7 +143,9 @@ export function createZaloOfficialReader(accountId: string, token: string, reque
       if (polling.has(accountId)) throw new ZaloOfficialError("poll-in-progress");
       polling.add(accountId);
       try {
-        if ((await probe(options.signal)).webhookConfigured) throw new ZaloOfficialError("webhook-configured");
+        const status = await probe(options.signal);
+        if (status.webhookConfigured === null) throw new ZaloOfficialError(status.webhookError);
+        if (status.webhookConfigured) throw new ZaloOfficialError("webhook-configured");
         if (!isCurrent() || options.signal?.aborted) return "revoked";
         const payload = await call("getUpdates", options.signal);
         requireEnabled();

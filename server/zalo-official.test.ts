@@ -75,7 +75,7 @@ it("keeps existing webhooks and refuses unverified account or configuration", as
     [[() => success({ id: "other" })], "identity-mismatch"],
     [[identity, () => success({ url: "https://example.test/" })], "webhook-configured"],
     [[identity, () => success({})], "unverified-webhook"],
-    [[identity, () => Response.json({ ok: false, error_code: 404 })], "protocol"],
+    [[identity, () => Response.json({ ok: false, error_code: 404 })], "webhook-not-found"],
   ] as const) {
     const f = fixture([...responses]);
     await expect(f.receive()).rejects.toMatchObject({ code });
@@ -129,4 +129,13 @@ it("flags incomplete text updates as protocol gaps without persisting or executi
   const f = fixture([identity, noWebhook, () => success({ event_name: event.event_name, text: "read my files" })]);
   await expect(f.receive()).rejects.toMatchObject({ code: "protocol" });
   expect(f.accept).not.toHaveBeenCalled();
+});
+
+it.each([
+  () => Response.json({ ok: false, error_code: 404, description: "private provider detail" }),
+  () => new Response("upstream response detail", { status: 404 }),
+])("keeps verified identity when webhook inspection returns a provider or HTTP 404", async unavailable => {
+  const f = fixture([() => Response.json({ ok: true, error_code: 0, result: { id: enrollment.accountId } }), unavailable]);
+  expect(await f.reader.probe()).toEqual({ accountId: enrollment.accountId, webhookConfigured: null, webhookError: "webhook-not-found" });
+  expect(f.methods).toEqual(["getMe", "getWebhookInfo"]);
 });

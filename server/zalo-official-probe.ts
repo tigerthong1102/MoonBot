@@ -6,7 +6,8 @@ async function main() {
     process.env.STARTUPBOT_ZALO_OFFICIAL_BOT_TOKEN ?? "",
   );
   const status = await reader.probe();
-  process.stdout.write(JSON.stringify({ identityVerified: true, webhookConfigured: status.webhookConfigured }) + "\n");
+  process.stdout.write(JSON.stringify({ identityVerified: true, webhookConfigured: status.webhookConfigured, webhookError: status.webhookError }) + "\n");
+  if (status.webhookConfigured === null) process.exitCode = 2;
 }
 
 void main().catch((error: unknown) => {

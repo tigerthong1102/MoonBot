@@ -5,7 +5,13 @@ import { lookForGrokBot, removeOldCursorSignIn } from "../grok-local.ts";
 import { createGrokMove, type GrokMove } from "../grok-move-tunnel.ts";
 import { applySetupImport, detectSetup, thisMachine, type SetupHost, type SetupMachine } from "../setup-import.ts";
 import type { BusyFlag } from "./config.ts";
+import { createZaloReplyRoutes } from "./zalo-approved-send.ts";
+import { createZaloErasureRoutes } from "./zalo-erasure.ts";
+import { createZaloKnowledgeRoutes } from "./zalo-knowledge-bookmarks.ts";
+import { createZaloPairingRoutes } from "./zalo-pairing.ts";
 import { createZaloWorkflowReviewRoutes } from "./zalo-workflow-review.ts";
+import { zaloPeriodService } from "./zalo-period-report.ts";
+export { zaloPeriodService };
 import { createZaloOfficialRoutes } from "./zalo-official.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -14,6 +20,7 @@ export interface SetupImportRouteDeps {
    * among them, is the owner's loopback; nor on a Cloud home or a hosted organization server, whose files are not the
    * person's own. */
   local: boolean;
+  onLocalReportScheduleChanged?: () => void;
   cfg: Pick<AppConfig, "mcpServers" | "features">;
   mcpConfigBusy: BusyFlag;
   mcpPolicyRefusal(name: string, server: object): string | undefined;
@@ -84,5 +91,5 @@ export function createSetupImportRoutes(deps: SetupImportRouteDeps): RouteHandle
 }
 
 export function createDesktopImportRoutes(deps: SetupImportRouteDeps): RouteHandler[] {
-  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloWorkflowReviewRoutes(deps.local)];
+  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloPairingRoutes(deps.local), createZaloReplyRoutes(deps.local), createZaloWorkflowReviewRoutes(deps.local), createZaloErasureRoutes(deps.local), zaloPeriodService(deps.local, { onChanged: deps.onLocalReportScheduleChanged }).route, createZaloKnowledgeRoutes(deps.local)];
 }

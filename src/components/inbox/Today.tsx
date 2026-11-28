@@ -1,3 +1,5 @@
+import { localSetupImport } from "@/lib/setup-import";
+import { ZaloPeriodReports } from "../ZaloPeriodReports";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type { InboxRow, InboxView } from "../../../shared/inbox";
@@ -73,6 +75,7 @@ export function Today({ view, now, onOpen }: { view: InboxView | null; now: numb
   </button>{task && <TodayTaskDetails key={task.threadId} task={task} botId={line.botId} />}</div>;
   });
   return <>
+    {localSetupImport(state.config?.cloudHome === true) && <ZaloPeriodReports />}
     {(waiting.length > 0 || needs.length > 0) && <TodaySection title={t("inbox.waitsOnYou")}>
       <div role="list">{waiting.map((row) => <InboxRowItem key={row.id} row={row} now={now} onOpen={onOpen} onAction={run} />)}</div>
       {needs.map((item) => <NeedsYouLine key={item.id} item={item} onOpened={closeInbox} menuItem={false} />)}

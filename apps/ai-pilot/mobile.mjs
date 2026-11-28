@@ -1,18 +1,13 @@
 import { readFileSync } from "node:fs";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
 import { mobileOpenRouter } from "./mobile-openrouter.mjs";
+import { mobileTextSkills } from "./mobile-text-skills.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
 import { catalog, Fault } from "./ledger.mjs";
 
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
 const assets = new Map([["/mobile", ["./mobile.html", "text/html"]], ["/mobile/callback", ["./mobile.html", "text/html"]], ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]]]);
 const instructions = "You are StartupBot on a phone. Answer in the user's language. You can write, translate and explain text. You have no access to a computer, local files, apps, cloud agent or tools. If a request needs them, explain that it needs a connected computer. Never state that an external action was performed.";
-
-const textSkills = new Map([
-  ["chat", ""], ["write", "Help draft the requested text."],
-  ["translate", "Translate only the supplied text into the language requested. Ask for the target language when missing."],
-  ["summarize", "Summarize only the text supplied by the user. Ask for the text when missing."]
-]);
 
 export function mobileService(ledger, settings, gateway, http, readObject) {
   if (!settings.mobileOrigin) return null;
@@ -21,6 +16,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
   const accounts = createControlPlaneClient({ baseURL: settings.accountOrigin, fetchImpl: http });
   const db = ledger.db;
   const sessions = mobileSessions(db);
+  const textSkills = mobileTextSkills();
   db.exec(`
     CREATE TABLE IF NOT EXISTS mobile_threads(owner TEXT NOT NULL,id TEXT NOT NULL,title TEXT NOT NULL,updated INTEGER NOT NULL,
       PRIMARY KEY(owner,id));
@@ -77,6 +73,11 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       const user = await accounts.me(session.token, { requireVerifiedEmail: true });
       if (user.id !== session.owner) throw new Fault(401, "signed_out");
       owner = user.id;
+      if (method === "POST" && path === "/mobile/devices") {
+        if (body.account !== owner) throw new Fault(409, "account_changed");
+        const installations = await accounts.listInstallations(session.token);
+        return json(200, { devices:installations.map(({ name, platform, appVersion }) => ({ name, platform, appVersion })) });
+      }
     } catch (error) {
       if (!(error instanceof ControlPlaneError)) throw error;
       if (error.status === 429) throw new Fault(429, "account_rate_limit");

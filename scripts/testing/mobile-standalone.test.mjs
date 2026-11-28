@@ -179,3 +179,21 @@ it("admits a verified new account once within an explicitly funded trial cohort"
   expect(f.ledger.order("trial","monthly",f.config,randomUUID()).state).toBe("pending");
   expect(f.ledger.db.prepare("SELECT count(*) n FROM orders WHERE sku='mobile_trial'").get().n).toBe(1);
 });
+
+it("uses only reviewed text instructions from the bundled campaign and outreach skills", async () => {
+  for (const [skill, expected] of [["campaign-plan","Campaign Brief Structure"],["draft-outreach","Relevance line"]]) {
+    const response = await f.call("/send", cookie, message({ skill }));
+    expect(await response.text()).toContain("complete");
+    const request = f.generations.at(-1);
+    expect(request.messages[0].content).toContain(expected);
+    expect(request.messages[0].content).not.toContain("Step 4 - Create the draft");
+    expect(request.tools).toBeUndefined();
+  }
+});
+
+it("lists the signed-in owner's registered computer labels without granting computer access", async () => {
+  expect((await (await f.call("/devices",cookie,{account:"alice"})).json()).devices)
+    .toEqual([{ name:"alice laptop", platform:"darwin", appVersion:"1.0.0" }]);
+  expect((await f.call("/devices", cookie, {account:"bob"})).status).toBe(409);
+  expect((await f.call("/devices", null, {account:"alice"})).status).toBe(401);
+});

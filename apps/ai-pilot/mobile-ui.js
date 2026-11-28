@@ -2,7 +2,7 @@ let callback = location.pathname === "/mobile/callback" ? new URLSearchParams(lo
 if (callback) history.replaceState(null, "", "/mobile");
 const translations = {
   en: {
-    providers:"AI provider", providerNote:"OpenRouter bills your own credits. Disconnecting removes this session’s key. You can revoke it in OpenRouter.", billing:"Pay for this conversation with", managed:"StartupBot credit", personal:"My OpenRouter credit", connectProvider:"Connect OpenRouter", disconnectProvider:"Disconnect", providerKeys:"Manage OpenRouter keys",
+    campaign:"Plan a campaign", outreach:"Draft an outreach email", devices:"My registered computers", deviceNote:"Pair a computer in the StartupBot app to use its tools.", noDevices:"No registered computers.", providers:"AI provider", providerNote:"OpenRouter bills your own credits. Disconnecting removes this session’s key. You can revoke it in OpenRouter.", billing:"Pay for this conversation with", managed:"StartupBot credit", personal:"My OpenRouter credit", connectProvider:"Connect OpenRouter", disconnectProvider:"Disconnect", providerKeys:"Manage OpenRouter keys",
     provider_disconnected:"Reconnect your OpenRouter account to continue this conversation.", provider_conflict:"Start a new conversation to change the payer.", provider_daily_limit:"This account reached its personal-key safety limit.", provider_connection_failed:"OpenRouter could not complete the request. Check your key and credits.", provider_limit_required:"Connect a key with a positive credit limit.", invalid_callback:"The connection expired. Start again.",
     skill:"What would you like to do?", ask:"Ask a question", write:"Draft text", translate:"Translate", summarize:"Summarize text", desktop:"Work on my computer", copy:"Copy", retry:"Reconnect", managed_access_revoked:"AI access has been suspended.", email:"Email address", otp:"Eight-digit email code", code:"Continue with email", login:"Sign in", change:"Change email", logout:"Sign out",
     history:"Conversations", new:"New conversation", rename:"Rename", remove:"Delete", message:"Your message", send:"Send", stop:"Stop",
@@ -16,7 +16,7 @@ const translations = {
     unavailable:"The account service is temporarily unavailable.", account_changed:"Your account changed. Reopen the conversation.", invalid_message:"Shorten your message and confirm the storage choice."
   },
   vi: {
-    providers:"Nhà cung cấp AI", providerNote:"OpenRouter tính vào số dư riêng của bạn. Ngắt kết nối sẽ xóa khóa khỏi phiên này. Bạn có thể thu hồi khóa trên OpenRouter.", billing:"Chi trả cho hội thoại bằng", managed:"Credit StartupBot", personal:"Credit OpenRouter của tôi", connectProvider:"Kết nối OpenRouter", disconnectProvider:"Ngắt kết nối", providerKeys:"Quản lý khóa OpenRouter",
+    campaign:"Lập kế hoạch chiến dịch", outreach:"Soạn email tiếp cận khách hàng", devices:"Máy tính đã đăng ký", deviceNote:"Để sử dụng công cụ trên máy tính, hãy ghép nối trong ứng dụng StartupBot.", noDevices:"Chưa có máy tính đăng ký.", providers:"Nhà cung cấp AI", providerNote:"OpenRouter tính vào số dư riêng của bạn. Ngắt kết nối sẽ xóa khóa khỏi phiên này. Bạn có thể thu hồi khóa trên OpenRouter.", billing:"Chi trả cho hội thoại bằng", managed:"Credit StartupBot", personal:"Credit OpenRouter của tôi", connectProvider:"Kết nối OpenRouter", disconnectProvider:"Ngắt kết nối", providerKeys:"Quản lý khóa OpenRouter",
     provider_disconnected:"Hãy kết nối lại OpenRouter để tiếp tục hội thoại.", provider_conflict:"Hãy mở hội thoại mới để đổi bên chi trả.", provider_daily_limit:"Tài khoản đã đạt trần sử dụng khóa riêng.", provider_connection_failed:"OpenRouter chưa hoàn tất yêu cầu. Hãy kiểm tra khóa và số dư.", provider_limit_required:"Hãy kết nối khóa có hạn mức dương.", invalid_callback:"Phiên kết nối đã hết hạn. Hãy bắt đầu lại.",
     skill:"Bạn muốn làm gì?", ask:"Hỏi đáp", write:"Soạn nội dung", translate:"Dịch", summarize:"Tóm tắt văn bản", desktop:"Thao tác trên máy tính", copy:"Sao chép", retry:"Kết nối lại", managed_access_revoked:"Quyền sử dụng AI đã bị tạm ngưng.", email:"Địa chỉ email", otp:"Mã tám chữ số gửi qua email", code:"Tiếp tục bằng email", login:"Đăng nhập", change:"Đổi email", logout:"Đăng xuất",
     history:"Hội thoại", new:"Hội thoại mới", rename:"Đổi tên", remove:"Xóa", message:"Tin nhắn của bạn", send:"Gửi", stop:"Dừng",
@@ -30,7 +30,7 @@ const translations = {
     unavailable:"Dịch vụ tài khoản tạm thời gián đoạn.", account_changed:"Tài khoản đã thay đổi. Hãy mở lại hội thoại.", invalid_message:"Hãy rút ngắn tin nhắn và xác nhận lựa chọn lưu trữ."
   },
   pt: {
-    providers:"Provedor de IA", providerNote:"O OpenRouter cobra seus créditos. Desconectar remove a chave desta sessão. Revogue a chave no OpenRouter.", billing:"Pagar esta conversa com", managed:"Crédito StartupBot", personal:"Meu crédito OpenRouter", connectProvider:"Conectar OpenRouter", disconnectProvider:"Desconectar", providerKeys:"Gerenciar chaves OpenRouter",
+    campaign:"Planejar campanha", outreach:"Escrever e-mail de prospecção", devices:"Computadores registrados", deviceNote:"Emparelhe um computador no app StartupBot para usar as ferramentas dele.", noDevices:"Nenhum computador registrado.", providers:"Provedor de IA", providerNote:"O OpenRouter cobra seus créditos. Desconectar remove a chave desta sessão. Revogue a chave no OpenRouter.", billing:"Pagar esta conversa com", managed:"Crédito StartupBot", personal:"Meu crédito OpenRouter", connectProvider:"Conectar OpenRouter", disconnectProvider:"Desconectar", providerKeys:"Gerenciar chaves OpenRouter",
     provider_disconnected:"Reconecte o OpenRouter para continuar.", provider_conflict:"Abra uma nova conversa para mudar o pagador.", provider_daily_limit:"Limite da chave pessoal atingido.", provider_connection_failed:"Confira a chave e o crédito no OpenRouter.", provider_limit_required:"Use uma chave com limite positivo.", invalid_callback:"Conexão expirada. Tente de novo.",
     skill:"O que deseja fazer?", ask:"Fazer uma pergunta", write:"Escrever", translate:"Traduzir", summarize:"Resumir", desktop:"Trabalhar no computador", copy:"Copiar", retry:"Reconectar", managed_access_revoked:"Acesso à IA suspenso.", email:"Endereço de e-mail", otp:"Código de oito dígitos", code:"Continuar com e-mail", login:"Entrar", change:"Alterar e-mail", logout:"Sair",
     history:"Conversas", new:"Nova conversa", rename:"Renomear", remove:"Excluir", message:"Sua mensagem", send:"Enviar", stop:"Parar",
@@ -69,6 +69,8 @@ function signedOut() {
   el("email").readOnly = false;
   el("loginButton").textContent = t.code;
   el("transcript").replaceChildren();
+  el("devices").open = false;
+  el("deviceList").replaceChildren();
   el("threads").replaceChildren();
   el("login").reset();
   el("compose").reset();
@@ -207,6 +209,16 @@ el("login").onsubmit = event => {
   });
 };
 el("retry").onclick = () => action(openChat);
+el("devices").ontoggle = async () => {
+  if (!el("devices").open) return;
+  const viewer = account;
+  try {
+    const { devices } = await (await api("devices", {})).json();
+    if (!account || viewer !== account) return;
+    el("deviceList").replaceChildren(...(devices.length ? devices.map(d => [d.name, d.platform, d.appVersion].filter(Boolean).join(" · ")) : [t.noDevices])
+      .map(text => { const item = document.createElement("li"); item.textContent = text; return item; }));
+  } catch (error) { status(error.message); }
+};
 el("connectProvider").onclick = () => action(async () => {
   const { url } = await (await api("provider/start", {})).json();
   location.assign(url);

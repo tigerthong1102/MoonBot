@@ -12101,6 +12101,7 @@ store.onChange(change => {
 ROUTES.push(instructionStudio.routes);
 const aiTwin = createAiTwinHost({
   enabled: AI_TWIN_ENABLED, desktop: DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE, dataDir: DATA_DIR, workspace: ENVIRONMENT_ID, store,
+  zaloRecipe: id => bundledSkills.find(skill => skill.manifest.id === id)?.instructions,
   preview: { selection: () => bootSelection, jobs: sideJobs }, blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
   liveSession: liveSignedIn, sessionRecord: (id) => sessions.record(id), visible: (auth) => visibleTo(viewerFor(auth)), mayLearn: () => CLOUD_PERSONAL || !sharedMembership(),
   ownerThread: (thread) => !CLOUD_PERSONAL || cloudOwnerOnlyThread(thread), ownerLine: (person) => CLOUD_PERSONAL ? cloudProvenOwnerPerson(person) : !person,

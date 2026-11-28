@@ -1,0 +1,11 @@
+{
+  "id": "zalo-bat-dong-san",
+  "name": "Rà soát nhu cầu bất động sản",
+  "version": "1.0.0",
+  "description": "Phân loại nhu cầu mua, thuê, ký gửi hoặc xem nhà trong phần hội thoại chủ tài khoản chọn.",
+  "defaultEnabled": false,
+  "triggerTerms": [
+    "$zalo-bat-dong-san"
+  ],
+  "requiredCapabilities": []
+}

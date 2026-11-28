@@ -1705,6 +1705,11 @@ class Session(
         }
     }
 
+    suspend fun aiTwin(): AiTwinStatus? = requestCurrent(quietly = true) { it.aiTwin() }
+
+    suspend fun askAiTwin(profile: AiTwinProfile, question: String, action: AiTwinAction, provider: AiTwinProvider?): AiTwinAnswer? =
+        requestCurrent(quietly = true) { it.askAiTwin(profile, question, action, provider) }
+
     suspend fun configStatus(): ConfigStatus? = requestCurrent(quietly = true) { it.config() }
 
     suspend fun switchVoiceProvider(provider: VoiceProvider): ConfigStatus? =

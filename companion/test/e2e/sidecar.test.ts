@@ -42,6 +42,25 @@ describe("the sidecar's end-to-end connection, through the real relay", () => {
     paired.session.shutdown();
   });
 
+  it("forwards Twin lookup only through a bound encrypted phone session", async () => {
+    const session = await rig.viaRelay(await state(), deviceToken);
+    try {
+      const path = "/api/ai-twin";
+      const plain = await fetch(`http://127.0.0.1:${rig.companionPort}${path}`, {
+        headers: { authorization: `Bearer ${deviceToken}` },
+      });
+      expect(plain.status).toBe(426);
+      const reply = await http(session, "GET", path, {
+        token: deviceToken, headers: { "x-openmausbot-companion-device": "forged", "x-openmausbot-desktop-owner": "not-owner" },
+      });
+      expect(reply.status).toBe(200);
+      expect(json(reply)).toEqual({ device: deviceId, noDesktopOwner: true });
+      expect((await http(session, "PATCH", path, { token: deviceToken })).status).toBe(404);
+    } finally {
+      session.shutdown();
+    }
+  });
+
   it("carries a 4 MiB event, a 25 MiB upload and a Range read through the relay", async () => {
     const session = await rig.viaRelay(await state(), deviceToken);
     const stream = events(session, deviceToken);

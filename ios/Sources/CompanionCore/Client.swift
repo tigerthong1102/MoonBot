@@ -843,6 +843,23 @@ public struct CompanionClient: Sendable {
         })
     }
 
+    public func aiTwin() async throws -> AiTwinStatus {
+        try await send(try makeRequest("GET", "/api/ai-twin"), as: AiTwinStatus.self)
+    }
+
+    public func askAiTwin(_ profile: AiTwinProfile, question: String,
+                          action: AiTwinAction, provider: AiTwinProvider?) async throws -> AiTwinAnswer {
+        var body: [String: Any] = ["id": profile.id, "revision": profile.revision, "question": question]
+        if action != .exact {
+            guard let provider else { return AiTwinAnswer() }
+            body["key"] = provider.key
+            body["useProvider"] = true
+        }
+        if action == .draft { body["useMemory"] = true }
+        let method = action == .draft ? "preview" : "lookup"
+        return try await send(try makeRequest("POST", "/api/ai-twin/\(method)", body: body), as: AiTwinAnswer.self)
+    }
+
     public func config() async throws -> ConfigStatus {
         try await send(try makeRequest("GET", "/api/config"), as: ConfigStatus.self)
     }

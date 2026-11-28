@@ -4,43 +4,55 @@ import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
 import { SETTINGS_INPUT, SettingsField, SettingsFoldRow } from "./SettingsPrimitives";
 
-export function AiTwinPreview({ twin, provider, refresh }: {
+export function AiTwinPreview({ twin, provider, allowSemantic, refresh }: {
   twin: AiTwinProfile;
   provider: AiTwinPreviewProvider | undefined;
+  allowSemantic: boolean;
   refresh: () => void;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState("");
+  const [match, setMatch] = useState<string | undefined>();
   const [draft, setDraft] = useState("");
   const [lesson, setLesson] = useState<AiTwinLesson | null | undefined>(undefined);
   const [error, setError] = useState<"retry" | "changed" | null>(null);
-  const [pending, setPending] = useState<"lookup" | "generate" | null>(null);
+  const [pending, setPending] = useState<"lookup" | "semantic" | "generate" | "grounded" | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => () => abort.current?.abort(), []);
 
-  async function run(action: "lookup" | "generate") {
-    if (!question.trim() || abort.current || (action === "generate" && !provider)) return;
+  async function run(action: "lookup" | "semantic" | "generate" | "grounded") {
+    if (!question.trim() || abort.current || (action !== "lookup" && !provider)) return;
+    const generate = action === "generate" || action === "grounded";
     const request = new AbortController();
     abort.current = request;
     setPending(action);
     setDraft("");
     setLesson(undefined);
+    setMatch(undefined);
     setError(null);
     try {
       const base = { id: twin.id, revision: twin.revision, question };
-      if (action === "generate" && provider) {
-        const answer = await api<{ draft: string }>(AI_TWIN_PREVIEW_PATH, {
-          method: "POST", timeoutMs: 24_000, signal: request.signal,
-          body: JSON.stringify({ ...base, key: provider.key, useProvider: true }),
+      if (generate && provider) {
+        const answer = await api<{ draft: string; lesson?: AiTwinLesson; match?: string }>(AI_TWIN_PREVIEW_PATH, {
+          method: "POST", timeoutMs: 65_000, signal: request.signal,
+          body: JSON.stringify({ ...base, key: provider.key, useProvider: true, ...(action === "grounded" ? { useMemory: true } : {}) }),
         });
-        if (!request.signal.aborted) setDraft(answer.draft);
+        if (!request.signal.aborted) {
+          setDraft(answer.draft);
+          setLesson(answer.lesson);
+          setMatch(answer.match);
+        }
       } else {
-        const answer = await api<{ lesson: AiTwinLesson | null }>(AI_TWIN_LOOKUP_PATH, {
-          method: "POST", timeoutMs: 8_000, signal: request.signal, body: JSON.stringify(base),
+        const answer = await api<{ lesson: AiTwinLesson | null; match?: string }>(AI_TWIN_LOOKUP_PATH, {
+          method: "POST", timeoutMs: action === "semantic" ? 45_000 : 8_000, signal: request.signal,
+          body: JSON.stringify(action === "semantic" && provider ? { ...base, key: provider.key, useProvider: true } : base),
         });
-        if (!request.signal.aborted) setLesson(answer.lesson);
+        if (!request.signal.aborted) {
+          setLesson(answer.lesson);
+          setMatch(answer.match);
+        }
       }
     } catch (problem) {
       if (!request.signal.aborted) {
@@ -81,13 +93,19 @@ export function AiTwinPreview({ twin, provider, refresh }: {
             </button>
             {provider && <button type="button" className="ui-button" disabled={pending !== null || !question.trim() || error === "changed"}
               onClick={() => void run("generate")}>{t("settings.aiTwin.generateDraft")}</button>}
+            {provider && <button type="button" className="ui-button" disabled={!allowSemantic || pending !== null || !question.trim() || error === "changed"}
+              onClick={() => void run("semantic")}>{t("settings.aiTwin.semanticLookup")}</button>}
+            {provider && <button type="button" className="ui-button" disabled={pending !== null || !question.trim() || error === "changed"}
+              onClick={() => void run("grounded")}>{t("settings.aiTwin.groundedDraft")}</button>}
           </div>
-          {provider && <p className="text-[12px] text-ink-secondary">{t("settings.aiTwin.previewDisclosure", { provider: provider.name, model: provider.model })}</p>}
-          {pending && <p role="status" className="text-[12px] text-ink-secondary">{t(pending === "lookup" ? "settings.aiTwin.lookupPending" : "settings.aiTwin.generating")}</p>}
+          {provider && <p className="text-[12px] text-ink-secondary">{t("settings.aiTwin.memoryDisclosure", { provider: provider.name, model: provider.model })}</p>}
+          {provider && !allowSemantic && <p className="text-[12px] text-ink-secondary">{t("settings.aiTwin.semanticNeedsLessons")}</p>}
+          {pending && <p role="status" className="text-[12px] text-ink-secondary">{t(pending === "lookup" || pending === "semantic" ? "settings.aiTwin.lookupPending" : "settings.aiTwin.generating")}</p>}
           {lesson === null && <p role="status" className="text-[13px] text-ink-secondary">{t("settings.aiTwin.lessonMissing")}</p>}
           {lesson && (
             <div role="status" className="flex flex-col gap-1 text-[13px]">
-              <span className="font-medium text-ink">{t("settings.aiTwin.lessonSource")}</span>
+              <span className="font-medium text-ink">{t(match === "semantic" ? "settings.aiTwin.semanticSource" : "settings.aiTwin.lessonSource")}</span>
+              <p dir="auto" className="break-words text-ink-secondary">{lesson.question}</p>
               <p dir="auto" className="whitespace-pre-wrap break-words text-ink-secondary">{lesson.answer}</p>
             </div>
           )}

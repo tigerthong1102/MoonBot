@@ -250,6 +250,24 @@ class CompanionClient(
         .filter { it.capabilities?.images == true }
         .mapTo(mutableSetOf(), Instance::instanceId)
 
+    suspend fun aiTwin(): AiTwinStatus = send(makeRequest("GET", "/api/ai-twin"))
+
+    suspend fun askAiTwin(profile: AiTwinProfile, question: String, action: AiTwinAction, provider: AiTwinProvider?): AiTwinAnswer {
+        require(action == AiTwinAction.Exact || provider != null)
+        val body = buildJsonObject {
+            put("id", profile.id)
+            put("revision", profile.revision)
+            put("question", question)
+            if (action != AiTwinAction.Exact && provider != null) {
+                put("key", provider.key)
+                put("useProvider", true)
+            }
+            if (action == AiTwinAction.Draft) put("useMemory", true)
+        }
+        val path = if (action == AiTwinAction.Draft) "preview" else "lookup"
+        return send(makeRequest("POST", "/api/ai-twin/$path", body = body))
+    }
+
     suspend fun config(): ConfigStatus = send(makeRequest("GET", "/api/config"))
 
     // Synthesis-provider selection does not transport provider credentials.

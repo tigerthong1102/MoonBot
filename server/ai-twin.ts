@@ -2,12 +2,12 @@ import { randomUUID } from "node:crypto";
 import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
-import { AI_TWIN_NAME_MAX, AI_TWIN_STYLE_MAX, type AiTwinProfile, type AiTwinView } from "../shared/ai-twin.ts";
+import { AI_TWIN_NAME_MAX, AI_TWIN_STYLE_MAX, type AiTwinControls, type AiTwinProfile, type AiTwinView } from "../shared/ai-twin.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { MAX_TWIN_LESSONS, storedTwinLesson, twinLessonFields, twinLessonKey, twinLessonLookupFields } from "./ai-twin-lessons.ts";
 
 export const AI_TWIN_PRIVATE_DIR = "ai-twin";
-const MAX_FILE_BYTES = 256 * 1024;
+const MAX_FILE_BYTES = 512 * 1024;
 const id = z.uuid();
 const revision = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const style = z.string().trim().max(AI_TWIN_STYLE_MAX);
@@ -21,12 +21,25 @@ export const saveTwinLessonInput = twinVersionInput.extend({
   ...twinLessonFields,
   lessonId: id.optional(),
   saveAsLesson: z.literal(true),
+  allowProvider: z.boolean().optional(),
 });
 export const deleteTwinLessonInput = twinVersionInput.extend({ lessonId: id });
 export const lookupTwinLessonInput = twinVersionInput.extend(twinLessonLookupFields);
 
+const scopeId = z.string().min(1).max(128).regex(/^[\w-]+$/);
+export const twinLearningInput = twinVersionInput.extend({ thread: scopeId, enabled: z.boolean() });
+export const twinDelegationInput = twinVersionInput.extend({ room: scopeId, lesson: id, enabled: z.boolean() });
+export const twinPhoneInput = twinVersionInput.extend({ enabled: z.boolean() });
+const storedControls = z.strictObject({
+  sourceIds: z.array(scopeId).max(12),
+  delegations: z.array(z.strictObject({ room: scopeId, lesson: id })).max(80),
+  phone: z.boolean(),
+});
+const emptyControls: AiTwinControls = { sourceIds: [], delegations: [], phone: false };
+
 const storedTwin = updateTwinInput.extend({
   lessons: z.array(storedTwinLesson).max(MAX_TWIN_LESSONS).optional(),
+  controls: storedControls.optional(),
   creationId: id,
   createdAt: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
@@ -98,12 +111,14 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
 
   function view(state: StoredState): AiTwinView {
     const { twin, creationEpoch } = state;
-    return { twin: twin ? publicProfile(twin) : null, creationEpoch, ...(twin ? { lessons: twin.lessons ?? [] } : {}) };
+    return { twin: twin ? publicProfile(twin) : null, creationEpoch, ...(twin ? { lessons: twin.lessons ?? [], controls: twin.controls ?? emptyControls } : {}) };
   }
 
   function save(state: StoredState): AiTwinView {
     if (!directoryExists()) mkdirSync(directory, { mode: 0o700 });
-    writeFileAtomic(file, JSON.stringify(state), { mode: 0o600 });
+    const content = JSON.stringify(state);
+    if (Buffer.byteLength(content) > MAX_FILE_BYTES) throw new TwinLessonConflict("twin_lessons_full");
+    writeFileAtomic(file, content, { mode: 0o600 });
     return view(state);
   }
 
@@ -117,7 +132,41 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
     return twin;
   }
 
+  function updateControls(input: z.infer<typeof twinVersionInput>, change: (controls: AiTwinControls, twin: StoredTwin) => AiTwinControls): AiTwinView {
+    const state = read();
+    const twin = matching(state, input);
+    const controls = storedControls.safeParse(change(twin.controls ?? emptyControls, twin));
+    if (!controls.success) throw new TwinConflict("Too many Twin sources or grants");
+    return save({ ...state, twin: { ...twin, controls: controls.data, revision: twin.revision + 1, updatedAt: Date.now() } });
+  }
+
+  function removeGrants(twin: StoredTwin, lesson: string): AiTwinControls | undefined {
+    return twin.controls && { ...twin.controls, delegations: twin.controls.delegations.filter((grant) => grant.lesson !== lesson) };
+  }
+
   return {
+    setLearning(input: z.infer<typeof twinLearningInput>) {
+      return updateControls(input, (controls) => ({
+        ...controls, sourceIds: [...controls.sourceIds.filter((id) => id !== input.thread), ...(input.enabled ? [input.thread] : [])],
+      }));
+    },
+    setDelegation(input: z.infer<typeof twinDelegationInput>) {
+      return updateControls(input, (controls, twin) => {
+        if (input.enabled && !twin.lessons?.some((lesson) => lesson.id === input.lesson)) throw new TwinConflict("Lesson changed");
+        const others = controls.delegations.filter((grant) => grant.room !== input.room || grant.lesson !== input.lesson);
+        return { ...controls, delegations: [...others, ...(input.enabled ? [{ room: input.room, lesson: input.lesson }] : [])] };
+      });
+    },
+    setPhone(input: z.infer<typeof twinPhoneInput>) {
+      return updateControls(input, (controls) => ({ ...controls, phone: input.enabled }));
+    },
+    roomReply(room: string, question: string) {
+      const twin = read().twin;
+      if (!twin || twin.paused) return undefined;
+      const grants = twin.controls?.delegations;
+      return twin.lessons?.find((lesson) => grants?.some((grant) => grant.room === room && grant.lesson === lesson.id)
+        && twinLessonKey(lesson.question) === twinLessonKey(question));
+    },
     get(): AiTwinView {
       return view(read());
     },
@@ -158,9 +207,10 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
       const updatedAt = Date.now();
       const lesson = storedTwinLesson.parse({
         id: existing?.id ?? randomUUID(), question: input.question, answer: input.answer, source: "owner", updatedAt,
+        ...(input.allowProvider ? { allowProvider: true } : {}),
       });
       const next = existing ? lessons.map((entry) => entry.id === existing.id ? lesson : entry) : [...lessons, lesson];
-      return save({ ...state, twin: { ...twin, lessons: next, revision: twin.revision + 1, updatedAt } });
+      return save({ ...state, twin: { ...twin, lessons: next, controls: existing ? removeGrants(twin, existing.id) : twin.controls, revision: twin.revision + 1, updatedAt } });
     },
     forgetLesson(input: z.infer<typeof deleteTwinLessonInput>): AiTwinView {
       const state = read();
@@ -168,7 +218,7 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
       const lessons = twin.lessons ?? [];
       const remaining = lessons.filter((entry) => entry.id !== input.lessonId);
       if (remaining.length === lessons.length) throw new TwinConflict("Lesson changed");
-      return save({ ...state, twin: { ...twin, lessons: remaining, revision: twin.revision + 1, updatedAt: Date.now() } });
+      return save({ ...state, twin: { ...twin, lessons: remaining, controls: removeGrants(twin, input.lessonId), revision: twin.revision + 1, updatedAt: Date.now() } });
     },
     lookupLesson(input: z.infer<typeof lookupTwinLessonInput>) {
       const twin = matching(read(), input);

@@ -1,6 +1,71 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "AI Twin is paused." : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI Twin đang tạm dừng." } }
+      }
+    },
+    "Private draft" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bản nháp riêng tư" } }
+      }
+    },
+    "No matching lesson." : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Không tìm thấy bài học phù hợp." } }
+      }
+    },
+    "Approved lesson" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bài học đã duyệt" } }
+      }
+    },
+    "Possible lesson match" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Bài học có thể phù hợp" } }
+      }
+    },
+    "AI Twin could not answer. Refresh and try again." : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI Twin chưa trả lời được. Hãy tải lại và thử lại." } }
+      }
+    },
+    "Open AI Twin on the paired computer to allow phone access, or create a Twin in your personal Cloud." : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mở AI Twin trên máy đã ghép nối để cho phép điện thoại truy cập hoặc tạo AI Twin trên Cloud cá nhân." } }
+      }
+    },
+    "AI uses %@ (%@). Lookup can share lesson questions. Drafting may also share a matched answer and writing habits." : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI dùng %@ (%@). Tra theo ý nghĩa có thể gửi câu hỏi đã lưu. Soạn nháp có thể gửi thêm đáp án phù hợp và thói quen viết." } }
+      }
+    },
+    "Draft with memory" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Soạn nháp kèm bài học" } }
+      }
+    },
+    "Look up by meaning" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tra theo ý nghĩa" } }
+      }
+    },
+    "Look up a lesson" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Tra bài học" } }
+      }
+    },
+    "Ask AI Twin" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Hỏi AI Twin" } }
+      }
+    },
+    "AI Twin" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI Twin" } }
+      }
+    },
     "Open on another computer?" : {
       "localizations" : {
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mở trên máy tính khác?" } },

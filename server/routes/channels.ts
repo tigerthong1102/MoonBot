@@ -97,6 +97,7 @@ export interface ChannelRouteDeps {
     queueId: undefined,
     options: { via?: "api"; sender?: ResolvedSender; trigger?: UsageTrigger; threadId?: string; mentions?: string[]; pointed?: RoomPick },
   ): Message;
+  twinReply?(input: { auth: RequestAuth; group: GroupRecord; threadId: string; text: string; replyTo?: Message; sendId?: string }): Message | undefined;
   applyRoomHoldsFromMessage(groupId: string, text: string, mentions?: readonly string[]): void;
   cancelGroupTurnOperations(groupId: string, threadId: string): void;
   drainQueuedChannelSends(): void;
@@ -437,6 +438,10 @@ export function createChannelRoutes(deps: ChannelRouteDeps): RouteHandler {
             throw Object.assign(new Error("no such thread in channel"), {
               status: 404,
             });
+          }
+          if (channelMode === "chat" && !via && !pointing && !groupThreadIsWorking(current.id, threadId)) {
+            const message = deps.twinReply?.({ auth, group: current, threadId, text, replyTo, sendId });
+            if (message) return { ok: true as const, threadId, message };
           }
           const members = current.memberIds.map((id) => store.bot(id)).filter((bot): bot is BotRecord => Boolean(bot));
           // A new pick only (a retry above keeps its receipt): every page bot must still be here and free to answer.

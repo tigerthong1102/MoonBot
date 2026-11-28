@@ -3,6 +3,7 @@ import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinView } fr
 import { t } from "@/lib/i18n";
 import { randomUuid } from "@/lib/random-uuid";
 import { api, ApiError } from "@/state/api";
+import { AiTwinControls } from "./AiTwinControls";
 import { AiTwinLessons } from "./AiTwinLessons";
 import { AiTwinPreview } from "./AiTwinPreview";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -11,6 +12,7 @@ import { Card, SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 export function AiTwinSettings() {
   const [view, setView] = useState<AiTwinView | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [example, setExample] = useState<{ text: string } | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -68,6 +70,7 @@ export function AiTwinSettings() {
       const result = await api<AiTwinView>(AI_TWIN_PATH, { method, body: JSON.stringify(body), timeoutMs: 8_000 });
       if (!alive.current) return;
       setView(result);
+      if (!result.twin) setExample(null);
       setEditing(false);
       setConfirming(false);
       requestKey.current = null;
@@ -143,9 +146,11 @@ export function AiTwinSettings() {
             </button>
           </div>
           <AiTwinLessons key={twin.id} twin={twin} lessons={view?.lessons ?? []}
-            changed={setView} refresh={() => void reload()} />
+            changed={setView} refresh={() => void reload()} example={example} />
+          {view && <AiTwinControls key={twin.id} view={view} changed={setView}
+            refresh={() => void reload()} reviewExample={(text) => { setExample({ text }); }} />}
           {!twin.paused && <AiTwinPreview key={twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
-            twin={twin} provider={view?.preview} refresh={() => void reload()} />}
+            twin={twin} provider={view?.preview} allowSemantic={view?.lessons?.some((lesson) => lesson.allowProvider) === true} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>
             {t("settings.aiTwin.deleteBody")}
             {writeError && <span role="alert" className="mt-2 block text-danger">{writeError}</span>}

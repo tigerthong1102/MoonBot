@@ -17,6 +17,7 @@ import {
 } from "./endpoints.ts";
 import {
   denyReason,
+  isAiTwinPhonePath,
   isBrowserControlAccess,
   isCloudDesktopAccess,
   isMessageFileDownload,
@@ -410,6 +411,9 @@ export function createProxyHandler(options: ProxyOptions) {
     if (!e2e && listener === "lan" && device?.e2eAt && path !== "/api/health") return sendJson(res, 426, UPDATE_APP);
     const e2eDenial = e2e ? e2eRefusal(e2e, method, path, device?.id) : null;
     if (e2eDenial) return sendJson(res, 401, { error: e2eDenial });
+    if (isAiTwinPhonePath(path) && (!e2e || !device)) {
+      return sendJson(res, 404, { error: "not_found" });
+    }
     const browserRequest = isBrowserControlAccess(method, path);
     const browserRefusal = () => {
       if (!browserRequest) return null;

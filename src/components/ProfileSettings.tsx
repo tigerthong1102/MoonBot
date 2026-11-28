@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { api, useStore, type ConfigStatus } from "@/state/store";
 import { t } from "@/lib/i18n";
-import { localAiTwinAvailable } from "@/lib/ai-twin";
+import { aiTwinAvailable } from "@/lib/ai-twin";
 import { avatarMarks } from "@/lib/avatar-marks";
 import { saveTeamProfile } from "@/lib/own-profile";
 import { IMAGE_MAX_BYTES, imageAttachmentFromFile, isImageFile } from "@/lib/composer-attachments";
 import type { LocaleKey } from "@/locales";
 import { botAvatarUrlFromStoredPath } from "../../shared/bot-avatar";
+import { useYou } from "./settings/account-summary";
 import { AboutMeSettings } from "./AboutMeSettings";
 import { EveryBotRules } from "./EveryBotRules";
 import { SETTINGS_INPUT, SettingsField, SettingsLinkRow } from "./SettingsPrimitives";
@@ -156,6 +157,7 @@ function ProfilePhoto({ initials }: { initials: string }) {
 
 export function ProfileFields() {
   const { state, dispatch } = useStore();
+  const { session } = useYou();
   const [name, setName] = useState(state.config?.profile?.name ?? "");
   const [email, setEmail] = useState(state.config?.profile?.email ?? "");
   useEffect(() => {
@@ -202,7 +204,7 @@ export function ProfileFields() {
         />
       </SettingsField>
       <AboutMeSettings />
-      {localAiTwinAvailable(state.config) && <SettingsLinkRow title={t("settings.aiTwin.title")}
+      {aiTwinAvailable(state.config, session) && <SettingsLinkRow title={t("settings.aiTwin.title")}
         onClick={() => dispatch({ type: "toggleAppSettings", open: true, section: "aiTwin" })} />}
       <EveryBotRules />
     </div>

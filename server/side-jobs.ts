@@ -44,7 +44,7 @@ export function helperSelection(cfg: HelperConfig, env: Record<string, string | 
 /** "representative": a person's assistant answering a teammate's question for them, which must never get tools. */
 export type SideJob = "work-bot-offer" | "compaction" | "memory" | "skill-review" | "setup-suggestions" | "representative" | "status-reply" | "inbox-discussion";
 
-export type SideJobInstance = Pick<ProviderInstance, "instanceId" | "driverKind" | "enabled" | "generateText" | "generateMemoryText" | "models" | "quickModelsUsable"> & {
+export type SideJobInstance = Pick<ProviderInstance, "instanceId" | "driverKind" | "enabled" | "generateText" | "generateMemoryText" | "prepareVerifiedText" | "models" | "quickModelsUsable"> & {
   adapter: { capabilities: Pick<ProviderAdapter["capabilities"], "agentsMcp"> };
   displayName?: string;
 };
@@ -54,7 +54,7 @@ export interface SideJobBot {
   name: string;
   /** Where a spend alert a call raises is shown. */
   threadId: string;
-  modelSelection: { instanceId: string; model?: string };
+  modelSelection: Pick<ModelSelection, "instanceId"> & Partial<Omit<ModelSelection, "instanceId">>;
   helperModel?: boolean;
 }
 
@@ -64,10 +64,15 @@ export interface SideJobText {
 }
 
 export type SideJobTextOptions = Pick<TextGenerationOptions, "signal" | "timeoutMs"> & { waiting?(): void; started?(): void };
+export type VerifiedSideJobText = Omit<SideJobText, "generateText"> & {
+  destination: string;
+  generateText(prompt: string, options?: SideJobTextOptions & { beforeRequest?(): void }): Promise<string>;
+};
 
 export interface SideJobsDeps {
   bot: (botId: string) => SideJobBot | null | undefined;
   instance: (instanceId: string) => SideJobInstance | null | undefined;
+  isChanging?: (instanceId: string) => boolean;
   refusal: (instance: SideJobInstance) => string | undefined;
   helper: () => { instanceId: string; model?: string } | null;
   backgroundModel?: (job: RoutedJob) => z.infer<typeof routeShape> | undefined;
@@ -86,6 +91,7 @@ export interface SideJobs {
   text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
   instructionTest(botId: string, selection: ModelSelection): SideJobText | null;
   sourceAnswer(botId: string, selection: ModelSelection, threadId: string, trigger: UsageTrigger): (SideJobText & { selection: ModelSelection }) | null;
+  verifiedSourceAnswer(botId: string, selection: ModelSelection, threadId: string, trigger: UsageTrigger): VerifiedSideJobText | null;
   twinPreview(selection: { instanceId: string; model: string }, twinId: string): {
     instance: SideJobInstance;
     name: string;
@@ -290,6 +296,38 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
       const writer = () => isolatedWriter(botId, requested, { threadId, trigger });
       const scheduled = queued("source-answer", writer(), writer);
       return scheduled && { ...scheduled, selection: requested };
+    },
+    verifiedSourceAnswer(botId, selection, threadId, trigger) {
+      const bot = deps.bot(botId), instance = deps.instance(selection.instanceId);
+      if (!bot || !instance?.enabled || !selection.model || !deps.isChanging || deps.isChanging(selection.instanceId) || deps.refusal(instance) ||
+          (deps.modelAllowed && !deps.modelAllowed(selection))) return null;
+      const transport = instance.prepareVerifiedText?.(selection.model);
+      if (!transport) return null;
+      const requested = { ...selection }, botSelection = { ...bot.modelSelection };
+      const guard = () => {
+        const currentBot = deps.bot(botId);
+        if (!currentBot || currentBot.modelSelection.instanceId !== botSelection.instanceId || currentBot.modelSelection.model !== botSelection.model ||
+            currentBot.modelSelection.effort !== botSelection.effort || currentBot.modelSelection.variant !== botSelection.variant ||
+            !deps.isChanging || deps.isChanging(requested.instanceId) || deps.instance(requested.instanceId) !== instance || !instance.enabled || deps.refusal(instance) ||
+            (deps.modelAllowed && !deps.modelAllowed(requested))) throw new Error("The verified provider changed.");
+      };
+      const dispatchGuard = () => { guard(); deps.assertWithinBudget(botId); };
+      let used = false;
+      return { via: "engine", destination: transport.destination, generateText: (prompt, { waiting, started, ...options } = {}) => {
+        if (used) return Promise.reject(new Error("The verified provider request was already used."));
+        used = true;
+        return slots.run(async () => {
+          started?.(); dispatchGuard(); options.signal?.throwIfAborted();
+          let checked = false;
+          const call = booked("source-answer", bot, instance, (text, callOptions) => transport.generateText(text, {
+            ...callOptions, beforeRequest: () => { options.signal?.throwIfAborted(); options.beforeRequest?.(); dispatchGuard(); options.signal?.throwIfAborted(); checked = true; },
+          }), trigger, () => ({ model: requested.model, requireIsolatedText: true, comparison: { effort: requested.effort, variant: requested.variant } }), threadId);
+          const result = await call(prompt, options);
+          options.signal?.throwIfAborted();
+          if (!checked) throw new Error("The verified provider did not check dispatch.");
+          guard(); return result;
+        }, { signal: options.signal, onWait: waiting });
+      } };
     },
     twinPreview(selection, twinId) {
       const instance = deps.instance(selection.instanceId);

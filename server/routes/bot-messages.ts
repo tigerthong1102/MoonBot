@@ -195,7 +195,7 @@ export function createBotMessageRoutes(deps: BotMessageRouteDeps): RouteHandler 
   const appMessageRate = new AppMessageRate();
   const route: RouteHandler = async (ctx) => {
     const { req, res, path, method, auth, json, readBody } = ctx;
-    if (path.endsWith("/knowledge-answers") && knowledge) return knowledge(ctx);
+    if ((path.endsWith("/knowledge-answers") || path.endsWith("/knowledge-answers/verified")) && knowledge) return knowledge(ctx);
     let m: RegExpMatchArray | null = null;
     const requirePinnedClientThread = pinnedClientThread(auth, req);
     const routines = deps.routines();

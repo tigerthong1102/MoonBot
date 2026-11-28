@@ -10,6 +10,7 @@ import type { RequestAuth } from "../request-auth.ts";
 import type { sourceWriter } from "../model-readiness.ts";
 import type { BotRecord, Message, Store } from "../store.ts";
 import { PASS, type RouteHandler } from "./table.ts";
+import { createVerifiedKnowledgeAnswers } from "./verified-knowledge-answers.ts";
 
 const passage = z.object({
   digest: z.string().regex(/^[a-f0-9]{64}$/), path: z.string().min(1).max(4096).refine(path => {
@@ -81,6 +82,7 @@ export interface KnowledgeAnswerDeps {
   busy(botId: string, threadId: string): boolean;
   sender(auth: RequestAuth): Message["sender"];
   writer(auth: RequestAuth, bot: BotRecord, threadId: string): ReturnType<typeof sourceWriter>;
+  providerIdentity?(instanceId: string): object | null;
   contextChanged(bot: BotRecord, threadId: string): void;
 }
 
@@ -97,7 +99,12 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
   const pending = new Set<string>();
   // One running or waiting source answer per authenticated person across their sessions, bots and threads.
   const principals = new Set<string>();
-  return async ({ req, res, path, method, auth, readBody, json }) => {
+  const verified = createVerifiedKnowledgeAnswers(deps, pending, principals);
+  return async (ctx) => {
+    const { req, res, path, method, auth, readBody, json } = ctx;
+    if (path.endsWith("/knowledge-answers/verified")) {
+      return verified(ctx);
+    }
     const match = /^\/api\/bots\/([\w-]+)\/knowledge-answers$/.exec(path);
     if (!match || method !== "POST") return PASS;
     const body = request.safeParse(await readBody(req, 96_000));

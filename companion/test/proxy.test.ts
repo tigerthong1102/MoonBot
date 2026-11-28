@@ -99,13 +99,9 @@ const withHost = (port: number, host: string, path = "/api/health", headers: Rec
   });
 
 beforeAll(async () => {
-  // One call for all three (harness, its webhook receiver one above, the
-  // sidecar): a second call could hand back the first call's released ports.
-  const base = await freePorts(3);
+  const base = await freePorts(2);
   HARNESS_PORT = base;
-  SIDECAR_PORT = base + 2;
   HARNESS = `http://127.0.0.1:${HARNESS_PORT}`;
-  SIDECAR = `http://127.0.0.1:${SIDECAR_PORT}`;
 
   home = mkdtempSync(join(tmpdir(), "companion-test-"));
   mkdirSync(join(home, ".openmausbot"), { recursive: true });
@@ -156,8 +152,12 @@ beforeAll(async () => {
   // A bind failure emits `error` and never calls back.
   await new Promise<void>((resolve, reject) => {
     sidecar.once("error", reject);
-    sidecar.listen(SIDECAR_PORT, "127.0.0.1", () => resolve());
+    sidecar.listen(0, "127.0.0.1", () => resolve());
   });
+  const address = sidecar.address();
+  if (!address || typeof address === "string") throw new Error("sidecar did not bind a TCP port");
+  SIDECAR_PORT = address.port;
+  SIDECAR = `http://127.0.0.1:${SIDECAR_PORT}`;
 }, 90_000);
 
 afterAll(async () => {

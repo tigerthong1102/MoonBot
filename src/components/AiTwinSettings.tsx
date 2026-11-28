@@ -1,3 +1,4 @@
+import { AiTwinZaloOwnerStyle } from "./AiTwinZaloOwnerStyle";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinLearningExample, type AiTwinView } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
@@ -152,6 +153,7 @@ export function AiTwinSettings() {
             changed={setView} refresh={() => void reload()} example={reviewableExample} />
           {view && <AiTwinControls key={"controls:" + twin.id} view={view} changed={setView}
             refresh={() => void reload()} reviewExample={(entry) => setExample({ ...entry })} />}
+          {view?.canReviewOwnerStyle && <AiTwinZaloOwnerStyle twin={twin} refresh={() => void reload()} />}
           {!twin.paused && <AiTwinPreview key={"preview:" + twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
             twin={twin} provider={view?.preview} allowSemantic={view?.lessons?.some((lesson) => lesson.allowProvider) === true} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>

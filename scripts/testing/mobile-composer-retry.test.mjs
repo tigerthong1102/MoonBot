@@ -120,7 +120,7 @@ it("boots every picker with the shared Select, native labels, options and keyboa
   }
   const { installInboxSelects } = await import("../../apps/ai-pilot/inbox-select.js");
   installInboxSelects(document.querySelectorAll("select"));
-  expect(document.querySelectorAll("[data-inbox-select]")).toHaveLength(fields.length);
+  expect(document.querySelectorAll("[data-inbox-select]")).toHaveLength(document.querySelectorAll("select").length);
   expect(el("skill").querySelector('option[value="write"]').textContent).toBeTruthy();
   expect([...document.querySelectorAll("button")].every(button => button.classList.contains("ui-button"))).toBe(true);
 });
@@ -210,4 +210,26 @@ it("reconnects without replacing an unsaved conversation or its newer draft", as
   await idle();
   expect(send.mock.calls[1][0].thread).toBe(send.mock.calls[0][0].thread);
   expect(send.mock.calls[1][0].id).toBe(send.mock.calls[0][0].id);
+});
+
+it("starts New conversation with a fresh thread after a saved reply and a failed list refresh", async () => {
+  send.mockResolvedValueOnce(success()).mockResolvedValueOnce(success());
+  threads.mockRejectedValueOnce(new TypeError("temporarily offline"));
+  submit();
+  await idle();
+  expect(el("transcript").textContent).toContain("hello");
+  expect(el("retry").hidden).toBe(false);
+  const saved = send.mock.calls[0][0].thread;
+
+  el("new").click();
+  await idle();
+  expect(el("transcript").textContent).toBe("");
+  el("prompt").value = "separate topic";
+  el("consent").checked = true;
+  submit();
+  await idle();
+  const second = send.mock.calls[1][0];
+  expect(second.prompt).toBe("separate topic");
+  expect(second.thread).toBeTruthy();
+  expect(second.thread).not.toBe(saved);
 });

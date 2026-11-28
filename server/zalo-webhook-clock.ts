@@ -1,3 +1,4 @@
+import { recordZaloReportTiming } from "./zalo-period-report.ts";
 import { createHmac } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { ZaloEvent } from "../shared/zalo-event.ts";
@@ -16,9 +17,13 @@ export function webhookClock(db: DatabaseSync) {
   CREATE TABLE IF NOT EXISTS zalo_webhook_clock_holds (
     endpoint TEXT PRIMARY KEY REFERENCES zalo_webhook_endpoints ON DELETE CASCADE
   )`);
-  const note = (grant: Grant, now: number, reason: string) => db.prepare(`INSERT INTO zalo_webhook_time_gaps(grantId,reason,observed,expires)
+  const note = (grant: Grant, now: number, reason: string) => {
+    const expires = now + grant.retentionDays * DAY;
+    db.prepare(`INSERT INTO zalo_webhook_time_gaps(grantId,reason,observed,expires)
     VALUES(?,?,?,?) ON CONFLICT(grantId,reason) DO UPDATE SET observed=excluded.observed, expires=excluded.expires`)
-    .run(grant.grantId, reason, now, now + grant.retentionDays * DAY);
+    .run(grant.grantId, reason, now, expires);
+    recordZaloReportTiming(db, grant.grantId, reason, now, expires);
+  };
   function prune(now: number) {
     db.prepare(`DELETE FROM zalo_webhook_early WHERE sourceTime <= ? AND NOT EXISTS (
       SELECT 1 FROM zalo_webhook_endpoints e JOIN zalo_grants g ON g.grantId=e.grantId

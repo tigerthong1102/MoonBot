@@ -120,7 +120,7 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
         return { endpoint, path: "/hooks/zalo-official/" + endpoint, secret };
       });
     },
-    inspect(accountId: string): { endpoint: string; pairId?: string; status: ZaloPairingStatus } | undefined {
+    inspect(accountId: string): { endpoint: string; grantId?: string; pairId?: string; status: ZaloPairingStatus } | undefined {
       active();
       return zaloWrite(db, () => {
         purgeExpired();
@@ -133,7 +133,7 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
         const grant = grantId ? inbox.grant(grantId) : undefined;
         if (grant) {
           const coverage = inbox.coverage(grant.grantId)!;
-          return { endpoint, status: {
+          return { endpoint, grantId: grant.grantId, status: {
             state: "paired", accountId, revision, retentionDays: grant.retentionDays,
             participant: { senderId: grant.senderId, conversationId: grant.conversationId },
             coverage: { count: coverage.count, first: coverage.first, last: coverage.last, pollGaps: coverage.recentGaps.length,

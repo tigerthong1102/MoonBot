@@ -10773,5 +10773,13 @@
   "mobileChat.error": "未能完成请求，请检查连接后重试。",
   "mobileChat.unavailable": "账户服务暂时不可用。",
   "mobileChat.account_changed": "账户已更改，请重新打开对话。",
-  "mobileChat.invalid_message": "请缩短消息并确认保存选项。"
+  "mobileChat.invalid_message": "请缩短消息并确认保存选项。",
+  "mobileChat.desktopListen": "接收手机上的任务",
+  "mobileChat.desktopListening": "正在等待手机 · 停止",
+  "mobileChat.desktopChoose": "请选择电脑。",
+  "mobileChat.desktopWaiting": "正在等待电脑打开草稿…",
+  "mobileChat.desktopReceived": "草稿已在电脑上打开。请在电脑上确认后发送。",
+  "mobileChat.desktopUnconfirmed": "尚未确认送达。重试前请检查电脑。",
+  "mobileChat.desktop_unavailable": "暂无就绪的电脑。请在电脑的个人聊天中清空输入框并启用接收手机任务。",
+  "mobileChat.desktopConsent": "需要电脑的任务将以私人草稿发送到我正在等待接收的电脑。"
 }

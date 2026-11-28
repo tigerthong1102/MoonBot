@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash, randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { budgetExposure, initializeManagedBudget } from "./managed-budget.mjs";
 
 export class Fault extends Error {
   constructor(status, code) {
@@ -34,6 +35,11 @@ export function catalog(file) {
     }
     if (typeof data.managedLimits.enabled !== "boolean") throw new Fault(503, "invalid_catalog");
   }
+  if (data.managedLimits?.trialPaused != null && typeof data.managedLimits.trialPaused !== "boolean")
+    throw new Fault(503, "invalid_catalog");
+  if (data.disabledMobileSkills != null && (!Array.isArray(data.disabledMobileSkills) ||
+      data.disabledMobileSkills.some(id => typeof id !== "string" || !/^[a-z-]{1,48}$/.test(id))))
+    throw new Fault(503, "invalid_catalog");
   if (data.mobileTrial != null && (
     !integer(data.mobileTrial.creditMicros, 1000000) || !integer(data.mobileTrial.days, 31) ||
     !integer(data.mobileTrial.maxAccounts, 10000) || !data.managedLimits
@@ -49,7 +55,12 @@ export class Ledger {
       CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, token TEXT UNIQUE NOT NULL, spendExtras INTEGER DEFAULT 1,
         engineToken TEXT UNIQUE, keyState TEXT, keyName TEXT, keyHash TEXT, secret TEXT);
       CREATE TABLE IF NOT EXISTS invites(owner TEXT PRIMARY KEY REFERENCES users(id),email TEXT NOT NULL UNIQUE);
+      CREATE TABLE IF NOT EXISTS wallet_session_generations(owner TEXT PRIMARY KEY REFERENCES users(id),generation INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS wallet_sessions(token TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS wallet_issuer_sessions(wallet TEXT PRIMARY KEY REFERENCES wallet_sessions(token) ON DELETE CASCADE,
+        issuerSession TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS wallet_issuer_credentials(wallet TEXT PRIMARY KEY REFERENCES wallet_sessions(token) ON DELETE CASCADE,
+        origin TEXT NOT NULL,sealed BLOB NOT NULL);
       CREATE TABLE IF NOT EXISTS orders(id TEXT PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(id), sku TEXT NOT NULL,
         version TEXT NOT NULL, amount INTEGER NOT NULL, currency TEXT NOT NULL, credits INTEGER NOT NULL, session TEXT UNIQUE,
         created INTEGER NOT NULL, url TEXT, state TEXT NOT NULL DEFAULT 'pending');
@@ -76,6 +87,7 @@ export class Ledger {
       CREATE INDEX IF NOT EXISTS requests_state ON requests(state);
       CREATE INDEX IF NOT EXISTS by_owner ON grants(owner,end);
     `);
+    initializeManagedBudget(this);
   }
   tx(work) {
     this.db.exec("BEGIN IMMEDIATE");
@@ -119,7 +131,7 @@ export class Ledger {
     return row.id;
   }
   claimMobileTrial(owner, config) {
-    if (!config.mobileTrial || !config.managedLimits?.enabled) return;
+    if (!config.mobileTrial || !config.managedLimits?.enabled || config.managedLimits.trialPaused) return;
     const { creditMicros, days, maxAccounts } = config.mobileTrial;
     this.tx(() => {
       if (this.db.prepare("SELECT 1 FROM grants WHERE owner=? LIMIT 1").get(owner) ||
@@ -187,22 +199,22 @@ export class Ledger {
       this.db.prepare("UPDATE orders SET state='paid' WHERE id=?").run(order.id);
     });
   }
-  balances(owner, now = Date.now()) {
+  balances(owner, now = Date.now(), trialPaused = false) {
     const rows = this.db
       .prepare(
-        `SELECT g.*, o.amount, COALESCE((SELECT max(r.amount) FROM reversals r WHERE r.payment=g.payment),0) + COALESCE((SELECT sum(d.held) FROM disputes d WHERE d.payment=g.payment),0) reversed
+        `SELECT g.*, o.amount, o.sku, COALESCE((SELECT max(r.amount) FROM reversals r WHERE r.payment=g.payment),0) + COALESCE((SELECT sum(d.held) FROM disputes d WHERE d.payment=g.payment),0) reversed
       FROM grants g JOIN orders o ON o.id=g.orderId WHERE g.owner=? ORDER BY g.end IS NULL,g.end,g.start,g.id`,
       )
       .all(owner);
     return rows.map((g) => {
       const revoked = g.reversed > 0 ? Math.ceil(g.credits * Math.min(1, g.reversed / g.amount)) : 0;
       const net = g.credits - revoked - g.spent;
-      const valid = g.start <= now && (g.end === null || g.end > now);
+      const valid = !(trialPaused && g.sku === "mobile_trial") && g.start <= now && (g.end === null || g.end > now);
       return { id: g.id, end: g.end, available: valid ? net : Math.min(0, net) };
     });
   }
-  summary(owner) {
-    const buckets = this.balances(owner);
+  summary(owner, trialPaused = false) {
+    const buckets = this.balances(owner, Date.now(), trialPaused);
     const spendExtras = !!this.db.prepare("SELECT spendExtras FROM users WHERE id=?").get(owner).spendExtras;
     const recent = this.db
       .prepare(
@@ -257,7 +269,7 @@ export class Ledger {
         this.db.prepare("INSERT INTO active_requests VALUES (?,?,?)").run(owner, id, Date.now() + 5 * 60000);
       }
       const extras = this.db.prepare("SELECT spendExtras FROM users WHERE id=?").get(owner).spendExtras;
-      const buckets = this.balances(owner).filter((b) => b.end || extras || b.available < 0);
+      const buckets = this.balances(owner, Date.now(), limits?.trialPaused).filter((b) => b.end || extras || b.available < 0);
       if (buckets.reduce((n, b) => n + b.available, 0) < amount) throw new Fault(402, "personal_credit_exhausted");
       this.db
         .prepare("INSERT INTO requests(id,owner,fingerprint,state,created) VALUES (?,?,?,'held',?)")
@@ -282,15 +294,9 @@ export class Ledger {
       start=CASE WHEN start<=excluded.start-60000 THEN excluded.start ELSE start END`).run(owner, now);
     const recent = this.db.prepare("SELECT count FROM managed_rate WHERE owner=?").get(owner).count;
     if (active >= limits.concurrent || recent > limits.requestsPerMinute) throw new Fault(429, "account_rate_limit");
-    const day = new Date(now);
-    day.setUTCHours(0, 0, 0, 0);
-    const month = new Date(day);
-    month.setUTCDate(1);
-    const exposure = this.db.prepare(`SELECT coalesce(sum(CASE WHEN r.state='held' THEN
-        (SELECT sum(held) FROM allocations a WHERE a.owner=r.owner AND a.request=r.id)
-        ELSE r.cost END),0) total FROM requests r WHERE r.state='held' OR r.created>=?`);
-    if (exposure.get(+day).total + amount > limits.dailyMicros ||
-        exposure.get(+month).total + amount > limits.monthlyMicros) throw new Fault(429, "managed_budget_exhausted");
+    const exposure = budgetExposure(this.db, now);
+    if (exposure.day + amount > limits.dailyMicros || exposure.month + amount > limits.monthlyMicros)
+      throw new Fault(429, "managed_budget_exhausted");
   }
   settle(owner, id, generation, cost, tokens = {}, retryable = false) {
     if (!Number.isSafeInteger(cost) || cost < 0 || !generation || (retryable && cost !== 0)) throw new Fault(503, "reconciliation_required");

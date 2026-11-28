@@ -1,21 +1,29 @@
-import { isWorkspaceMaintenanceCode } from "../../../shared/workspace-backup";
 import { browserRecord } from "@/lib/browser-records";
 import { randomUuid } from "@/lib/random-uuid";
-import { cloudAsleep } from "@/lib/cloud-power";
+import { cloudAsleep, onCloudPower } from "@/lib/cloud-power";
 import { api, apiFetch, ApiError } from "@/state/api";
-import { libraryOwner, readLibrary } from "./source-cache";
+import { libraryKey, libraryOwner, readLibrary } from "./source-cache";
 import { accepts, indexSources, scanFolder, type Directory, type Index, type SourceFile } from "./source-index";
 
 export type FolderSource = { kind: "directory"; name: string; handle: Directory } | { kind: "cloud"; name: string; id: string };
 type Watch = { id: string; key: string; source: FolderSource; scanId?: string };
 const syncEvent = "startupbot-document-sync";
-const openLibraries = new Map<(maintenance?: ApiError) => void, () => string | null>();
-export function observeLibraryOwner(scope: () => string | null, unavailable: (maintenance?: ApiError) => void) {
+type SourceRead = { background?: boolean; signal?: AbortSignal };
+const openLibraries = new Map<(cause?: unknown) => void, () => string | null>();
+export function observeLibraryOwner(scope: () => string | null, unavailable: (cause?: unknown) => void) {
   openLibraries.set(unavailable, scope);
   return () => { openLibraries.delete(unavailable); };
 }
 function ownedBy(key: string, owner: string | null) {
   return owner !== null && JSON.parse(key)[0] === owner;
+}
+async function readableKey(key: string, read: SourceRead) {
+  let parts: unknown;
+  try {
+    parts = JSON.parse(key);
+  } catch { return false; }
+  if (!Array.isArray(parts) || parts.length !== 2 || typeof parts[1] !== "string") return false;
+  return await libraryKey(parts[1], { ...read, reportOffline: true }) === key;
 }
 export function onSourceSync(key: string, listener: (background: boolean) => void) {
   const changed = (event: Event) => {
@@ -41,7 +49,6 @@ export async function setSource(key: string, index: Index, source: FolderSource 
   if (!signal?.aborted) window.dispatchEvent(new CustomEvent(syncEvent, { detail: key }));
 }
 
-type SourceRead = { background?: boolean; signal?: AbortSignal };
 type CloudFile = { path: string; size: number; sha256: string };
 export async function cloudFolders(signal?: AbortSignal) {
   const { folders } = await api<{ folders: { id: string; kind: string; threadId?: string; cloudPath: string }[] }>("/api/sync", { signal });
@@ -92,6 +99,7 @@ export async function scanSource(source: FolderSource, old: Index, read: SourceR
 }
 
 export async function syncSource(watch: Watch, read: SourceRead = {}) {
+  if (!await readableKey(watch.key, read)) return;
   const slot = "watch:" + watch.key, scanId = randomUuid();
   const claimed = await browserRecord<Watch | undefined>("readwrite", store => {
     const request = store.get(slot);
@@ -103,6 +111,8 @@ export async function syncSource(watch: Watch, read: SourceRead = {}) {
   if (claimed?.id !== watch.id) return;
   const old = await readLibrary(watch.key) ?? { docs: new Map(), changes: [] };
   const index = await scanSource(watch.source, old, read);
+  read.signal?.throwIfAborted();
+  if (!await readableKey(watch.key, read)) return;
   read.signal?.throwIfAborted();
   let committed: IDBRequest<Index | undefined> | undefined;
   const latest = await browserRecord<Watch | undefined>("readwrite", store => {
@@ -124,6 +134,7 @@ export async function syncSource(watch: Watch, read: SourceRead = {}) {
 
 /** A previously authorized folder may no longer be readable. Recheck it before revealing a saved snapshot. */
 export async function currentLibrary(key: string, read: SourceRead = {}) {
+  if (!await readableKey(key, read)) return;
   let manual: IDBRequest<Index | undefined> | undefined;
   const watch = await browserRecord<Watch | undefined>("readonly", store => {
     const request = store.get("watch:" + key);
@@ -131,7 +142,8 @@ export async function currentLibrary(key: string, read: SourceRead = {}) {
     return request;
   });
   read.signal?.throwIfAborted();
-  return watch ? syncSource(watch, read) : manual?.result;
+  if (watch) return syncSource(watch, read);
+  return await readableKey(key, read) ? manual?.result : undefined;
 }
 
 function watchedSlots(): Promise<IDBValidKey[]> {
@@ -140,10 +152,18 @@ function watchedSlots(): Promise<IDBValidKey[]> {
 
 export function watchDocumentSources() {
   const controller = new AbortController();
-  const read = { background: true, signal: controller.signal };
+  let inFlight: AbortController | null = null;
   let running = false;
+  function suspend() {
+    inFlight?.abort();
+    for (const [notify] of openLibraries) notify(new TypeError("Source access cannot be verified"));
+  }
   async function tick() {
-    if (running || read.signal.aborted || cloudAsleep() || document.hidden) return;
+    if (running || controller.signal.aborted) return;
+    if (cloudAsleep() || document.hidden) { suspend(); return; }
+    const cycle = new AbortController();
+    inFlight = cycle;
+    const read = { background: true, signal: AbortSignal.any([controller.signal, cycle.signal]) };
     running = true;
     const readers = [...openLibraries];
     try {
@@ -153,23 +173,25 @@ export function watchDocumentSources() {
       if (read.signal.aborted) return;
       for (const [revoked, scope] of readers) {
         const key = scope();
-        if (openLibraries.has(revoked) && (!owner || (key && !ownedBy(key, owner)))) revoked();
+        const unavailable = !owner || (key && (!ownedBy(key, owner) || !await readableKey(key, read)));
+        if (openLibraries.has(revoked) && scope() === key && unavailable) revoked();
       }
       if (!owner) return;
       for (const slot of slots ?? await watchedSlots()) {
         if (read.signal.aborted || cloudAsleep()) break;
         const key = String(slot).slice("watch:".length);
-        if (!ownedBy(key, owner)) continue;
+        if (!ownedBy(key, owner) || !await readableKey(key, read)) continue;
         const watch = await readWatch(key);
         if (watch && !read.signal.aborted) await syncSource(watch, read);
       }
     } catch (error) {
-      if (!read.signal.aborted && error instanceof ApiError && error.status === 503 && isWorkspaceMaintenanceCode(error.body?.code)) {
-        for (const [notify] of readers) if (openLibraries.has(notify)) notify(error);
-      }
-    } finally { running = false; }
+      if (!read.signal.aborted) for (const [notify] of readers) if (openLibraries.has(notify)) notify(error);
+    } finally { if (inFlight === cycle) inFlight = null; running = false; }
   }
   const timer = window.setInterval(() => void tick(), 60_000);
+  const power = onCloudPower((asleep) => { if (asleep) suspend(); else void tick(); });
+  const visibility = () => { if (document.hidden) suspend(); else void tick(); };
+  document.addEventListener("visibilitychange", visibility);
   void tick();
-  return () => { controller.abort(); window.clearInterval(timer); };
+  return () => { controller.abort(); power(); document.removeEventListener("visibilitychange", visibility); window.clearInterval(timer); };
 }

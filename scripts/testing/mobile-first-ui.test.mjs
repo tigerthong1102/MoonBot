@@ -24,6 +24,28 @@ beforeEach(() => {
   });
 });
 
+it("restores a continuous page after another device adds more than a page of messages", async () => {
+  const turn = n => ({id:crypto.randomUUID(), prompt:String(n), answer:"ok", state:"complete", created:n});
+  const turns = Array.from({length:26}, (_,i)=>turn(i));
+  const list = {account:"alice", threads:[{id:saved,title:"Synced",provider:"managed"}]};
+  const cursor = n => ({created:n,id:turns[n].id});
+  vi.stubGlobal("fetch", vi.fn(async (path, init) => {
+    if (path === "/mobile/threads") return Response.json(list);
+    if (path === "/mobile/sync") return Response.json({...list,revision:"new",turns:turns.slice(14),next:cursor(14)});
+    const before = JSON.parse(init.body).before;
+    const end = before?.created ?? 13, start = Math.max(0,end-12);
+    return Response.json({turns:turns.slice(start,end),next:start ? cursor(start) : null});
+  }));
+  await import("../../apps/ai-pilot/mobile-ui.js");
+  await idle();
+  window.dispatchEvent(new Event("focus"));
+  await vi.waitFor(()=>expect(el("transcript").querySelector("[data-turn]")?.dataset.turn).toBe(turns[14].id));
+  el("older").click(); await idle();
+  el("older").click(); await idle();
+  expect([...el("transcript").querySelectorAll("article.mine")].map(node=>node.dataset.turn)).toEqual(turns.map(t=>t.id));
+  expect(el("older").hidden).toBe(true);
+});
+
 it("keeps each chat draft in its tab, syncs sent messages automatically and clears drafts on sign-out", async () => {
   const calls = [];
   vi.stubGlobal("fetch", vi.fn(async (path, init) => {

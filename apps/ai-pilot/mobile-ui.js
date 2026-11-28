@@ -198,7 +198,9 @@ function appendTurns(turns, container) {
   }
 }
 async function loadHistory(replace = false) {
+  const version = viewVersion, owner = account;
   const { turns, next } = await (await api("history", { thread, before:replace ? null : before })).json();
+  if (version !== viewVersion || owner !== account) return;
   const fragment = document.createDocumentFragment();
   appendTurns(turns, fragment);
   if (replace) el("transcript").replaceChildren(fragment);
@@ -247,19 +249,27 @@ async function refreshAccountChat() {
       await show(conversations[0]?.id || "");
     } else if (known && data.turns) {
       const history = el("history"), following = history.scrollHeight - history.clientHeight - history.scrollTop < 64;
-      if (!syncRevision || !data.turns.every(turn => el("transcript").querySelector('[data-turn="' + turn.id + '"]'))) {
-        const visible = new Set(data.turns.map(turn => turn.id));
-        for (const node of el("transcript").querySelectorAll(":scope > article")) if (!node.dataset.turn || visible.has(node.dataset.turn)) node.remove();
-        appendTurns(data.turns, el("transcript"));
-        if (following) history.scrollTop = history.scrollHeight;
+      const transcript = el("transcript");
+      const existing = new Set([...transcript.querySelectorAll("[data-turn]")].map(node => node.dataset.turn));
+      const incoming = new Set(data.turns.map(turn => turn.id));
+      const overlap = data.turns.some(turn => existing.has(turn.id));
+      if (!overlap) {
+        transcript.replaceChildren();
+        appendTurns(data.turns,transcript);
+        before = data.next;
+        el("older").hidden = !before;
+      } else if (data.turns.some(turn => !existing.has(turn.id)) || transcript.querySelector("article:not([data-turn])")) {
+        for (const node of transcript.querySelectorAll(":scope > article")) {
+          if (!node.dataset.turn || incoming.has(node.dataset.turn)) node.remove();
+        }
+        appendTurns(data.turns,transcript);
       } else {
         for (const turn of data.turns) {
-          const answer = el("transcript").querySelector('[data-answer="' + turn.id + '"]');
+          const answer = transcript.querySelector('[data-answer="' + turn.id + '"]');
           if (answer && answer.dataset.state !== turn.state) renderAnswer(answer,turn);
         }
-        if (following) history.scrollTop = history.scrollHeight;
       }
-      if (!before) { before = data.next; el("older").hidden = !before; }
+      if (following) history.scrollTop = history.scrollHeight;
     }
     if (version === viewVersion) syncRevision = data.revision;
   } catch { delay = 12000; }

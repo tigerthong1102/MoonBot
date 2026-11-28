@@ -13,6 +13,8 @@ Thử trên macOS arm64 bằng các dòng tổng hợp phân đều vào 20 nhó
 
 Các browser driver dùng cùng file Chromium headless trong gói desktop. Thời gian khởi tạo process và trang trắng đo một lần là 1.589 ms qua helper CDP, 165 ms qua Playwright và 544 ms qua CLI đóng gói. Thứ tự chạy cố định, cache hệ điều hành và khối lượng khởi tạo của từng driver khác nhau. Số đo lô gồm thời gian IPC/truyền dữ liệu tương ứng. Đây là thử nghiệm DOM tĩnh. Nó không đo cách Zalo thực hiện phân trang, ảo hóa hoặc xử lý quyền. CLI và Playwright không tự tải browser hoặc đăng nhập tài khoản.
 
+Một lượt đối chứng sau khi cô lập HOME, cấu hình và socket đã đọc khớp toàn bộ 16 tổ hợp driver/cỡ lô, kể cả khi môi trường cha có profile và cấu hình CLI cố tình sai. Lượt này chạy đồng thời với nhiều compiler khác trên máy. Ở 5.000 dòng, p95 tương ứng là 219,59 / 209,33 / 2.344,03 / 107,33 ms theo thứ tự trong bảng. Thứ tự thay đổi khi máy chịu tải, nên không dùng các số này làm cam kết thời gian phản hồi.
+
 Chạy lại bằng Node ≥26.4 sau khi cài dependencies từ hai lockfile của dự án và lab. Đặt `ZALO_BENCH_CHROME` tới file Chromium của StartupBot, `ZALO_BENCH_AGENT_BROWSER` tới CLI cùng gói và `ZALO_BENCH_PLAYWRIGHT` tới thư mục module Playwright đã cài để kiểm thử. Chạy `node scripts/qualification/zalo-personal/compare-renderers.mjs`. Không dùng URL, credential hoặc profile cá nhân.
 
 ## Ghi bền liên tục

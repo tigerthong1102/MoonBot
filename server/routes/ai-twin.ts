@@ -18,10 +18,11 @@ const previewInput = twinVersionInput.extend({
   question: z.string().trim().min(1).max(AI_TWIN_QUESTION_MAX),
   ...providerFields,
   useMemory: z.literal(true).optional(),
+  zaloEvidence: z.strictObject({ citation: z.string().trim().min(1).max(180), quote: z.string().trim().min(1).max(1000) }).optional(),
   zaloRecipe: z.enum(ZALO_RECIPES).optional(),
   zaloSource: z.strictObject({ source: z.string().trim().min(1).max(120), line: z.int().min(1).max(5_000) }).optional(),
 });
-const semanticInput = lookupTwinLessonInput.extend({ ...providerFields, zaloRecipe: z.never().optional(), zaloSource: z.never().optional() });
+const semanticInput = lookupTwinLessonInput.extend({ ...providerFields, zaloEvidence: z.never().optional(), zaloRecipe: z.never().optional(), zaloSource: z.never().optional() });
 const paths = new Map([
   [AI_TWIN_PATH, ["GET", "POST", "PATCH", "DELETE"]],
   [AI_TWIN_LOOKUP_PATH, ["POST"]],
@@ -127,9 +128,11 @@ export function createAiTwinRoutes(deps: {
         const current = store.get();
         const twin = current.twin;
         if (!twin || twin.paused || id !== twin.id || revision !== twin.revision) throw new TwinConflict();
-        const { zaloRecipe: recipeId, zaloSource } = input.data;
-        if (Boolean(recipeId) !== Boolean(zaloSource)) return json(res, 400, { error: "invalid_zalo_source" });
-        const recipe = recipeId && owner && auth.kind === "loopback" && auth.desktopOwner === true && !auth.companionDevice ? deps.zaloRecipe?.(recipeId) : undefined;
+        const { zaloRecipe: recipeId, zaloSource, zaloEvidence } = input.data;
+        if (Boolean(recipeId || zaloEvidence) !== Boolean(zaloSource) || (zaloEvidence && (recipeId || ("useMemory" in input.data && input.data.useMemory)))) return json(res, 400, { error: "invalid_zalo_source" });
+        const desktopSource = owner && auth.kind === "loopback" && auth.desktopOwner === true && !auth.companionDevice;
+        if (zaloEvidence && !desktopSource) return json(res, 403, { error: "source_unavailable" });
+        const recipe = recipeId && desktopSource ? deps.zaloRecipe?.(recipeId) : undefined;
         if (recipeId && !recipe) return json(res, 403, { error: "recipe_unavailable" });
         const useMemory = isLookup || ("useMemory" in input.data && input.data.useMemory === true);
         const disconnected = new AbortController();
@@ -149,7 +152,7 @@ export function createAiTwinRoutes(deps: {
           if (isLookup) return json(res, 200, { lesson, ...(lesson && !exactMatch ? { match: "semantic" } : {}) });
 
           const style = useMemory ? deps.learnedStyle(auth, current.controls?.sourceIds ?? []) : undefined;
-          const draft = await drafts.draft(twin, question, key, disconnected.signal, { lesson, style, recipe, zaloSource });
+          const draft = await drafts.draft(twin, question, key, disconnected.signal, { lesson, style, recipe, zaloSource, zaloEvidence });
           assertCurrent();
           if (style && JSON.stringify(style) !== JSON.stringify(deps.learnedStyle(auth, current.controls?.sourceIds ?? []))) {
             throw new TwinConflict();

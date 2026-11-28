@@ -1988,6 +1988,8 @@
   "settings.aiTwin.privateDraft": "Rascunho privado",
   "settings.aiTwin.selectLessons": "Selecionar lições para apagar",
   "settings.aiTwin.selectLesson": "Selecionar lição",
+  "settings.aiTwin.unavailableLessons": "Algumas lições têm uma fonte indisponível ou não verificada. Você pode esquecê-las ou ensinar uma nova lição.",
+  "settings.aiTwin.forgetUnavailable": "Esquecer lições indisponíveis",
   "settings.aiTwin.forgetSelected": "Apagar lições selecionadas",
   "settings.aiTwin.forgetSelectedBody": "Estas lições e suas permissões de grupo serão apagadas. As conversas originais, respostas anteriores, cópias já enviadas aos provedores e backups existentes podem permanecer.",
   "settings.aiTwin.lessons": "Lições privadas",

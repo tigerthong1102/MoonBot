@@ -1,5 +1,6 @@
 import { ZALO_OWNER_STYLE_PATH } from "../../shared/zalo-owner-style.ts";
 import { ZALO_RECIPES, type ZaloRecipe } from "../../shared/zalo-intelligence.ts";
+import type { TwinExampleSource } from "../ai-twin-lesson-sources.ts";
 import { z } from "zod";
 import { holdsCredential, redactSecretsInText } from "../../shared/redact.ts";
 import {
@@ -12,6 +13,7 @@ import {
   createTwinInput, deleteTwinLessonInput, forgetTwinLessonsInput, lookupTwinLessonInput, saveTwinLessonInput, twinDelegationInput,
   twinLearningInput, twinPhoneInput, twinVersionInput, updateTwinInput, createAiTwinStore, TwinConflict, TwinLessonConflict,
 } from "../ai-twin.ts";
+import { twinLessonKey } from "../ai-twin-lessons.ts";
 import { createAiTwinPreview, TwinPreviewError } from "../ai-twin-preview.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { createOwnerStyleRoutes, ownerStyleAllowed } from "./ai-twin-owner-style.ts";
@@ -40,8 +42,20 @@ const paths = new Map([
   [AI_TWIN_PHONE_PATH, ["PATCH"]],
 ]);
 
+function uniqueLessons(lessons: NonNullable<AiTwinView["lessons"]>) {
+  const seen = new Set<string>(), ambiguous = new Set<string>();
+  for (const lesson of lessons) {
+    const key = twinLessonKey(lesson.question);
+    if (seen.has(key)) ambiguous.add(key);
+    seen.add(key);
+  }
+  return lessons.filter(lesson => !ambiguous.has(twinLessonKey(lesson.question)));
+}
+
 export function createAiTwinRoutes(deps: {
   store: ReturnType<typeof createAiTwinStore>;
+  storeFor: (auth: RequestAuth) => ReturnType<typeof createAiTwinStore>;
+  source: (auth: RequestAuth, thread: string, message: string) => TwinExampleSource | undefined;
   preview: Parameters<typeof createAiTwinPreview>[0];
   zaloRecipe?: (id: ZaloRecipe) => string | undefined;
   owner: (auth: RequestAuth) => boolean;
@@ -52,9 +66,8 @@ export function createAiTwinRoutes(deps: {
   learnedStyle: (auth: RequestAuth, sources: readonly string[]) => AiTwinLearningView["style"];
   blocked: () => boolean;
 }): RouteHandler {
-  const { store } = deps;
   const drafts = createAiTwinPreview(deps.preview);
-  const ownerStyle = createOwnerStyleRoutes({ store, owner: auth => deps.desktop === true && deps.owner(auth), blocked: deps.blocked, cancelDrafts: () => drafts.cancel() });
+  const ownerStyle = createOwnerStyleRoutes({ store: deps.store, owner: auth => deps.desktop === true && deps.owner(auth), blocked: deps.blocked, cancelDrafts: () => drafts.cancel() });
   return async ctx => {
     if (ctx.path === ZALO_OWNER_STYLE_PATH) return ownerStyle(ctx);
     const { req, res, path, method, auth, json, readBody } = ctx;
@@ -65,6 +78,7 @@ export function createAiTwinRoutes(deps: {
       ((path === AI_TWIN_LOOKUP_PATH || path === AI_TWIN_PREVIEW_PATH) && method === "POST"));
     const owner = deps.owner(auth);
     if (!owner && !phone) return json(res, 404, { error: "not_found" });
+    const store = deps.storeFor(auth);
     const authorized = () => deps.owner(auth) || (phone && store.get().controls?.phone === true && deps.phone(auth));
 
     function replyProfile(status: number, view: AiTwinView) {
@@ -84,13 +98,13 @@ export function createAiTwinRoutes(deps: {
       if (!authorized()) return json(res, 404, { error: "not_found" });
       if (method === "GET" && path === exactLessonsPath) {
         if (deps.blocked()) return json(res, 409, { error: "twin_workspace_busy" });
-        const { twin, lessons } = store.get();
+        const { twin, lessons } = deps.store.get();
         const shareable = (s: string) => !holdsCredential(s) && redactSecretsInText(s) === s;
         return json(res, 200, {
           twin: twin && { id: twin.id, revision: twin.revision, paused: twin.paused },
           lessons:
             twin && !twin.paused
-              ? (lessons ?? []).filter((l) => l.source === "owner" && shareable(l.question) && shareable(l.answer))
+              ? (lessons ?? []).filter((l) => l.origin === "manual" && shareable(l.question) && shareable(l.answer))
               : [],
         });
       }
@@ -119,15 +133,17 @@ export function createAiTwinRoutes(deps: {
       if (path === AI_TWIN_LESSONS_PATH) {
         const next = method === "POST" ? saveTwinLessonInput.safeParse(body) : deleteTwinLessonInput.safeParse(body);
         if (!next.success) return json(res, 400, { error: "invalid_twin" });
+        let source: TwinExampleSource | undefined;
         if ("saveAsLesson" in next.data && next.data.example) {
           const { thread, message } = next.data.example;
+          source = deps.source(auth, thread, message);
           const current = store.get();
-          if (!current.twin || current.twin.paused || !current.controls?.sourceIds.includes(thread) ||
+          if (!current.twin || current.twin.paused || !current.controls?.sourceIds.includes(thread) || !source || source.digest !== next.data.example.digest ||
               !deps.learning(auth, [thread]).examples.some((example) => example.message === message)) {
             throw new TwinConflict();
           }
         }
-        const view = "saveAsLesson" in next.data ? store.saveLesson(next.data) : store.forgetLesson(next.data);
+        const view = "saveAsLesson" in next.data ? store.saveLesson(next.data, source) : store.forgetLesson(next.data);
         drafts.cancel();
         return replyProfile(200, view);
       }
@@ -169,14 +185,19 @@ export function createAiTwinRoutes(deps: {
         const disconnected = new AbortController();
         const close = () => disconnected.abort();
         res.once("close", close);
+        let observed: string[] = [];
         function assertCurrent() {
           if (!authorized() || deps.blocked()) throw new TwinConflict();
-          const latest = store.get().twin;
-          if (latest?.revision !== revision || latest.id !== id) throw new TwinConflict();
+          const latest = store.get();
+          if (latest.twin?.revision !== revision || latest.twin.id !== id) throw new TwinConflict();
+          const usable = new Set(uniqueLessons(latest.lessons ?? []).map(entry => entry.id));
+          if (observed.some(lessonId => !usable.has(lessonId))) throw new TwinConflict();
         }
         try {
           const exactMatch = useMemory ? store.lookupLesson({ id, revision, question }) : null;
-          const allowedLessons = current.lessons?.filter((entry) => entry.allowProvider) ?? [];
+          const allowedLessons = uniqueLessons(current.lessons ?? []).filter(entry => entry.allowProvider);
+          if (useMemory) observed = exactMatch ? [exactMatch.id] : allowedLessons.map(entry => entry.id);
+          assertCurrent();
           const lesson = exactMatch ? (isLookup || exactMatch.allowProvider ? exactMatch : null)
             : useMemory ? await drafts.recall(twin, question, allowedLessons, key, disconnected.signal, assertCurrent) : null;
           assertCurrent();

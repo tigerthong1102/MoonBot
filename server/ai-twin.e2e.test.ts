@@ -337,7 +337,7 @@ it("learns writing habits only from selected private chat rows and revokes by re
     expect(stored).not.toContain(faq.answer);
     const lessonFromExample = {
       ...faq,
-      example: { thread: candidate.thread, message: candidate.message },
+      example: { thread: candidate.thread, message: candidate.message, digest: candidate.digest },
       saveAsLesson: true,
     };
     const approved = await request(AI_TWIN_LESSONS_PATH, "POST", {
@@ -360,6 +360,13 @@ it("learns writing habits only from selected private chat rows and revokes by re
     expect(revokedView.lessons).toEqual(approvedView.lessons);
     expect(await learning()).toMatchObject({ examples: [] });
     expect((await learning()).style).toBeUndefined();
+    expect((await request(`/api/bots/${selected.id}`, "DELETE")).status).toBe(200);
+    const afterDelete = await (await call()).json() as AiTwinView;
+    expect(afterDelete.lessons).toEqual([]);
+    expect(JSON.stringify(afterDelete)).not.toContain(faq.answer);
+    const lookup = await request(AI_TWIN_LOOKUP_PATH, "POST", { id: afterDelete.twin!.id, revision: afterDelete.twin!.revision, question: faq.question });
+    expect(await lookup.json()).toEqual({ lesson: null });
+    expect(readFileSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR, "profile.json"), "utf8")).not.toContain(faq.answer);
   } finally {
     await fixture.close();
   }

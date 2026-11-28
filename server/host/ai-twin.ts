@@ -1,3 +1,4 @@
+import { twinSourceIndex, type TwinExampleSource } from "../ai-twin-lesson-sources.ts";
 import { randomUUID } from "node:crypto";
 import { createAiTwinStore } from "../ai-twin.ts";
 import { recentTwinStyle, TWIN_STYLE_SAMPLE_LIMIT, twinLearningText, twinLearningView, type TwinLearningRow } from "../ai-twin-learning.ts";
@@ -33,16 +34,33 @@ export function createAiTwinHost(deps: {
   sender: ChannelRouteDeps["messageSender"];
 }) {
   const { store, desktop } = deps;
-  const privateStore = createAiTwinStore(deps.dataDir, deps.workspace);
+  let watched: Set<string> | undefined;
+  const refreshWatched = () => { watched = undefined; };
+  const privateStore = createAiTwinStore(deps.dataDir, deps.workspace, undefined, refreshWatched);
   const boot = randomUUID();
   const revokedDevices = new Set<string>();
   const desktopOwner = (auth: RequestAuth) => auth.kind === "loopback" && auth.desktopOwner === true && !auth.companionDevice;
   const signedIn = (auth: RequestAuth) => auth.kind === "session" && auth.via !== "ticket" && deps.liveSession(auth);
   const owner = (auth: RequestAuth) => deps.enabled && (desktop ? desktopOwner(auth) : signedIn(auth) && auth.scopes.includes("admin"));
-  const phone = (auth: RequestAuth) => deps.enabled && desktop && auth.kind === "loopback" && Boolean(auth.companionDevice);
+  const phone = (auth: RequestAuth) => deps.enabled && desktop && auth.kind === "loopback" && Boolean(auth.companionDevice && !revokedDevices.has(auth.companionDevice));
 
   function eligible(visible: Visibility, bot: BotRecord, task: TaskRecord): boolean {
     return visible.bot(bot.id) && visible.thread(task.threadId) && !task.archivedAt && !task.routineRunId && !task.openedBy;
+  }
+
+  function threadRows(thread: string, recent = false) {
+    const lines = sinceFreshStart(store.activePath(thread));
+    const byId = new Map(lines.map(line => [line.id, line]));
+    const rows: TwinLearningRow[] = [];
+    for (let index = lines.length - 1; index >= 0; index--) {
+      const line = lines[index]!;
+      if (!deps.ownerLine(line.sender?.id)) continue;
+      const text = twinLearningText(line, line.replyToId ? byId.get(line.replyToId) : undefined);
+      if (!text) continue;
+      rows.push({ thread, message: line.id, text, ts: line.at, replyToId: line.replyToId });
+      if (recent && rows.length === TWIN_STYLE_SAMPLE_LIMIT) break;
+    }
+    return rows;
   }
 
   function learnedRows(auth: RequestAuth, sources: readonly string[], recent = false) {
@@ -52,20 +70,33 @@ export function createAiTwinHost(deps: {
       const bot = store.botByThread(thread);
       const task = bot && store.taskByThread(bot.id, thread);
       if (!bot || !task || !eligible(visible, bot, task) || !deps.ownerThread(thread)) return [];
-      const lines = sinceFreshStart(store.activePath(thread));
-      const byId = new Map(lines.map(line => [line.id, line]));
-      const rows: TwinLearningRow[] = [];
-      for (let index = lines.length - 1; index >= 0; index--) {
-        const line = lines[index]!;
-        if (!deps.ownerLine(line.sender?.id)) continue;
-        const text = twinLearningText(line, line.replyToId ? byId.get(line.replyToId) : undefined);
-        if (!text) continue;
-        rows.push({ thread, message: line.id, text, ts: line.at, replyToId: line.replyToId });
-        if (recent && rows.length === TWIN_STYLE_SAMPLE_LIMIT) break;
-      }
-      return rows;
+      return threadRows(thread, recent);
     });
   }
+
+  function sourceIndex(auth: RequestAuth, threads: readonly string[]) {
+    return twinSourceIndex(learnedRows(auth, threads));
+  }
+
+  function storeFor(auth: RequestAuth) {
+    return createAiTwinStore(deps.dataDir, deps.workspace, (sources) => {
+      const index = sourceIndex(auth, [...new Set(sources.map(source => source.thread))]);
+      return new Set(sources.filter(source => index(source.thread, source.message)?.digest === source.digest).map(source => source.digest));
+    }, refreshWatched);
+  }
+
+  if (deps.enabled) store.onChange(change => {
+    if (change.type === "thread.deleted") return privateStore.discardConversation(change.threadId);
+    if (change.type === "message.patch") {
+      watched ??= new Set(privateStore.conversationSources().flatMap(source => [source.message, source.parent]
+        .filter(Boolean).map(id => source.thread + ":" + id)));
+      if (!watched.has(change.threadId + ":" + change.message.id)) return;
+    } else if (change.type !== "thread.reset") return;
+    privateStore.discardConversation(change.threadId, () => {
+      const index = twinSourceIndex(threadRows(change.threadId));
+      return message => index(change.threadId, message)?.digest;
+    });
+  });
 
   function learning(auth: RequestAuth, sources: readonly string[]) {
     const visible = deps.visible(auth);
@@ -74,7 +105,10 @@ export function createAiTwinHost(deps: {
       .map((task) => ({ id: task.threadId, label: [bot.name, task.title].filter(Boolean).join(" · ") }))) : [];
     const rooms = store.groups.filter((group) => visible.group(group.id) && deps.roomReady(group))
       .map((group) => ({ id: group.id, label: group.name }));
-    return twinLearningView(conversations, rooms, learnedRows(auth, sources));
+    const rows = learnedRows(auth, sources);
+    const view = twinLearningView(conversations, rooms, rows);
+    const index = twinSourceIndex(rows);
+    return { ...view, examples: view.examples.map(example => ({ ...example, digest: index(example.thread, example.message)?.digest })) };
   }
 
   function roomAnswer(auth: RequestAuth, group: GroupRecord, threadId: string, text: string) {
@@ -142,7 +176,9 @@ export function createAiTwinHost(deps: {
     },
     revokeDevice(device: string) { revokedDevices.add(device); },
     routes: createAiTwinRoutes({
-      store: privateStore, preview: deps.preview, zaloRecipe: deps.zaloRecipe, owner, phone, canEnablePhone: desktop, desktop, learning,
+      store: privateStore, storeFor,
+      source: (auth, thread, message): TwinExampleSource | undefined => sourceIndex(auth, [thread])(thread, message),
+      preview: deps.preview, zaloRecipe: deps.zaloRecipe, owner, phone, canEnablePhone: desktop, desktop, learning,
       learnedStyle: (auth, sources) => recentTwinStyle(learnedRows(auth, sources, true)),
       blocked: deps.blocked,
     }),

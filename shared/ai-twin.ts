@@ -17,6 +17,7 @@ export interface AiTwinLesson {
   question: string;
   answer: string;
   source: "owner";
+  origin?: "manual" | "conversation";
   allowProvider?: true;
   updatedAt: number;
 }
@@ -42,6 +43,7 @@ export interface AiTwinView {
   creationEpoch: string;
   preview?: AiTwinPreviewProvider;
   lessons?: AiTwinLesson[];
+  unavailableLessonIds?: string[];
   controls?: AiTwinControls;
   canEnablePhone?: boolean;
   canReviewOwnerStyle?: true;
@@ -66,6 +68,7 @@ export interface AiTwinControls {
 export interface AiTwinLearningExample {
   thread: string;
   message: string;
+  digest?: string;
   question?: string;
   text: string;
 }

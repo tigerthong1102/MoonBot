@@ -27,7 +27,7 @@ function fixture(t, opts = {}) {
     expires: serverNow + 60000,
   };
   state.key = state.privateKey;
-  const lesson = { id: randomUUID(), source: "owner", question: "Time?", answer: "Noon." };
+  const lesson = { id: randomUUID(), source: "owner", origin: "manual", question: "Time?", answer: "Noon." };
   const twin = { id: state.twin, revision: 1, paused: false };
   const calls = [];
   let elapsed = 0;
@@ -139,3 +139,12 @@ test("an offline restart keeps recovery pending until an authenticated readback 
   await recoverExact({ journal: restarted, origin, inbox: f.inbox });
   assert.equal(restarted.hasPending(), false);
 });
+
+for (const origin of [undefined, "conversation"]) {
+  test(`does not offer a lesson without manual provenance (${origin})`, async (t) => {
+    const f = fixture(t);
+    f.lesson.origin = origin;
+    await assert.rejects(f.signer.offer(f.lesson.id, ["*"]));
+    assert.equal(f.calls.length, 0);
+  });
+}

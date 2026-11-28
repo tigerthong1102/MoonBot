@@ -2178,6 +2178,8 @@
   "settings.aiTwin.privateDraft": "Private draft",
   "settings.aiTwin.selectLessons": "Select lessons to forget",
   "settings.aiTwin.selectLesson": "Select lesson",
+  "settings.aiTwin.unavailableLessons": "Some lessons have an unavailable or unverified source. You can forget them or teach a new lesson.",
+  "settings.aiTwin.forgetUnavailable": "Forget unavailable lessons",
   "settings.aiTwin.forgetSelected": "Forget selected lessons",
   "settings.aiTwin.forgetSelectedBody": "These lessons and their group permissions will be deleted. Original conversations, previous replies, copies already sent to providers, and existing backups may remain.",
   "settings.aiTwin.lessons": "Private lessons",

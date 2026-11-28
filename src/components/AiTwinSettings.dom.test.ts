@@ -176,3 +176,24 @@ it("keeps one lesson editor when saving changes the revision and remounts the pr
   expect(profile.textContent).toContain("The approved answer.");
   expect(profile.textContent).not.toContain("Saving…");
 });
+
+it("drops a cached editor and late mutation response after refocusing on a revoked source", async () => {
+  const twin = { id: "same", name: "Fixture", style: "", revision: 2, paused: false, createdAt: 1, updatedAt: 1 };
+  const lesson = { id: "test", question: "Private fixture question", answer: "Private fixture answer", origin: "conversation", source: "owner", updatedAt: 1 };
+  const previous = { twin, creationEpoch: "initial", lessons: [lesson], controls: { sourceIds: [], delegations: [], phone: false } };
+  apiMock.mockResolvedValueOnce(previous);
+  const profile = await mount();
+  await act(async () => button(profile, "Private lessons").click());
+  await act(async () => button(profile, "Edit lesson").click());
+  expect(profile.querySelector("textarea")?.value).toBe(lesson.answer);
+  let finish!: (view: typeof previous) => void;
+  apiMock.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  await act(async () => button(profile, "Save lesson").click());
+  apiMock.mockResolvedValueOnce({ ...previous, lessons: [], unavailableLessonIds: [lesson.id] });
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await act(async () => { finish(previous); });
+  expect(profile.querySelector("textarea")).toBeNull();
+  expect(profile.textContent).not.toContain(lesson.answer);
+  expect(profile.textContent).not.toContain(lesson.question);
+  expect(apiMock.mock.calls.at(-1)?.[1]).toMatchObject({ background: true });
+});

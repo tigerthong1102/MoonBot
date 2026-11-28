@@ -1316,6 +1316,8 @@
   "settings.aiTwin.privateDraft": "Bản nháp riêng tư",
   "settings.aiTwin.selectLessons": "Chọn bài học để quên",
   "settings.aiTwin.selectLesson": "Chọn bài học",
+  "settings.aiTwin.unavailableLessons": "Một số bài học có nguồn đã mất quyền truy cập hoặc chưa được xác minh. Bạn có thể xóa chúng hoặc dạy bài mới.",
+  "settings.aiTwin.forgetUnavailable": "Xóa các bài học không dùng được",
   "settings.aiTwin.forgetSelected": "Quên các bài đã chọn",
   "settings.aiTwin.forgetSelectedBody": "Các bài học này và quyền trả lời trong nhóm tương ứng sẽ bị xóa. Cuộc trò chuyện gốc, câu trả lời trước đây, bản sao đã gửi đến nhà cung cấp và bản sao lưu hiện có có thể vẫn còn.",
   "settings.aiTwin.lessons": "Bài học riêng tư",

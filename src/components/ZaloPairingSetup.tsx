@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ZaloPairingStatus } from "../../shared/zalo-pairing";
 import { ZaloApprovedReply } from "./ZaloApprovedReply";
+import { ZaloSourceErasure } from "./ZaloSourceErasure";
 import { t } from "@/lib/i18n";
 import { api } from "@/state/api";
 
@@ -90,6 +91,8 @@ export function ZaloPairingSetup({ approvedSendPilot = false }: { approvedSendPi
         })}</p>}
         <p>{t("zaloPair.gaps", { polls: status.coverage.pollGaps, issues: status.coverage.timingIssues })}</p>
       </>}
+      {status.state === "paired" && status.revision && <ZaloSourceErasure key={status.revision} revision={status.revision}
+        onErased={coverage => setStatus(previous => previous && previous.revision === status.revision ? { ...previous, coverage } : previous)} />}
     </div>}
     <div className="flex flex-wrap gap-2">
       <button className="ui-button" type="button" disabled={busy} onClick={() => void update()}>{t("zaloPair.refresh")}</button>

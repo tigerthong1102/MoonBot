@@ -2,11 +2,14 @@ let callback = location.pathname === "/mobile/callback" ? new URLSearchParams(lo
 if (callback) history.replaceState(null, "", "/mobile");
 const translations = {
   en: {
+    currentSession:"Current session",
+    usage:"AI credit and usage", balance:"Available StartupBot credit", byokUsage:"OpenRouter today (UTC), settled / awaiting cost", runtime_unavailable:"This action requires an unavailable runtime. No task has been started.", skill_paused:"This skill is paused.",
+    sessions:"Account sessions", logoutAll:"Sign out everywhere", confirmAll:"Sign out of all StartupBot account sessions?", revoke:"Revoke session", confirmRevoke:"Revoke this session?", expires:"Expires", reauthenticate:"Sign out and verify your email again to manage sessions.", session_not_found:"This session has already ended.",
     older:"Earlier messages", campaign:"Plan a campaign", outreach:"Draft an outreach email", devices:"My registered computers", deviceNote:"Pair a computer in the StartupBot app to use its tools.", noDevices:"No registered computers.", providers:"AI provider", providerNote:"OpenRouter bills your own credits. Disconnecting removes this session’s key. You can revoke it in OpenRouter.", billing:"Pay for this conversation with", managed:"StartupBot credit", personal:"My OpenRouter credit", connectProvider:"Connect OpenRouter", disconnectProvider:"Disconnect", providerKeys:"Manage OpenRouter keys",
     provider_disconnected:"Reconnect your OpenRouter account to continue this conversation.", provider_conflict:"Start a new conversation to change the payer.", provider_daily_limit:"This account reached its personal-key safety limit.", provider_connection_failed:"OpenRouter could not complete the request. Check your key and credits.", provider_limit_required:"Connect a key with a positive credit limit.", invalid_callback:"The connection expired. Start again.",
     skill:"What would you like to do?", ask:"Ask a question", write:"Draft text", translate:"Translate", summarize:"Summarize text", desktop:"Work on my computer", copy:"Copy", retry:"Reconnect", managed_access_revoked:"AI access has been suspended.", email:"Email address", otp:"Eight-digit email code", code:"Continue with email", login:"Sign in", change:"Change email", logout:"Sign out",
     history:"Conversations", new:"New conversation", rename:"Rename", remove:"Delete", message:"Your message", send:"Send", stop:"Stop",
-    consent:"Save this conversation to my StartupBot account and send its recent messages to the AI provider.", confirm:"Delete this conversation from your account?",
+    consent:"Save this conversation to my StartupBot account and send its recent messages to OpenRouter and the model provider it selects.", confirm:"Delete this conversation from your account?",
     you:"You", bot:"StartupBot", empty:"New conversation", waiting:"Waiting for StartupBot…", running:"Response in progress", limited:"Output limit reached",
     interrupted:"Response interrupted. Check the conversation before sending again.", delivered:"Check your email for the code.",
     personal_credit_exhausted:"Your account has no available AI credit.", account_rate_limit:"Too many requests. Try again later.",
@@ -16,11 +19,14 @@ const translations = {
     unavailable:"The account service is temporarily unavailable.", account_changed:"Your account changed. Reopen the conversation.", invalid_message:"Shorten your message and confirm the storage choice."
   },
   vi: {
+    currentSession:"Phiên hiện tại",
+    usage:"Số dư và mức sử dụng AI", balance:"Credit StartupBot có thể dùng", byokUsage:"OpenRouter hôm nay (UTC), đã tính / tạm giữ", runtime_unavailable:"Chưa có môi trường để chạy yêu cầu này. Chưa khởi chạy tác vụ.", skill_paused:"Skill này đang tạm ngưng.",
+    sessions:"Phiên đăng nhập", logoutAll:"Đăng xuất mọi thiết bị", confirmAll:"Đăng xuất tài khoản StartupBot trên tất cả thiết bị?", revoke:"Thu hồi phiên", confirmRevoke:"Thu hồi phiên đăng nhập này?", expires:"Hết hạn", reauthenticate:"Hãy đăng xuất rồi xác minh lại email để quản lý phiên.", session_not_found:"Phiên này đã kết thúc.",
     older:"Tin nhắn trước", campaign:"Lập kế hoạch chiến dịch", outreach:"Soạn email tiếp cận khách hàng", devices:"Máy tính đã đăng ký", deviceNote:"Để sử dụng công cụ trên máy tính, hãy ghép nối trong ứng dụng StartupBot.", noDevices:"Chưa có máy tính đăng ký.", providers:"Nhà cung cấp AI", providerNote:"OpenRouter tính vào số dư riêng của bạn. Ngắt kết nối sẽ xóa khóa khỏi phiên này. Bạn có thể thu hồi khóa trên OpenRouter.", billing:"Chi trả cho hội thoại bằng", managed:"Credit StartupBot", personal:"Credit OpenRouter của tôi", connectProvider:"Kết nối OpenRouter", disconnectProvider:"Ngắt kết nối", providerKeys:"Quản lý khóa OpenRouter",
     provider_disconnected:"Hãy kết nối lại OpenRouter để tiếp tục hội thoại.", provider_conflict:"Hãy mở hội thoại mới để đổi bên chi trả.", provider_daily_limit:"Tài khoản đã đạt trần sử dụng khóa riêng.", provider_connection_failed:"OpenRouter chưa hoàn tất yêu cầu. Hãy kiểm tra khóa và số dư.", provider_limit_required:"Hãy kết nối khóa có hạn mức dương.", invalid_callback:"Phiên kết nối đã hết hạn. Hãy bắt đầu lại.",
     skill:"Bạn muốn làm gì?", ask:"Hỏi đáp", write:"Soạn nội dung", translate:"Dịch", summarize:"Tóm tắt văn bản", desktop:"Thao tác trên máy tính", copy:"Sao chép", retry:"Kết nối lại", managed_access_revoked:"Quyền sử dụng AI đã bị tạm ngưng.", email:"Địa chỉ email", otp:"Mã tám chữ số gửi qua email", code:"Tiếp tục bằng email", login:"Đăng nhập", change:"Đổi email", logout:"Đăng xuất",
     history:"Hội thoại", new:"Hội thoại mới", rename:"Đổi tên", remove:"Xóa", message:"Tin nhắn của bạn", send:"Gửi", stop:"Dừng",
-    consent:"Lưu hội thoại vào tài khoản StartupBot của tôi và gửi các tin nhắn gần nhất cho nhà cung cấp AI.", confirm:"Xóa hội thoại này khỏi tài khoản?",
+    consent:"Lưu hội thoại vào tài khoản StartupBot của tôi và gửi các tin nhắn gần nhất đến OpenRouter và nhà cung cấp chạy model do OpenRouter chọn.", confirm:"Xóa hội thoại này khỏi tài khoản?",
     you:"Bạn", bot:"StartupBot", empty:"Hội thoại mới", waiting:"Đang chờ StartupBot…", running:"Đang trả lời", limited:"Đã đạt giới hạn độ dài",
     interrupted:"Phản hồi bị gián đoạn. Kiểm tra hội thoại trước khi gửi lại.", delivered:"Hãy kiểm tra email để lấy mã.",
     personal_credit_exhausted:"Tài khoản đã hết hạn mức AI khả dụng.", account_rate_limit:"Có quá nhiều yêu cầu. Vui lòng thử lại sau.",
@@ -30,11 +36,14 @@ const translations = {
     unavailable:"Dịch vụ tài khoản tạm thời gián đoạn.", account_changed:"Tài khoản đã thay đổi. Hãy mở lại hội thoại.", invalid_message:"Hãy rút ngắn tin nhắn và xác nhận lựa chọn lưu trữ."
   },
   pt: {
-    older:"Earlier messages", campaign:"Planejar campanha", outreach:"Escrever e-mail de prospecção", devices:"Computadores registrados", deviceNote:"Emparelhe um computador no app StartupBot para usar as ferramentas dele.", noDevices:"Nenhum computador registrado.", providers:"Provedor de IA", providerNote:"O OpenRouter cobra seus créditos. Desconectar remove a chave desta sessão. Revogue a chave no OpenRouter.", billing:"Pagar esta conversa com", managed:"Crédito StartupBot", personal:"Meu crédito OpenRouter", connectProvider:"Conectar OpenRouter", disconnectProvider:"Desconectar", providerKeys:"Gerenciar chaves OpenRouter",
+    currentSession:"Sessão atual",
+    usage:"Crédito e uso de IA", balance:"Crédito StartupBot disponível", byokUsage:"OpenRouter hoje (UTC), liquidado / pendente", runtime_unavailable:"O ambiente solicitado está indisponível. Nenhuma tarefa foi iniciada.", skill_paused:"Esta habilidade está pausada.",
+    sessions:"Sessões da conta", logoutAll:"Sair de todos os dispositivos", confirmAll:"Sair de todas as sessões da conta StartupBot?", revoke:"Revogar sessão", confirmRevoke:"Revogar esta sessão?", expires:"Expira", reauthenticate:"Saia e verifique seu e-mail novamente para gerenciar sessões.", session_not_found:"Esta sessão já terminou.",
+    older:"Mensagens anteriores", campaign:"Planejar campanha", outreach:"Escrever e-mail de prospecção", devices:"Computadores registrados", deviceNote:"Emparelhe um computador no app StartupBot para usar as ferramentas dele.", noDevices:"Nenhum computador registrado.", providers:"Provedor de IA", providerNote:"O OpenRouter cobra seus créditos. Desconectar remove a chave desta sessão. Revogue a chave no OpenRouter.", billing:"Pagar esta conversa com", managed:"Crédito StartupBot", personal:"Meu crédito OpenRouter", connectProvider:"Conectar OpenRouter", disconnectProvider:"Desconectar", providerKeys:"Gerenciar chaves OpenRouter",
     provider_disconnected:"Reconecte o OpenRouter para continuar.", provider_conflict:"Abra uma nova conversa para mudar o pagador.", provider_daily_limit:"Limite da chave pessoal atingido.", provider_connection_failed:"Confira a chave e o crédito no OpenRouter.", provider_limit_required:"Use uma chave com limite positivo.", invalid_callback:"Conexão expirada. Tente de novo.",
     skill:"O que deseja fazer?", ask:"Fazer uma pergunta", write:"Escrever", translate:"Traduzir", summarize:"Resumir", desktop:"Trabalhar no computador", copy:"Copiar", retry:"Reconectar", managed_access_revoked:"Acesso à IA suspenso.", email:"Endereço de e-mail", otp:"Código de oito dígitos", code:"Continuar com e-mail", login:"Entrar", change:"Alterar e-mail", logout:"Sair",
     history:"Conversas", new:"Nova conversa", rename:"Renomear", remove:"Excluir", message:"Sua mensagem", send:"Enviar", stop:"Parar",
-    consent:"Salvar esta conversa na minha conta StartupBot e enviar as mensagens recentes ao provedor de IA.", confirm:"Excluir esta conversa da conta?",
+    consent:"Salvar esta conversa na minha conta StartupBot e enviar as mensagens recentes ao OpenRouter e ao provedor do modelo escolhido por ele.", confirm:"Excluir esta conversa da conta?",
     you:"Você", bot:"StartupBot", empty:"Nova conversa", waiting:"Aguardando o StartupBot…", running:"Resposta em andamento", limited:"Limite de resposta atingido",
     interrupted:"Resposta interrompida. Confira a conversa antes de reenviar.", delivered:"Confira seu e-mail para obter o código.",
     personal_credit_exhausted:"Sua conta está sem crédito de IA.", account_rate_limit:"Muitas solicitações. Tente mais tarde.",
@@ -69,6 +78,10 @@ function signedOut() {
   el("email").readOnly = false;
   el("loginButton").textContent = t.code;
   el("transcript").replaceChildren();
+  el("usage").open = false;
+  el("usageText").textContent = "";
+  el("sessions").open = false;
+  el("sessionList").replaceChildren();
   el("devices").open = false;
   el("deviceList").replaceChildren();
   el("threads").replaceChildren();
@@ -95,6 +108,8 @@ async function list() {
   account = data.account;
   conversations = data.threads;
   connection = data.provider;
+  for (const option of el("skill").options) option.disabled = data.disabledSkills?.includes(option.value) ?? false;
+  if (el("skill").selectedOptions[0]?.disabled) el("skill").value = [...el("skill").options].find(o => !o.disabled)?.value ?? "";
   el("providers").hidden = !connection?.enabled && !connection?.connected;
   el("connectProvider").hidden = !connection?.enabled || connection.connected;
   el("disconnectProvider").hidden = !connection?.connected;
@@ -172,7 +187,7 @@ async function loadHistory() {
 }
 function lock(value) {
   busy = value;
-  for (const id of ["threads","new","older","rename","remove","send","logout","loginButton","changeEmail","connectProvider","disconnectProvider"]) el(id).disabled = value;
+  for (const id of ["threads","new","older","rename","remove","send","logout","logoutAll","loginButton","changeEmail","connectProvider","disconnectProvider"]) el(id).disabled = value;
 }
 async function action(work) {
   if (busy) return;
@@ -220,6 +235,46 @@ el("login").onsubmit = event => {
   });
 };
 el("retry").onclick = () => action(openChat);
+el("usage").ontoggle = async () => {
+  if (!el("usage").open) return;
+  const initiatingAccount = account;
+  try {
+    const usage = await (await api("account-usage", {})).json();
+    if (!account || account !== initiatingAccount || !el("usage").open) return;
+    const usd = micros => (micros/1000000).toLocaleString(locale, { style:"currency", currency:"USD", maximumFractionDigits:6 });
+    el("usageText").textContent = [t.balance + " · " + usd(usage.available),
+      usage.expires && t.expires + " · " + new Date(usage.expires).toLocaleDateString(locale),
+      t.byokUsage + " · " + usd(usage.byokTodayUTC.settled) + " / " + usd(usage.byokTodayUTC.pending)].filter(Boolean).join("\n");
+  } catch (error) { status(error.message); }
+};
+async function showSessions() {
+  const initiatingAccount = account;
+  const { sessions } = await (await api("sessions", {})).json();
+  if (!account || account !== initiatingAccount || !el("sessions").open) return;
+  const items = sessions.map(session => {
+    const item = document.createElement("li"), button = document.createElement("button");
+    if (session.current) item.append(t.currentSession + " · ");
+    item.append(new Date(session.createdAt).toLocaleString(locale) + " · " + t.expires + " " + new Date(session.expiresAt).toLocaleString(locale) + " ");
+    button.textContent = t.revoke;
+    button.onclick = () => action(async () => {
+      if (!window.confirm(t.confirmRevoke)) return;
+      await api("sessions/revoke", { sessionId:session.id });
+      await showSessions();
+    });
+    item.append(button);
+    return item;
+  });
+  el("sessionList").replaceChildren(...items);
+}
+el("sessions").ontoggle = () => {
+  if (el("sessions").open) showSessions().catch(error => status(error.message));
+};
+el("logoutAll").onclick = () => action(async () => {
+  if (!window.confirm(t.confirmAll)) return;
+  await api("sessions/logout-all", {});
+  signedOut();
+  channel?.postMessage("changed");
+});
 el("devices").ontoggle = async () => {
   if (!el("devices").open) return;
   const viewer = account;

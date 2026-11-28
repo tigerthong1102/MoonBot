@@ -74,6 +74,25 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       const user = await accounts.me(session.token, { requireVerifiedEmail: true });
       if (user.id !== session.owner) throw new Fault(401, "signed_out");
       owner = user.id;
+      if (method === "POST" && ["/mobile/sessions", "/mobile/sessions/revoke", "/mobile/sessions/logout-all"].includes(path)) {
+        if (body.account !== owner) throw new Fault(409, "account_changed");
+        if (path === "/mobile/sessions") return json(200, { sessions: await accounts.listAccountSessions(session.token) });
+        if (path === "/mobile/sessions/revoke") {
+          if (typeof body.sessionId !== "string" || !body.sessionId || body.sessionId.length > 256)
+            throw new Fault(400, "invalid_session");
+          await accounts.revokeAccountSessions(session.token, body.sessionId);
+        } else {
+          await accounts.revokeAccountSessions(session.token);
+          ledger.tx(() => {
+            db.prepare(`INSERT INTO wallet_session_generations(owner,generation) SELECT id,1 FROM users WHERE id=?
+              ON CONFLICT(owner) DO UPDATE SET generation=generation+1`).run(owner);
+            db.prepare("DELETE FROM wallet_sessions WHERE owner=?").run(owner);
+            db.prepare("DELETE FROM mobile_sessions WHERE owner=?").run(owner);
+          });
+          sessions.revoke(res, session.hash);
+        }
+        return json(200, { ok: true });
+      }
       if (method === "POST" && path === "/mobile/devices") {
         if (body.account !== owner) throw new Fault(409, "account_changed");
         const installations = await accounts.listInstallations(session.token);
@@ -81,17 +100,30 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       }
     } catch (error) {
       if (!(error instanceof ControlPlaneError)) throw error;
+      if (path.startsWith("/mobile/sessions") && error.status === 403) throw new Fault(403, "reauthenticate");
+      if (error.code === "session_not_found") throw new Fault(404, "session_not_found");
       if (error.status === 429) throw new Fault(429, "account_rate_limit");
       if (error.status >= 500 || ["network_unavailable", "control_plane_unavailable", "invalid_response"].includes(error.code)) throw new Fault(503, "account_unavailable");
       throw new Fault(401, "signed_out");
     }
     recover(owner);
-    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, provider: personalAI.info(session), threads: lists.all(owner) });
+    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
     if (method !== "POST") throw new Fault(404, "not_found");
     if (body.account !== owner) throw new Fault(409, "account_changed");
     if (path === "/mobile/provider/start") return json(200, personalAI.start(session));
     if (path === "/mobile/provider/complete") return json(200, await personalAI.complete(session, body));
     if (path === "/mobile/provider/disconnect") return json(200, personalAI.disconnect(session));
+    if (path === "/mobile/account-usage") {
+      const policy = catalog(settings.catalog);
+      const extras = db.prepare("SELECT spendExtras FROM users WHERE id=?").get(owner)?.spendExtras;
+      const buckets = ledger.balances(owner, Date.now(), policy.managedLimits?.trialPaused)
+        .filter(b => b.end || extras || b.available < 0);
+      const start = Math.floor(Date.now() / 86400000) * 86400000;
+      const usage = db.prepare(`SELECT coalesce(sum(cost),0) AS settled, coalesce(sum(CASE WHEN cost IS NULL THEN reserved ELSE 0 END),0) AS pending
+        FROM mobile_byok_usage WHERE owner=? AND created>=?`).get(owner, start);
+      return json(200, { unit:"microUSD", available:buckets.reduce((sum,b) => sum+b.available,0),
+        expires:buckets.find(b => b.end && b.available > 0)?.end ?? null, byokTodayUTC:usage });
+    }
     const thread = body.thread;
     if (!uuid.test(thread)) throw new Fault(400, "invalid_thread");
     if (path !== "/mobile/send" && !lookup.get(owner, thread)) throw new Fault(404, "not_found");
@@ -116,9 +148,12 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
         Buffer.byteLength(body.prompt) > 8192 || body.save !== true) throw new Fault(400, "invalid_message");
     if (body.runtime === "desktop" || /^(?:(?:hãy|vui lòng|please)\s+)?(?:mở|chạy|open|launch|start)\s+(?:phần mềm\s+|ứng dụng\s+)?(?:misa|excel|quickbooks)(?:\s|$|[.,!])/iu.test(body.prompt.trim()))
       throw new Fault(409, "desktop_required");
+    if ((body.runtime ?? "text") !== "text" || /^(?:(?:hãy|vui lòng|please)\s+)?(?:chạy|run)\s+.{1,80}(?:khi máy tính tắt|when (?:my |the )?computer is off)/iu.test(body.prompt.trim()))
+      throw new Fault(409, "runtime_unavailable");
     const skill = body.skill ?? "chat";
     if (!textSkills.has(skill)) throw new Fault(400, "unsupported_skill");
     const config = catalog(settings.catalog);
+    if (config.disabledMobileSkills?.includes(skill)) throw new Fault(409, "skill_paused");
     const provider = body.provider ?? "managed";
     if (!["managed","openrouter"].includes(provider)) throw new Fault(400, "unsupported_provider");
     const ownKey = provider === "openrouter";

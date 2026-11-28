@@ -25,6 +25,8 @@ export async function accountSignIn(ledger, origin, http, body, verify) {
     if (invited) await client.requestOTP(email);
     return { ok: true };
   }
+  const generation = () => ledger.db.prepare("SELECT generation FROM wallet_session_generations WHERE owner=?").get(invited.owner)?.generation ?? 0;
+  const initialGeneration = generation();
   let identity;
   try {
     const { accountToken } = await client.verifyOTP(email, body.otp);
@@ -35,7 +37,7 @@ export async function accountSignIn(ledger, origin, http, body, verify) {
   if (identity.id !== invited.owner || identity.email !== email) throw new Fault(401, "invalid_pilot_sign_in");
   const token = "sbpilot_session_" + randomBytes(32).toString("base64url");
   ledger.tx(() => {
-    if (!ledger.db.prepare("SELECT 1 FROM invites WHERE owner=? AND email=?").get(identity.id, email))
+    if (generation() !== initialGeneration || !ledger.db.prepare("SELECT 1 FROM invites WHERE owner=? AND email=?").get(identity.id, email))
       throw new Fault(401, "invalid_pilot_sign_in");
     ledger.db.prepare("DELETE FROM wallet_sessions WHERE expires<=?").run(Date.now());
     ledger.db

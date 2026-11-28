@@ -9,6 +9,8 @@
 <button class="primary" id="loginButton" data-t="code"></button> <button type="button" id="changeEmail" hidden data-t="change"></button></form>
 <section id="chat" hidden><label for="threads" data-t="history"></label><select id="threads"></select>
 <div class="controls"><button id="new" data-t="new"></button><button id="rename" data-t="rename"></button><button id="remove" data-t="remove"></button></div>
+<details id="usage"><summary data-t="usage"></summary><p id="usageText"></p></details>
+<details id="sessions"><summary data-t="sessions"></summary><ul id="sessionList"></ul><button id="logoutAll" data-t="logoutAll"></button></details>
 <details id="devices"><summary data-t="devices"></summary><p data-t="deviceNote"></p><ul id="deviceList"></ul></details>
 <details id="providers" hidden><summary data-t="providers"></summary><p data-t="providerNote"></p><div class="controls"><button id="connectProvider" data-t="connectProvider"></button><button id="disconnectProvider" data-t="disconnectProvider"></button><a id="providerKeys" rel="noreferrer" target="_blank" href="https://openrouter.ai/keys" data-t="providerKeys"></a></div></details>
 <button hidden id="older" data-t="older"></button><section id="transcript" aria-label="Chat"></section>

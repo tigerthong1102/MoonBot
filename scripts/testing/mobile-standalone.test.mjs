@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it } from "vitest";
-import { Ledger } from "../../apps/ai-pilot/ledger.mjs";
+import { invite } from "../../apps/ai-pilot/accounts.mjs";
+import { digest, Ledger } from "../../apps/ai-pilot/ledger.mjs";
 import { startMobileFixture } from "./mobile-chat-fixture.mjs";
 
 let f, cookie, thread;
@@ -208,4 +209,77 @@ it("pages older turns once with deterministic ordering for identical timestamps"
   expect(first.turns).toHaveLength(12);
   expect(older.next).toBe(null);
   expect([...older.turns,...first.turns].map(r => r.id)).toEqual(ids);
+});
+
+it("lists redacted sessions and revokes one or all at the issuer without affecting another account", async () => {
+  const second = await f.login("alice"), bob = await f.login("bob");
+  const scope = { account:"alice" };
+  const sessions = (await (await f.call("/sessions", cookie, scope)).json()).sessions;
+  expect(sessions).toHaveLength(2);
+  for (const view of sessions) expect(Object.keys(view).sort()).toEqual(["createdAt","current","expiresAt","id"]);
+  expect(sessions.map(s => s.current)).toEqual([true,false]);
+  const foreign = (await (await f.call("/sessions", bob, { account:"bob" })).json()).sessions[0];
+  expect((await f.call("/sessions/revoke", cookie, { ...scope, sessionId:foreign.id })).status).toBe(404);
+  expect((await f.call("/sessions/revoke", cookie, { ...scope, sessionId:sessions[1].id })).status).toBe(200);
+  expect((await f.call("/threads", second)).status).toBe(401);
+  const third = await f.login("alice");
+  const walletToken = "sbpilot_session_" + randomUUID();
+  f.ledger.db.prepare("INSERT INTO wallet_sessions VALUES (?,?,?)").run(digest(walletToken),"alice",Date.now()+60000);
+  expect(f.ledger.authenticate(walletToken, true)).toBe("alice");
+  f.behavior.authOffline = true;
+  expect((await f.call("/sessions/logout-all", cookie, scope)).status).toBe(503);
+  f.behavior.authOffline = false;
+  expect((await f.call("/sessions/logout-all", cookie, { account:"bob" })).status).toBe(409);
+  expect((await f.call("/sessions/logout-all", cookie, scope)).status).toBe(200);
+  expect(() => f.ledger.authenticate(walletToken, true)).toThrow();
+  for (const handle of [third,cookie]) expect((await f.call("/threads", handle)).status).toBe(401);
+  expect((await f.call("/threads", bob)).status).toBe(200);
+});
+
+it("pauses skills, denies unbound runtime requests and reports account credit without acquiring a trial", async () => {
+  const before = f.generations.length;
+  f.config.disabledMobileSkills = ["translate"];
+  f.save();
+  for (const runtime of ["cloud","local","document","future"]) {
+    expect((await f.call("/send", cookie, message({ runtime }))).status).toBe(409);
+  }
+  expect((await f.call("/send", cookie, message({ skill:"translate" }))).status).toBe(409);
+  const usage = await (await f.call("/account-usage", cookie, { account:"alice" })).json();
+  expect(usage.available).toBeGreaterThan(0);
+  expect(usage.byokTodayUTC).toEqual({ settled:0, pending:0 });
+  expect((await f.call("/account-usage", cookie, { account:"bob" })).status).toBe(409);
+  expect(f.generations).toHaveLength(before);
+  f.config.mobileTrial = { creditMicros:30000, days:2, maxAccounts:3 };
+  f.save();
+  const bob = await f.login("bob");
+  expect((await (await f.call("/account-usage", bob, { account:"bob" })).json()).available).toBe(0);
+  await (await f.call("/send", bob, message({ account:"bob" }))).text();
+  expect(f.generations).toHaveLength(before+1);
+  f.config.managedLimits.trialPaused = true;
+  f.save();
+  expect((await f.call("/send", bob, message({ account:"bob" }))).status).toBe(402);
+  expect((await (await f.call("/account-usage", bob, { account:"bob" })).json()).available).toBe(0);
+  const paid = await f.call("/send", cookie, message());
+  expect(paid.status).toBe(200);
+  await paid.text();
+});
+
+it("does not issue a wallet session from a verification that overlapped logout everywhere", async () => {
+  const email = "alice@example.test";
+  invite(f.ledger, "alice", email);
+  await f.call("/code", null, { email });
+  const started = Promise.withResolvers(), release = Promise.withResolvers();
+  f.behavior.beforeMe = async () => {
+    f.behavior.beforeMe = undefined;
+    started.resolve();
+    await release.promise;
+  };
+  const verifying = fetch(f.url + "/wallet/verify-code", { method:"POST",
+    headers:{ "content-type":"application/json" }, body:JSON.stringify({ email, otp:"12345678" }) });
+  await started.promise;
+  try {
+    expect((await f.call("/sessions/logout-all", cookie, { account:"alice" })).status).toBe(200);
+  } finally { release.resolve(); }
+  expect((await verifying).status).toBe(401);
+  expect(f.ledger.db.prepare("SELECT count(*) AS n FROM wallet_sessions WHERE owner='alice'").get().n).toBe(0);
 });

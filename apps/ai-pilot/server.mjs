@@ -92,7 +92,7 @@ export function pilotServer(ledger, settings, http = fetch) {
       if (method === "GET" && path === "/wallet")
         return json(200, {
           account: owner,
-          ...ledger.summary(owner),
+          ...ledger.summary(owner, config.managedLimits?.trialPaused),
           currency: config.currency,
           offers: config.offers,
           model: config.model,

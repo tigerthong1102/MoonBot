@@ -3,7 +3,8 @@ import { api } from "@/state/api";
 import { t } from "@/lib/i18n";
 import { AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, type AiTwinView } from "../../../shared/ai-twin";
 import type { ZaloSourceLine } from "../../../shared/zalo-intelligence";
-import { brainOwner, evidenceReader, latestPages, pageHistory, type VerifiedPage } from "./brain";
+import { withCurrentBrainPage } from "./brain-erasure";
+import { brainOwner, evidenceReader, type VerifiedPage } from "./brain";
 
 export interface ZaloKnowledgeExcerpt extends ZaloSourceLine { text: string }
 
@@ -23,8 +24,6 @@ export function ZaloKnowledgeDraft({ item, excerpt, viewSignal }: {
 
   async function verify(signal: AbortSignal) {
     if (await brainOwner(signal, false) !== page.owner) throw new Error("owner_changed");
-    const latest = latestPages(await pageHistory(page.owner)).find(entry => entry.id === page.id);
-    if (latest?.version !== page.version || latest.approvedAt !== page.approvedAt) throw new Error("page_changed");
     signal.throwIfAborted();
     // Watched folders tag their sync events with the dialog signal so the view recognizes its own read.
     const fresh = await evidenceReader(page.owner, viewSignal)(page.source);
@@ -48,16 +47,17 @@ export function ZaloKnowledgeDraft({ item, excerpt, viewSignal }: {
         const result = await api<AiTwinView>(AI_TWIN_PATH, { signal });
         signal.throwIfAborted();
         if (!result.preview || !result.twin || result.twin.paused) throw new Error("unavailable");
-        setView(result);
+        await withCurrentBrainPage(page, signal, () => setView(result));
         return;
       }
-      const answer = await api<{ draft: string }>(AI_TWIN_PREVIEW_PATH, {
+      const { twin, preview } = view;
+      const answer = await withCurrentBrainPage(page, signal, () => api<{ draft: string }>(AI_TWIN_PREVIEW_PATH, {
         method: "POST", signal, timeoutMs: 65_000,
-        body: JSON.stringify({ id: view.twin.id, revision: view.twin.revision, key: view.preview.key, useProvider: true,
+        body: JSON.stringify({ id: twin.id, revision: twin.revision, key: preview.key, useProvider: true,
           question: excerpt.text, zaloSource: { source: excerpt.source, line: excerpt.line }, zaloEvidence: { citation, quote } }),
-      });
+      }));
       await verify(signal);
-      setDraft(answer.draft);
+      await withCurrentBrainPage(page, signal, () => setDraft(answer.draft));
     } catch {
       if (!signal.aborted) { setFailed(true); setView(null); }
     } finally {

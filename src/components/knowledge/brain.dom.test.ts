@@ -50,6 +50,10 @@ beforeEach(() => {
   vi.stubGlobal("IDBKeyRange", { bound: (lo: unknown[]) => lo });
   vi.mocked(browserRecord).mockImplementation(async (_mode, work) => {
     const store = {
+      openCursor: ([, who, id]: string[]) => {
+        const latest = [...pages.values()].filter(p => p.owner === who && p.id === id).sort((a, b) => b.version - a.version)[0];
+        return { result: latest && { value: latest } };
+      },
       getAll: ([, who]: string[]) => ({ result: [...pages.values()].filter((p) => p.owner === who) }),
       add: (page: BrainPage, key: unknown[]) => {
         const id = JSON.stringify(key);
@@ -58,7 +62,9 @@ beforeEach(() => {
         return { result: key };
       },
     };
-    return work(store as unknown as IDBObjectStore).result;
+    const request = work(store as unknown as IDBObjectStore);
+    request.onsuccess?.call(request, new Event("success"));
+    return request.result;
   });
   vi.mocked(libraryOwner).mockResolvedValue(owner);
   vi.mocked(api).mockResolvedValue({ messages: [] });
@@ -196,4 +202,37 @@ it("keeps the private shelf open across an owner recheck and hides evidence whil
     expect(toggle()?.getAttribute("aria-expanded")).toBe("true");
     expect(host.textContent).not.toContain(item.quote);
   } finally {await act(async () => root.unmount()); host.remove();}
+});
+
+it("clears the view and cancels its pending read on a deletion notice while the Cloud sleeps", async () => {
+  const { markCloudAsleep, resetCloudPowerForTests } = await import("@/lib/cloud-power");
+  let notify: () => void = () => { throw new Error("missing tab listener"); };
+  class Channel {
+    set onmessage(listener: () => void) { notify = listener; }
+    close() {}
+    postMessage() {}
+  }
+  vi.stubGlobal("BroadcastChannel", Channel);
+  const saved = await approvePage(await draft(), signal());
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(BrainDialog, { threadId })));
+    expect(host.textContent).toContain(saved.title);
+    const pending = Promise.withResolvers<Index>();
+    vi.mocked(currentLibrary).mockReturnValueOnce(pending.promise);
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    const during = vi.mocked(currentLibrary).mock.lastCall?.[1]?.signal;
+    expect(during?.aborted).toBe(false);
+    markCloudAsleep();
+    const checks = vi.mocked(libraryOwner).mock.calls.length;
+    await act(async () => notify());
+    expect(during?.aborted).toBe(true);
+    expect(libraryOwner).toHaveBeenCalledTimes(checks);
+    await act(async () => pending.resolve(index()));
+    expect(host.textContent).not.toContain(saved.title);
+  } finally {
+    resetCloudPowerForTests();
+    await act(async () => root.unmount()); host.remove();
+  }
 });

@@ -3,8 +3,8 @@ import { ApiError, apiFetch } from "@/state/api";
 import { readSessionState } from "@/lib/session";
 import type { Index } from "./source-index";
 
-export async function libraryOwner(fetchImpl?: typeof fetch, reportOffline = false) {
-  const session = await readSessionState(fetchImpl);
+export async function libraryOwner(fetchImpl?: typeof fetch, reportOffline = false, requireIdentity = false) {
+  const session = await readSessionState(fetchImpl, requireIdentity);
   if (reportOffline && session.kind === "unreachable") {
     if (session.code) throw new ApiError(session.error, 503, { code: session.code });
     throw new TypeError("Source server unreachable");

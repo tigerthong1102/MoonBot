@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
 import { localSetupImport } from "@/lib/setup-import";
+import { ForgetBrainPages } from "./ForgetBrainPages";
+import { watchBrainPages, withCurrentBrainPage } from "./brain-erasure";
 import { ZaloPrivateKnowledge } from "./ZaloPrivateKnowledge";
 import { libraryOwner } from "./source-cache";
 import { observeLibraryOwner } from "./source-sync";
@@ -69,7 +71,13 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", za
         }
         account.current = owner;
         const visible = await verifiedPages(owner, signal, background);
-        const pending = activeDraft.current;
+        let pending = activeDraft.current;
+        if (pending && pending.page.version > 0 && !visible.some(({ page }) =>
+          page.id === pending!.page.id && page.version === pending!.page.version)) {
+          activeDraft.current = pending = null;
+          setDraft(null);
+          proposed.current = true;
+        }
         const source = pending?.page.source ?? (!proposed.current ? selection : undefined);
         const evidence = source ? await evidenceReader(owner, signal, background)(source) : null;
         if ((source && !evidence) || (await brainOwner(signal, background)) !== owner) throw new Error();
@@ -108,6 +116,7 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", za
       () => (account.current ? JSON.stringify([account.current, threadId]) : null),
       unavailable,
     );
+    const stopWatchingPages = watchBrainPages(() => { void read(true); });
     const timer = window.setInterval(backgroundSync, 60000);
     window.addEventListener("focus", sync);
     window.addEventListener("startupbot-document-sync", documentSync);
@@ -117,6 +126,7 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", za
       alive = false;
       view.current?.abort();
       stop();
+      stopWatchingPages();
       window.clearInterval(timer);
       window.removeEventListener("focus", sync);
       window.removeEventListener("startupbot-document-sync", documentSync);
@@ -151,32 +161,41 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", za
     const signal = view.current?.signal;
     if (!ready || !signal) return;
     try {
-      if ((await libraryOwner(undefined, true)) !== item.page.owner) throw new Error();
+      if ((await libraryOwner(undefined, true, true)) !== item.page.owner) throw new Error();
       const source = await evidenceReader(item.page.owner, signal)(item.page.source);
-      if (!source || (await libraryOwner(undefined, true)) !== item.page.owner) throw new Error();
+      if (!source || (await libraryOwner(undefined, true, true)) !== item.page.owner) throw new Error();
       signal.throwIfAborted();
-      const data = [
-        "# " + item.page.title,
-        item.page.body,
-        "## " + t("brain.evidence"),
-        source.label,
-        source.quote,
-        ...source.citations.flatMap((c) => [c.label, c.quote]),
-        JSON.stringify(source.source),
-        new Date(item.page.approvedAt).toISOString(),
-      ].join("\n\n");
-      const url = URL.createObjectURL(new Blob([data], { type: "text/markdown;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "brain-" + item.page.id + ".md";
-      link.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      await withCurrentBrainPage(item.page, signal, page => {
+        const data = [
+          "# " + page.title,
+          page.body,
+          "## " + t("brain.evidence"),
+          source.label,
+          source.quote,
+          ...source.citations.flatMap((c) => [c.label, c.quote]),
+          JSON.stringify(source.source),
+          new Date(page.approvedAt).toISOString(),
+        ].join("\n\n");
+        const url = URL.createObjectURL(new Blob([data], { type: "text/markdown;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "brain-" + page.id + ".md";
+        link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
     } catch {
       if (!signal.aborted) {
         setReady(false);
         setError(true);
       }
     }
+  }
+  function forgetAction(page: BrainPage | null) {
+    const resolved = account.current, signal = view.current?.signal;
+    if (!resolved || !signal || signal.aborted) return null;
+    return <ForgetBrainPages owner={resolved} page={page} signal={signal}
+      changed={() => { setReady(false); setPages([]); refresh(n => n + 1); }}
+      failed={() => { setReady(false); setPages([]); setError(true); }} />;
   }
   function reference(evidence: BrainEvidence) {
     const src = evidence.source;
@@ -330,10 +349,12 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", za
                 <button className="ui-button ui-button-sm ms-2" onClick={() => void exportPage(item)}>
                   {t("brain.export")}
                 </button>
+                {forgetAction(item.page)}
               </article>
             ))}
           </section>
         ))}
+      {!draft && (ready || error) && forgetAction(null)}
       </div>
     </div>
   );

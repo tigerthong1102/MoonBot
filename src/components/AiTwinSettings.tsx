@@ -1,3 +1,4 @@
+import { AiTwinPairing } from "./AiTwinPairing";
 import { AiTwinZaloOwnerStyle } from "./AiTwinZaloOwnerStyle";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinLearningExample, type AiTwinView } from "../../shared/ai-twin";
@@ -149,6 +150,7 @@ export function AiTwinSettings() {
               {t("settings.aiTwin.delete")}
             </button>
           </div>
+          {!twin.paused && <AiTwinPairing key={twin.id + ":" + twin.revision} />}
           <AiTwinLessons key={"lessons:" + twin.id} twin={twin} lessons={view?.lessons ?? []}
             changed={setView} refresh={() => void reload()} example={reviewableExample} />
           {view && <AiTwinControls key={"controls:" + twin.id} view={view} changed={setView}

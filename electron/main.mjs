@@ -1470,6 +1470,7 @@ function activeOrigin() {
 const inbox = createPersonalInbox({
   window: () => mainWindow && !mainWindow.isDestroyed() ? mainWindow : createWindow(), locale: nativeText.intlTag, languageKey: nativeText.language,
   isLocal: win => senderIsLocal({ sender: win.webContents }), showLocal: () => switchEnvironment(LOCAL_ID), localRequest: (...args) => localServerRequest(...args),
+  localRuntime: () => serverReady ? serverProc : null, translate: key => nativeT(key),
   previousChoice: () => nativeText.prefs.updatesConsent(),
 });
 inbox.install(ipcMain, localOnly, requireMainWindowSender);

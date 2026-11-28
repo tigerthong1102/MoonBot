@@ -1,3 +1,4 @@
+import { inboxTwinPairing } from "./inbox-twin-pairing";
 import { inboxLanguage, supportedInboxLanguage } from "./inbox-language";
 import { previewGroup } from "./inbox-group";
 import { InboxSignals, notifyRoom } from "./inbox-signals";
@@ -100,6 +101,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     headers: new Headers({ cookie: req.headers.get("cookie") ?? "" }),
   });
   if (!session?.user.emailVerified) return errorResponse(401, "unauthorized");
+  if (url.pathname === "/api/twin-pairing") return inboxTwinPairing(req, env.DB, { id: session.session.id, owner: session.user.id, expires: session.session.expiresAt.getTime() });
   if (url.pathname === "/api/account/updates") {
     if (req.method === "POST") {
       const choice = z.object({ enabled: z.boolean(), initial: z.boolean().optional(), email: z.email() }).safeParse(
@@ -185,6 +187,7 @@ export default {
   },
   async scheduled(_event, env) {
     await env.DB.batch([
+      env.DB.prepare("DELETE FROM inbox_twin_pairings WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_bot_rounds WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_bot_claims WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_uploads WHERE ready=0 AND created<?").bind(Date.now() - 3600_000),

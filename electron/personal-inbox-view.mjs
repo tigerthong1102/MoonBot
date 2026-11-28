@@ -1,3 +1,4 @@
+import { createTwinInboxPairing } from "./twin-inbox-pairing.mjs";
 import { personalAccountUpdates } from "./personal-account-updates.mjs";
 import { watchInboxIdentities } from "./personal-inbox-identity-watch.mjs";
 import { cleanEmail } from "./cloud-signin.mjs";
@@ -6,7 +7,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { configuredInboxOrigin } from "./startupbot-identity.mjs";
 import { jsonFile } from "./desktop-prefs.mjs";
-import { app, session, systemPreferences, WebContentsView } from "electron";
+import { app, dialog, session, systemPreferences, WebContentsView } from "electron";
 import { fileURLToPath } from "node:url";
 import { installInboxVoice, registerInboxVoice } from "./personal-inbox-voice.mjs";
 import { speechBusy } from "./speech.mjs";
@@ -148,7 +149,7 @@ export async function showPersonalInbox(window, origin, language, requestSignIn,
   }
 }
 
-export function createPersonalInbox({ window, locale, languageKey, isLocal, showLocal, previousChoice, localRequest }) {
+export function createPersonalInbox({ window, locale, languageKey, isLocal, showLocal, previousChoice, localRequest, localRuntime, translate }) {
   const metadata = createRequire(import.meta.url)("../package.json");
   function origin() {
     return configuredInboxOrigin(process.env.STARTUPBOT_INBOX_ORIGIN, metadata.startupbotInboxOrigin,
@@ -190,6 +191,59 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
         return action(event, ...args);
       }));
     }
+    let pairing, disposePairing;
+    handle("personal-inbox:twin-pair-start", async () => {
+      disposePairing?.();
+      const win = window(), base = origin(), runtime = localRuntime?.();
+      if (!runtime || !base || new URL(base).protocol !== "https:" || !isLocal(win)) throw Error("pairing_unavailable");
+      const current = () => !win.isDestroyed() && isLocal(win) && origin() === base && localRuntime() === runtime;
+      const account = session.fromPartition(partition);
+      const instance = createTwinInboxPairing({
+        origin: base, current,
+        profile: async () => {
+          const response = await localRequest("/api/ai-twin", { cache: "no-store", signal: AbortSignal.timeout(10000) });
+          if (!response.ok) throw Error("pairing_unavailable");
+          return response.json();
+        },
+        inbox: async (path, data) => {
+          if (!current()) throw Error("pairing_unavailable");
+          const response = await account.fetch(base + "/api/" + path, {
+            credentials: "include", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10000),
+            ...(data && { method:"POST", headers:{ Origin:base, "Content-Type":"application/json" }, body:JSON.stringify(data) }),
+          });
+          if (!response.ok) throw Error("pairing_unavailable");
+          return response.json();
+        },
+        approve: async ({ origin, fingerprint, owner, twin }) => {
+          const answer = await dialog.showMessageBox(win, { type:"question", message:translate("personalInbox.pairCompare"), detail:[origin,owner,twin,fingerprint].join("\n"),
+            buttons:[translate("native.common.cancel"),translate("personalInbox.pairMatch")], defaultId:0, cancelId:0 });
+          return answer.response === 1;
+        },
+      });
+      pairing = instance;
+      const contents = win.webContents;
+      const dispose = () => {
+        instance.reset();
+        clearTimeout(timer);
+        win.removeListener("closed", dispose);
+        if (!contents.isDestroyed()) {
+          contents.removeListener("did-start-navigation", leaving);
+          contents.removeListener("render-process-gone", dispose);
+        }
+        if (pairing === instance) { pairing = undefined; disposePairing = undefined; }
+      };
+      const leaving = (_event, _url, isInPlace, isMainFrame) => { if (isMainFrame && !isInPlace) dispose(); };
+      const timer = setTimeout(dispose, 600_000);
+      timer.unref();
+      disposePairing = dispose;
+      contents.on("did-start-navigation", leaving);
+      contents.once("render-process-gone", dispose);
+      win.once("closed", dispose);
+      try { return await instance.start(); }
+      catch (error) { dispose(); throw error; }
+
+    });
+    handle("personal-inbox:twin-pair-confirm", () => pairing?.confirm() ?? false);
     handle("personal-inbox:open", () => open());
     handle("personal-inbox:close", () => panels.get(window())?.close());
     handle("personal-inbox:bounds", (event, bounds) => {

@@ -47,3 +47,20 @@ addresses over real TLS, and a bot on the synthetic Claude CLI asks a real quest
 
 It proves the app's side of the Admin's word. It has not run against a real Cloud, a real sleep or a real wake. The watch's
 own rules are in `electron/place-inbox-watch.node-test.mjs`.
+
+### Verify a temporary Twin key
+
+In a local desktop with an active Twin, open AI Twin settings and get a desktop code. Sign in to the same Inbox account in a separate browser. Open the pairing panel there, enter the code and compare the complete fingerprint with the desktop. Confirm on the desktop and then in the browser. Another signed-in device can revoke the record.
+
+This workflow verifies possession of a temporary key and records two confirmations under different Inbox sessions. The app keeps its private key in memory. The Worker record expires after at most ten minutes, and signing out either participating session removes it. A network interruption can leave the remote record visible until expiry or an acknowledged revocation. An already confirmed record does not attest that the desktop is still running. It grants no read, provider or send permission and does not establish ownership of a previously known workspace ID. The desktop must be online to offer and sign the key. After it signs, the browser can confirm before expiry even if the desktop disconnects.
+
+Run these commands from the repository root with the workspace dependencies, OpenSSL and an Electron runtime installed. Set `PAIR_FIXTURE_ELECTRON` to the runtime executable if using a separate Electron distribution.
+
+```sh
+node cloudflare/control-plane/inbox/prepare-assets.mjs
+node --experimental-strip-types scripts/verify-twin-inbox-pairing.mjs
+```
+
+The fixture creates a local Twin and runs the Inbox Worker and D1 locally. It logs in through the OTP API using an in-memory mailbox, then places those session cookies into separate Electron partitions. It mounts the desktop pairing component with the production preload and IPC and exercises the Inbox web UI in two other windows in the same Electron process. It completes browser confirmation and independently reads back revocation from the third session.
+
+The fixture intercepts the native dialog call, checks the fingerprint and default Cancel button in its arguments and returns a scripted approval. It does not display the OS dialog. Human comparison, separate physical devices, hosted services and installed application packages require separate verification.

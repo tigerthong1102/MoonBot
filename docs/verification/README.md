@@ -80,6 +80,7 @@ Use only mapped, tested commands:
 - [Welcome flow and guided tour](onboarding.md)
 - [Channels](channels.md)
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
+- [Internal Zalo Official webhook and one-time pairing](zalo-official-webhook.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
 - [Zalo excerpt review, intelligence and release evidence](zalo-intelligence.md)
 - [In-chat team coordination](room-coordination.md)

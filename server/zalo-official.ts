@@ -19,6 +19,22 @@ const update = z.object({
   }),
 });
 
+export function normalizedOfficialText(accountId: string, payload: unknown): ZaloEvent | undefined {
+  const parsed = update.safeParse(payload);
+  if (!parsed.success) {
+    const type = z.object({ event_name: z.string() }).safeParse(payload);
+    if (!type.success || type.data.event_name === "message.text.received") throw new ZaloOfficialError("protocol");
+    return undefined;
+  }
+  const { message } = parsed.data;
+  if (message.from.is_bot || message.chat.chat_type !== "PRIVATE") return undefined;
+  return {
+    adapter: "official", accountId, conversationId: message.chat.id, conversationType: "direct",
+    senderId: message.from.id, messageId: message.message_id, timestamp: message.date,
+    direction: "incoming", text: message.text,
+  };
+}
+
 type Method = "getMe" | "getWebhookInfo" | "getUpdates";
 type Failure = "disabled" | "configuration" | "identity-mismatch" | "webhook-not-found" | "unverified-webhook" | "webhook-configured" |
   "network" | "timeout" | "cancelled" | "protocol" | "authentication" | "access-denied" | "rate-limited" | "poll-in-progress" | "receipt-unknown";
@@ -164,21 +180,10 @@ export function createZaloOfficialReader(accountId: string, token: string, reque
         requireEnabled();
         if (!isCurrent() || options.signal?.aborted) return "revoked";
         if (payload === null) return "idle";
-        const parsed = update.safeParse(payload);
-        if (!parsed.success) {
-          const type = z.object({ event_name: z.string() }).safeParse(payload);
-          if (!type.success || type.data.event_name === "message.text.received") throw new ZaloOfficialError("protocol");
-          return "ignored";
-        }
-        const { message } = parsed.data;
-        if (message.from.is_bot || message.chat.chat_type !== "PRIVATE") return "ignored";
-        if (message.chat.id !== initial.conversationId || message.from.id !== initial.senderId) return "ignored";
+        const event = normalizedOfficialText(accountId, payload);
+        if (!event || event.conversationId !== initial.conversationId || event.senderId !== initial.senderId) return "ignored";
         try {
-          return options.accept({
-            adapter: "official", accountId, conversationId: message.chat.id, conversationType: "direct",
-            senderId: message.from.id, messageId: message.message_id, timestamp: message.date,
-            direction: "incoming", text: message.text,
-          }, initial.grantId);
+          return options.accept(event, initial.grantId);
         } catch {
           throw new ZaloOfficialError("receipt-unknown");
         }

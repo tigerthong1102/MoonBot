@@ -221,3 +221,15 @@ it("pages older turns once with deterministic ordering for identical timestamps"
   expect(older.next).toBe(null);
   expect([...older.turns,...first.turns].map(r => r.id)).toEqual(ids);
 });
+
+it("serves a browser-ready shared clipboard module and uses neutral reference-skin primary colors", async () => {
+  const page = await (await fetch(f.url + "/mobile")).text();
+  expect(page).toMatch(/\.primary\{[^}]*background:var\(--color-ink\);color:var\(--color-app\)/);
+  const entry = await (await fetch(f.url + "/mobile/app.js")).text();
+  expect(entry).toContain('import { copyText } from "./clipboard-write.js"');
+  const response = await fetch(f.url + "/mobile/clipboard-write.js");
+  expect(response.headers.get("content-type")).toContain("application/javascript");
+  const source = await response.text();
+  const { copyText } = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+  expect(await copyText(" ")).toBe("empty");
+});

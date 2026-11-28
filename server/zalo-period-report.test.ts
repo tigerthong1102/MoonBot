@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { expect, it, vi } from "vitest";
 import { webhookClock } from "./zalo-webhook-clock.ts";
 import { createZaloInbox } from "./zalo-inbox.ts";
-import { zaloPeriodReports } from "./zalo-period-report.ts";
+import { recordZaloReportTiming, zaloPeriodReports } from "./zalo-period-report.ts";
 
 const scope = { adapter: "official" as const, accountId: "fixture", conversationType: "direct" as const, conversationId: "chat-a", senderId: "sender-a", retentionDays: 14 };
 const daily = { cadence: "daily" as const, hour: 17, minute: 0, timeZone: "Asia/Ho_Chi_Minh" };
@@ -98,3 +98,44 @@ it("retains each completed period's timing warning when the same source warning 
     expect(db.prepare("SELECT COUNT(*) n FROM zalo_period_timing").get()!.n).toBe(0);
   } finally { db.close(); vi.unstubAllEnvs(); }
 });
+
+it.each(["inbox sweep", "report tick", "receipts-only inbox"] as const)(
+  "purges expired report metadata for the previous account after restart via %s", cleanup => {
+    const dir = mkdtempSync(join(tmpdir(), "zalo-expiry-")), file = join(dir, "private.sqlite");
+    let db = new DatabaseSync(file);
+    let time = Date.parse("2026-11-28T09:50:00Z");
+    const day = 86_400_000;
+    try {
+      for (const flag of ["STARTUPBOT_ZALO_OFFICIAL_PILOT", "STARTUPBOT_ZALO_OFFICIAL_WEBHOOK_PILOT", "STARTUPBOT_ZALO_LOCAL_REPORTS"]) vi.stubEnv(flag, "1");
+      const inbox = createZaloInbox(db, () => time);
+      inbox.purgeExpired();
+      const ids = [1, 7].map(retentionDays => {
+        const accountId = "bot-" + retentionDays;
+        const grantId = inbox.enroll({ ...scope, accountId, retentionDays });
+        db.prepare("INSERT INTO zalo_webhook_endpoints VALUES(?,?,randomblob(32),?)").run(accountId, accountId, grantId);
+        const store = zaloPeriodReports(db, accountId, () => time);
+        store.configure(store.view()!.revision, daily);
+        vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID", accountId);
+        recordZaloReportTiming(db, grantId, "provider-clock-ahead", time, time + retentionDays * day);
+        return grantId;
+      });
+      time += 10 * 60_000;
+      for (const account of ["bot-1", "bot-7"]) zaloPeriodReports(db, account, () => time).tick();
+      const grants = (table: string) => db.prepare("SELECT grantId FROM " + table + " ORDER BY grantId").all().map(r => r.grantId);
+      expect(grants("zalo_period_receipts")).toEqual([...ids].sort());
+      expect(grants("zalo_period_timing")).toEqual([...ids].sort());
+      if (cleanup === "receipts-only inbox") db.exec("DROP TABLE zalo_period_timing");
+      db.close();
+      db = new DatabaseSync(file);
+      time += day;
+      if (cleanup === "report tick") {
+        zaloPeriodReports(db, "unpaired", () => time).tick();
+      } else {
+        createZaloInbox(db, () => time).purgeExpired();
+      }
+      expect(grants("zalo_period_receipts")).toEqual([ids[1]]);
+      if (cleanup !== "receipts-only inbox") expect(grants("zalo_period_timing")).toEqual([ids[1]]);
+      expect(grants("zalo_period_schedule")).toEqual([...ids].sort());
+    } finally { db.close(); rmSync(dir, { recursive: true, force: true }); vi.unstubAllEnvs(); }
+  },
+);

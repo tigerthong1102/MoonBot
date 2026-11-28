@@ -32,6 +32,18 @@ export function recordZaloReportTiming(db: DatabaseSync, grantId: string, reason
     .run(grantId, after(schedule, observed), reason, observed, expires);
 }
 
+export function purgeExpiredZaloReportHistory(db: DatabaseSync, time: number) {
+  const hasTable = db.prepare("SELECT 1 FROM sqlite_schema WHERE type='table' AND name=?");
+  if (hasTable.get("zalo_period_timing")) {
+    db.prepare("DELETE FROM zalo_period_timing WHERE expires<=?").run(time);
+  }
+  if (hasTable.get("zalo_period_receipts")) {
+    db.prepare(`DELETE FROM zalo_period_receipts WHERE (grantId,end) IN (
+      SELECT r.grantId,r.end FROM zalo_grants g CROSS JOIN zalo_period_receipts r ON r.grantId=g.grantId
+      WHERE r.end<=MAX(g.since, ? - g.retentionDays * ?))`).run(time, DAY);
+  }
+}
+
 export function zaloPeriodReports(db: DatabaseSync, accountId: string, now: () => number = Date.now) {
   db.exec(`PRAGMA foreign_keys=ON;
     CREATE TABLE IF NOT EXISTS zalo_period_epoch(grantId TEXT PRIMARY KEY REFERENCES zalo_grants ON DELETE CASCADE, version TEXT NOT NULL);
@@ -42,6 +54,7 @@ export function zaloPeriodReports(db: DatabaseSync, accountId: string, now: () =
     CREATE TABLE IF NOT EXISTS zalo_period_timing(
       grantId TEXT NOT NULL REFERENCES zalo_grants ON DELETE CASCADE, end INTEGER NOT NULL, reason TEXT NOT NULL,
       observed INTEGER NOT NULL, expires INTEGER NOT NULL, PRIMARY KEY(grantId,end,reason));
+    CREATE INDEX IF NOT EXISTS zalo_period_timing_expiry ON zalo_period_timing(expires);
     CREATE TABLE IF NOT EXISTS zalo_period_receipts(
       grantId TEXT NOT NULL REFERENCES zalo_grants ON DELETE CASCADE, start INTEGER NOT NULL, end INTEGER NOT NULL, timeZone TEXT NOT NULL,
       PRIMARY KEY(grantId,end));`);
@@ -98,8 +111,10 @@ export function zaloPeriodReports(db: DatabaseSync, accountId: string, now: () =
     },
     tick() {
       return zaloWrite(db, () => {
+        const time = now();
+        purgeExpiredZaloReportHistory(db, time);
         const grant = current(); if (!grant) return;
-        const scheduled = timing(grant.grantId), time = now();
+        const scheduled = timing(grant.grantId);
         if (!scheduled || scheduled.due > time) return;
         const cutoff = Math.max(grant.since, time - grant.retentionDays * DAY);
         let start = Math.max(scheduled.start, cutoff), due = scheduled.due;
@@ -108,9 +123,7 @@ export function zaloPeriodReports(db: DatabaseSync, accountId: string, now: () =
           db.prepare("INSERT OR IGNORE INTO zalo_period_receipts VALUES(?,?,?,?)").run(grant.grantId, start, due, scheduled.timeZone);
           start = due; due = after(scheduled, due);
         }
-        db.prepare("DELETE FROM zalo_period_timing WHERE grantId=? AND expires<=?").run(grant.grantId, time);
         db.prepare("UPDATE zalo_period_schedule SET start=?,due=? WHERE grantId=?").run(start, due, grant.grantId);
-        db.prepare("DELETE FROM zalo_period_receipts WHERE grantId=? AND end<=?").run(grant.grantId, cutoff);
       });
     },
   };

@@ -46,8 +46,14 @@ export function ZaloPeriodReports({ manage = false }: { manage?: boolean }) {
     void load(true);
     const focused = () => { void load(); };
     window.addEventListener(changed, invalidate);
+    window.addEventListener("startupbot-zalo-scope-changed", invalidate);
     window.addEventListener("focus", focused);
-    return () => { controller.abort(); pending.current?.abort(); clearTimeout(timer); window.removeEventListener(changed, invalidate); window.removeEventListener("focus", focused); };
+    return () => {
+      controller.abort(); pending.current?.abort(); clearTimeout(timer);
+      window.removeEventListener(changed, invalidate);
+      window.removeEventListener("startupbot-zalo-scope-changed", invalidate);
+      window.removeEventListener("focus", focused);
+    };
   }, [manage, refresh]);
   async function save(schedule: ZaloReportSchedule | null) {
     if (!view || pending.current) return;

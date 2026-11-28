@@ -775,6 +775,27 @@ class CompanionClient(
         sendUnit(makeRequest("POST", "/api/groups/${segment(roomId)}/read", body = jsonBody("threadId" to threadId)))
     }
 
+    @Serializable
+    data class MobileLogin(val token: String, val environment: ServerEnvironment)
+
+    private fun mobileRequest(path: String, body: JsonObject): Request {
+        val origin = requireNotNull(connection.activeEndpoint?.url)
+        require(token == null && origin.startsWith("https://"))
+        return makeRequest("POST", path, body = body).newBuilder().header("Origin", origin).build()
+    }
+
+    suspend fun requestMobileCode(email: String) {
+        val request = mobileRequest("/mobile/code", jsonBody("email" to email))
+        check(perform(request, mobileLoginClient()))
+    }
+
+    suspend fun mobileLogin(email: String, code: String): MobileLogin = send(
+        mobileRequest("/mobile/login", jsonBody("client" to "companion", "email" to email, "otp" to code)),
+        mobileLoginClient(),
+    )
+
+    private fun mobileLoginClient() = actionClient.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
     fun events(since: String?, screens: Boolean = false): Flow<StreamFrame> {
         val query = buildList {
             add("screens" to if (screens) "on" else "off")
@@ -796,6 +817,9 @@ class CompanionClient(
         require(body == null || rawBody == null)
         if (connection.pairedWithServer) connection.requireServerTransport()
         val base = endpoint?.baseUrl ?: throw APIError.BadUrl
+        if (token?.startsWith("sb_mobile_") == true) {
+            require(base.isHttps && connection.serverEnvironmentId == "startupbot-mobile:" + base.toString().trimEnd('/'))
+        }
         val url = base.newBuilder().encodedPath(path).apply {
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()

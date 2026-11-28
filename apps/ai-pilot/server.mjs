@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { accountSignIn, invite, validateWalletIssuer } from "./accounts.mjs";
 import { Ledger, Fault, catalog, digest } from "./ledger.mjs";
 import { budgetExposure } from "./managed-budget.mjs";
+import { nativePath } from "./native-chat.mjs";
 import { mobileService } from "./mobile.mjs";
 import { payments } from "./payments.mjs";
 import { asEventStream, router } from "./router.mjs";
@@ -56,7 +57,7 @@ export function pilotServer(ledger, settings, http = fetch) {
     try {
       const path = req.url?.split("?")[0],
         method = req.method;
-      if (path === "/mobile" || path?.startsWith("/mobile/")) {
+      if (path === "/mobile" || path?.startsWith("/mobile/") || nativePath(path)) {
         if (!mobile) throw new Fault(404, "not_found");
         return await mobile(req, res, path, json);
       }

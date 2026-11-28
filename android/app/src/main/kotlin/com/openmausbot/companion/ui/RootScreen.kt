@@ -209,7 +209,9 @@ fun CompanionRoot(
                             )
                         }
 
-                        OnboardingRoute.REVOKED -> UnpairedScreen(
+                        OnboardingRoute.REVOKED -> if (connection?.serverEnvironmentId?.startsWith("startupbot-mobile:") == true) {
+                            EmptyState(title = stringResource(R.string.mobile_sign_in_again), description = "") { MobileChatButton() }
+                        } else UnpairedScreen(
                             onPairAgain = {
                                 session.signOut()
                                 startPairing()

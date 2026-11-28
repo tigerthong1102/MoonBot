@@ -492,6 +492,10 @@ public struct CompanionClient: Sendable {
         request.httpMethod = method
         request.timeoutInterval = requestTimeout
         if let token {
+            if token.hasPrefix("sb_mobile_"),
+               connection.serverEnvironmentId != "startupbot-mobile:" + base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) {
+                throw APIError.badURL
+            }
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let body {
@@ -636,6 +640,29 @@ public struct CompanionClient: Sendable {
         let (data, response) = try await performUnchecked(request, maximumBytes: 1024 * 1024)
         try Self.check(response, data)
         return try JSONDecoder().decode(ServerEnvironment.self, from: data)
+    }
+
+    public struct MobileLogin: Decodable, Sendable {
+        public let token: String
+        public let environment: ServerEnvironment
+    }
+
+    private func mobileRequest(_ path: String, body: [String: String]) throws -> URLRequest {
+        guard token == nil, let origin = connection.activeEndpoint?.url, origin.hasPrefix("https://") else {
+            throw APIError.badURL
+        }
+        var request = try makeRequest("POST", path, body: body)
+        request.setValue(origin, forHTTPHeaderField: "Origin")
+        return request
+    }
+
+    public func requestMobileCode(email: String) async throws {
+        try await send(mobileRequest("/mobile/code", body: ["email":email]))
+    }
+
+    public func mobileLogin(email: String, code: String) async throws -> MobileLogin {
+        let request = try mobileRequest("/mobile/login", body: ["client":"companion", "email":email, "otp":code])
+        return try await send(request, as: MobileLogin.self)
     }
 
     public func logout() async throws {

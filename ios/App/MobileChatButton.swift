@@ -1,8 +1,8 @@
-import SafariServices
+import CompanionCore
 import SwiftUI
 
 struct MobileChatButton: View {
-    @Environment(\.locale) private var locale
+    @EnvironmentObject private var session: Session
     @State private var presenting = false
 
     static var origin: URLComponents? {
@@ -13,32 +13,69 @@ struct MobileChatButton: View {
         return url
     }
 
-    private var address: URL? {
-        guard var url = Self.origin else { return nil }
-        url.path = "/mobile"
-        url.queryItems = [URLQueryItem(name: "lang", value: locale.identifier)]
-        return url.url
-    }
-
     var body: some View {
-        if let address {
+        if let address = Self.origin?.string, let connection = Connection.parse(address) {
             Button { presenting = true } label: {
                 Label { Text("Chat without a computer", tableName: "StartupBotMobile") } icon: { Image(systemName: "bubble.left.and.bubble.right") }
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
-            .sheet(isPresented: $presenting) { MobileChatBrowser(address: address).ignoresSafeArea() }
+            .sheet(isPresented: $presenting) { MobileEmailLogin(connection: connection).environmentObject(session) }
         }
     }
 }
 
-private struct MobileChatBrowser: UIViewControllerRepresentable {
-    let address: URL
+private struct MobileEmailLogin: View {
+    let connection: Connection
+    @EnvironmentObject private var session: Session
+    @Environment(\.dismiss) private var dismiss
+    @State private var email = ""
+    @State private var code = ""
+    @State private var saveHistory = false
+    @State private var sent = false
+    @State private var error: String?
+    @State private var submitting = false
 
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        SFSafariViewController(url: address)
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Email", text: $email)
+                    .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    .keyboardType(.emailAddress).textContentType(.emailAddress)
+                    .disabled(sent || submitting)
+                if sent {
+                    Toggle(isOn: $saveHistory) { Text("Save chats to my account", tableName: "StartupBotMobile") }
+                    TextField(text: $code) { Text("Email code", tableName: "StartupBotMobile") }
+                        .keyboardType(.numberPad).textContentType(.oneTimeCode)
+                    Button { sent = false; code = ""; error = nil } label: {
+                        Text("Change email or resend", tableName: "StartupBotMobile")
+                    }.disabled(submitting)
+                }
+                if let error { Text(error).foregroundStyle(.red) }
+                Button { submitting = true } label: {
+                    if submitting { ProgressView() }
+                    else if sent { Text("Sign in", tableName: "StartupBotMobile") }
+                    else { Text("Send email code", tableName: "StartupBotMobile") }
+                }.disabled(submitting || email.isEmpty || (sent && (code.isEmpty || !saveHistory)))
+            }
+            .navigationTitle(Text("Chat without a computer", tableName: "StartupBotMobile"))
+            .toolbar { Button("Cancel") { dismiss() }.accessibilityIdentifier("mobile-login-cancel") }
+            .task(id: submitting) {
+                guard submitting else { return }
+                defer { submitting = false }
+                error = nil
+                do {
+                    let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if sent {
+                        try await session.signInToMobile(connection, email: address, code: code)
+                        dismiss()
+                    } else {
+                        try await CompanionClient(connection: connection, token: nil).requestMobileCode(email: address)
+                        sent = true
+                    }
+                } catch { if !Task.isCancelled { self.error = error.localizedDescription } }
+            }
+        }
     }
-
-    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
 }

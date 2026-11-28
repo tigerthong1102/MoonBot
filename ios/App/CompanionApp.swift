@@ -91,6 +91,11 @@ struct RootView: View {
                         session.endPairing()
                         reconcileNotificationOnboarding()
                     }
+            case .revoked where session.connection?.serverEnvironmentId?.hasPrefix("startupbot-mobile:") == true:
+                VStack {
+                    Text("Sign in again to continue chatting", tableName: "StartupBotMobile")
+                    MobileChatButton()
+                }.padding()
             case .revoked:
                 UnpairedView(
                     onPairAgain: {

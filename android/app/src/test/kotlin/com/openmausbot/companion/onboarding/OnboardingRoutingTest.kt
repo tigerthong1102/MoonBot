@@ -60,9 +60,9 @@ class OnboardingRoutingTest {
         } else {
             mobileEntry.assertIsDisplayed()
             mobileEntry.performClick()
-            val target = org.robolectric.Shadows.shadowOf(compose.activity).nextStartedActivity.data
-            assertEquals("/mobile", target?.path)
-            assertEquals("https", target?.scheme)
+            compose.onNodeWithText("Gửi mã qua email").assertIsDisplayed()
+            assertNull(org.robolectric.Shadows.shadowOf(compose.activity).nextStartedActivity)
+            compose.onNodeWithText(compose.activity.getString(android.R.string.cancel)).performClick()
         }
         compose.onNodeWithText("Kết nối với máy tính của tôi").assertIsDisplayed()
         compose.onNodeWithText("Để sau").performClick()

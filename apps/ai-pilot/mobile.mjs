@@ -1,3 +1,4 @@
+import { nativeChat, nativePath } from "./native-chat.mjs";
 import { needsDesktop } from "./mobile-desktop-task.mjs";
 import { sealDraft } from "../../electron/mobile-desktop-envelope.mjs";
 import { readFileSync } from "node:fs";
@@ -73,13 +74,17 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       throw new Fault(503,"desktopUnconfirmed");
     }
   }
+  const native = nativeChat(ledger, lists, origin.origin);
   function recover(owner) {
     db.prepare("UPDATE mobile_turns SET state='interrupted' WHERE owner=? AND state='running' AND created<?")
       .run(owner, Date.now() - 5 * 60000);
   }
   return async (req, res, path, json) => {
     const method = req.method;
-    if (method === "POST" && (req.headers.origin !== origin.origin || !req.headers["content-type"]?.startsWith("application/json")))
+    const companion = nativePath(path);
+    if (method === "GET" && path === "/.well-known/openmausbot/environment") return json(200, native.environment);
+    if (companion && req.headers.origin && req.headers.origin !== origin.origin) throw new Fault(403, "origin_denied");
+    if (!companion && method === "POST" && (req.headers.origin !== origin.origin || !req.headers["content-type"]?.startsWith("application/json")))
       throw new Fault(403, "origin_denied");
     if (method === "GET" && path === "/mobile/clipboard-write.js") {
       res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
@@ -104,7 +109,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       res.writeHead(200, { "content-type": type + "; charset=utf-8" });
       return res.end(source);
     }
-    const body = method === "POST" ? await readObject(req) : {};
+    let body = method === "POST" && (!companion || path.endsWith("/messages")) ? await readObject(req) : {};
     let owner, session;
     try {
       if (method === "POST" && path === "/mobile/code") {
@@ -113,11 +118,15 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       }
       if (method === "POST" && path === "/mobile/login") {
         const { accountToken, user } = await accounts.verifyOTP(body.email, body.otp);
+        if (body.client === "companion") {
+          const token = sessions.issue(res, user.id, accountToken, true);
+          return json(200, { token, environment: native.environment });
+        }
         sessions.issue(res, user.id, accountToken);
         return json(200, { ok: true });
       }
-      session = sessions.read(req);
-      if (method === "POST" && path === "/mobile/logout") {
+      session = sessions.read(req, companion);
+      if (method === "POST" && (path === "/mobile/logout" || path === "/api/auth/logout")) {
         sessions.revoke(res, session.hash);
         try { await accounts.signOut(session.token); } catch (error) {
           if (!(error instanceof ControlPlaneError)) throw error;
@@ -164,6 +173,12 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       throw new Fault(401, "signed_out");
     }
     recover(owner);
+    if (companion) {
+      const input = native.route({ req, res, json, path, body, owner, connected:personalAI.info(session).connected });
+      if (!input || input.events) return input?.events;
+      body = input;
+      path = "/mobile/send";
+    }
     if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, desktopHandoff:settings.mobileDesktopHandoff === true, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
     if (method !== "POST") throw new Fault(404, "not_found");
     if (body.account !== owner) throw new Fault(409, "account_changed");
@@ -216,6 +231,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
         if (!uuid.test(body.target)) throw new Fault(400,"invalid_target");
         input.target = body.target;
       }
+      if (companion) throw new Fault(409, "desktop_handoff_requires_confirmation");
       return json(200,{desktop:await desktopDraft(session,input,"offer")});
     }
     if ((body.runtime ?? "text") !== "text" || /^(?:(?:hãy|vui lòng|please)\s+)?(?:chạy|run)\s+.{1,80}(?:khi máy tính tắt|when (?:my |the )?computer is off)/iu.test(body.prompt.trim()))
@@ -270,6 +286,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     if (res.destroyed) controller.abort();
     const frame = (data) => {
       if (res.destroyed) throw new Error("disconnected");
+      if (companion) return;
       if (!res.headersSent) res.writeHead(200, { "content-type": "application/x-ndjson", "x-accel-buffering": "no" });
       res.write(JSON.stringify(data) + "\n");
     };
@@ -282,6 +299,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       const choice = result.choices[0];
       const state = choice.finish_reason === "stop" ? "complete" : "limited";
       finish.run(state, choice.message.content, owner, body.id);
+      native.changed(owner);
+      if (companion) return json(200, { ok:true, threadId:thread });
       frame({ state });
       res.end();
     } catch (error) {

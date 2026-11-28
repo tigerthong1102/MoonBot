@@ -2,4 +2,10 @@
 <resources>
     <string name="mobile_standalone_chat">Chat without a computer</string>
     <string name="mobile_browser_unavailable">Install a browser to open chat.</string>
+    <string name="mobile_otp">Email code</string>
+    <string name="mobile_change_email">Change email or resend</string>
+    <string name="mobile_sign_in">Sign in</string>
+    <string name="mobile_send_code">Send email code</string>
+    <string name="mobile_sign_in_again">Sign in again to continue chatting</string>
+    <string name="mobile_save_history">Save chats to my account</string>
 </resources>

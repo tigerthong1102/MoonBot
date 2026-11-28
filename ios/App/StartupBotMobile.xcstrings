@@ -16,6 +16,66 @@
           }
         }
       }
+    },
+    "Email code": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mã xác minh qua email"
+          }
+        }
+      }
+    },
+    "Change email or resend": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đổi email hoặc gửi lại mã"
+          }
+        }
+      }
+    },
+    "Sign in": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đăng nhập"
+          }
+        }
+      }
+    },
+    "Send email code": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi mã qua email"
+          }
+        }
+      }
+    },
+    "Sign in again to continue chatting": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đăng nhập lại để tiếp tục trò chuyện"
+          }
+        }
+      }
+    },
+    "Save chats to my account": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu lịch sử chat vào tài khoản của tôi"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

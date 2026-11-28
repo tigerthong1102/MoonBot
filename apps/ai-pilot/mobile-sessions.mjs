@@ -21,18 +21,19 @@ export function open(secret, scope, sealed) {
 export function mobileSessions(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS mobile_sessions(handle TEXT PRIMARY KEY,owner TEXT NOT NULL,sealed BLOB NOT NULL,expires INTEGER NOT NULL);
     CREATE INDEX IF NOT EXISTS mobile_session_expiry ON mobile_sessions(expires)`);
-  function issue(res, owner, bearer) {
+  function issue(res, owner, bearer, native = false) {
     const secret = randomBytes(32), handle = secret.toString("base64url");
     // A database backup cannot decrypt an issuer token without the browser's random session secret.
     const sealed = seal(secret, owner, bearer);
     db.prepare("DELETE FROM mobile_sessions WHERE expires<=?").run(Date.now());
-    db.prepare("INSERT INTO mobile_sessions VALUES (?,?,?,?)").run(digest(handle), owner, sealed, Date.now() + lifetime * 1000);
+    db.prepare("INSERT INTO mobile_sessions VALUES (?,?,?,?)").run(digest(native ? "native:" + handle : handle), owner, sealed, Date.now() + lifetime * 1000);
+    if (native) return "sb_mobile_" + handle;
     res.setHeader("Set-Cookie", name + "=" + handle + flags + "; Max-Age=" + lifetime);
   }
-  function read(req) {
-    const handle = req.headers.cookie?.split(/;\s*/).find(value => value.startsWith(name + "="))?.slice(name.length + 1);
+  function read(req, native = false) {
+    const handle = native ? /^Bearer sb_mobile_([\w-]{43})$/.exec(req.headers.authorization)?.[1] : req.headers.cookie?.split(/;\s*/).find(value => value.startsWith(name + "="))?.slice(name.length + 1);
     if (!handle || !/^[\w-]{43}$/.test(handle)) throw new Fault(401, "signed_out");
-    const hash = digest(handle);
+    const hash = digest(native ? "native:" + handle : handle);
     const row = db.prepare("SELECT owner,sealed FROM mobile_sessions WHERE handle=? AND expires>?").get(hash, Date.now());
     if (!row) throw new Fault(401, "signed_out");
     const secret = Buffer.from(handle, "base64url"), owner = row.owner;

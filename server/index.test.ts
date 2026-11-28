@@ -116,7 +116,6 @@ let managedBoatRows: Array<Record<string, unknown>> = [];
 let managedBoatListRowsOverride: Array<Record<string, unknown>> | null = null;
 let managedBoatListStatus = 200;
 let managedBoatStopDelayMs = 0;
-let managedBoatRenameDelayMs = 0;
 type DeferredGate = {
   wait: Promise<void>;
   release: () => void;
@@ -136,6 +135,7 @@ const deferredGate = (): DeferredGate => {
 };
 let managedBoatListGate: DeferredGate | null = null;
 let managedBoatCreateGate: DeferredGate | null = null;
+let managedBoatRenameGate: DeferredGate | null = null;
 let managedBoatDeleteGate: DeferredGate | null = null;
 const managedBoatRejectedTokens = new Set<string>();
 const managedBoatCreateBodies: Array<Record<string, unknown>> = [];
@@ -1140,8 +1140,10 @@ beforeAll(async () => {
         let raw = "";
         for await (const chunk of req) raw += chunk;
         const requestedName = raw ? JSON.parse(raw).name : undefined;
-        if (managedBoatRenameDelayMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, managedBoatRenameDelayMs));
+        const renameGate = managedBoatRenameGate;
+        if (renameGate && boatMatch[1] === managedBoatCreateId) {
+          renameGate.enter();
+          await renameGate.wait;
         }
         if (managedBoatCreateMode === "fail-rename") {
           res.statusCode = 503;
@@ -8680,6 +8682,8 @@ describe("harness HTTP API", () => {
 
   it("rejects a Boat token change while create and rename own the lifecycle lane", async () => {
     let botId = "";
+    let provisioning: ReturnType<typeof api> | undefined;
+    const renameGate = deferredGate();
     try {
       managedBoatRows = [];
       expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
@@ -8689,18 +8693,22 @@ describe("harness HTTP API", () => {
       managedBoatCreateMode = "success";
       managedBoatCreateId = "bx_fghjkmnp";
       managedBoatCreateName = managedBoatNameForFixture(bot.id);
-      managedBoatRenameDelayMs = 1_000;
+      managedBoatRenameGate = renameGate;
       boatRouteCalls.length = 0;
 
-      const provisioning = api("POST", `/api/bots/${bot.id}/computer/provision`, {});
-      await expect.poll(() => boatRouteCalls.some(
-        (call) => call.method === "PATCH" && call.path === `/sandboxes/${managedBoatCreateId}`,
-      )).toBe(true);
+      provisioning = api("POST", `/api/bots/${bot.id}/computer/provision`, {});
+      await Promise.race([
+        renameGate.entered,
+        provisioning.then(({ status }) => {
+          throw new Error(`Bot provisioning returned ${status} before reaching the Boat rename gate`);
+        }),
+      ]);
       const racedChange = await api("PUT", "/api/config", { box: { token: "box_good" } });
       expect(racedChange.status).toBe(409);
       expect(racedChange.body.error).toMatch(/cloud computer actions/i);
+      renameGate.release();
       expect((await provisioning).status).toBe(200);
-      managedBoatRenameDelayMs = 0;
+      provisioning = undefined;
 
       expect((await api("POST", `/api/computers/boxes/${managedBoatCreateId}/delete`, {
         confirmName: managedBoatCreateName,
@@ -8708,7 +8716,9 @@ describe("harness HTTP API", () => {
       expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
       botId = "";
     } finally {
-      managedBoatRenameDelayMs = 0;
+      renameGate.release();
+      managedBoatRenameGate = null;
+      await provisioning?.catch(() => undefined);
       managedBoatCreateMode = "refuse";
       managedBoatCreateId = "bx_cdefghjk";
       managedBoatCreateName = "";

@@ -214,3 +214,23 @@ it("finds Vietnamese text and literal punctuation only in the owner's saved hist
   expect((await (await request(token,search+"&limit=1")).json()).hits).toHaveLength(1);
   expect((await (await request(await signIn("bob"),search)).json()).hits).toEqual([]);
 });
+
+it("exports a whole private mobile conversation in the formats the original share sheets consume", async () => {
+  const alice = await signIn("alice");
+  const {bots:[bot]} = await (await request(alice,"/api/bots")).json();
+  const insert = fixture.ledger.db.prepare("INSERT INTO mobile_turns(owner,thread,id,prompt,answer,state,created) VALUES (?,?,?,?,?,'complete',?)");
+  for (let i=0; i<54; i++) insert.run("alice",bot.threadId,randomUUID(),"Hỏi "+i,"Trả lời "+i,i);
+  const route = "/api/threads/"+bot.threadId+"/export";
+  const json = await request(alice,route+"?format=json");
+  expect(json.headers.get("content-disposition")).toBe('attachment; filename="StartupBot.json"');
+  const exported = await json.json();
+  expect(exported.threadId).toBe(bot.threadId);
+  expect(exported.messages).toHaveLength(108);
+  expect(exported.messages[0].text).toBe("Hỏi 0");
+  expect(exported.messages.at(-1).text).toBe("Trả lời 53");
+  const markdown = await request(alice,route+"?format=markdown");
+  expect(markdown.headers.get("content-type")).toContain("text/markdown");
+  expect(await markdown.text()).toContain("**StartupBot:**\n\nTrả lời 53");
+  expect((await request(alice,route+"?format=zip")).status).toBe(400);
+  expect((await request(await signIn("bob"),route)).status).toBe(404);
+});

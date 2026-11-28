@@ -6,7 +6,7 @@ export function nativePath(path) {
   return path === "/.well-known/openmausbot/environment" || path?.startsWith("/api/");
 }
 
-const threadRoute = /^\/api\/(bots|threads)\/([\da-fA-F-]{36})\/(read|messages|tasks|respond)(?:\/([\da-fA-F-]{36}))?$/;
+const threadRoute = /^\/api\/(bots|threads)\/([\da-fA-F-]{36})\/(read|messages|tasks|respond|export)(?:\/([\da-fA-F-]{36}))?$/;
 
 export function nativeChat(ledger, lists, origin) {
   const { db } = ledger;
@@ -45,7 +45,7 @@ export function nativeChat(ledger, lists, origin) {
     return groups;
   }
   const select = db.prepare("INSERT INTO mobile_native_selection VALUES (?,?,?) ON CONFLICT(owner,bot) DO UPDATE SET thread=excluded.thread");
-  const { threadPage, search } = nativeHistory(db);
+  const { threadPage, search, exportTranscript } = nativeHistory(db);
   function create(owner, title = "StartupBot") {
     if (lists.all(owner).length >= 50) throw new Fault(409, "history_full");
     const thread = { id:randomUUID(), title, updated:Date.now(), provider:"managed" };
@@ -148,8 +148,10 @@ export function nativeChat(ledger, lists, origin) {
     const match = threadRoute.exec(path);
     if (!match) throw new Fault(404,"not_found");
     const [,kind,id,action,taskId] = match;
-    if (kind === "threads" && get && action === "messages" && !taskId) {
-      if (!lists.all(owner).some(t => t.id === id)) throw new Fault(404,"not_found");
+    if (kind === "threads" && get && !taskId && (action === "messages" || action === "export")) {
+      const thread = lists.all(owner).find(t => t.id === id);
+      if (!thread) throw new Fault(404,"not_found");
+      if (action === "export") return exportTranscript(owner,thread,session,query.get("format") ?? "markdown",res);
       json(200,threadPage(owner,id,session,limit,query.get("before"),query.get("around")));
       return;
     }

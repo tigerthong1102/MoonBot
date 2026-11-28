@@ -69,5 +69,27 @@ export function nativeHistory(db) {
     }
     return hits;
   }
-  return { threadPage, search };
+  function exportTranscript(owner, thread, session, format, res) {
+    if (format !== "json" && format !== "markdown") throw new Fault(400,"invalid_format");
+    const pages = [];
+    let bytes = 0, before;
+    for (;;) {
+      const page = threadPage(owner,thread.id,session,100,before);
+      const entries = page.messages.filter(m => m.kind === "text");
+      bytes += Buffer.byteLength(JSON.stringify(entries));
+      if (bytes > 8 * 1024 * 1024) throw new Fault(413,"export_too_large");
+      pages.push(entries);
+      if (!page.hasMore) break;
+      before = page.messages[0].id;
+    }
+    const messages = pages.reverse().flat();
+    const json = format === "json";
+    const filename = (thread.title.replace(/[^\w -]+/g,"").trim() || "conversation").slice(0,60);
+    res.writeHead(200,{"cache-control":"no-store", "content-type":json ? "application/json" : "text/markdown; charset=utf-8",
+      "content-disposition":'attachment; filename="'+filename+(json ? '.json"' : '.md"')});
+    const content = json ? JSON.stringify({name:thread.title,threadId:thread.id,messages})
+      : ["# "+thread.title,...messages.map(m => "**"+(m.role === "user" ? "User" : "StartupBot")+":**\n\n"+m.text)].join("\n\n");
+    res.end(content);
+  }
+  return { threadPage, search, exportTranscript };
 }

@@ -102,9 +102,9 @@ async function api(path, body, signal) {
   if (!response.ok) {
     const code = (await response.json()).error?.code;
     if (response.status === 401 && path !== "login") signedOut();
-    if (code === "request_exists") { await show(thread); pending = undefined; }
     if (code === "account_changed") location.reload();
-    throw Error(code === "request_exists" ? t.interrupted : t[code] || (code === "account_unavailable" ? t.unavailable : t.error));
+    const message = code === "request_exists" ? t.interrupted : t[code] || (code === "account_unavailable" ? t.unavailable : t.error);
+    throw Object.assign(Error(message), { code });
   }
   return response;
 }
@@ -210,8 +210,8 @@ async function show(id) {
   el("older").hidden = true;
   if (id) { await loadHistory(); el("history").scrollTop = el("history").scrollHeight; }
 }
-async function loadHistory() {
-  const { turns, next } = await (await api("history", { thread, before })).json();
+async function loadHistory(replace = false) {
+  const { turns, next } = await (await api("history", { thread, before:replace ? null : before })).json();
   const fragment = document.createDocumentFragment();
   for (const turn of turns) {
     bubble(t.you, turn.prompt, fragment);
@@ -219,7 +219,8 @@ async function loadHistory() {
     if (turn.answer) formatAnswer(answer, turn.answer);
     if (t[turn.state]) answer.append(document.createTextNode(t[turn.state]));
   }
-  el("transcript").prepend(fragment);
+  if (replace) el("transcript").replaceChildren(fragment);
+  else el("transcript").prepend(fragment);
   before = next;
   el("older").hidden = !before;
 }
@@ -395,6 +396,12 @@ el("compose").onsubmit = event => {
       if (answer.textContent) formatAnswer(answer, answer.textContent);
       pending = undefined;
       status(state === "complete" ? "" : t[state] || t.interrupted);
+    } catch (error) {
+      if (error.code !== "request_exists") throw error;
+      await loadHistory(true);
+      if (el("prompt").value === submitted) el("prompt").value = "";
+      pending = undefined;
+      status(t.interrupted);
     } finally {
       el("stop").hidden = true;
       active = undefined;

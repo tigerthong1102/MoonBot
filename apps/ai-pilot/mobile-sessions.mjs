@@ -5,12 +5,12 @@ const name = "__Host-startupbot-mobile";
 const flags = "; Path=/; HttpOnly; SameSite=Strict; Secure";
 const lifetime = 8 * 3600;
 
-function seal(secret, scope, value) {
+export function seal(secret, scope, value) {
   const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", secret, iv);
   cipher.setAAD(Buffer.from(scope));
   return Buffer.concat([iv, cipher.update(value, "utf8"), cipher.final(), cipher.getAuthTag()]);
 }
-function open(secret, scope, sealed) {
+export function open(secret, scope, sealed) {
   const data = Buffer.from(sealed);
   const decipher = createDecipheriv("aes-256-gcm", secret, data.subarray(0, 12));
   decipher.setAAD(Buffer.from(scope));

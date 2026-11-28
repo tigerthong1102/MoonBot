@@ -321,7 +321,7 @@ it("binds email sign-in to the invited StartupBot ID and reuses its wallet acros
   const { invite } = await import("../../apps/ai-pilot/accounts.mjs");
   settings.accountOrigin = "https://account.fixture.test";
   invite(ledger, "account-a", "tester@example.test");
-  const who = { id: "account-a", email: "tester@example.test" },
+  const who = { id: "account-a", email: "tester@example.test", emailVerified: true },
     code = { email: who.email, otp: "12345678" };
   const send = () => call("/wallet/request-code", "", code),
     verify = () => call("/wallet/verify-code", "", code);

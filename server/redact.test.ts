@@ -7,6 +7,23 @@ import { redactSecrets } from "./redact.ts";
 const flat = (value: unknown) => JSON.stringify(value);
 
 describe("redactSecrets", () => {
+  it("masks a pasted numeric bot token and credentials embedded in Zalo Official URLs", () => {
+    const suffix = "synthetic_secret".repeat(4);
+    const pasted = "1234567890123456789:" + suffix;
+    const url = "https://bot-api.zaloplatforms.com/bot";
+    for (const value of [pasted, pasted.replace(":", "%3A"), url + pasted + "/getMe", url + "1:short/getMe"]) {
+      expect(holdsCredential(value)).toBe(true);
+      const clean = redactSecretsInText(value);
+      expect(clean).toContain("«redacted ");
+      expect(clean).not.toContain(suffix);
+      expect(clean).not.toContain("1:short");
+      expect(redactSecretsInText(clean)).toBe(clean);
+    }
+    for (const safe of ["12:30", "invoice 123456:pending", "20261128:1234"]) {
+      expect(holdsCredential(safe)).toBe(false);
+      expect(redactSecretsInText(safe)).toBe(safe);
+    }
+  });
   it("omits private MCP descriptors even when a credential uses an ordinary header name", () => {
     const descriptor = JSON.stringify({ url: "https://example.test/mcp", headers: { "x-tenant": "private-synthetic-value" } });
     const record = `OMB_REMOTE_MCP_CONFIG_${"0".repeat(64)}`;

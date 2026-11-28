@@ -10,7 +10,7 @@ type Grant = Ref & {
   expires: number;
 };
 type Provider = { key: string; name: string; model: string; destination: string };
-type GeneratedStatus = { available: boolean; owner?: string; local?: boolean; remote?: null | { id: string; enabled: boolean; expires: number; count: number } };
+type GeneratedStatus = { available: boolean; owner?: string; local?: boolean; remote?: null | { id: string; enabled: boolean; expires: number; count: number; dailyLimit?: number; authorizedUntil?: number; leaseActive?: boolean } };
 type Journal = { add(ref: Ref): void; remove(ref: Ref): void; list(owner: string, origin: string): Ref[] };
 export function createTwinInboxPairing(deps: {
   current(): boolean;
@@ -18,7 +18,7 @@ export function createTwinInboxPairing(deps: {
   generatedProfile?(): Promise<unknown>;
   generate?(body: { id: string; revision: number; key: string; question: string; job: string; useProvider: true }, signal: AbortSignal): Promise<{ answer: string }>;
   generatedJournal?: Journal;
-  approveGenerated?(terms: { grant: Ref & { provider: Provider; expires: number }; chosen: Room[] }): Promise<boolean>;
+  approveGenerated?(terms: { grant: Ref & { provider: Provider; expires: number; dailyLimit?: number }; chosen: Room[]; kinds: string[] }): Promise<boolean>;
   profile(): Promise<unknown>;
   inbox(path: string, data?: object): Promise<unknown>;
   approve(fields: { origin: string; fingerprint: string; owner: string; twin: string }): Promise<boolean>;
@@ -32,7 +32,8 @@ export function createTwinInboxPairing(deps: {
   reset(): void;
   generated: {
     choices(): Promise<{ rooms: Room[]; provider: Provider }>;
-    offer(provider: Provider, rooms: string[]): Promise<boolean>;
+    whileOpen(): boolean;
+    offer(provider: Provider, rooms: string[], dailyLimit?: number): Promise<boolean>;
     tick(): Promise<void>;
     reset(): void;
     recover(): Promise<unknown>;

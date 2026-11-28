@@ -8,11 +8,15 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
   const bridge = window.ogb?.personalInbox;
   const [choices, setChoices] = useState<Awaited<ReturnType<NonNullable<NonNullable<typeof bridge>["generatedChoices"]>>>>();
   const [scope, setScope] = useState("selected");
+  const [ongoing, setOngoing] = useState(false);
+  const [limit, setLimit] = useState("5");
   const [rooms, setRooms] = useState<string[]>([]);
   const [target, setTarget] = useState<{owner:string;id:string}>();
   const [busy, setBusy] = useState(false), [note, setNote] = useState("");
   if (!bridge?.generatedChoices || !bridge.offerGenerated || !bridge.generatedStatus || !bridge.stopGenerated) return null;
   const refs = scope === "selected" ? rooms : scope === "all" ? ["all-direct","all-managed-groups"] : [scope];
+  const dailyLimit = Number(limit);
+  const validLimit = !ongoing || (Number.isInteger(dailyLimit) && dailyLimit >= 1 && dailyLimit <= 720);
   async function run(action: "choose" | "offer" | "status" | "stop") {
     setBusy(true);
     try {
@@ -20,13 +24,24 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
         setChoices(await bridge!.generatedChoices!());
         setRooms([]);
         setScope("selected");
+        setOngoing(false);
+        setLimit("5");
         setNote("");
         return;
       }
-      if (action === "offer" && (!choices || !await bridge!.offerGenerated!(choices.provider, refs))) return;
+      if (action === "offer") {
+        if (!choices || !validLimit) return;
+        const accepted = ongoing ? await bridge!.offerGenerated!(choices.provider, refs, dailyLimit)
+          : await bridge!.offerGenerated!(choices.provider, refs);
+        if (!accepted) return;
+      }
       if (action === "stop") setNote(t("personalInbox.exactStopping"));
       const state = action === "stop" ? await bridge!.stopGenerated!(target) : await bridge!.generatedStatus!();
       setTarget(state.owner && state.remote ? {owner:state.owner,id:state.remote.id} : undefined);
+      if (state.remote?.enabled && state.remote.dailyLimit !== undefined) {
+        setNote(t(state.remote.leaseActive ? "personalInbox.generatedOngoingEnabled" : "personalInbox.generatedOngoingWaiting", { count: state.remote.dailyLimit }));
+        return;
+      }
       setNote(t(state.pendingRecovery ? "personalInbox.exactStopping" : !state.available ? "personalInbox.exactUnavailable" :
         !state.remote ? "personalInbox.generatedOff" : state.remote.enabled ? "personalInbox.generatedEnabled" : "personalInbox.generatedPending"));
     } catch {
@@ -60,7 +75,17 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
             });
           }} /> {room.title} ({t(room.kind === "group" ? "personalInbox.group" : "personalInbox.direct")} · {room.id})
         </label>)}
-        <button type="button" className="ui-button" disabled={!refs.length} onClick={() => void run("offer")}>{t("personalInbox.generatedOffer")}</button>
+        <label>{t("personalInbox.generatedDuration")}
+          <select data-duration value={ongoing ? "online" : "once"} onChange={e => setOngoing(e.target.value === "online")}>
+            <option value="once">{t("personalInbox.generatedOnce")}</option>
+            <option value="online">{t("personalInbox.generatedWhileOnline")}</option>
+          </select>
+        </label>
+        {ongoing && <>
+          <label>{t("personalInbox.generatedDailyLimit")} <input type="number" min={1} max={720} value={limit} onChange={e => setLimit(e.target.value)} /></label>
+          {validLimit && <p>{t("personalInbox.generatedOngoingTerms", { count: dailyLimit })}</p>}
+        </>}
+        <button type="button" className="ui-button" disabled={!refs.length || !validLimit} onClick={() => void run("offer")}>{t("personalInbox.generatedOffer")}</button>
       </>}
       <button type="button" className="ui-button" onClick={() => void run("status")}>{t("personalInbox.exactCheck")}</button>
       <button type="button" className="ui-button" onClick={() => void run("stop")}>{t("personalInbox.generatedStop")}</button>

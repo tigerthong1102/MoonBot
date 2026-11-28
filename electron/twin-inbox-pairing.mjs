@@ -42,18 +42,22 @@ export function createTwinInboxPairing({
       throw unavailable();
     return twin;
   }
-  async function check(state) {
+  async function checkIdentity(state, renewable = false) {
     const me = await inbox("me");
     const twin = await liveTwin();
     if (
       !current() ||
       pending !== state ||
-      state.deadline <= monotonic() ||
+      (renewable && me.generatedAnswer !== true) ||
       twin.id !== state.twin ||
       twin.revision !== state.revision ||
       me.id !== state.owner
     )
       throw unavailable();
+  }
+  async function check(state) {
+    await checkIdentity(state);
+    if (state.deadline <= monotonic()) throw unavailable();
   }
   const exact = createOnlineExact({
     state: () => pending,
@@ -65,7 +69,7 @@ export function createTwinInboxPairing({
     approve: approveExact,
     monotonic,
   });
-  const generated = createOnlineGenerated({ state: () => pending, check, profile: generatedProfile, generate, inbox,
+  const generated = createOnlineGenerated({ state: () => pending, check, checkOnline: state => checkIdentity(state, true), profile: generatedProfile, generate, inbox,
     approve: approveGenerated, journal: generatedJournal, origin, monotonic });
   return {
     exact, generated,

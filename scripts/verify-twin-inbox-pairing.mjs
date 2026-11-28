@@ -20,7 +20,9 @@ const scratch = mkdtempSync(join(tmpdir(), "sb-pair-ux-")),
   ownerToken = randomBytes(32).toString("base64url");
 const exact = process.argv.includes("--exact");
 const future = process.argv.includes("--generated-future");
-const generated = future || process.argv.includes("--generated");
+const renewalCycle = process.argv.includes("--generated-renewal-cycle");
+const ongoing = renewalCycle || process.argv.includes("--generated-ongoing");
+const generated = future || ongoing || process.argv.includes("--generated");
 const all = (path) => readFileSync(path, "utf8");
 const executable = process.env.PAIR_FIXTURE_ELECTRON ?? require("electron");
 assert.match(basename(executable), /^electron(?:\.exe)?$/i, "Expected an Electron runtime");
@@ -281,7 +283,7 @@ try {
       cookies,
       ownerToken,
       exact,
-      generated, future, endpoint,
+      generated, future, ongoing, renewalCycle, endpoint,
       room,
       question,
       answer,
@@ -318,7 +320,7 @@ try {
       stdio: "inherit",
     },
   );
-  const timer = setTimeout(() => electron.kill(), 60_000);
+  const timer = setTimeout(() => electron.kill(), renewalCycle ? 720_000 : 60_000);
   try {
     const code = await new Promise((resolve, reject) => {
       electron.once("exit", resolve);
@@ -328,7 +330,7 @@ try {
   } finally {
     clearTimeout(timer);
   }
-  if (generated) assert.equal(generations, 1, "One provider call for the disclosed question");
+  if (generated) assert.equal(generations, renewalCycle ? 2 : 1, "One provider call per eligible disclosed message");
   console.log(
     "PASS: three fixture windows, separate OTP sessions, isolated workspace, Worker and D1. Native dialog arguments checked with a scripted response.",
   );

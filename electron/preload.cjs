@@ -204,7 +204,7 @@ const bridge = {
     openPersonalInbox: () => ipcRenderer.invoke("personal-inbox:open"),
     personalInbox: {
       generatedChoices: () => ipcRenderer.invoke("personal-inbox:twin-generated-choices"),
-      offerGenerated: (provider, rooms) => ipcRenderer.invoke("personal-inbox:twin-generated-offer", provider, rooms),
+      offerGenerated: (provider, rooms, dailyLimit) => ipcRenderer.invoke("personal-inbox:twin-generated-offer", provider, rooms, dailyLimit),
       stopGenerated: target => ipcRenderer.invoke("personal-inbox:twin-generated-stop", target),
       generatedStatus: () => ipcRenderer.invoke("personal-inbox:twin-generated-status"),
       exactChoices: () => ipcRenderer.invoke("personal-inbox:twin-exact-choices"),

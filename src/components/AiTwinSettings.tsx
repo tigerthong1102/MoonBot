@@ -148,11 +148,11 @@ export function AiTwinSettings() {
               {t("settings.aiTwin.delete")}
             </button>
           </div>
-          <AiTwinLessons key={twin.id} twin={twin} lessons={view?.lessons ?? []}
+          <AiTwinLessons key={"lessons:" + twin.id} twin={twin} lessons={view?.lessons ?? []}
             changed={setView} refresh={() => void reload()} example={reviewableExample} />
-          {view && <AiTwinControls key={twin.id} view={view} changed={setView}
+          {view && <AiTwinControls key={"controls:" + twin.id} view={view} changed={setView}
             refresh={() => void reload()} reviewExample={(entry) => setExample({ ...entry })} />}
-          {!twin.paused && <AiTwinPreview key={twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
+          {!twin.paused && <AiTwinPreview key={"preview:" + twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
             twin={twin} provider={view?.preview} allowSemantic={view?.lessons?.some((lesson) => lesson.allowProvider) === true} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>
             {t("settings.aiTwin.deleteBody")}

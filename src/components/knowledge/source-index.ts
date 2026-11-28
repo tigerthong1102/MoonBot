@@ -6,8 +6,8 @@ const MAX_FILE = 2 * 1024 * 1024;
 const MAX_LIBRARY = 16 * 1024 * 1024;
 const MAX_FILES = 300;
 export type SourceFile = { path: string; file: File } | { path: string; file?: undefined };
-export interface Passage { page: number; paragraph: number; text: string; start: number }
-export interface SourceDocument { path: string; digest: string; file: File; passages: Passage[]; coverage?: PdfCoverage }
+export interface Passage { page: number; paragraph: number; readonly text: string; start: number }
+export interface SourceDocument { path: string; digest: string; file: File; passages: readonly Passage[]; coverage?: PdfCoverage }
 export type SourceChange = { path: string; state: "added" | "changed" | "removed" | "error"; at?: number; issue?: "missing" | "signedOut" | "offline" | "folder" | "pdfLocked" | "pdfLimit" | "pdfRead" };
 export interface Index { docs: Map<string, SourceDocument>; changes: SourceChange[] }
 export interface Directory {
@@ -127,7 +127,37 @@ function wordsOf(value: string, indexing = false) {
     return Array.from(segmenter.segment(normalized), word => word.isWordLike ? word.segment : "").filter(Boolean);
   });
 }
-const vocabulary = new WeakMap<Passage, Set<string>>();
+type Posting = number | number[];
+const documentTerms = new WeakMap<readonly Passage[], Map<string, Posting>>();
+
+function passageNumbers(passages: readonly Passage[]) {
+  const cached = documentTerms.get(passages);
+  if (cached) return cached;
+  const postings = new Map<string, Posting>();
+  for (const [i, passage] of passages.entries()) {
+    for (const term of wordsOf(passage.text, true)) {
+      const numbers = postings.get(term);
+      if (numbers === undefined) postings.set(term, i);
+      else if (typeof numbers === "number") {
+        if (numbers !== i) postings.set(term, [numbers, i]);
+      } else if (numbers.at(-1) !== i) numbers.push(i);
+    }
+  }
+  documentTerms.set(passages, postings);
+  return postings;
+}
+
+type Hit = { path: string; passage: Passage; score: number };
+const MAX_HITS = 15;
+
+function keepHit(hits: Hit[], path: string, passage: Passage, score: number) {
+  const compare = (other: Hit) => other.score - score || path.localeCompare(other.path) || passage.start - other.passage.start;
+  if (hits.length === MAX_HITS && compare(hits[MAX_HITS - 1]!) >= 0) return;
+  const position = hits.findIndex(other => compare(other) < 0);
+  hits.splice(position < 0 ? hits.length : position, 0, { path, passage, score });
+  if (hits.length > MAX_HITS) hits.pop();
+}
+
 const questionWords = new Set(["how", "what", "do", "the", "and", "is", "of", "to", "lam", "nao", "cho", "toi", "cua", "co", "la", "gi", "de", "va"]);
 
 export function findPassages(index: Index, query: string) {
@@ -135,23 +165,33 @@ export function findPassages(index: Index, query: string) {
   if (!words.length) return [];
   const meaningful = words.filter(term => !questionWords.has(term));
   const terms = meaningful.length ? meaningful : words;
-  const frequency = new Map<string, number>();
+  const frequency = terms.map(() => 0);
   let total = 0;
-  const matches: { path: string; passage: Passage; terms: string[]; fileTerms: number }[] = [];
+  const documents = [];
   for (const doc of index.docs.values()) {
+    total += doc.passages.length;
     const name = new Set(wordsOf(doc.path, true));
-    const fileTerms = terms.filter(term => name.has(term)).length;
-    for (const passage of doc.passages) {
-      total++;
-      let tokens = vocabulary.get(passage);
-      if (!tokens) { tokens = new Set(wordsOf(passage.text, true)); vocabulary.set(passage, tokens); }
-      const found = terms.filter(term => tokens.has(term));
-      if (!found.length && !fileTerms) continue;
-      for (const term of found) frequency.set(term, (frequency.get(term) ?? 0) + 1);
-      matches.push({ path: doc.path, passage, terms: found, fileTerms });
+    const fileScore = terms.filter(term => name.has(term)).length * 0.3;
+    const postings = passageNumbers(doc.passages);
+    const matches = terms.map((term, i) => {
+      const posting = postings.get(term);
+      const numbers = typeof posting === "number" ? [posting] : posting;
+      frequency[i]! += numbers?.length ?? 0;
+      return numbers;
+    });
+    if (fileScore || matches.some(Boolean)) documents.push({ doc, fileScore, matches });
+  }
+  const weights = frequency.map(count => Math.log((total + 1) / (count + 1)));
+  const hits: Hit[] = [];
+  for (const { doc, fileScore, matches } of documents) {
+    const scores = new Float64Array(doc.passages.length).fill(fileScore);
+    for (const [i, numbers] of matches.entries()) {
+      if (!numbers) continue;
+      for (const n of numbers) scores[n] = scores[n]! + 1 + weights[i]!;
+    }
+    for (let n = 0; n < scores.length; n++) {
+      if (scores[n]) keepHit(hits, doc.path, doc.passages[n]!, scores[n]!);
     }
   }
-  return matches.map(({ path, passage, terms: found, fileTerms }) => ({
-    path, passage, score: found.reduce((sum, term) => sum + 1 + Math.log((total + 1) / (frequency.get(term)! + 1)), fileTerms * 0.3),
-  })).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.passage.start - b.passage.start).slice(0, 15);
+  return hits;
 }

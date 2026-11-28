@@ -64,6 +64,30 @@ describe("document sources", () => {
     expect(findPassages(index, "quarter")).toEqual([]);
   });
 
+  it("keeps the best fifteen by score, path and offset, including ties on equivalent paths", async () => {
+    const rows = Array.from({ length: 20 }, () => "Đối chiếu").join("\n\n");
+    const paths = ["z.txt", "ắ.txt".normalize("NFD"), "ắ.txt", "a.txt"];
+    const index = await indexSources(paths.map(path => file(path, rows)), empty);
+    const expected = [...index.docs.values()].flatMap(doc => doc.passages.map(passage => ({ path: doc.path, passage, score: 2 })))
+      .sort((a, b) => a.path.localeCompare(b.path) || a.passage.start - b.passage.start).slice(0, 15);
+    expect(findPassages(index, "doi chieu doi")).toEqual(expected);
+    const equivalent = { ...index, docs: new Map([...index.docs].filter(([path]) => path.normalize("NFC") === "ắ.txt")) };
+    expect(findPassages(equivalent, "txt").map(hit => hit.path)).toEqual(
+      Array.from({ length: 15 }, (_, n) => paths[n % 2 + 1]));
+  });
+
+  it("recomputes frequency and drops cached matches when documents change or are removed", async () => {
+    const kept = file("ledger.md", "ledger ledger\n\narchive");
+    const old = await indexSources([kept, file("other.md", "ledger\n\narchive"), file("old.md", "ledger")], empty);
+    expect(findPassages(old, "ledger")[0]?.score).toBe(0.3 + 1 + Math.log(6 / 4));
+    const fresh = await indexSources([kept, file("other.md", "updated")], old);
+    expect(fresh.docs.get(kept.path)).toBe(old.docs.get(kept.path));
+    const hits = findPassages(fresh, "ledger");
+    expect(hits.map(hit => [hit.path, hit.passage.paragraph, hit.score])).toEqual([
+      ["ledger.md", 1, 0.3 + 1 + Math.log(4 / 2)], ["ledger.md", 2, 0.3],
+    ]);
+  });
+
   it("detects changes by content, evicts deleted or unreadable material and preserves identical snapshots", async () => {
     const old = await indexSources([file("a.md", "old"), file("b.txt", "removed"), file("c.txt", "broken"), file("d.txt", "same")], empty);
     const next = await indexSources([file("a.md", "new"), file("c.txt", new Uint8Array([255])), file("d.txt", "same"), file("e.txt", "added")], old);

@@ -98,7 +98,7 @@ function changed(result: D1Result) {
   return json({ ok: true });
 }
 
-async function roomDetail(db: D1Database, user: string, room: string, before: number, now: number) {
+async function roomDetail(db: D1Database, user: string, room: string, before: number, now: number, exact: boolean) {
   const [access, members, posts, requests, bans] = await db.batch<Row>([
     db.prepare(`SELECT r.owner,r.approval,r.announcements,CASE WHEN r.invite_until>?3 THEN r.invite_key END AS link
       FROM inbox_rooms r JOIN inbox_members m ON m.room=r.id WHERE r.id=?1 AND m.person=?2 AND m.state='active'`).bind(room,user,now),
@@ -110,7 +110,7 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
       .bind(room, room, user),
     db
       .prepare(
-        `SELECT p.seq,CASE WHEN f.post IS NULL AND upload.post IS NULL THEN p.kind ELSE 'file' END AS kind,coalesce(upload.size,length(f.bytes)) AS fileSize,p.body,p.created,p.bot_name AS botName,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
+        `SELECT p.seq,CASE WHEN f.post IS NULL AND upload.post IS NULL THEN p.kind ELSE 'file' END AS kind,coalesce(upload.size,length(f.bytes)) AS fileSize,p.body,p.created,${exact?"p.exact_reply AS exactReply,":""}p.bot_name AS botName,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
       LEFT JOIN inbox_uploads upload ON upload.post=p.seq
       JOIN inbox_members m ON m.room=p.room AND m.person=? AND m.state='active'
       JOIN "user" u ON u.id=p.author WHERE p.room=? AND p.seq>m.after_seq AND p.seq<? AND p.created>=?
@@ -244,7 +244,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
       if (!selected) return json({ rooms: rooms.results, detail: null });
       if (url.searchParams.get("latest") === String(selected.lastSeq ?? 0) && url.searchParams.get("revision") === String(selected.revision))
         return json({ rooms: rooms.results, unchanged: true });
-      const detail = await roomDetail(db, user, open, Number.MAX_SAFE_INTEGER, Date.now());
+      const detail = await roomDetail(db, user, open, Number.MAX_SAFE_INTEGER, Date.now(),env.INBOX_EXACT_ANSWER === "1");
       return json({ rooms: rooms.results, detail });
     }
     if (req.method !== "POST") throw new HTTPError(405, "method_not_allowed");
@@ -311,7 +311,7 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
       .max(Number.MAX_SAFE_INTEGER)
       .safeParse(url.searchParams.get("before") ?? Number.MAX_SAFE_INTEGER);
     if (!before.success) throw new HTTPError(400, "invalid_request");
-    const detail = await roomDetail(db, user, room, before.data, now);
+    const detail = await roomDetail(db, user, room, before.data, now,env.INBOX_EXACT_ANSWER === "1");
     if (!detail) throw new HTTPError(404, "unavailable");
     return json(detail);
   }

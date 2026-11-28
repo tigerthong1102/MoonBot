@@ -18,6 +18,7 @@ const { build } = require("esbuild"),
 const { launchVerificationServer } = await import(join(root, "scripts/control-omb.ts"));
 const scratch = mkdtempSync(join(tmpdir(), "sb-pair-ux-")),
   ownerToken = randomBytes(32).toString("base64url");
+const exact = process.argv.includes("--exact");
 const all = (path) => readFileSync(path, "utf8");
 const executable = process.env.PAIR_FIXTURE_ELECTRON ?? require("electron");
 assert.match(basename(executable), /^electron(?:\.exe)?$/i, "Expected an Electron runtime");
@@ -132,7 +133,8 @@ try {
       bindings: {
         BETTER_AUTH_URL: origin,
         BETTER_AUTH_SECRET: randomBytes(32).toString("hex"),
-        INBOX_PILOT_EMAILS: "owner@example.test",
+        INBOX_PILOT_EMAILS: "owner@example.test,peer@example.test",
+        ...(exact && { INBOX_EXACT_ANSWER: "1" }),
         EMAIL_FROM: "service@example.test",
       },
       serviceBindings: {
@@ -157,9 +159,8 @@ try {
       ...(body && { body: JSON.stringify(body) }),
     });
   }
-  async function login() {
-    const addr = "owner@example.test",
-      start = mails.length;
+  async function login(addr = "owner@example.test") {
+    const start = mails.length;
     assert.equal(
       (await call("auth/email-otp/send-verification-otp", "", { email: addr, type: "sign-in" })).status,
       200,
@@ -176,12 +177,24 @@ try {
     return { name: cookie.slice(0, split), value: cookie.slice(split + 1) };
   }
   const cookies = [await login(), await login(), await login()];
+  const room = randomUUID(),
+    question = "When is lunch?",
+    answer = "At noon.";
+  if (exact) {
+    cookies.push(await login("peer@example.test"));
+    const cookie = cookies[0].name + "=" + cookies[0].value;
+    assert.equal(
+      (await call("rooms", cookie, { id: room, kind: "direct", email: "peer@example.test", instant: true }))
+        .status,
+      200,
+    );
+  }
   fixture = await launchVerificationServer({
     OMB_TEST_DESKTOP_OWNER_TOKEN: ownerToken,
     OMB_DEV_TRUST_LOCAL_BROWSER: "0",
   });
-  async function twin(method = "GET", body) {
-    return fetch(fixture.info.url + "/api/ai-twin", {
+  async function twin(method = "GET", body, suffix = "") {
+    return fetch(fixture.info.url + "/api/ai-twin" + suffix, {
       method,
       headers: { "x-openmausbot-desktop-owner": ownerToken, "content-type": "application/json" },
       ...(body && { body: JSON.stringify(body) }),
@@ -195,6 +208,38 @@ try {
     name: "Fixture twin",
   });
   assert.equal(created.status, 201);
+  if (exact) {
+    const { twin: profile } = await created.json();
+    assert.equal(
+      (
+        await twin(
+          "POST",
+          { id: profile.id, revision: profile.revision, saveAsLesson: true, question, answer },
+          "/lessons",
+        )
+      ).status,
+      200,
+    );
+    const active = await (await twin()).json();
+    const privateLesson = await twin(
+      "POST",
+      {
+        id: active.twin.id,
+        revision: active.twin.revision,
+        saveAsLesson: true,
+        question: "Private credential fixture",
+        answer: "sk-proj-" + "a".repeat(32),
+      },
+      "/lessons",
+    );
+    assert.equal(privateLesson.status, 200);
+    const filtered = await (await twin("GET", undefined, "/inbox-exact-lessons")).json();
+    assert.deepEqual(
+      filtered.lessons.map((l) => l.question),
+      [question],
+    );
+    assert.equal((await fetch(fixture.info.url + "/api/ai-twin/inbox-exact-lessons")).status, 404);
+  }
   const winPath = join(root, "scripts/testing/twin-inbox-pairing-ui.cjs");
   const spki = createHash("sha256")
     .update(new X509Certificate(all(certPath)).publicKey.export({ type: "spki", format: "der" }))
@@ -207,6 +252,10 @@ try {
       origin,
       cookies,
       ownerToken,
+      exact,
+      room,
+      question,
+      answer,
       local: fixture.info.url,
       desktopOrigin: "http://127.0.0.1:" + desktopServer.address().port,
       scratch,

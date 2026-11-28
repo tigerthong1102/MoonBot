@@ -1,3 +1,4 @@
+import { installExactReview } from "./twin-exact.js";
 import { installTwinPairing } from "./twin-pairing.js";
 import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
 import { groupBots } from "./group-bots.js";
@@ -55,6 +56,7 @@ let posts = [],
   readingOlder = false;
 let botChoices = [], botInviteLoad = 0;
 
+const resetExact = installExactReview({api,me:()=>me,t,el});
 const resetTwinPairing = installTwinPairing({ api, me: () => me, t, el });
 const voicePlayers = new Map();
 const voice = voiceComposer({
@@ -171,6 +173,8 @@ function clearRoom() {
 function signedOut() {
   disconnectSignals();
   resetTwinPairing();
+  resetExact();
+  el("twin-exact").hidden=true;
   me = null;
   rooms = [];
   el("filter").value = "";
@@ -235,6 +239,7 @@ el("logout").onclick = run(async () => {
 });
 async function start() {
   me = await api("me");
+  el("twin-exact").hidden=me.exactAnswer!==true;
   if (pickedLanguage || !el("desktop-back").hidden || !me.locale) {
     if (me.locale !== language) await api("language",{locale:language});
   } else chooseLanguage(me.locale);
@@ -858,7 +863,7 @@ function renderPosts() {
   for (const p of posts) {
     const date = new Date(p.created);
     const day = date.toLocaleDateString(language);
-    const grouped = day === lastDay && previous?.author === p.author && previous?.botName === p.botName && p.created - previous.created < 120000;
+    const grouped = day === lastDay && previous?.author === p.author && previous?.botName === p.botName && previous?.exactReply === p.exactReply && p.created - previous.created < 120000;
     if (day !== lastDay) {
       const divider = node("li", date.toLocaleDateString(language, {day:"numeric",month:"long",year:"numeric"}));
       divider.className = "day";
@@ -871,7 +876,7 @@ function renderPosts() {
     const bubble = node("div", "");
     bubble.className = "bubble";
     const type = {skill:t("personalInbox.skillSuffix"),task:t("personalInbox.taskSuffix")}[p.kind] || "";
-    const meta = node("small", (p.botName ? t("personalInbox.botOwner",{bot:p.botName,owner:p.author}) : p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
+    const meta = node("small", (p.exactReply ? t("personalInbox.exactAttribution",{ owner:p.author }) : p.botName ? t("personalInbox.botOwner",{bot:p.botName,owner:p.author}) : p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
       date.toLocaleTimeString(language, {hour:"2-digit",minute:"2-digit"}));
     meta.title = p.author + " · " + date.toLocaleString(language);
     if (p.kind === "file") {

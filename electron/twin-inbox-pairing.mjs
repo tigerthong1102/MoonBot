@@ -1,13 +1,26 @@
+import { createOnlineExact } from "./twin-online-exact.mjs";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { twinPairingMessage } from "./twin-pairing-message.mjs";
 
 const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const unavailable = () => Error("pairing_unavailable");
 
-export function createTwinInboxPairing({ current, profile, inbox, origin, approve, now = Date.now }) {
+export function createTwinInboxPairing({
+  current,
+  profile,
+  exactProfile,
+  inbox,
+  origin,
+  approve,
+  exactJournal,
+  approveExact,
+  now = Date.now,
+  monotonic = () => performance.now(),
+}) {
   let pending;
   const reset = () => {
     pending = undefined;
+    exact.reset();
   };
   async function liveTwin() {
     if (!current()) throw unavailable();
@@ -24,19 +37,30 @@ export function createTwinInboxPairing({ current, profile, inbox, origin, approv
     return twin;
   }
   async function check(state) {
-    const twin = await liveTwin();
     const me = await inbox("me");
+    const twin = await liveTwin();
     if (
       !current() ||
       pending !== state ||
-      state.expires <= now() ||
+      state.deadline <= monotonic() ||
       twin.id !== state.twin ||
       twin.revision !== state.revision ||
       me.id !== state.owner
     )
       throw unavailable();
   }
+  const exact = createOnlineExact({
+    state: () => pending,
+    check,
+    profile: exactProfile,
+    inbox,
+    origin,
+    journal: exactJournal,
+    approve: approveExact,
+    monotonic,
+  });
   return {
+    exact,
     reset,
     async start() {
       const state = {};
@@ -48,6 +72,7 @@ export function createTwinInboxPairing({ current, profile, inbox, origin, approv
       const raw = Buffer.from(keys.publicKey.export({ format: "jwk" }).x, "base64url");
       const publicKey = raw.toString("hex");
       const fingerprint = createHash("sha256").update(raw).digest("hex");
+      const started = monotonic();
       const receipt = await inbox("twin-pairing", {
         action: "start",
         owner: me.id,
@@ -70,11 +95,19 @@ export function createTwinInboxPairing({ current, profile, inbox, origin, approv
         twin: twin.id,
         revision: twin.revision,
         expires: receipt.expires,
+        deadline:
+          started + Math.min(600000, receipt.expires - (Number.isSafeInteger(receipt.now) ? receipt.now : now())),
         fingerprint,
         key: keys.privateKey,
       });
       await check(state);
-      return { id: state.id, fingerprint, origin, expires: state.expires };
+      return {
+        id: state.id,
+        fingerprint,
+        origin,
+        expires: state.expires,
+        exactAvailable: me.exactAnswer === true,
+      };
     },
     async confirm() {
       const state = pending;

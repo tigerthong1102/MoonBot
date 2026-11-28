@@ -1,6 +1,7 @@
 import { ZALO_OWNER_STYLE_PATH } from "../../shared/zalo-owner-style.ts";
 import { ZALO_RECIPES, type ZaloRecipe } from "../../shared/zalo-intelligence.ts";
 import { z } from "zod";
+import { holdsCredential, redactSecretsInText } from "../../shared/redact.ts";
 import {
   AI_TWIN_DELEGATION_PATH, AI_TWIN_LEARNING_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH,
   AI_TWIN_PATH, AI_TWIN_PHONE_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX,
@@ -25,7 +26,9 @@ const previewInput = twinVersionInput.extend({
   zaloSource: z.strictObject({ source: z.string().trim().min(1).max(120), line: z.int().min(1).max(5_000) }).optional(),
 });
 const semanticInput = lookupTwinLessonInput.extend({ ...providerFields, zaloEvidence: z.never().optional(), zaloRecipe: z.never().optional(), zaloSource: z.never().optional() });
+const exactLessonsPath = AI_TWIN_PATH + "/inbox-exact-lessons";
 const paths = new Map([
+  [exactLessonsPath, ["GET"]],
   [AI_TWIN_PATH, ["GET", "POST", "PATCH", "DELETE"]],
   [AI_TWIN_LOOKUP_PATH, ["POST"]],
   [AI_TWIN_PREVIEW_PATH, ["POST"]],
@@ -77,6 +80,18 @@ export function createAiTwinRoutes(deps: {
 
     try {
       if (!authorized()) return json(res, 404, { error: "not_found" });
+      if (method === "GET" && path === exactLessonsPath) {
+        if (deps.blocked()) return json(res, 409, { error: "twin_workspace_busy" });
+        const { twin, lessons } = store.get();
+        const shareable = (s: string) => !holdsCredential(s) && redactSecretsInText(s) === s;
+        return json(res, 200, {
+          twin: twin && { id: twin.id, revision: twin.revision, paused: twin.paused },
+          lessons:
+            twin && !twin.paused
+              ? (lessons ?? []).filter((l) => l.source === "owner" && shareable(l.question) && shareable(l.answer))
+              : [],
+        });
+      }
       if (method === "GET" && path === AI_TWIN_PATH) return replyProfile(200, store.get());
       if (method === "GET" && path === AI_TWIN_LEARNING_PATH) {
         const view = store.get();

@@ -138,7 +138,11 @@ const __APP_VERSION__: string;
       };
       openPersonalInbox?: () => Promise<void>;
       personalInbox?: {
-        startTwinPairing?(): Promise<{ id:string; fingerprint:string; origin:string; expires:number }>;
+        exactChoices?(): Promise<{rooms:{id:string;kind:string;title:string;ref:string}[];lessons:{id:string;question:string}[]}>;
+        offerExact?(lesson:string,rooms:string[]): Promise<boolean>;
+        stopExact?(target?:{owner:string;id:string}): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number}|null}>;
+        exactStatus?(): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number}|null}>;
+        startTwinPairing?(): Promise<{ id:string; fingerprint:string; origin:string; expires:number; exactAvailable?:boolean }>;
         confirmTwinPairing?(): Promise<boolean>;
         create(draft: { id: string; title: string; emails: string[] }): Promise<"ok" | "unauthorized" | "rate_limited" | "room_limit_or_conflict" | "invalid_request" | "unavailable">;
         close(): Promise<void>;

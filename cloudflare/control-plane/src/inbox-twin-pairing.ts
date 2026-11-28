@@ -75,7 +75,7 @@ export async function inboxTwinPairing(
       )
       .bind(id, origin, owner, session.id, a.publicKey, fingerprint, a.twin, a.revision, expires)
       .run();
-    return json({ id, owner, fingerprint, expires }, 201);
+    return json({ id, owner, fingerprint, expires, now }, 201);
   }
   if (a.action === "revoke") {
     await db

@@ -1,3 +1,4 @@
+import { MobileDraftReceiver } from "./MobileDraftReceiver";
 import { useComposerDraftActions } from "@/lib/use-composer-draft-actions";
 import { ComposerSourceLines } from "./ComposerSourceLines";
 import { useComposerSourceCheck } from "@/lib/use-composer-source-check";
@@ -681,6 +682,9 @@ export function Composer({
 
   return (
     <div className={cn("pointer-events-none relative px-5", simpleDock ? "pb-4" : "pb-3")}>
+      {window.ogb?.mobileDraft && bot && threadId && !group && !state.config?.team && !remoteClient && !text &&
+        !attachments.length && !busy && !locked && !blocking && !replyTo && !attachmentPending && channelMode === "chat" &&
+        <MobileDraftReceiver key={draftId} receive={editText} />}
       {speechError && (
         <div className="pointer-events-auto mb-2 w-full rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
           {speechError}

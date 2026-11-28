@@ -4320,5 +4320,13 @@
   "mobileChat.account_changed": "Le compte a changé. Rouvrez la conversation.",
   "mobileChat.invalid_message": "Raccourcissez le message et confirmez l’enregistrement.",
   "email.address": "Adresse e-mail",
-  "connectors.action.reconnect": "Reconnecter"
+  "connectors.action.reconnect": "Reconnecter",
+  "mobileChat.desktopListen": "Recevoir les tâches du téléphone",
+  "mobileChat.desktopListening": "Réception active · Arrêter",
+  "mobileChat.desktopChoose": "Choisissez un ordinateur.",
+  "mobileChat.desktopWaiting": "En attente de l’ordinateur…",
+  "mobileChat.desktopReceived": "Brouillon ouvert sur votre ordinateur. Vérifiez-le puis envoyez-le.",
+  "mobileChat.desktopUnconfirmed": "Réception non confirmée. Vérifiez votre ordinateur avant de réessayer.",
+  "mobileChat.desktop_unavailable": "Aucun ordinateur prêt. Activez la réception dans une conversation personnelle vide sur votre ordinateur.",
+  "mobileChat.desktopConsent": "Pour les tâches nécessitant mon ordinateur, y transférer la demande sous forme de brouillon privé."
 }

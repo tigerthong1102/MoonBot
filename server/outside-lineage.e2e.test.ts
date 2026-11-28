@@ -1,7 +1,7 @@
 // Work that came in from outside stays with that work, on a real Team Cloud, a personal Cloud someone else has used and a
 // desktop, with the fake engine: the level each turn really got, read from what the engine was started with.
 import { randomBytes } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -12,11 +12,13 @@ import { OUTSIDE_STAYS_HERE } from "./host/outside-lineage.ts";
 import { markLeftBehind } from "./testing/cloud-left-behind.ts";
 import { hostTimeout } from "./testing/host-timeout.ts";
 import { readRegistry, writeRegistry } from "./testing/registry.ts";
+import { removeTempDir } from "./testing/cleanup.ts";
 
 const tag = randomBytes(6).toString("hex");
+const turnHistory = mkdtempSync(join(tmpdir(), "outside-turns-"));
 const dump = join(tmpdir(), `outside-${tag}.json`), release = join(tmpdir(), `outside-${tag}.release`), failing = join(tmpdir(), `outside-${tag}.fail`), notes = join(tmpdir(), `outside-${tag}.notes`),
   holding = join(tmpdir(), `outside-${tag}.holding`), held = join(tmpdir(), `outside-${tag}.held`);
-const engine = `const { existsSync: __has } = await import("node:fs"); process.env.FAKE_CLAUDE_MODE = __has(${JSON.stringify(failing)}) ? "exit-early" : "hang"; process.env.FAKE_CLAUDE_DUMP = ${JSON.stringify(dump)}; process.env.FAKE_CLAUDE_RELEASE = __has(${JSON.stringify(holding)}) ? ${JSON.stringify(held)} : ${JSON.stringify(release)}; process.env.FAKE_CLAUDE_TEXT_FILE = ${JSON.stringify(notes)}; process.env.FAKE_CLAUDE_TEXT_DUMP = ${JSON.stringify(`${notes}.dump`)};`;
+const engine = `const { existsSync: __has } = await import("node:fs"); process.env.FAKE_CLAUDE_MODE = __has(${JSON.stringify(failing)}) ? "exit-early" : "hang"; process.env.FAKE_CLAUDE_DUMP = ${JSON.stringify(dump)}; process.env.FAKE_CLAUDE_DUMP_HISTORY_DIR = ${JSON.stringify(turnHistory)}; process.env.FAKE_CLAUDE_RELEASE = __has(${JSON.stringify(holding)}) ? ${JSON.stringify(held)} : ${JSON.stringify(release)}; process.env.FAKE_CLAUDE_TEXT_FILE = ${JSON.stringify(notes)}; process.env.FAKE_CLAUDE_TEXT_DUMP = ${JSON.stringify(`${notes}.dump`)};`;
 const KEY = randomBytes(16).toString("hex");
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const read = () => { try { return JSON.parse(readFileSync(dump, "utf8")); } catch { return null; } };
@@ -47,6 +49,7 @@ afterAll(async () => {
   await sleep(500);
   await fx?.close?.();
   for (const file of [dump, release, failing, notes, `${notes}.dump`, holding, held]) rmSync(file, { force: true });
+  await removeTempDir(turnHistory);
 });
 
 const newBot = async (name: string, level = "full") => {
@@ -87,8 +90,18 @@ const linesOf = async (threadId: string) => (await team.as(ada, "GET", `/api/thr
 /** The webhook's turn is running on `bot`. */
 const webhookTurn = async (botId: string, name: string, marker: string) => {
   const hook = await hookOn(botId, name);
+  const previous = new Set(readdirSync(turnHistory));
   await deliver(hook, marker);
-  const turn = await turnWith(marker);
+  const turn = await until(`a turn with ${marker}`, () => {
+    for (const file of readdirSync(turnHistory)) {
+      if (!file.endsWith(".json") || previous.has(file)) continue;
+      try {
+        const candidate = JSON.parse(readFileSync(join(turnHistory, file), "utf8"));
+        if (JSON.stringify(candidate.prompt ?? "").includes(marker)) return candidate;
+      } catch {}
+    }
+    return null;
+  });
   const run = await until("the run", () => runOf(hook));
   return { hook, run, turn, thread: run.threadId as string };
 };

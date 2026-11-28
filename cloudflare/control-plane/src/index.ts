@@ -25,6 +25,8 @@ import {
   rotateInstallationCredential,
 } from "./installations";
 
+import { mobileDraftAccount, mobileDraftDevice, sweepMobileDrafts } from "./mobile-desktop-drafts";
+
 const SIGN_IN_OTP_PATH = "/api/auth/sign-in/email-otp";
 const ROTATE_ROUTE = /^\/v1\/installations\/([^/]+)\/credentials\/rotate$/;
 const INSTALLATION_ROUTE = /^\/v1\/installations\/([^/]+)$/;
@@ -104,6 +106,12 @@ async function route(
   }
 
   const auth = createAuth(env, ctx, config, requestId);
+  if (url.pathname.startsWith("/v1/mobile-drafts") || url.pathname === "/v1/installations/self/mobile-drafts") {
+    if ((env as Env & {STARTUPBOT_MOBILE_DESKTOP_HANDOFF?:string}).STARTUPBOT_MOBILE_DESKTOP_HANDOFF !== "1") throw new HTTPError(404,"not_found");
+  }
+  if (request.method === "POST" && url.pathname === "/v1/installations/self/mobile-drafts") return mobileDraftDevice(request, env);
+  if (request.method === "POST" && ["/v1/mobile-drafts/arm", "/v1/mobile-drafts", "/v1/mobile-drafts/targets", "/v1/mobile-drafts/status"].includes(url.pathname))
+    return mobileDraftAccount(request, env, auth, url.pathname.split("/").at(-1) ?? "");
   if (request.method === "GET" && url.pathname === "/v1/me") {
     const session = await accountSession(request, auth);
     if (!session) throw new HTTPError(401, "unauthorized");
@@ -258,6 +266,7 @@ export function createWorker(
         }
         // Marks only, like the scan: tunnels the relay has replaced, and
         // those a version cutoff ends. The sweep below removes them.
+        try { await sweepMobileDrafts(env.DB); } catch { console.error("mobile draft expiry sweep failed"); }
         try {
           await releaseTunnels(env, config, requestId);
         } catch {

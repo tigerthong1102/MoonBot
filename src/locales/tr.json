@@ -6517,5 +6517,13 @@
   "mobileChat.unavailable": "Hesap hizmeti geçici olarak kullanılamıyor.",
   "mobileChat.account_changed": "Hesabınız değişti. Sohbeti yeniden açın.",
   "mobileChat.invalid_message": "Mesajı kısaltıp kaydetme seçimini onaylayın.",
-  "email.address": "E-posta adresi"
+  "email.address": "E-posta adresi",
+  "mobileChat.desktopListen": "Telefonumdan iş al",
+  "mobileChat.desktopListening": "Telefon bekleniyor · Durdur",
+  "mobileChat.desktopChoose": "Bir bilgisayar seçin.",
+  "mobileChat.desktopWaiting": "Bilgisayar bekleniyor…",
+  "mobileChat.desktopReceived": "Taslak bilgisayarınızda açıldı. Orada kontrol edip gönderin.",
+  "mobileChat.desktopUnconfirmed": "Teslim onaylanmadı. Tekrar denemeden önce bilgisayarınızı kontrol edin.",
+  "mobileChat.desktop_unavailable": "Hazır bilgisayar yok. Bilgisayarınızda boş bir kişisel sohbette telefondan iş almayı etkinleştirin.",
+  "mobileChat.desktopConsent": "Bilgisayar gerektiren istekleri alıma hazır bilgisayarıma özel taslak olarak gönder."
 }

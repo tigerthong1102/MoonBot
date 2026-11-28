@@ -88,7 +88,7 @@ fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Text(
-            text = stringResource(if (mobileChatOrigin() == null) R.string.ui_onboardingcopy_welcome_subtitle else R.string.mobile_chat_subtitle),
+            text = stringResource(R.string.ui_onboardingcopy_welcome_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = secondaryTint,
             textAlign = TextAlign.Center,
@@ -150,7 +150,7 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = stringResource(if (mobileChatOrigin() == null) R.string.ui_onboardingcopy_unpaired_home_body else R.string.mobile_chat_subtitle),
+                text = stringResource(R.string.ui_onboardingcopy_unpaired_home_body),
                 style = MaterialTheme.typography.bodyLarge,
                 color = secondaryTint,
                 textAlign = TextAlign.Center,

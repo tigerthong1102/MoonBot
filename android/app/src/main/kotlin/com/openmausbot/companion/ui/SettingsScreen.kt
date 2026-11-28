@@ -221,12 +221,12 @@ fun SettingsScreen(
             }
 
             SettingsSection(stringResource(R.string.ui_chat)) {
-                MobileChatButton()
                 if (inboxOrigin != null) SettingsButton(stringResource(R.string.ui_messages)) { showingInbox = true }
                 SettingsRow(stringResource(R.string.ui_activity), activityDetail.label)
                 SettingsButton(stringResource(R.string.ui_change_activity_detail)) { choosingActivity = true }
                 SettingsButton(stringResource(R.string.ui_quick_replies)) { editingQuickReplies = true }
                 Footnote(activityDetail.caption)
+                MobileChatButton()
             }
 
             if (onOpenRoutines != null || onOpenConnectedApps != null || onOpenVoice != null) {

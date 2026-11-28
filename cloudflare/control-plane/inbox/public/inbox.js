@@ -1,3 +1,4 @@
+import { generatedComposerNotice, prepareInboxPost } from "./twin-generated-notice.js";
 import { installExactReview } from "./twin-exact.js";
 import { installTwinPairing } from "./twin-pairing.js";
 import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
@@ -56,6 +57,8 @@ let posts = [],
   readingOlder = false;
 let botChoices = [], botInviteLoad = 0;
 
+const generatedNotice = generatedComposerNotice({ api, me: () => me, room: () => current, el, t });
+const resetGenerated = installExactReview({api,me:()=>me,t,el,generated:true});
 const resetExact = installExactReview({api,me:()=>me,t,el});
 const resetTwinPairing = installTwinPairing({ api, me: () => me, t, el });
 const voicePlayers = new Map();
@@ -137,6 +140,7 @@ let lastDetailAt = 0;
 let lastActivity = 0;
 let refreshes = 0;
 function clearRoom() {
+  generatedNotice.reset();
   el("close-conversation").close("cancel");
   lastDetailAt = 0;
   revision++;
@@ -174,6 +178,8 @@ function signedOut() {
   disconnectSignals();
   resetTwinPairing();
   resetExact();
+  resetGenerated();
+  el("twin-generated").hidden=true;
   el("twin-exact").hidden=true;
   me = null;
   rooms = [];
@@ -240,6 +246,7 @@ el("logout").onclick = run(async () => {
 async function start() {
   me = await api("me");
   el("twin-exact").hidden=me.exactAnswer!==true;
+  el("twin-generated").hidden=me.generatedAnswer!==true;
   if (pickedLanguage || !el("desktop-back").hidden || !me.locale) {
     if (me.locale !== language) await api("language",{locale:language});
   } else chooseLanguage(me.locale);
@@ -379,6 +386,8 @@ async function refreshRoom(poll) {
     await select(r.id);
     return;
   }
+  if (me.generatedAnswer && r.state === "active") void generatedNotice.refresh();
+  else generatedNotice.reset();
   if (r.state === "active" && result.unchanged) return;
   if (r.state === "active" && result.detail === null) {
     clearRoom();
@@ -729,11 +738,12 @@ async function sendDraft() {
       removeAttachment(item);
     }
     if (post) {
-      await api("rooms/" + room + "/posts", {nonce:post.nonce, kind:post.kind, body:post.body});
+      await api("rooms/" + room + "/posts", {nonce:post.nonce, kind:post.kind, body:post.body, ...(post.generatedNotice && {generatedNotice:post.generatedNotice})});
       if (activeBatch !== batch) return;
     }
     pendingPost = null;
     el("compose").reset();
+    generatedNotice.emptyDraft();
     composeLabels();
     readingOlder = false;
     await refresh();
@@ -749,9 +759,8 @@ el("compose").onsubmit = run(async () => {
     kind = form.elements.kind.value,
     body = form.elements.body.value.trim();
   if (activeBatch || voice.active || (!body && !attachments.length)) return;
-  if (!body) pendingPost = null;
-  else if (!pendingPost || pendingPost.room !== current || pendingPost.kind !== kind || pendingPost.body !== body)
-    pendingPost = { room: current, kind, body, nonce: crypto.randomUUID() };
+  pendingPost = prepareInboxPost(pendingPost, { room: current, kind, body,
+    generatedNotice: kind === "text" && !attachments.length ? generatedNotice.forDraft() : undefined });
   await sendDraft();
 });
 const isMarkdown = (name) => /\.(?:md|markdown)$/i.test(name);
@@ -863,7 +872,7 @@ function renderPosts() {
   for (const p of posts) {
     const date = new Date(p.created);
     const day = date.toLocaleDateString(language);
-    const grouped = day === lastDay && previous?.author === p.author && previous?.botName === p.botName && previous?.exactReply === p.exactReply && p.created - previous.created < 120000;
+    const grouped = day === lastDay && previous?.author === p.author && previous?.botName === p.botName && previous?.generatedReply === p.generatedReply && previous?.exactReply === p.exactReply && p.created - previous.created < 120000;
     if (day !== lastDay) {
       const divider = node("li", date.toLocaleDateString(language, {day:"numeric",month:"long",year:"numeric"}));
       divider.className = "day";
@@ -876,7 +885,7 @@ function renderPosts() {
     const bubble = node("div", "");
     bubble.className = "bubble";
     const type = {skill:t("personalInbox.skillSuffix"),task:t("personalInbox.taskSuffix")}[p.kind] || "";
-    const meta = node("small", (p.exactReply ? t("personalInbox.exactAttribution",{ owner:p.author }) : p.botName ? t("personalInbox.botOwner",{bot:p.botName,owner:p.author}) : p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
+    const meta = node("small", (p.generatedReply ? t("personalInbox.generatedAttribution",{owner:p.author}) : p.exactReply ? t("personalInbox.exactAttribution",{ owner:p.author }) : p.botName ? t("personalInbox.botOwner",{bot:p.botName,owner:p.author}) : p.author === me.email ? t("personalInbox.you") : p.author.split("@")[0]) + type + " · " +
       date.toLocaleTimeString(language, {hour:"2-digit",minute:"2-digit"}));
     meta.title = p.author + " · " + date.toLocaleString(language);
     if (p.kind === "file") {

@@ -44,7 +44,7 @@ export function helperSelection(cfg: HelperConfig, env: Record<string, string | 
 /** "representative": a person's assistant answering a teammate's question for them, which must never get tools. */
 export type SideJob = "work-bot-offer" | "compaction" | "memory" | "skill-review" | "setup-suggestions" | "representative" | "status-reply" | "inbox-discussion";
 
-export type SideJobInstance = Pick<ProviderInstance, "instanceId" | "driverKind" | "enabled" | "generateText" | "generateMemoryText" | "models" | "quickModelsUsable"> & {
+export type SideJobInstance = Pick<ProviderInstance, "isolatedTextOrigin" | "instanceId" | "driverKind" | "enabled" | "generateText" | "generateMemoryText" | "models" | "quickModelsUsable"> & {
   adapter: { capabilities: Pick<ProviderAdapter["capabilities"], "agentsMcp"> };
   displayName?: string;
 };
@@ -86,7 +86,7 @@ export interface SideJobs {
   text(job: SideJob, botId: string, at?: { instance?: SideJobInstance; model?: string; threadId?: string }): SideJobText | null;
   instructionTest(botId: string, selection: ModelSelection): SideJobText | null;
   sourceAnswer(botId: string, selection: ModelSelection, threadId: string, trigger: UsageTrigger): (SideJobText & { selection: ModelSelection }) | null;
-  twinPreview(selection: { instanceId: string; model: string }, twinId: string): {
+  twinPreview(selection: { instanceId: string; model: string }, twinId: string, generated?: boolean): {
     instance: SideJobInstance;
     name: string;
     generateText: SideJobText["generateText"];
@@ -155,7 +155,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     };
 
   /** Every call checks the spend limit: one upkeep pass makes several in a row. */
-  const booked = (job: SideJob | "ai-twin-preview" | "instruction-test" | "source-answer", bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions, notificationThread = bot.threadId): SideJobText["generateText"] =>
+  const booked = (job: SideJob | "ai-twin-preview" | "ai-twin-generated" | "instruction-test" | "source-answer", bot: SideJobBot, instance: SideJobInstance, call: TextCall, trigger: UsageTrigger, fixed: () => TextGenerationOptions, notificationThread = bot.threadId): SideJobText["generateText"] =>
     async (prompt, options) => {
       deps.assertWithinBudget(job === "instruction-test" || job === "source-answer" ? bot.id : undefined);
       const threadId = `${job}-${randomUUID()}`;
@@ -293,7 +293,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
       const scheduled = queued("source-answer", writer(), writer);
       return scheduled && { ...scheduled, selection: requested };
     },
-    twinPreview(selection, twinId) {
+    twinPreview(selection, twinId, generated = false) {
       const instance = deps.instance(selection.instanceId);
       if (!instance?.enabled || !selection.model || deps.refusal(instance)) return null;
       if (deps.modelAllowed && !deps.modelAllowed(selection)) return null;
@@ -304,8 +304,8 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
       return {
         instance,
         name: instance.displayName ?? label,
-        generateText: booked("ai-twin-preview", twin, instance, call.bind(instance),
-          { kind: "bot", botId: twinId }, () => ({ model: selection.model, requireIsolatedText: true })),
+        generateText: booked(generated ? "ai-twin-generated" : "ai-twin-preview", twin, instance, call.bind(instance),
+          { kind: "bot", botId: twinId }, () => ({ model: selection.model, requireIsolatedText: true, ...(generated && { visibleTextOnly: true as const }) })),
       };
     },
   };

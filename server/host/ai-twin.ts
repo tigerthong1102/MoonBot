@@ -26,6 +26,7 @@ export function createAiTwinHost(deps: {
   liveSession: (auth: RequestAuth) => boolean;
   sessionRecord: (id: string) => SessionRecord | null;
   visible: (auth: RequestAuth) => Visibility;
+  assertUnattended?: (id: string) => void;
   mayLearn: () => boolean;
   ownerThread: (threadId: string) => boolean;
   ownerLine: (person?: string) => boolean;
@@ -176,7 +177,7 @@ export function createAiTwinHost(deps: {
     },
     revokeDevice(device: string) { revokedDevices.add(device); },
     routes: createAiTwinRoutes({
-      store: privateStore, storeFor,
+      store: privateStore, storeFor, assertUnattended: deps.assertUnattended,
       source: (auth, thread, message): TwinExampleSource | undefined => sourceIndex(auth, [thread])(thread, message),
       preview: deps.preview, zaloRecipe: deps.zaloRecipe, owner, phone, canEnablePhone: desktop, desktop, learning,
       learnedStyle: (auth, sources) => recentTwinStyle(learnedRows(auth, sources, true)),

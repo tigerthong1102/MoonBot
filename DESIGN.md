@@ -55,12 +55,16 @@ where they belong instead of adding new places.
   AI Twin is available in the local desktop workspace and in the owner's
   personal Cloud. Your account holds its profile, approved lessons, learning
   sources and access controls. The person creates the Twin, chooses each
-  learning source, and approves each answer before it can appear in a group.
+  learning source, and approves each learned answer before it can appear in a group.
   Paired phone access from a desktop is off until enabled. Provider-backed
   actions show the destination. Each lesson needs permission before Twin shares it with its provider.
   Stopping a learning source stops new learning. A saved conversation lesson still depends on current
   access to its original messages. Its approved private preview can use the selected provider.
   Rooms and online Inbox accept separately released answers the owner taught manually.
+  For generated Inbox replies, the owner separately chooses current DMs or groups they manage.
+  Both approval screens show the provider destination, model, rooms, expiry and paid attempt limit.
+  Senders see the provider notice before composing. The provider receives the current text only,
+  and the shared reply identifies itself as AI-generated.
   Owners can forget older lessons whose source cannot be verified.
   Group participants and bots can read answers the Twin posts in their group. The internal
   release gate can disable availability.

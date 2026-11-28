@@ -1,3 +1,4 @@
+import { createOnlineGenerated } from "./twin-online-generated.mjs";
 import { createOnlineExact } from "./twin-online-exact.mjs";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { twinPairingMessage } from "./twin-pairing-message.mjs";
@@ -9,6 +10,10 @@ export function createTwinInboxPairing({
   current,
   profile,
   exactProfile,
+  generatedProfile,
+  generate,
+  generatedJournal,
+  approveGenerated,
   inbox,
   origin,
   approve,
@@ -21,6 +26,7 @@ export function createTwinInboxPairing({
   const reset = () => {
     pending = undefined;
     exact.reset();
+    generated.reset();
   };
   async function liveTwin() {
     if (!current()) throw unavailable();
@@ -59,8 +65,10 @@ export function createTwinInboxPairing({
     approve: approveExact,
     monotonic,
   });
+  const generated = createOnlineGenerated({ state: () => pending, check, profile: generatedProfile, generate, inbox,
+    approve: approveGenerated, journal: generatedJournal, origin, monotonic });
   return {
-    exact,
+    exact, generated,
     reset,
     async start() {
       const state = {};
@@ -107,6 +115,7 @@ export function createTwinInboxPairing({
         origin,
         expires: state.expires,
         exactAvailable: me.exactAnswer === true,
+        ...(me.generatedAnswer === true && { generatedAvailable: true }),
       };
     },
     async confirm() {

@@ -81,3 +81,19 @@ The desktop component chooses an owner-taught lesson from a temporary local work
 The feature is off unless the isolated Worker receives `INBOX_EXACT_ANSWER=1`. The Inbox owner authorizes the paired public key. Inbox records this account's consent and the signature for each reply. It cannot attest a desktop installation, a workspace identity or one human controlling both sessions. The exact question and answer go to Inbox for review. Inbox deletes that copy on revocation or during daily cleanup after expiry. The signed receipt contains identifiers, origin, deadline and public key. It follows its source message through the 30-day retention period and daily cleanup. Deleting the source deletes its receipt. Posted replies have their own message lifecycle. No model receives messages or generates answers. The grant ends within ten minutes and allows twenty replies at most. The text comparison is exact. The selected rooms use a membership incarnation. Choosing all rooms explicitly includes future DMs and groups. Final posting rechecks central permission, membership, the source message and expiry.
 
 Stopping the signer on the desktop prevents new signatures. An already signed request can finish within four seconds while central revocation is pending. Successful central revocation prevents further posting immediately. After a disconnect or restart, opening the desktop pairing panel checks the account and reconciles pending revocations. A journal stores identifiers on disk. The private key exists only in memory. Windows and Linux package behavior and abrupt power loss require separate validation.
+
+### Generated replies while the desktop is online
+
+Generated replies have a separate Worker gate, `INBOX_GENERATED_ANSWER=1`, and start off. In AI Twin settings the owner chooses one to eight current DMs or groups they manage. The desktop and a second signed-in Inbox session confirm the model, provider destination, rooms, expiry and attempt limit. The room composer shows the provider notice before a participant types. Text sent by older clients or composed without that notice remains ordinary chat. The posted reply carries an AI-generated label.
+
+The provider receives the current eligible text and a fixed instruction. The prompt excludes room history, attachments, learned lessons, tools and workspace files. Each grant permits five source attempts within ten minutes, one at a time. A claimed attempt counts even if a provider fails. Existing spending controls also apply. Actual charges depend on the provider. Worker authorization and the provider request run on separate systems. A revocation can race with a request the Worker has already admitted. The provider can still receive or charge for that attempt. Central revocation suppresses a subsequent post and leaves previously posted messages in their normal lifecycle.
+
+Run the local fixture from the repository root:
+
+```sh
+node cloudflare/control-plane/inbox/prepare-assets.mjs
+node --experimental-strip-types scripts/verify-twin-inbox-pairing.mjs --generated
+node --test electron/twin-online-generated.node-test.mjs
+```
+
+The fixture uses separate local Inbox sessions, an isolated Worker and D1, a synthetic HTTP provider, and the production Electron bridge. It inspects native dialog arguments and scripts approval. It sends a new DM question, checks the generated label and reply, revokes the grant, and counts provider requests. Hosted D1, live provider billing, installed packages and additional operating systems require separate verification.

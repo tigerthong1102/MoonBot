@@ -93,6 +93,13 @@
             <div id="exact-terms"></div>
             <p role="status" id="exact-status"></p>
           </details>
+          <details id="twin-generated" hidden>
+            <summary data-i18n="personalInbox.generatedTitle"></summary>
+            <p data-i18n="personalInbox.generatedTerms"></p>
+            <button type="button" class="ui-button" id="generated-check" data-i18n="personalInbox.exactCheck"></button>
+            <div id="generated-terms"></div>
+            <p role="status" id="generated-status"></p>
+          </details>
           <details id="blocked">
             <summary data-i18n="personalInbox.blockedPeople">Blocked people</summary>
             <ul id="blocked-list"></ul>
@@ -157,6 +164,7 @@
 
             <p id="post-limited" hidden></p>
             <form id="compose">
+              <p id="generated-notice" role="status" hidden></p>
               <small id="sending" role="status" hidden></small>
               <div id="voice-controls">
                 <small id="voice-status" role="status" hidden></small>

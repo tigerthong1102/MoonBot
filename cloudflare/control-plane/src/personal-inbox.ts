@@ -1,3 +1,4 @@
+import { grantedNoticeAtPost } from "./inbox-generated-scope";
 import { pendingBotTurns, roomBots } from "./inbox-bots";
 import { botIdentities } from "./inbox-bot-identities";
 import { canPost } from "./inbox-files";
@@ -26,6 +27,7 @@ const maxPostLength = 8000;
 export const maxPostBytes = 6 * maxPostLength + 1024;
 const post = z.object({
   nonce: z.uuid(),
+  generatedNotice: z.uuid().optional(),
   kind: z.enum(["text", "skill", "task"]),
   body: z.string().trim().min(1).max(maxPostLength),
 });
@@ -110,7 +112,7 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
       .bind(room, room, user),
     db
       .prepare(
-        `SELECT p.seq,CASE WHEN f.post IS NULL AND upload.post IS NULL THEN p.kind ELSE 'file' END AS kind,coalesce(upload.size,length(f.bytes)) AS fileSize,p.body,p.created,${exact?"p.exact_reply AS exactReply,":""}p.bot_name AS botName,u.email AS author FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
+        `SELECT p.*,CASE WHEN f.post IS NULL AND upload.post IS NULL THEN p.kind ELSE 'file' END AS shownKind,coalesce(upload.size,length(f.bytes)) AS fileSize,u.email AS authorEmail FROM inbox_posts p LEFT JOIN inbox_files f ON f.post=p.seq
       LEFT JOIN inbox_uploads upload ON upload.post=p.seq
       JOIN inbox_members m ON m.room=p.room AND m.person=? AND m.state='active'
       JOIN "user" u ON u.id=p.author WHERE p.room=? AND p.seq>m.after_seq AND p.seq<? AND p.created>=?
@@ -126,7 +128,12 @@ async function roomDetail(db: D1Database, user: string, room: string, before: nu
   return {
     group: access.results[0], requests: requests.results, bans: bans.results,
     members: members.results,
-    posts: posts.results.slice(0, pageSize).reverse(),
+    posts: posts.results.slice(0, pageSize).reverse().map(p => ({
+      seq: p.seq, kind: p.shownKind, fileSize: p.fileSize, body: p.body, created: p.created,
+      botName: p.bot_name, author: p.authorEmail,
+      ...(exact && { exactReply: p.exact_reply }),
+      ...(p.generated_reply && { generatedReply: p.generated_reply }),
+    })),
     more: posts.results.length > pageSize,
   };
 }
@@ -391,14 +398,15 @@ export async function inboxRoutes(req: Request, env: InboxEnv, user: string, ctx
     const input = await body(req, post, maxPostBytes);
     if (redactSecretsInText(input.body) !== input.body) throw new HTTPError(400, "contains_secret");
     await limit(db, user, "inbox_post", 60, 60000);
+    const generated = env.INBOX_GENERATED_ANSWER === "1";
     const result = await db
       .prepare(
-        `INSERT INTO inbox_posts(room,author,nonce,kind,body,created)
-      SELECT ?1,?2,?3,?4,?5,?6 WHERE EXISTS (${canPost})
+        `INSERT INTO inbox_posts(room,author,nonce,kind,body,created${generated?",generated_notice":""})
+      SELECT ?1,?2,?3,?4,?5,?6${generated ? ","+grantedNoticeAtPost : ""} WHERE EXISTS (${canPost})
       ON CONFLICT(room,author,nonce) DO UPDATE SET nonce=excluded.nonce
       WHERE kind=excluded.kind AND body=excluded.body`,
       )
-      .bind(room, user, input.nonce, input.kind, input.body, now)
+      .bind(room, user, input.nonce, input.kind, input.body, now, ...(generated ? [input.generatedNotice ?? null,new URL(req.url).origin] : []))
       .run();
     return changed(result);
   }

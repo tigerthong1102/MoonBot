@@ -1,9 +1,16 @@
+import { AiTwinExactRelease } from "./AiTwinExactRelease";
 import { useState } from "react";
 import { t } from "@/lib/i18n";
 
 export function AiTwinPairing() {
   const bridge = window.ogb?.personalInbox;
-  const [ticket, setTicket] = useState<{ id: string; fingerprint: string; origin: string }>();
+  const [ticket, setTicket] = useState<{
+    id: string;
+    fingerprint: string;
+    origin: string;
+    exactAvailable?: boolean;
+  }>();
+  const [exactAvailable, setExactAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   if (!bridge?.startTwinPairing || !bridge.confirmTwinPairing) return null;
@@ -24,7 +31,15 @@ export function AiTwinPairing() {
     }
   }
   return (
-    <details>
+    <details
+      onToggle={(event) => {
+        if (event.target === event.currentTarget && event.currentTarget.open)
+          void bridge
+            .exactStatus?.()
+            .then((s) => setExactAvailable(s.available || s.pendingRecovery === true))
+            .catch(() => {});
+      }}
+    >
       <summary>{t("personalInbox.pairTitle")}</summary>
       <p>{t("personalInbox.pairPurpose")}</p>
       <button type="button" className="ui-button" disabled={busy} onClick={() => void act(false)}>
@@ -53,6 +68,7 @@ export function AiTwinPairing() {
           </button>
         </div>
       )}
+      {(exactAvailable || ticket?.exactAvailable) && <AiTwinExactRelease paired={!!ticket?.exactAvailable} />}
       <p role="status">{notice}</p>
     </details>
   );

@@ -1,3 +1,4 @@
+import { inboxExactAnswer } from "./inbox-exact-answer";
 import { inboxTwinPairing } from "./inbox-twin-pairing";
 import { inboxLanguage, supportedInboxLanguage } from "./inbox-language";
 import { previewGroup } from "./inbox-group";
@@ -12,6 +13,7 @@ import { limitedOTPResponse } from "./otp-rate-limit";
 import { inboxRetention, inboxRoutes, maxPostBytes } from "./personal-inbox";
 
 export type InboxEnv = Pick<Env, "DB" | "EMAIL" | "BETTER_AUTH_SECRET"> & {
+  INBOX_EXACT_ANSWER?: string;
   SIGNALS?: DurableObjectNamespace<InboxSignals>;
   BETTER_AUTH_URL: string;
   EMAIL_FROM: string;
@@ -101,6 +103,12 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
     headers: new Headers({ cookie: req.headers.get("cookie") ?? "" }),
   });
   if (!session?.user.emailVerified) return errorResponse(401, "unauthorized");
+  if (url.pathname === "/api/twin-exact") {
+    if (env.INBOX_EXACT_ANSWER !== "1") return errorResponse(404, "not_found");
+    return inboxExactAnswer(req, env.DB, { id: session.session.id, owner: session.user.id }, room => {
+      if (env.SIGNALS) ctx.waitUntil(notifyRoom(env,room));
+    });
+  }
   if (url.pathname === "/api/twin-pairing") return inboxTwinPairing(req, env.DB, { id: session.session.id, owner: session.user.id, expires: session.session.expiresAt.getTime() });
   if (url.pathname === "/api/account/updates") {
     if (req.method === "POST") {
@@ -143,7 +151,7 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (req.method === "GET" && url.pathname === "/api/me") {
     await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
     const locale = await env.DB.prepare("SELECT locale FROM inbox_languages WHERE person=?").bind(session.user.id).first<string>("locale");
-    return json({ id: session.user.id, email: session.user.email, locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts, voiceFileBytes });
+    return json({ id: session.user.id, email: session.user.email, ...(env.INBOX_EXACT_ANSWER==="1" && {exactAnswer:true}), locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts, voiceFileBytes });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
   const silent = result.headers.get("x-inbox-internal-silent") === "1";
@@ -187,6 +195,7 @@ export default {
   },
   async scheduled(_event, env) {
     await env.DB.batch([
+      ...(env.INBOX_EXACT_ANSWER === "1" ? [env.DB.prepare("DELETE FROM inbox_exact_revoked WHERE expires<=?").bind(Date.now())] : []),
       env.DB.prepare("DELETE FROM inbox_twin_pairings WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_bot_rounds WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_bot_claims WHERE expires<=?").bind(Date.now()),

@@ -1,3 +1,5 @@
+import { readExactStatus,recoverExact } from "./twin-online-exact.mjs";
+import { exactReplyJournal } from "./twin-exact-journal.mjs";
 import { createTwinInboxPairing } from "./twin-inbox-pairing.mjs";
 import { personalAccountUpdates } from "./personal-account-updates.mjs";
 import { watchInboxIdentities } from "./personal-inbox-identity-watch.mjs";
@@ -192,31 +194,103 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       }));
     }
     let pairing, disposePairing;
+    const exactJournal = exactReplyJournal(path.join(app.getPath("userData"), "pending-exact-replies"));
+    function accountRequest(base, current) {
+      const account = session.fromPartition(partition);
+      return async (route, data) => {
+        if (!current()) throw Error("pairing_unavailable");
+        const response = await account.fetch(base + "/api/" + route, {
+          credentials: "include",
+          cache: "no-store",
+          redirect: "error",
+          signal: AbortSignal.timeout(10000),
+          ...(data && {
+            method: "POST",
+            headers: { Origin: base, "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          }),
+        });
+        if (!response.ok || !current()) throw Error("pairing_unavailable");
+        return response.json();
+      };
+    }
+    function standalone() {
+      const win = window(),
+        base = origin();
+      if (!base || new URL(base).protocol !== "https:" || !isLocal(win)) throw Error("exact_reply_unavailable");
+      return {
+        origin: base,
+        journal: exactJournal,
+        inbox: accountRequest(base, () => !win.isDestroyed() && isLocal(win) && origin() === base),
+      };
+    }
+    async function exactStatus() {
+      if (pairing) return pairing.exact.status();
+      const context = standalone(),
+        me = await recoverExact(context);
+      return readExactStatus(context.inbox, me);
+    }
     handle("personal-inbox:twin-pair-start", async () => {
       disposePairing?.();
-      const win = window(), base = origin(), runtime = localRuntime?.();
-      if (!runtime || !base || new URL(base).protocol !== "https:" || !isLocal(win)) throw Error("pairing_unavailable");
+      const win = window(),
+        base = origin(),
+        runtime = localRuntime?.();
+      if (!runtime || !base || new URL(base).protocol !== "https:" || !isLocal(win))
+        throw Error("pairing_unavailable");
       const current = () => !win.isDestroyed() && isLocal(win) && origin() === base && localRuntime() === runtime;
-      const account = session.fromPartition(partition);
+      const localView = async (route) => {
+        const response = await localRequest(route, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+        if (!response.ok) throw Error("pairing_unavailable");
+        return response.json();
+      };
       const instance = createTwinInboxPairing({
-        origin: base, current,
-        profile: async () => {
-          const response = await localRequest("/api/ai-twin", { cache: "no-store", signal: AbortSignal.timeout(10000) });
-          if (!response.ok) throw Error("pairing_unavailable");
-          return response.json();
-        },
-        inbox: async (path, data) => {
-          if (!current()) throw Error("pairing_unavailable");
-          const response = await account.fetch(base + "/api/" + path, {
-            credentials: "include", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10000),
-            ...(data && { method:"POST", headers:{ Origin:base, "Content-Type":"application/json" }, body:JSON.stringify(data) }),
+        exactJournal,
+        approveExact: async ({ grant, all, chosen }) => {
+          const roomNames = all
+            ? translate("personalInbox.exactAll")
+            : chosen
+                .map(
+                  (r) =>
+                    r.title +
+                    " (" +
+                    translate(r.kind === "group" ? "personalInbox.group" : "personalInbox.direct") +
+                    " · " +
+                    r.id +
+                    ")",
+                )
+                .join("\n");
+          const result = await dialog.showMessageBox(win, {
+            type: "question",
+            message: translate("personalInbox.exactConsent"),
+            detail: [
+              translate("personalInbox.exactRetention"),
+              grant.origin,
+              grant.owner,
+              roomNames,
+              grant.question,
+              grant.answer,
+              new Date(grant.expires).toLocaleString(),
+            ].join("\n\n"),
+            buttons: [translate("native.common.cancel"), translate("personalInbox.exactOffer")],
+            defaultId: 0,
+            cancelId: 0,
           });
-          if (!response.ok) throw Error("pairing_unavailable");
-          return response.json();
+          return result.response === 1;
         },
+        origin: base,
+        current,
+        profile: () => localView("/api/ai-twin"),
+        exactProfile: () => localView("/api/ai-twin/inbox-exact-lessons"),
+        inbox: accountRequest(base, current),
         approve: async ({ origin, fingerprint, owner, twin }) => {
-          const answer = await dialog.showMessageBox(win, { type:"question", message:translate("personalInbox.pairCompare"), detail:[origin,owner,twin,fingerprint].join("\n"),
-            buttons:[translate("native.common.cancel"),translate("personalInbox.pairMatch")], defaultId:0, cancelId:0 });
+          const answer = await dialog.showMessageBox(win, {
+            type: "question",
+            message: translate("personalInbox.pairCompare"),
+            detail: [origin, owner, twin, fingerprint].join("\n"),
+            buttons: [translate("native.common.cancel"), translate("personalInbox.pairMatch")],
+            defaultId: 0,
+            cancelId: 0,
+          });
           return answer.response === 1;
         },
       });
@@ -224,24 +298,60 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       const contents = win.webContents;
       const dispose = () => {
         instance.reset();
+        void instance.exact.recover().catch(() => {});
         clearTimeout(timer);
+        clearInterval(poll);
         win.removeListener("closed", dispose);
         if (!contents.isDestroyed()) {
           contents.removeListener("did-start-navigation", leaving);
           contents.removeListener("render-process-gone", dispose);
         }
-        if (pairing === instance) { pairing = undefined; disposePairing = undefined; }
+        if (pairing === instance) {
+          pairing = undefined;
+          disposePairing = undefined;
+        }
       };
-      const leaving = (_event, _url, isInPlace, isMainFrame) => { if (isMainFrame && !isInPlace) dispose(); };
+      const leaving = (_event, _url, isInPlace, isMainFrame) => {
+        if (isMainFrame && !isInPlace) dispose();
+      };
+      const poll = setInterval(() => void instance.exact.tick(), 1500);
+      poll.unref();
       const timer = setTimeout(dispose, 600_000);
       timer.unref();
       disposePairing = dispose;
       contents.on("did-start-navigation", leaving);
       contents.once("render-process-gone", dispose);
       win.once("closed", dispose);
-      try { return await instance.start(); }
-      catch (error) { dispose(); throw error; }
-
+      try {
+        return await instance.start();
+      } catch (error) {
+        dispose();
+        throw error;
+      }
+    });
+    handle(
+      "personal-inbox:twin-exact-choices",
+      () => pairing?.exact.choices() ?? Promise.reject(Error("exact_reply_unavailable")),
+    );
+    handle("personal-inbox:twin-exact-offer", (_e, lesson, rooms) => pairing?.exact.offer(lesson, rooms) ?? false);
+    handle("personal-inbox:twin-exact-stop", async (_event, target) => {
+      pairing?.exact.reset();
+      const context = standalone();
+      const me = await recoverExact(context);
+      if (target) {
+        if (target.owner !== me.id || typeof target.id !== "string") throw Error("exact_reply_unavailable");
+        const receipt = await context.inbox("twin-exact", { action: "revoke", owner: target.owner, id: target.id });
+        if (receipt.id !== target.id || !receipt.revoked) throw Error("exact_reply_unavailable");
+      }
+      return exactStatus();
+    });
+    handle("personal-inbox:twin-exact-status", async () => {
+      try {
+        return await exactStatus();
+      } catch (error) {
+        if (exactJournal.hasPending()) return { available: false, pendingRecovery: true };
+        throw error;
+      }
     });
     handle("personal-inbox:twin-pair-confirm", () => pairing?.confirm() ?? false);
     handle("personal-inbox:open", () => open());

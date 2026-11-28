@@ -1187,3 +1187,209 @@ it("drops pending proofs on expiry and sign-out and bounds fresh key offers", as
   await call("auth/sign-out",desktop.cookie,{});
   expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_twin_pairings WHERE owner=?").bind(desktop.id).first<number>("n")).toBe(0);
 });
+
+async function pairedExactFixture() {
+  const { createTwinInboxPairing } = await import("../../../electron/twin-inbox-pairing.mjs");
+  const desktop = await login("owner@example.test"),
+    reviewer = await login(desktop.email),
+    peer = await login("peer@example.test");
+  const enabled = { INBOX_EXACT_ANSWER: "1" };
+  const owner = desktop.id,
+    room = uuid(),
+    twin = { id: uuid(), revision: 1, paused: false };
+  const lesson = { id: uuid(), source: "owner", question: "Lunchtime?", answer: "At noon." };
+  const refs = new Map<string, { owner: string; origin: string; id: string }>();
+  const journal = {
+    add: (value: { owner: string; origin: string; id: string }) => {
+      refs.set(value.id, value);
+    },
+    remove: ({ id }: { id: string }) => {
+      refs.delete(id);
+    },
+    list: () => [...refs.values()],
+  };
+  const offers: object[] = [];
+  const finishes: object[] = [];
+  let beforeFinish: (() => Promise<void>) | undefined;
+  const local = createTwinInboxPairing({
+    origin,
+    current: () => true,
+    profile: async () => ({ twin }),
+    exactProfile: async () => ({ twin, lessons: [lesson] }),
+    exactJournal: journal,
+    approve: async () => true,
+    approveExact: async () => true,
+    inbox: async (path, data) => {
+      if (data && "action" in data && data.action === "offer") offers.push(data);
+      if (data && "action" in data && data.action === "finish") {
+        finishes.push(data);
+        await beforeFinish?.();
+      }
+      const r = await call(path, desktop.cookie, data, enabled);
+      if (!r.ok) throw Error(path + " " + r.status);
+      return r.json();
+    },
+  });
+  const request = (who: typeof desktop, data: object) =>
+    call("twin-exact", who.cookie, { owner, ...data }, enabled);
+  expect((await call("twin-exact", desktop.cookie)).status).toBe(404);
+  const pair = await local.start();
+  expect(pair.exactAvailable).toBe(true);
+  const pairing = (action: string, extra = {}) =>
+    call("twin-pairing", reviewer.cookie, { id: pair.id, owner, action, ...extra });
+  expect((await pairing("inspect")).ok).toBe(true);
+  expect(await local.confirm()).toBe(true);
+  expect((await pairing("confirm", { fingerprint: pair.fingerprint })).ok).toBe(true);
+  return {
+    desktop,
+    reviewer,
+    peer,
+    owner,
+    room,
+    twin,
+    lesson,
+    refs,
+    local,
+    request,
+    offers,
+    finishes,
+    interceptFinish: (fn: () => Promise<void>) => {
+      beforeFinish = fn;
+    },
+  };
+}
+it("requires independent scope consent and an online signature for each exact owner answer", async () => {
+  const { desktop, reviewer, peer, owner, room, lesson, refs, local, request, offers, finishes } =
+    await pairedExactFixture();
+  expect(
+    (await call("rooms", desktop.cookie, { id: room, kind: "direct", email: peer.email, instant: true })).ok,
+  ).toBe(true);
+  const choices = await local.exact.choices();
+  const scope = choices.rooms.find((r) => r.id === room)!.ref;
+  const post = (who: typeof desktop, text: string) =>
+    call("rooms/" + room + "/posts", who.cookie, { kind: "text", body: text, nonce: uuid() });
+  expect((await post(peer, lesson.question)).ok).toBe(true);
+  expect(await local.exact.offer(lesson.id, [scope])).toBe(true);
+  const grant = (await local.exact.status()).remote!;
+  expect(JSON.stringify(await local.exact.status())).not.toContain(lesson.answer);
+  const approve = { action: "approve", id: grant.id, purpose: "one-exact-owner-lesson-v1", review: uuid() };
+  expect((await request(reviewer, approve)).status).toBe(409);
+  expect((await request(desktop, { action: "inspect", id: grant.id })).status).toBe(409);
+  const inspected = await request(reviewer, { action: "inspect", id: grant.id });
+  expect(inspected.ok).toBe(true);
+  const { review } = await inspected.json<{ review: string }>();
+  expect((await request(peer, { ...approve, review })).status).toBe(409);
+  expect((await request(reviewer, { ...approve, review })).ok).toBe(true);
+  expect((await request(reviewer, { ...approve, review })).status).toBe(409);
+  expect((await post(desktop, lesson.question)).ok).toBe(true);
+  expect((await post(peer, lesson.question.toLowerCase())).ok).toBe(true);
+  await local.exact.tick();
+  expect(finishes).toHaveLength(0);
+  expect((await post(peer, lesson.question)).ok).toBe(true);
+  await local.exact.tick();
+  expect(finishes).toHaveLength(1);
+  const receipt = await env.INBOX_DB.prepare(
+    "SELECT signed_message,public_key,signature FROM inbox_exact_receipts WHERE owner=?",
+  )
+    .bind(owner)
+    .first<{ signed_message: string; public_key: string; signature: string }>();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    Uint8Array.from(receipt!.public_key.match(/../g)!, (v) => Number.parseInt(v, 16)),
+    "Ed25519",
+    false,
+    ["verify"],
+  );
+  expect(
+    await crypto.subtle.verify(
+      "Ed25519",
+      key,
+      Uint8Array.from(receipt!.signature.match(/../g)!, (v) => Number.parseInt(v, 16)),
+      new TextEncoder().encode(receipt!.signed_message),
+    ),
+  ).toBe(true);
+  const answers = () =>
+    env.INBOX_DB.prepare("SELECT seq,body,author FROM inbox_posts WHERE room=? AND exact_reply=1")
+      .bind(room)
+      .all();
+  expect((await answers()).results).toMatchObject([{ body: lesson.answer, author: owner }]);
+  expect((await request(desktop, finishes[0])).ok).toBe(true);
+  await env.INBOX_DB.prepare("DELETE FROM inbox_posts WHERE room=? AND exact_reply=1").bind(room).run();
+  expect((await request(desktop, finishes[0])).ok).toBe(true);
+  await local.exact.tick();
+  expect((await answers()).results).toEqual([]);
+  expect((await request(reviewer, { action: "revoke", id: grant.id })).ok).toBe(true);
+  expect((await request(desktop, offers[0])).status).toBe(409);
+  expect((await post(peer, lesson.question)).ok).toBe(true);
+  await local.exact.tick();
+  expect(finishes).toHaveLength(1);
+  expect(refs.size).toBe(0);
+});
+
+it.each(["selected", "all", "membership-race", "revoke-race", "expired-lease"] as const)(
+  "rechecks grant, lease and room incarnation at group publish: %s",
+  async (mode) => {
+    const { desktop, reviewer, peer, owner, room, lesson, local, request, interceptFinish } =
+      await pairedExactFixture();
+    async function createGroup() {
+      expect((await call("rooms", peer.cookie, { id: room, kind: "group", title: "Same label" })).ok).toBe(true);
+      expect((await call("rooms/" + room + "/invite", peer.cookie, { email: desktop.email })).ok).toBe(true);
+      expect((await call("rooms/" + room + "/accept", desktop.cookie, {})).ok).toBe(true);
+    }
+    if (mode !== "all") await createGroup();
+    const rooms = mode === "all" ? ["*"] : [(await local.exact.choices()).rooms.find((r) => r.id === room)!.ref];
+    expect(await local.exact.offer(lesson.id, rooms)).toBe(true);
+    const { id } = (await local.exact.status()).remote!;
+    const { review } = await (await request(reviewer, { action: "inspect", id })).json<{ review: string }>();
+    expect(
+      (await request(reviewer, { action: "approve", id, review, purpose: "one-exact-owner-lesson-v1" })).ok,
+    ).toBe(true);
+    if (mode === "all") await createGroup();
+    if (mode === "membership-race")
+      interceptFinish(async () => {
+        expect(
+          (await call("rooms/" + room + "/moderate", peer.cookie, { action: "mute", person: owner })).ok,
+        ).toBe(true);
+      });
+    if (mode === "revoke-race")
+      interceptFinish(async () => {
+        expect((await request(reviewer, { action: "revoke", id })).ok).toBe(true);
+      });
+    if (mode === "expired-lease")
+      interceptFinish(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 4200));
+      });
+    const count = () =>
+      env.INBOX_DB.prepare("SELECT count(*) FROM inbox_posts WHERE room=? AND exact_reply=1")
+        .bind(room)
+        .first<number>("count(*)");
+    const incoming = async () =>
+      expect(
+        (
+          await call("rooms/" + room + "/posts", peer.cookie, {
+            nonce: uuid(),
+            kind: "text",
+            body: lesson.question,
+          })
+        ).ok,
+      ).toBe(true);
+    await env.INBOX_DB.prepare(
+      "INSERT INTO inbox_files(room,author,nonce,name,digest,bytes,created) VALUES(?,?,?,?,?,x'00',?)",
+    )
+      .bind(room, peer.id, uuid(), lesson.question, "test", Date.now())
+      .run();
+    await local.exact.tick();
+    expect(await count()).toBe(0);
+    await incoming();
+    await local.exact.tick();
+    expect(await count()).toBe(mode === "all" || mode === "selected" ? 1 : 0);
+    if (mode === "selected") {
+      await env.INBOX_DB.prepare("DELETE FROM inbox_rooms WHERE id=?").bind(room).run();
+      await createGroup();
+      await incoming();
+      await local.exact.tick();
+      expect(await count()).toBe(0);
+    }
+  },
+  15000,
+);

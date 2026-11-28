@@ -203,6 +203,10 @@ const bridge = {
     },
     openPersonalInbox: () => ipcRenderer.invoke("personal-inbox:open"),
     personalInbox: {
+      exactChoices: () => ipcRenderer.invoke("personal-inbox:twin-exact-choices"),
+      offerExact: (lesson,rooms) => ipcRenderer.invoke("personal-inbox:twin-exact-offer",lesson,rooms),
+      stopExact: (target) => ipcRenderer.invoke("personal-inbox:twin-exact-stop",target),
+      exactStatus: () => ipcRenderer.invoke("personal-inbox:twin-exact-status"),
       startTwinPairing: () => ipcRenderer.invoke("personal-inbox:twin-pair-start"),
       confirmTwinPairing: () => ipcRenderer.invoke("personal-inbox:twin-pair-confirm"),
       create: draft => ipcRenderer.invoke("personal-inbox:create", draft),

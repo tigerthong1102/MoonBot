@@ -64,3 +64,20 @@ node --experimental-strip-types scripts/verify-twin-inbox-pairing.mjs
 The fixture creates a local Twin and runs the Inbox Worker and D1 locally. It logs in through the OTP API using an in-memory mailbox, then places those session cookies into separate Electron partitions. It mounts the desktop pairing component with the production preload and IPC and exercises the Inbox web UI in two other windows in the same Electron process. It completes browser confirmation and independently reads back revocation from the third session.
 
 The fixture intercepts the native dialog call, checks the fingerprint and default Cancel button in its arguments and returns a scripted approval. It does not display the OS dialog. Human comparison, separate physical devices, hosted services and installed application packages require separate verification.
+
+### Automatic replies to an owner-taught question
+
+Run the same isolated fixture with its experimental exact-answer gate enabled.
+
+```sh
+node cloudflare/control-plane/inbox/prepare-assets.mjs
+node --experimental-strip-types scripts/verify-twin-inbox-pairing.mjs --exact
+node --test electron/twin-online-exact.node-test.mjs
+pnpm --filter @openmausbot/control-plane exec vitest run test/personal-inbox.test.ts
+```
+
+The desktop component chooses an owner-taught lesson from a temporary local workspace and one DM. The fixture checks native-dialog arguments and supplies a scripted approval without opening an OS dialog. A second Inbox session reviews the actual question, answer, expiry and room. A peer posts a matching message. The desktop polls the local Worker, signs a short-lived request, and the Worker stores one attributed reply. A third session revokes the grant and the fixture checks another matching message produces no reply. The three windows share one Electron process. This recipe runs against source and an unpackaged Electron runtime.
+
+The feature is off unless the isolated Worker receives `INBOX_EXACT_ANSWER=1`. The Inbox owner authorizes the paired public key. Inbox records this account's consent and the signature for each reply. It cannot attest a desktop installation, a workspace identity or one human controlling both sessions. The exact question and answer go to Inbox for review. Inbox deletes that copy on revocation or during daily cleanup after expiry. The signed receipt contains identifiers, origin, deadline and public key. It follows its source message through the 30-day retention period and daily cleanup. Deleting the source deletes its receipt. Posted replies have their own message lifecycle. No model receives messages or generates answers. The grant ends within ten minutes and allows twenty replies at most. The text comparison is exact. The selected rooms use a membership incarnation. Choosing all rooms explicitly includes future DMs and groups. Final posting rechecks central permission, membership, the source message and expiry.
+
+Stopping the signer on the desktop prevents new signatures. An already signed request can finish within four seconds while central revocation is pending. Successful central revocation prevents further posting immediately. After a disconnect or restart, opening the desktop pairing panel checks the account and reconciles pending revocations. A journal stores identifiers on disk. The private key exists only in memory. Windows and Linux package behavior and abrupt power loss require separate validation.

@@ -56,10 +56,18 @@ app
       dialogs = 0;
     dialog.showMessageBox = async (w, opts) => {
       assert.equal(w, d);
-      assert.ok(opts.detail.includes(expectedFingerprint));
+      if (dialogs === 0) {
+        assert.ok(opts.detail.includes(expectedFingerprint));
+        assert.ok(opts.message.includes("fingerprint"));
+      } else {
+        assert.ok(cfg.exact);
+        for (const field of [cfg.question, cfg.answer, cfg.room, cfg.origin])
+          assert.ok(opts.detail.includes(field));
+        assert.ok(opts.message.includes("20 replies"));
+        assert.ok(opts.detail.includes("30-day"));
+      }
       assert.equal(opts.defaultId, 0);
       assert.equal(opts.buttons[0], "Cancel");
-      assert.ok(opts.message.includes("fingerprint"));
       dialogs++;
       return { response: 1 };
     };
@@ -112,10 +120,110 @@ app
       expectedFingerprint,
     );
     await d.webContents.executeJavaScript('document.querySelectorAll("details button")[1].click()');
-    await until(d, 'document.querySelector("[role=status]").textContent.includes("Desktop confirmed")');
+    await until(
+      d,
+      '[...document.querySelectorAll("[role=status]")].some(x=>x.textContent.includes("Desktop confirmed"))',
+    );
     assert.equal(dialogs, 1);
     await b.webContents.executeJavaScript('document.getElementById("twin-pair-confirm").click()');
     await until(b, 'document.querySelector("#twin-pair-active li")?.textContent');
+    if (cfg.exact) {
+      await b.webContents.executeJavaScript(
+        "const exactRealNow=Date.now; Date.now=()=>exactRealNow()+86400000;void 0;",
+      );
+      await mobile.webContents.executeJavaScript(
+        "const exactRealNow=Date.now; Date.now=()=>exactRealNow()-86400000;void 0;",
+      );
+      await d.webContents.executeJavaScript('document.querySelector("details details summary").click()');
+      await until(d, '!document.querySelector("details details button")?.disabled');
+      await d.webContents.executeJavaScript('document.querySelector("details details button").click()');
+      await until(d, 'document.querySelector("details select option:nth-child(2)")?.value');
+      await d.webContents.executeJavaScript(
+        '(()=>{const s=document.querySelector("details select");s.selectedIndex=1;s.dispatchEvent(new Event("change",{bubbles:true}));document.querySelectorAll("details input[type=checkbox]")[1].click()})()',
+      );
+      await until(d, '!document.querySelector("details fieldset button").disabled');
+      await d.webContents.executeJavaScript('document.querySelector("details fieldset button").click()');
+      await until(
+        d,
+        'document.querySelector("details details [role=status]").textContent.includes("Awaiting approval")',
+      );
+      assert.equal(dialogs, 2);
+      await b.webContents.executeJavaScript('document.querySelector("#twin-exact summary").click()');
+      await until(b, 'document.querySelectorAll("#exact-terms button").length===2');
+      const terms = await b.webContents.executeJavaScript('document.querySelector("#exact-terms").textContent');
+      for (const field of [cfg.question, cfg.answer, cfg.room, cfg.origin]) assert.ok(terms.includes(field));
+      assert.ok(
+        (
+          await b.webContents.executeJavaScript(
+            'document.querySelector("#twin-exact [data-i18n$=exactRetention]").textContent',
+          )
+        ).includes("30"),
+      );
+      await b.webContents.executeJavaScript('document.querySelectorAll("#exact-terms button")[1].click()');
+      await until(
+        b,
+        'document.querySelectorAll("#exact-terms button").length===1 && /approved|đã duyệt/i.test(document.querySelector("#exact-status").textContent)',
+      );
+      const peer = session.fromPartition("temporary-peer");
+      await peer.cookies.set({ url: cfg.origin, ...cfg.cookies[3], path: "/", secure: true, httpOnly: true });
+      const post = async (body) =>
+        assert.equal(
+          (
+            await peer.fetch(cfg.origin + "/api/rooms/" + cfg.room + "/posts", {
+              credentials: "include",
+              method: "POST",
+              headers: { origin: cfg.origin, "content-type": "application/json" },
+              body: JSON.stringify({ kind: "text", body, nonce: require("node:crypto").randomUUID() }),
+            })
+          ).status,
+          200,
+        );
+      const reads =
+        "(async()=>{const v=await(await fetch(" +
+        JSON.stringify("/api/rooms/" + cfg.room) +
+        ")).json();return v.posts.filter(p=>p.exactReply).map(p=>p.body)})()";
+      await post("unmatched fixture");
+      await post(cfg.question);
+      await until(b, "(async()=>(await " + reads + ").length===1)()");
+      assert.deepEqual(await b.webContents.executeJavaScript(reads), [cfg.answer]);
+      await mobile.webContents.executeJavaScript('document.querySelector("#twin-exact summary").click()');
+      await until(mobile, 'document.querySelector("#exact-terms button")?.textContent');
+      await mobile.webContents.executeJavaScript('document.querySelector("#exact-terms button").click()');
+      await until(
+        mobile,
+        'document.querySelectorAll("#exact-terms button").length===0 && /no active|không có quyền/i.test(document.querySelector("#exact-status").textContent)',
+      );
+      await post(cfg.question);
+      await delay(2000);
+      assert.deepEqual(await b.webContents.executeJavaScript(reads), [cfg.answer]);
+      await d.webContents.executeJavaScript('document.querySelector("details fieldset button").click()');
+      await until(b, '(async()=>!!(await(await fetch("/api/twin-exact")).json()).grant)()');
+      const account = session.fromPartition("persist:startupbot-personal-inbox");
+      account.webRequest.onBeforeRequest({ urls: [cfg.origin + "/*"] }, (_details, reply) =>
+        reply({ cancel: true }),
+      );
+      await d.loadURL(cfg.desktopOrigin);
+      await until(d, 'document.querySelector("summary")?.textContent');
+      await d.webContents.executeJavaScript('document.querySelector("summary").click()');
+      await until(d, 'document.querySelector("details details summary")?.textContent');
+      await d.webContents.executeJavaScript('document.querySelector("details details summary").click()');
+      await until(
+        d,
+        'document.querySelector("details details [role=status]").textContent.includes("Local signing stopped")',
+      );
+      account.webRequest.onBeforeRequest(null);
+      await d.webContents.executeJavaScript(
+        'Array.from(document.querySelectorAll("details details button")).find(b=>b.textContent.includes("Check Inbox status")).click()',
+      );
+      await until(d, 'document.querySelector("details details [role=status]").textContent.includes("no active")');
+      assert.equal(
+        await b.webContents.executeJavaScript('(async()=>(await(await fetch("/api/twin-exact")).json()).grant)()'),
+        null,
+      );
+      console.log(
+        "PASS: explicit native-dialog arguments, reviewed answer and selected DM, one actual online reply, independent revocation with readback.",
+      );
+    }
     await mobile.webContents.executeJavaScript('document.querySelector("#twin-pairing summary").click()');
     await until(mobile, 'document.querySelector("#twin-pair-active button")?.textContent');
     await mobile.webContents.executeJavaScript('document.querySelector("#twin-pair-active button").click()');

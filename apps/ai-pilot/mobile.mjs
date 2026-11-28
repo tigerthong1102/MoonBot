@@ -34,7 +34,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
   const lists = db.prepare(`SELECT t.id,t.title,t.updated,CASE WHEN b.thread IS NULL THEN 'managed' ELSE 'openrouter' END AS provider
     FROM mobile_threads t LEFT JOIN mobile_byok_threads b ON b.owner=t.owner AND b.thread=t.id
     WHERE t.owner=? ORDER BY t.updated DESC,t.id LIMIT 50`);
-  const history = db.prepare("SELECT id,prompt,answer,state,created FROM mobile_turns WHERE owner=? AND thread=? ORDER BY created,rowid LIMIT 80");
+  const history = db.prepare(`SELECT id,prompt,answer,state,created FROM mobile_turns WHERE owner=? AND thread=?
+    AND (created,id)<(?,?) ORDER BY created DESC,id DESC LIMIT 13`);
   const lookup = db.prepare("SELECT id FROM mobile_threads WHERE owner=? AND id=?");
   const finish = db.prepare("UPDATE mobile_turns SET state=?,answer=? WHERE owner=? AND id=? AND state='running'");
   function recover(owner) {
@@ -94,7 +95,14 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const thread = body.thread;
     if (!uuid.test(thread)) throw new Fault(400, "invalid_thread");
     if (path !== "/mobile/send" && !lookup.get(owner, thread)) throw new Fault(404, "not_found");
-    if (path === "/mobile/history") return json(200, { turns: history.all(owner, thread) });
+    if (path === "/mobile/history") {
+      const before = body.before;
+      if (before != null && (!Number.isSafeInteger(before.created) || !uuid.test(before.id))) throw new Fault(400, "invalid_cursor");
+      const page = history.all(owner, thread, before?.created ?? Number.MAX_SAFE_INTEGER, before?.id ?? "");
+      const turns = page.slice(0, 12).reverse();
+      const next = page.length > 12 ? { id:turns[0].id, created:turns[0].created } : null;
+      return json(200, { turns, next });
+    }
     if (path === "/mobile/delete" || path === "/mobile/rename") {
       if (path.endsWith("delete")) db.prepare("DELETE FROM mobile_threads WHERE owner=? AND id=?").run(owner, thread);
       else {

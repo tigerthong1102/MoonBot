@@ -197,3 +197,15 @@ it("lists the signed-in owner's registered computer labels without granting comp
   expect((await f.call("/devices", cookie, {account:"bob"})).status).toBe(409);
   expect((await f.call("/devices", null, {account:"alice"})).status).toBe(401);
 });
+
+it("pages older turns once with deterministic ordering for identical timestamps", async () => {
+  const db = f.ledger.db, stamp = Date.now(), ids = Array.from({length:15}, () => randomUUID()).sort();
+  db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run("alice",thread,"History",stamp);
+  for (const id of ids) db.prepare("INSERT INTO mobile_turns VALUES (?,?,?,?,?,?,?)").run("alice",thread,id,"q","a","complete",stamp);
+  const scope = {account:"alice",thread};
+  const first = await (await f.call("/history",cookie,scope)).json();
+  const older = await (await f.call("/history",cookie,{...scope,before:first.next})).json();
+  expect(first.turns).toHaveLength(12);
+  expect(older.next).toBe(null);
+  expect([...older.turns,...first.turns].map(r => r.id)).toEqual(ids);
+});

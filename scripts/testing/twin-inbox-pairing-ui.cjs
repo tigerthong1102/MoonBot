@@ -60,7 +60,7 @@ app
         assert.ok(opts.detail.includes(expectedFingerprint));
         assert.ok(opts.message.includes("fingerprint"));
       } else if (cfg.generated) {
-        for (const field of [cfg.endpoint, "fixture-model", cfg.room, cfg.origin, "5", "charges"]) assert.ok(opts.detail.includes(field), field);
+        for (const field of [cfg.endpoint, "fixture-model", ...(cfg.future ? ["All current and future accepted direct messages","All current and future groups I own or manage"] : [cfg.room]), cfg.origin, "5", "charges"]) assert.ok(opts.detail.includes(field), field);
       } else {
         assert.ok(cfg.exact);
         for (const field of [cfg.question, cfg.answer, cfg.room, cfg.origin])

@@ -1,24 +1,29 @@
 import { generatedRoomLimit } from "../../electron/twin-generated-message.mjs";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { t } from "@/lib/i18n";
+import { Select } from "./Select";
 
 export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
+  const scopeId = useId();
   const bridge = window.ogb?.personalInbox;
   const [choices, setChoices] = useState<Awaited<ReturnType<NonNullable<NonNullable<typeof bridge>["generatedChoices"]>>>>();
+  const [scope, setScope] = useState("selected");
   const [rooms, setRooms] = useState<string[]>([]);
   const [target, setTarget] = useState<{owner:string;id:string}>();
   const [busy, setBusy] = useState(false), [note, setNote] = useState("");
   if (!bridge?.generatedChoices || !bridge.offerGenerated || !bridge.generatedStatus || !bridge.stopGenerated) return null;
+  const refs = scope === "selected" ? rooms : scope === "all" ? ["all-direct","all-managed-groups"] : [scope];
   async function run(action: "choose" | "offer" | "status" | "stop") {
     setBusy(true);
     try {
       if (action === "choose") {
         setChoices(await bridge!.generatedChoices!());
         setRooms([]);
+        setScope("selected");
         setNote("");
         return;
       }
-      if (action === "offer" && (!choices || !await bridge!.offerGenerated!(choices.provider, rooms))) return;
+      if (action === "offer" && (!choices || !await bridge!.offerGenerated!(choices.provider, refs))) return;
       if (action === "stop") setNote(t("personalInbox.exactStopping"));
       const state = action === "stop" ? await bridge!.stopGenerated!(target) : await bridge!.generatedStatus!();
       setTarget(state.owner && state.remote ? {owner:state.owner,id:state.remote.id} : undefined);
@@ -36,7 +41,16 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
       {paired && <button type="button" className="ui-button" onClick={() => void run("choose")}>{t("personalInbox.generatedChoose")}</button>}
       {paired && choices && <>
         <p dir="auto">{choices.provider.name} · {choices.provider.model} · {choices.provider.destination}</p>
-        {choices.rooms.map(room => <label className="block" key={room.ref}>
+        <div className="grid gap-1">
+          <label htmlFor={scopeId}>{t("personalInbox.generatedScope")}</label>
+          <Select id={scopeId} value={scope} onChange={e => setScope(e.target.value)}>
+            <option value="selected">{t("personalInbox.generatedSelected")}</option>
+            <option value="all-direct">{t("personalInbox.generatedAllDirect")}</option>
+            <option value="all-managed-groups">{t("personalInbox.generatedAllGroups")}</option>
+            <option value="all">{t("personalInbox.generatedAllRooms")}</option>
+          </Select>
+        </div>
+        {scope === "selected" && choices.rooms.map(room => <label className="block" key={room.ref}>
           <input type="checkbox" disabled={rooms.length >= generatedRoomLimit && !rooms.includes(room.ref)} checked={rooms.includes(room.ref)} onChange={e => {
             const checked = e.target.checked;
             setRooms(old => {
@@ -46,7 +60,7 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
             });
           }} /> {room.title} ({t(room.kind === "group" ? "personalInbox.group" : "personalInbox.direct")} · {room.id})
         </label>)}
-        <button type="button" className="ui-button" disabled={!rooms.length} onClick={() => void run("offer")}>{t("personalInbox.generatedOffer")}</button>
+        <button type="button" className="ui-button" disabled={!refs.length} onClick={() => void run("offer")}>{t("personalInbox.generatedOffer")}</button>
       </>}
       <button type="button" className="ui-button" onClick={() => void run("status")}>{t("personalInbox.exactCheck")}</button>
       <button type="button" className="ui-button" onClick={() => void run("stop")}>{t("personalInbox.generatedStop")}</button>

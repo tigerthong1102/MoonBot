@@ -255,12 +255,12 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
           if (!res.ok || !current()) throw Error("generated_reply_unavailable");
           return res.json();
         },
-        approveGenerated: async ({ grant, chosen }) => {
+        approveGenerated: async ({ grant, chosen, kinds }) => {
           const p = grant.provider;
           const consent = await dialog.showMessageBox(win, {
             type: "question", message: translate("personalInbox.generatedTitle"),
             detail: [translate("personalInbox.generatedTerms"), p.name, p.model, p.destination,
-              grant.origin, grant.owner, ...chosen.map(r => r.title + " (" + r.id + ")"), new Date(grant.expires).toLocaleString()].join("\n\n"),
+              grant.origin, grant.owner, ...kinds.map(kind => translate(kind === "direct" ? "personalInbox.generatedAllDirect" : "personalInbox.generatedAllGroups")), ...chosen.map(r => r.title + " (" + r.id + ")"), new Date(grant.expires).toLocaleString()].join("\n\n"),
             buttons: [translate("native.common.cancel"), translate("personalInbox.generatedOffer")], defaultId: 0, cancelId: 0,
           });
           return consent.response === 1;

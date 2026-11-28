@@ -186,7 +186,6 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000, t 
         timer,
         posted: false,
         phase: "setting",
-        resultBot: null,
       });
       try {
         proc.postMessage(message);
@@ -234,13 +233,13 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000, t 
     if (message.type === "approval-trusted-mode-commit-result") {
       const waiting = pending.get(message.requestId);
       if (!waiting || waiting.proc !== proc || waiting.phase !== "committing") return true;
-      const taskMode = message.bot?.tasks?.find(task => task.threadId === waiting.threadId)?.approvalMode;
+      const taskMode = message.bot?.tasks?.find(task => task.threadId === (waiting.modelThreadId ?? waiting.threadId))?.approvalMode;
       const matches = waiting.allThreads
         ? message.bot?.approvalMode === waiting.mode && Array.isArray(message.bot?.tasks) &&
           message.bot.tasks.every(task => task.approvalMode === waiting.mode)
-        : taskMode === waiting.mode;
+        : waiting.threadOnly || waiting.modelThreadId ? taskMode === waiting.mode : message.bot?.approvalMode === waiting.mode;
       if (message.ok !== true || message.bot?.id !== waiting.botId || !matches) {
-        failAmbiguously(message.requestId, new Error("The thread approval change was not committed"));
+        failAmbiguously(message.requestId, new Error("The approval change was not committed"));
       } else settle(message.requestId, ({ resolve }) => resolve(message.bot));
       return true;
     }
@@ -283,7 +282,7 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000, t 
       if (!step.nextMessage || !step.nextPhase) {
         // The ACK leaves a durable `committed` journal inert; startup revokes a surviving journal to Ask, so a failure never leaves the bot elevated.
         try {
-          if (waiting.threadOnly || waiting.allThreads) waiting.phase = "committing";
+          waiting.phase = "committing";
           proc.postMessage(trustedApprovalModeCommit(
             requestId,
             waiting.botId,
@@ -293,7 +292,6 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000, t 
           failAmbiguously(requestId, error instanceof Error ? error : new Error(String(error)));
           return true;
         }
-        if (!waiting.threadOnly && !waiting.allThreads) settle(requestId, ({ resolve, resultBot }) => resolve(resultBot));
         return true;
       }
       try {
@@ -343,7 +341,6 @@ function createTrustedApprovalModeCoordinator({ randomId, timeoutMs = 10_000, t 
       try {
         // Resolve only after the correlated acknowledgement, once activation is queued on this ordered port.
         waiting.phase = "confirming";
-        waiting.resultBot = result.bot;
         proc.postMessage(trustedApprovalModeConfirmation(
           result.requestId,
           waiting.botId,

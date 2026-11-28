@@ -3,7 +3,9 @@ import { t } from "@/lib/i18n";
 import { api } from "@/state/api";
 import type { Bot } from "@/state/store";
 import { AI_TWIN_PATH, AI_TWIN_QUESTION_MAX, type AiTwinView } from "../../shared/ai-twin";
-import { reviewZaloExcerpt, ZALO_IMPORT_LIMIT, ZALO_RECIPES, type ZaloRecipe, type ZaloSourceLine, type ZaloExcerpt } from "../../shared/zalo-intelligence";
+import { buildZaloReport, matchesZaloReport, reviewZaloExcerpt, ZALO_IMPORT_LIMIT, ZALO_RECIPES, type ZaloRecipe, type ZaloSourceLine, type ZaloReportFilter, type ZaloReportRow } from "../../shared/zalo-intelligence";
+import { ZaloModelAnalysis } from "./ZaloModelAnalysis";
+import { ZaloReportControls } from "./ZaloReportControls";
 import { Layer } from "./Layer";
 import { Select } from "./Select";
 import { AiTwinPreview } from "./AiTwinPreview";
@@ -34,27 +36,31 @@ function TwinForExcerpt({ text, source }: { text: string; source: ZaloSourceLine
     allowSemantic={Boolean(view.lessons?.some(lesson => lesson.allowProvider))} refresh={() => setAttempt(a => a + 1)} /></>;
 }
 
+const WorkflowReview = lazy(() => import("./ZaloWorkflowReview"));
 const RoutineEditor = lazy(() => import("./RoutineCalendarPage").then(module => ({ default: module.EventEditor })));
 const BrainDialog = lazy(() => import("./knowledge/BrainDialog"));
 
 type ExcerptOptions = { twinEnabled: boolean; bot?: Bot };
 
 function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
+  const panelId = useId();
   const [source, setSource] = useState("");
   const [input, setInput] = useState("");
-  const [rows, setRows] = useState<ZaloExcerpt[] | null>(null);
+  const [rows, setRows] = useState<ZaloReportRow[] | null>(null);
   const [error, setError] = useState(false);
+  const [filter, setFilter] = useState<ZaloReportFilter>("all");
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
 
   const [reminder, setReminder] = useState<{ line: number; at: number } | null>(null);
-  const [brain, setBrain] = useState<string | null>(null);
+  const [workflowLine, setWorkflowLine] = useState<number | null>(null);
+  const [brain, setBrain] = useState<ZaloReportRow | null>(null);
   const closeBrain = useCallback(() => setBrain(null), []);
 
   function submit(event: FormEvent) {
     event.preventDefault();
     try {
-      setRows(reviewZaloExcerpt(input));
+      setRows(buildZaloReport(reviewZaloExcerpt(input)));
       setInput("");
       setError(false);
     } catch {
@@ -74,29 +80,46 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
     <button className="ui-button self-start" type="submit" disabled={!source.trim() || !input.trim()}>{t("zalo.review")}</button>
   </form>;
 
-  const urgent = rows.filter(row => row.urgent).length;
+  const visible = rows.filter(row => matchesZaloReport(row, filter));
   const pageSize = 20;
-  function move(next: number) { setSelected(null); setPage(next); }
-  function clear() { setRows(null); setSource(""); setInput(""); closeBrain(); move(0); }
+  function move(next: number) { setWorkflowLine(null); setSelected(null); setPage(next); }
+  function clear() { setRows(null); setSource(""); setInput(""); closeBrain(); setReminder(null); setFilter("all"); move(0); }
   return <section className="flex flex-col gap-3">
-    <p role="status">{t("zalo.coverage", { source, count: rows.length, urgent })}</p>
-    <ol className="flex flex-col gap-3">{rows.slice(page * pageSize, (page + 1) * pageSize).map(row =>
+    <ZaloReportControls rows={rows} source={source} filter={filter} onFilter={next => { setFilter(next); move(0); }} />
+    {bot && visible.length > 0 && <ZaloModelAnalysis key={JSON.stringify([bot.id, bot.threadId, filter, page])} bot={bot} source={source}
+      rows={visible.slice(page * pageSize, (page + 1) * pageSize)} />}
+    {!visible.length && <p role="status">{t("zalo.report.empty")}</p>}
+    <ol className="flex flex-col gap-3">{visible.slice(page * pageSize, (page + 1) * pageSize).map(row =>
       <li key={row.line} className="flex flex-col gap-1">
         <span className="text-ink-secondary">{t("zalo.line", { line: row.line })} · {row.intents.map(intent => t(`zalo.intent.${intent}`)).join(", ")}{row.urgent && <> · {t("zalo.urgent")}</>}</span>
         <p dir="auto" className="whitespace-pre-wrap break-words">{row.text}</p>
+        {row.work.length > 0 && <p>{t("zalo.report.proposal", { action: row.work.map(item => t(`zalo.report.action.${item}`)).join(", ") })}</p>}
+        {row.deadlineText && <p>{t("zalo.report.deadline", { quote: row.deadlineText })}</p>}
+        {row.repeatedLine !== undefined && <p>{t("zalo.report.repeated", { line: row.repeatedLine })}</p>}
         {twinEnabled && row.text.length <= AI_TWIN_QUESTION_MAX && <button type="button" className="ui-button self-start" aria-expanded={selected === row.line}
+          aria-controls={`${panelId}-twin-${row.line}`}
           onClick={() => setSelected(selected === row.line ? null : row.line)}>{t("settings.aiTwin.preview")}</button>}
-        {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row.text)}>{t("zalo.brain")}</button>}
-        {bot && row.intents[0] !== "other" && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
-        {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
+        {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row)}>{t("zalo.brain")}</button>}
+        {bot && (row.work.length > 0 || row.deadlineText) && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
+        {bot && row.work.length > 0 && <button type="button" className="ui-button self-start" aria-expanded={workflowLine === row.line}
+          aria-controls={`${panelId}-workflow-${row.line}`}
+          onClick={() => setWorkflowLine(workflowLine === row.line ? null : row.line)}>{t("zalo.workflow.review")}</button>}
+        {bot && row.work.length > 0 && <div id={`${panelId}-workflow-${row.line}`} hidden={workflowLine !== row.line}
+          className={workflowLine === row.line ? "contents" : undefined}>
+          {workflowLine === row.line && <Suspense><WorkflowReview key={bot.threadId + ":" + row.line} bot={bot} source={source} line={row.line} /></Suspense>}
+        </div>}
+        {twinEnabled && row.text.length <= AI_TWIN_QUESTION_MAX && <div id={`${panelId}-twin-${row.line}`} hidden={selected !== row.line}
+          className={selected === row.line ? "contents" : undefined}>
+          {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
+        </div>}
       </li>)}</ol>
     {bot && reminder && <Layer modal><Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}
       seed={{ kind: "routine", at: reminder.at, durationMinutes: 15, botIds: [bot.id], name: t("zalo.reminderTitle"), description: t("zalo.reminderPrompt", { line: reminder.line }) }}
       onSavedCall={() => {}} onClose={() => setReminder(null)} /></Suspense></Layer>}
-    {bot && brain && <Layer modal><Suspense><BrainDialog threadId={bot.threadId} initialQuery={brain} close={closeBrain} /></Suspense></Layer>}
+    {bot && brain && <Layer modal><Suspense><BrainDialog threadId={bot.threadId} initialQuery={brain.text} zaloExcerpt={twinEnabled ? { source, line: brain.line, text: brain.text } : undefined} close={closeBrain} /></Suspense></Layer>}
     <div className="flex flex-wrap gap-2">
       {page > 0 && <button type="button" className="ui-button" onClick={() => move(page - 1)}>{t("zalo.previous")}</button>}
-      {(page + 1) * pageSize < rows.length && <button type="button" className="ui-button" onClick={() => move(page + 1)}>{t("zalo.next")}</button>}
+      {(page + 1) * pageSize < visible.length && <button type="button" className="ui-button" onClick={() => move(page + 1)}>{t("zalo.next")}</button>}
       <button type="button" className="ui-button" onClick={clear}>{t("zalo.clear")}</button>
     </div>
   </section>;

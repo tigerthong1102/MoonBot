@@ -35,10 +35,12 @@ const KEY_PREFIXES: RegExp[] = [
   /\bpplx-[A-Za-z0-9]{48}(?![A-Za-z0-9_-])/g, // perplexity api keys
   /\bwhsec_[A-Za-z0-9_-]{20,}/g, // webhook secrets, alone or in an automation's address
   /\bSG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])/g, // sendgrid api keys
+  /(?<=\bbot-api\.zaloplatforms\.com\/bot)\d{1,32}(?::|%3a)[A-Za-z0-9_-]{1,256}(?![A-Za-z0-9_-])/gi, // Zalo Official API URL, including URL-encoded separators
+  /(?<![\w-])\d{6,32}(?::|%3a)[A-Za-z0-9_-]{32,256}(?![A-Za-z0-9_-])/gi, // standalone numeric bot id and high-entropy secret
   /\bbak_[A-Za-z0-9_-]{20,}/g, // Bot API keys
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g, // jwt
 ];
-const KEY_PREFIX_TESTS = KEY_PREFIXES.map((re) => new RegExp(re.source));
+const KEY_PREFIX_TESTS = KEY_PREFIXES.map((re) => new RegExp(re.source, re.flags.replace("g", "")));
 const PRIVATE_KEY_BLOCK = /-----BEGIN [A-Z ]*PRIVATE KEY-----/;
 
 /** Only shapes that are unmistakably a credential (a provider's key prefix, a private key block), never a name or a

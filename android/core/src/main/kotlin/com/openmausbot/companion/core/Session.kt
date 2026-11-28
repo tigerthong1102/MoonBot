@@ -201,44 +201,64 @@ class Session(
                     throw error
                 }
                 if (qr) burnQrCredential(credential)
-                var stored = pairedConnection
-                val winner = stored.activeEndpoint
-                    ?: CompanionEndpoint.direct(stored.host, stored.port, priority = 10_000)
-                registry.matchingConnection(stored)?.let { existing -> stored = stored.copy(id = existing.id) }
-                val firstPairing = registry.connections.isEmpty()
-                val updatedRegistry = registry.upsert(stored)
-
-                try {
-                    tokenStore.save(stored.id, pairedToken)
-                    PairingCommitSequence.persist(
-                        markNotificationOnboardingPending = {
-                            if (firstPairing) onboardingStore.setNotificationOnboardingPending(true)
-                        },
-                        saveConnection = { connectionStore.saveRegistry(updatedRegistry) },
-                    )
-                } catch (error: Throwable) {
-                    if (error is kotlinx.coroutines.CancellationException) throw error
-                    _actionError.value = if (qr) qrFailureMessage(error) else error.message
-                    throw error
-                }
-
-                stopActiveRuntimeLocked()
-                registry = updatedRegistry
-                _connections.value = registry.connections
-                _connection.value = stored
-                token = pairedToken
-                // The route that just redeemed leads this session; later launches return to the
-                // desktop's security-prioritized typed order.
-                rotation = CandidateRotation(liveRoutes(stored, winner))
-                client = clientFactory(stored, pairedToken)
-                _state.value = CompanionState()
-                _restoreState.value = RestoreState.Ready
-                _pairingRequested.value = false
+                commitConnectionLocked(pairedConnection, pairedToken, qr)
             } finally {
                 settlePairingAttempt()
             }
         }
         connect()
+    }
+
+    suspend fun signInToMobile(connection: Connection, email: String, code: String, allowDrafts: Boolean) {
+        awaitRestored()
+        val result = CompanionClient(connection, null, httpClient).mobileLogin(email, code, allowDrafts)
+        require(result.token.startsWith("sb_mobile_") &&
+            result.environment.environmentId == "startupbot-mobile:" + connection.activeEndpoint?.url)
+        val stored = connection.establishingRoutePolicyFromInvite().copy(
+            id = result.connectionId, name = result.environment.label,
+            serverEnvironmentId = result.environment.environmentId,
+            serverScopes = listOf("chat"),
+        )
+        gate.withLock { commitConnectionLocked(stored, result.token, false) }
+        connect()
+    }
+
+    private suspend fun commitConnectionLocked(pairedConnection: Connection, pairedToken: String, qr: Boolean) {
+        var stored = pairedConnection
+        val winner = stored.activeEndpoint
+            ?: CompanionEndpoint.direct(stored.host, stored.port, priority = 10_000)
+        if (!pairedToken.startsWith("sb_mobile_")) {
+            registry.matchingConnection(stored)?.let { existing -> stored = stored.copy(id = existing.id) }
+        }
+        val firstPairing = registry.connections.isEmpty()
+        val updatedRegistry = registry.upsert(stored)
+
+        try {
+            tokenStore.save(stored.id, pairedToken)
+            PairingCommitSequence.persist(
+                markNotificationOnboardingPending = {
+                    if (firstPairing) onboardingStore.setNotificationOnboardingPending(true)
+                },
+                saveConnection = { connectionStore.saveRegistry(updatedRegistry) },
+            )
+        } catch (error: Throwable) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            _actionError.value = if (qr) qrFailureMessage(error) else error.message
+            throw error
+        }
+
+        stopActiveRuntimeLocked()
+        registry = updatedRegistry
+        _connections.value = registry.connections
+        _connection.value = stored
+        token = pairedToken
+        // The route that just redeemed leads this session; later launches return to the
+        // desktop's security-prioritized typed order.
+        rotation = CandidateRotation(liveRoutes(stored, winner))
+        client = clientFactory(stored, pairedToken)
+        _state.value = CompanionState()
+        _restoreState.value = RestoreState.Ready
+        _pairingRequested.value = false
     }
 
     private suspend fun redeemPairing(

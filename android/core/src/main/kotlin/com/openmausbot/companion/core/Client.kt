@@ -775,6 +775,31 @@ class CompanionClient(
         sendUnit(makeRequest("POST", "/api/groups/${segment(roomId)}/read", body = jsonBody("threadId" to threadId)))
     }
 
+    @Serializable
+    data class MobileLogin(val token: String, val environment: ServerEnvironment, val connectionId: String)
+
+    private fun mobileRequest(path: String, body: JsonObject): Request {
+        val origin = requireNotNull(connection.activeEndpoint?.url)
+        require(token == null && origin.startsWith("https://"))
+        return makeRequest("POST", path, body = body).newBuilder().header("Origin", origin).header("X-StartupBot-Client", "companion").build()
+    }
+
+    @Serializable
+    data class MobileCodeResponse(val desktopHandoff: Boolean)
+
+    suspend fun requestMobileCode(email: String): MobileCodeResponse {
+        val request = mobileRequest("/mobile/code", jsonBody("client" to "companion", "email" to email))
+        return send(request, mobileLoginClient())
+    }
+
+    suspend fun mobileLogin(email: String, code: String, allowDrafts: Boolean): MobileLogin = send(
+        mobileRequest("/mobile/login", jsonBody("client" to "companion", "email" to email, "otp" to code,
+            "desktopDrafts" to if (allowDrafts) "allow" else "deny")),
+        mobileLoginClient(),
+    )
+
+    private fun mobileLoginClient() = actionClient.newBuilder().followRedirects(false).followSslRedirects(false).build()
+
     fun events(since: String?, screens: Boolean = false): Flow<StreamFrame> {
         val query = buildList {
             add("screens" to if (screens) "on" else "off")
@@ -796,6 +821,9 @@ class CompanionClient(
         require(body == null || rawBody == null)
         if (connection.pairedWithServer) connection.requireServerTransport()
         val base = endpoint?.baseUrl ?: throw APIError.BadUrl
+        if (token?.startsWith("sb_mobile_") == true) {
+            require(base.isHttps && connection.serverEnvironmentId == "startupbot-mobile:" + base.toString().trimEnd('/'))
+        }
         val url = base.newBuilder().encodedPath(path).apply {
             query.forEach { (name, value) -> addQueryParameter(name, value) }
         }.build()
@@ -832,7 +860,10 @@ class CompanionClient(
     }
 
     private suspend fun sendForReceipt(request: Request): SendReceipt {
-        val raw = perform(request)
+        val client = if (token?.startsWith("sb_mobile_") == true) {
+            actionClient.newBuilder().callTimeout(120, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
+        } else actionClient
+        val raw = perform(request, client)
         check(raw)
         return try {
             CompanionJson

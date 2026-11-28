@@ -62,6 +62,15 @@ const listed = (name: string, workflow: Workflow, sha256: string, savedAt: strin
   args: Object.keys(workflow.args),
 });
 
+export function listPrivateWorkflowSkills(botId: string, root: string = skillsLibraryRoot()): SavedWorkflow[] {
+  return listSkills(botId)
+    .filter((skill) => skill.enabled && isBurgerSource(skill.source))
+    .flatMap((skill) => {
+      const found = readAt({ botId }, skill.name, root);
+      return found ? [listed(skill.name, found.workflow, found.sha256, skill.importedAt, false, botId)] : [];
+    });
+}
+
 export function listWorkflowSkills(botIds: readonly string[], root: string = skillsLibraryRoot()): SavedWorkflow[] {
   const index = readSkillLibraryIndex(root);
   const shared = listLibrarySkills(root)
@@ -70,12 +79,7 @@ export function listWorkflowSkills(botIds: readonly string[], root: string = ski
       const found = readAt({ everyChat: true }, skill.name, root);
       return found ? [listed(skill.name, found.workflow, found.sha256, index[skill.name]!.importedAt, true, found.botId)] : [];
     });
-  const own = botIds.flatMap((botId) => listSkills(botId)
-    .filter((skill) => skill.enabled && isBurgerSource(skill.source))
-    .flatMap((skill) => {
-      const found = readAt({ botId }, skill.name, root);
-      return found ? [listed(skill.name, found.workflow, found.sha256, skill.importedAt, false, botId)] : [];
-    }));
+  const own = botIds.flatMap(botId => listPrivateWorkflowSkills(botId, root));
   return [...shared, ...own].sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
 

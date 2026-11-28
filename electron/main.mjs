@@ -78,6 +78,7 @@ import {
 } from "./desktop-companion-client.mjs";
 import { isKnownSkin, skinChrome } from "./skin-overlay.cjs";
 import { credentialResult, installCredentialStoreIpc, readSecureCredentials, writeSecureCredentials } from "./secure-credentials.mjs";
+import { createMobileAccountChatWindow } from "./mobile-account-chat-window.mjs";
 import { createMobileDraftReceiver } from "./mobile-draft-receiver.mjs";
 import { createControlPlaneClient } from "./control-plane-client.mjs";
 import {
@@ -266,6 +267,7 @@ let serverProc = null;
 let serverReady = !app.isPackaged;
 let secureCredentials = {};
 let secureCredentialState = null;
+const syncAccountChat = createMobileAccountChatWindow(process.env);
 let desktopDataDirLease = null;
 // The folder this process leases; environmentsState.activeId can name a remote server instead.
 let runningDataDir = null;
@@ -518,7 +520,7 @@ export async function updateSecureCredentialDocument(derive, afterPersist) {
   try {
     return await secureCredentialState.update(derive, afterPersist);
   } finally {
-    secureCredentials = secureCredentialState.read(); phonePushAccess.sync();
+    secureCredentials = secureCredentialState.read(); phonePushAccess.sync(); syncAccountChat(secureCredentials);
   }
 }
 
@@ -739,6 +741,7 @@ function ensureCompanionAccountService() {
     companionIsOn: () => companionDesiredThisLaunch,
     autoRecover: true,
     onDemand: true,
+    deferTunnelOnSignIn: process.env.STARTUPBOT_MOBILE_DESKTOP_HANDOFF === "1",
     managedEndpointNeeded: async () =>
       companionRunning() ? managedEndpointNeed(await companionState().catch(() => null)) : null,
     relay: { capable: () => companionE2E?.enabled === true, legacyDevices: async () => (companionRunning() ? deviceCounts(await companionState().catch(() => null)).legacy : null) }, installationChanged: () => void companionE2E?.prime(),
@@ -2870,6 +2873,7 @@ app.whenReady().then(async () => {
     writable: !credentialStoreUnavailable,
   });
   secureCredentials = secureCredentialState.read();
+  syncAccountChat(secureCredentials);
   phoneSecretIdentity = readPhoneSecretIdentity(secureCredentials);
   companionE2E = createDesktopCompanionE2E({ isPackaged: app.isPackaged, appVersion: app.getVersion(), readCredentials: () => secureCredentialState?.read() ?? secureCredentials, updateCredentials: updateSecureCredentialDocument, powerMonitor, log: slog, onState: phoneLinkFact.observe });
   void companionE2E.start();
@@ -3057,6 +3061,7 @@ app.whenReady().then(async () => {
     void showHome();
   };
   app.on("activate", () => {
+    syncAccountChat(secureCredentialState?.read() ?? {});
     if (desktopTray?.show()) return;
     if (appWindows().length === 0) openWindowForLink();
   });

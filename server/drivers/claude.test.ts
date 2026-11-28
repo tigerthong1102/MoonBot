@@ -4480,6 +4480,14 @@ describe("ClaudeDriver turns (fake CLI)", () => {
     expect(seen.argv[seen.argv.indexOf("--output-format") + 1]).toBe("text");
   });
 
+  it("checks source authorization after CLI discovery and before launching its text process", async () => {
+    await create();
+    const dump = join(scratch, "withheld-text.json");
+    process.env.FAKE_CLAUDE_DUMP = dump;
+    await expect(instance.generateText!("private fixture", { beforeRequest: () => { throw Error("revoked"); } })).rejects.toThrow("revoked");
+    expect(existsSync(dump)).toBe(false);
+  });
+
   it("runs helper calls tool-free and isolated, in an empty folder it then removes", async () => {
     await create(undefined, { FAKE_CLAUDE_VERSION: "2.1.296" });
     const dump = join(scratch, "isolated-helper.json");

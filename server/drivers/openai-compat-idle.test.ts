@@ -62,7 +62,7 @@ async function localServer(handle: (req: import("node:http").IncomingMessage, re
   });
   const recorder = recordEvents(inst.adapter);
   return {
-    inst, recorder,
+    inst, recorder, origin: `http://127.0.0.1:${address.port}`,
     async close() {
       recorder.stop();
       await inst.dispose();
@@ -71,6 +71,35 @@ async function localServer(handle: (req: import("node:http").IncomingMessage, re
     },
   };
 }
+
+it.each([["60000", 307], ["60000", 308], ["360000", 307], ["360000", 308]] as const)(
+  "pins isolated text to the selected endpoint with timeout %s and HTTP %i",
+  async (timeout, status) => {
+    vi.stubEnv("OPENMAUS_OPENAI_COMPAT_IDLE_TIMEOUT_MS", timeout);
+    let destinationCalls = 0;
+    const destination = await localServer((req, res) => {
+      if (req.url === "/completion") destinationCalls++;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ choices: [{ message: { content: "fixture result" } }] }));
+    });
+    let selectedCalls = 0;
+    const selected = await localServer((req, res) => {
+      if (req.url !== "/v1/chat/completions") { res.end('{"data":[]}'); return; }
+      selectedCalls++;
+      res.writeHead(status, { location: destination.origin + "/completion" }).end();
+    });
+    try {
+      await expect(selected.inst.generateText!("fixture", { requireIsolatedText: true })).rejects.toThrow();
+      expect(selectedCalls).toBe(1);
+      expect(destinationCalls).toBe(0);
+
+      await expect(selected.inst.generateText!("fixture")).resolves.toBe("fixture result");
+      expect(destinationCalls).toBe(1);
+    } finally {
+      await Promise.all([selected.close(), destination.close()]);
+    }
+  },
+);
 
 it("stops waiting soon after a local server stops answering, long before the reply wait", async () => {
   vi.stubEnv("OPENMAUS_OPENAI_COMPAT_IDLE_TIMEOUT_MS", "60000");

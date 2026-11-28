@@ -10,6 +10,7 @@ import { cloudAsleep, markCloudAsleep, resetCloudPowerForTests } from "@/lib/clo
 import { sessionCheck } from "@/lib/session-ended";
 import { browserRecord } from "@/lib/browser-records";
 import { libraryKey } from "./source-cache";
+import { sourceAnswerIssue } from "./source-answer-issue";
 import { currentLibrary, watchDocumentSources } from "./source-sync";
 import type { Index } from "./source-index";
 
@@ -17,15 +18,22 @@ vi.mock("@/lib/browser-records", () => ({ browserRecord: vi.fn() }));
 const key = JSON.stringify(["viewer", "thread"]);
 const folder = { kind: "cloud", name: "Drive", id: "folder" };
 const auth = "/api/auth/session", list = "/api/sync/folders/folder/files", file = "/api/sync/folders/folder/file?path=policy.txt";
+const access = "/api/threads/thread/knowledge-access";
 const records = new Map<string, unknown>();
 let stop: (() => void) | undefined, tick: (() => void) | undefined;
 const text = "Policy";
 const sleep = () => Response.json({ error: "asleep" }, { status: 503, headers: { "x-omb-cloud-power": "asleep" } });
 const calls: { path: string; background: string | null; activity: boolean }[] = [];
 let answer: (path: string) => Response | Promise<Response>;
+let identity: string | null;
+let conversationVisible: boolean;
+let accessFailure: "network" | "503" | "legacy" | null;
 
 beforeEach(() => {
   calls.length = 0; records.clear(); stop = undefined; tick = undefined;
+  identity = null;
+  conversationVisible = true;
+  accessFailure = null;
   records.set("watch:" + key, { id: "watch", key, source: folder });
   vi.stubGlobal("indexedDB", {});
   vi.stubGlobal("IDBKeyRange", { bound: vi.fn() });
@@ -51,18 +59,123 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn<typeof fetch>(async (input, init) => {
     const path = String(input), headers = new Headers(init?.headers);
     calls.push({ path, background: headers.get("x-omb-background"), activity: countsAsActivity(path, Object.fromEntries(headers.entries())) });
-    return answer(path);
+    if (path === access) {
+      if (accessFailure === "network") throw new TypeError("offline");
+      if (accessFailure === "503") return Response.json({ error: "unavailable" }, { status: 503 });
+      if (accessFailure === "legacy") return Response.json({ error: "not found" }, { status: 404 });
+      return identity && conversationVisible ? Response.json({ owner: identity }) : Response.json({ error: "no such conversation", code: "knowledge_thread_unavailable" }, { status: 404 });
+    }
+    const result = await answer(path);
+    if (path === auth) {
+      const body = await result.clone().json().catch(() => ({}));
+      identity = result.ok ? body.kind === "session" ? body.id : "local" : null;
+    }
+    return result;
   }));
+});
+
+it("stops opening and refreshing a saved library when conversation access is revoked without signing out", async () => {
+  stop = watchDocumentSources();
+  await vi.waitFor(() => expect((records.get(key) as Index)?.docs.size).toBe(1));
+  expect(await libraryKey("thread")).toBe(key);
+  calls.length = 0;
+  conversationVisible = false;
+  expect(await libraryKey("thread")).toBeNull();
+  tick?.();
+  await vi.waitFor(() => expect(calls.some(c => c.path === access && c.background === "1")).toBe(true));
+  expect(calls.some(c => c.path === list || c.path === file)).toBe(false);
+});
+
+it("fails closed with an upgrade hint when an older server lacks the access proof", async () => {
+  accessFailure = "legacy";
+  await expect(libraryKey("thread")).resolves.toBeNull();
+  await expect(libraryKey("thread", { reportOffline: true }).catch(sourceAnswerIssue)).resolves.toBe("knowledge.accessVerificationUnavailable");
+});
+
+it("does not commit or notify a scan when conversation access is revoked while source bytes are in flight", async () => {
+  await currentLibrary(key);
+  const before = records.get(key);
+  const previous = answer, bytes = Promise.withResolvers<Response>(), waiting = Promise.withResolvers<void>();
+  answer = path => { if (path !== file) return previous(path); waiting.resolve(); return bytes.promise; };
+  const notify = vi.fn(); window.addEventListener("startupbot-document-sync", notify);
+  try {
+    const pending = currentLibrary(key); await waiting.promise;
+    conversationVisible = false;
+    bytes.resolve(await previous(file));
+    expect(await pending).toBeUndefined();
+    expect(records.get(key)).toBe(before);
+    expect(notify).not.toHaveBeenCalled();
+  } finally { window.removeEventListener("startupbot-document-sync", notify); }
+});
+
+it("withdraws an open library when conversation access is revoked in the same session", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close: () => {} })));
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
+    calls.length = 0;
+    await act(async () => {
+      stop = watchDocumentSources();
+      await vi.waitFor(() => expect(calls.some(c => c.path === list)).toBe(true));
+      await vi.waitFor(() => expect((records.get("watch:" + key) as { scanId?: string }).scanId).toBeUndefined());
+    });
+    calls.length = 0;
+    conversationVisible = false;
+    await act(async () => { tick?.(); });
+    await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.answerAccess")));
+    expect(host.textContent).not.toContain("Drive/policy.txt");
+    expect(calls.some(c => c.path === access)).toBe(true);
+    expect(calls.some(c => c.path === list || c.path === file)).toBe(false);
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it.each(["auth-network", "access-network", "access-503"] as const)("withdraws the open library when %s prevents revalidation", async (failure) => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close: () => {} })));
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
+    calls.length = 0;
+    await act(async () => {
+      stop = watchDocumentSources();
+      await vi.waitFor(() => expect(calls.some(c => c.path === list)).toBe(true));
+      await vi.waitFor(() => expect((records.get("watch:" + key) as { scanId?: string }).scanId).toBeUndefined());
+    });
+    const previous = answer;
+    if (failure === "auth-network") answer = path => { if (path === auth) throw new TypeError("offline"); return previous(path); };
+    else accessFailure = failure === "access-503" ? "503" : "network";
+    await act(async () => { tick?.(); });
+    await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.answerNetwork")));
+    expect(host.textContent).not.toContain("Drive/policy.txt");
+  } finally { await act(async () => root.unmount()); host.remove(); }
+});
+
+it.each(["hidden", "sleep"] as const)("withdraws the open library when the page becomes %s", async (mode) => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  try {
+    await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close: () => {} })));
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
+    await act(async () => { stop = watchDocumentSources(); });
+    await act(async () => {
+      if (mode === "sleep") markCloudAsleep();
+      else { vi.spyOn(document, "hidden", "get").mockReturnValue(true); expect(document.hidden).toBe(true); document.dispatchEvent(new Event("visibilitychange")); }
+    });
+    expect(host.textContent).not.toContain("Drive/policy.txt");
+    expect(host.textContent).toContain(t("knowledge.answerNetwork"));
+  } finally { await act(async () => root.unmount()); host.remove(); }
 });
 afterEach(() => { stop?.(); resetCloudPowerForTests(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it("marks the timer's ownership, manifest and byte reads as background, and leaves a manual refresh foreground", async () => {
   stop = watchDocumentSources();
   await vi.waitFor(() => expect((records.get(key) as Index)?.docs.has("Drive/policy.txt")).toBe(true));
-  expect(calls).toEqual([auth, list, file].map(path => ({ path, background: "1", activity: false })));
+  expect(calls).toEqual([auth, auth, access, auth, access, list, file, auth, access].map(path => ({ path, background: "1", activity: false })));
   calls.length = 0;
   await currentLibrary(key);
-  expect(calls.map(c => [c.path, c.background])).toEqual([[list, null], [file, null]]);
+  expect(calls.map(c => [c.path, c.background])).toEqual([auth, access, auth, access, list, file, auth, access].map(path => [path, null]));
 });
 
 it.each([auth, list, file])("leaves the saved index intact when the Cloud falls asleep on %s", async refused => {
@@ -88,7 +201,8 @@ it("never contacts a sleeping Cloud and keeps the session recheck after a genuin
   tick?.();
   await vi.waitFor(() => expect((records.get(key) as Index)?.changes.at(-1)?.issue).toBe("signedOut"));
   await sessionCheck();
-  expect(calls).toEqual([auth, list, auth].map(path => ({ path, background: "1", activity: false })));
+  expect(calls.map(c => c.path).sort()).toEqual([auth, auth, access, auth, access, list, auth, access, auth].sort());
+  expect(calls.every(c => c.background === "1" && !c.activity)).toBe(true);
 });
 
 it("retains a later scan's deletion even if an older scan of the same watch finishes last", async () => {
@@ -97,7 +211,7 @@ it("retains a later scan's deletion even if an older scan of the same watch fini
   answer = path => { if (path !== file) return previous(path); waiting.resolve(); return bytes.promise; };
   const older = currentLibrary(key);
   await waiting.promise;
-  answer = () => Response.json({ files: [] });
+  answer = path => path === auth ? previous(path) : Response.json({ files: [] });
   const newer = await currentLibrary(key);
   expect(newer?.docs.size).toBe(0);
   bytes.resolve(await previous(file)); await older;
@@ -111,7 +225,7 @@ it("withholds the previous cache from a superseded scan while a newer scan still
   answer = path => { if (path !== file) return previous(path); waiting.resolve(); return bytes.promise; };
   const older = currentLibrary(key); await waiting.promise;
   const manifest = Promise.withResolvers<Response>(), requested = Promise.withResolvers<void>();
-  answer = () => { requested.resolve(); return manifest.promise; };
+  answer = path => { if (path === auth) return previous(path); requested.resolve(); return manifest.promise; };
   const newer = currentLibrary(key); await requested.promise;
   bytes.resolve(await previous(file));
   expect((await older)?.docs.size ?? 0).toBe(0);
@@ -123,7 +237,7 @@ it("returns the newer verified edition to a superseded scan after that edition c
   answer = path => { if (path !== file) return previous(path); started.resolve(); return bytes.promise; };
   const older = currentLibrary(key); await started.promise;
   const revised = "Updated edition";
-  answer = path => path === list ? Response.json({ files: [{ path: "policy.txt", size: revised.length, sha256: "new" }] })
+  answer = path => path === auth ? previous(path) : path === list ? Response.json({ files: [{ path: "policy.txt", size: revised.length, sha256: "new" }] })
     : new Response(revised, { headers: { "content-length": String(revised.length) } });
   const newer = await currentLibrary(key);
   bytes.resolve(await previous(file));
@@ -146,7 +260,7 @@ it("keeps the open dialog's timer-driven ownership recheck in the background whi
   const root = createRoot(host), bot = { id: "bot", threadId: "thread" } as Bot;
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(2)); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
     expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }));
     const manual = calls.filter(c => c.path === auth || c.path === list || c.path === file);
     expect(manual.length).toBeGreaterThan(0);
@@ -155,9 +269,10 @@ it("keeps the open dialog's timer-driven ownership recheck in the background whi
     calls.length = 0;
     await act(async () => {
       stop = watchDocumentSources();
-      await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(2));
+      await vi.waitFor(() => expect(calls.some(c => c.path === file)).toBe(true));
     });
-    expect(calls.map(c => [c.path, c.background, c.activity])).toEqual([auth, list, file, auth].map(path => [path, "1", false]));
+    expect(calls.some(c => c.path === access)).toBe(true);
+    expect(calls.every(c => c.background === "1" && !c.activity)).toBe(true);
   } finally {
     await act(async () => root.unmount()); host.remove();
   }
@@ -183,7 +298,12 @@ it.each([
   const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    if (storage === "watch") await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(3)); });
+    if (storage === "watch") {
+      await vi.waitFor(async () => {
+        await act(async () => {});
+        expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }));
+      });
+    }
     if (storage === "memory") {
       const picker = host.querySelector<HTMLInputElement>("input[type=file]")!;
       Object.defineProperty(picker, "files", { value: [file] });
@@ -343,7 +463,7 @@ it.each(["timer", "focus"])("resumes the same reader's watched library on the fi
   const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth)).toHaveLength(2)); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
     const search = host.querySelector<HTMLInputElement>("input[type=search]")!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "policy");

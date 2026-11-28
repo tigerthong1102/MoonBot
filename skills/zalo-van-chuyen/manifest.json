@@ -1,0 +1,11 @@
+{
+  "id": "zalo-van-chuyen",
+  "name": "Rà soát yêu cầu vận chuyển",
+  "version": "1.0.0",
+  "description": "Phân loại giao hàng, đổi địa chỉ và đối soát tiền thu hộ trong đoạn trích được chọn.",
+  "defaultEnabled": false,
+  "triggerTerms": [
+    "$zalo-van-chuyen"
+  ],
+  "requiredCapabilities": []
+}

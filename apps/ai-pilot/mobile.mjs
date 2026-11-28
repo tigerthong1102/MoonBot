@@ -1,3 +1,4 @@
+import { nativeChat, nativePath } from "./native-chat.mjs";
 import { needsDesktop } from "./mobile-desktop-task.mjs";
 import { sealDraft } from "../../electron/mobile-desktop-envelope.mjs";
 import { readFileSync } from "node:fs";
@@ -9,7 +10,7 @@ import { mobileOpenRouter } from "./mobile-openrouter.mjs";
 import { mobileTextSkills } from "./mobile-text-skills.mjs";
 import { mobileCatalog, preferredMobileLanguage, renderMobilePage } from "./mobile-catalog.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
-import { catalog, Fault } from "./ledger.mjs";
+import { catalog, digest, Fault } from "./ledger.mjs";
 
 
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
@@ -56,6 +57,10 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     AND (created,id)<(?,?) ORDER BY created DESC,id DESC LIMIT 13`);
   const lookup = db.prepare("SELECT id FROM mobile_threads WHERE owner=? AND id=?");
   const finish = db.prepare("UPDATE mobile_turns SET state=?,answer=? WHERE owner=? AND id=? AND state='running'");
+  function useWallet(owner,thread) {
+    if (db.prepare("SELECT 1 FROM mobile_turns WHERE owner=? AND thread=? AND state='running'").get(owner,thread)) throw new Fault(409,"turn_in_progress");
+    db.prepare("DELETE FROM mobile_byok_threads WHERE owner=? AND thread=?").run(owner,thread);
+  }
   async function desktopDraft(session, body, operation) {
     try {
       if (operation === "status") return await accounts.mobileDesktopDraft(session.token, body, operation);
@@ -73,13 +78,17 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       throw new Fault(503,"desktopUnconfirmed");
     }
   }
+  const native = nativeChat(ledger, lists, origin.origin);
   function recover(owner) {
     db.prepare("UPDATE mobile_turns SET state='interrupted' WHERE owner=? AND state='running' AND created<?")
       .run(owner, Date.now() - 5 * 60000);
   }
-  return async (req, res, path, json) => {
+  async function handle(req, res, path, json) {
     const method = req.method;
-    if (method === "POST" && (req.headers.origin !== origin.origin || !req.headers["content-type"]?.startsWith("application/json")))
+    const companion = nativePath(path);
+    if (method === "GET" && path === "/.well-known/openmausbot/environment") return json(200, native.environment);
+    if (companion && req.headers.origin && req.headers.origin !== origin.origin) throw new Fault(403, "origin_denied");
+    if (!companion && method === "POST" && (req.headers.origin !== origin.origin || !req.headers["content-type"]?.startsWith("application/json")))
       throw new Fault(403, "origin_denied");
     if (method === "GET" && path === "/mobile/clipboard-write.js") {
       res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
@@ -104,20 +113,33 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       res.writeHead(200, { "content-type": type + "; charset=utf-8" });
       return res.end(source);
     }
-    const body = method === "POST" ? await readObject(req) : {};
+    const hasBody = method === "PATCH" || (method === "POST" && (!companion || /\/(messages|tasks|respond)$/.test(path)));
+    let body = hasBody ? await readObject(req) : {};
     let owner, session;
     try {
       if (method === "POST" && path === "/mobile/code") {
         await accounts.requestOTP(body.email);
-        return json(200, { ok: true });
+        return json(200, body.client === "companion" ? { desktopHandoff:settings.mobileDesktopHandoff === true } : { ok:true });
       }
       if (method === "POST" && path === "/mobile/login") {
+        if (body.client === "desktop-account" && settings.mobileAccountChat === true) {
+          const bearer = /^Bearer (\S{1,8192})$/.exec(req.headers.authorization ?? "")?.[1];
+          if (!bearer) throw new Fault(401, "signed_out");
+          const user = await accounts.me(bearer, { requireVerifiedEmail:true });
+          if (!body.email || user.email !== body.email || user.id !== body.account) throw new Fault(401, "signed_out");
+          sessions.issue(res, user.id, bearer);
+          return json(200, { ok:true });
+        }
         const { accountToken, user } = await accounts.verifyOTP(body.email, body.otp);
+        if (body.client === "companion") {
+          const token = sessions.issue(res, user.id, accountToken, true, settings.mobileDesktopHandoff && body.desktopDrafts === "allow");
+          return json(200, { token, connectionId:"mobile-" + digest(JSON.stringify([origin.origin,user.id])), environment: native.environment });
+        }
         sessions.issue(res, user.id, accountToken);
         return json(200, { ok: true });
       }
-      session = sessions.read(req);
-      if (method === "POST" && path === "/mobile/logout") {
+      session = sessions.read(req, companion);
+      if (method === "POST" && (path === "/mobile/logout" || path === "/api/auth/logout")) {
         sessions.revoke(res, session.hash);
         try { await accounts.signOut(session.token); } catch (error) {
           if (!(error instanceof ControlPlaneError)) throw error;
@@ -164,7 +186,14 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       throw new Fault(401, "signed_out");
     }
     recover(owner);
-    if (method === "GET" && path === "/mobile/threads") return json(200, { account: owner, desktopHandoff:settings.mobileDesktopHandoff === true, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
+    if (companion) {
+      const input = native.route({ req, res, json, path, body, owner, session });
+      if (!input || input.events) return input?.events;
+      body = input;
+      path = "/mobile/send";
+    }
+    const threadList = () => ({ account: owner, desktopHandoff:settings.mobileDesktopHandoff === true, provider: personalAI.info(session), threads: lists.all(owner), disabledSkills:catalog(settings.catalog).disabledMobileSkills ?? [] });
+    if (method === "GET" && path === "/mobile/threads") return json(200, threadList());
     if (method !== "POST") throw new Fault(404, "not_found");
     if (body.account !== owner) throw new Fault(409, "account_changed");
     if (settings.mobileDesktopHandoff && path === "/mobile/desktop-status" && uuid.test(body.id))
@@ -185,7 +214,21 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     }
     const thread = body.thread;
     if (!uuid.test(thread)) throw new Fault(400, "invalid_thread");
+    if (path === "/mobile/sync") {
+      const data = threadList();
+      const page = history.all(owner, thread, Number.MAX_SAFE_INTEGER, "");
+      const revision = digest(JSON.stringify([data, page.map(turn => [turn.id, turn.state, turn.answer.length])]));
+      if (body.revision === revision) return json(200, { unchanged:true });
+      const turns = page.slice(0,12).reverse();
+      const next = page.length > 12 ? {created:turns[0].created,id:turns[0].id} : null;
+      return json(200, { ...data, revision, turns, next });
+    }
     if (path !== "/mobile/send" && !lookup.get(owner, thread)) throw new Fault(404, "not_found");
+    if (path === "/mobile/provider/use-wallet") {
+      useWallet(owner,thread);
+      native.changed(owner);
+      return json(200,{ok:true});
+    }
     if (path === "/mobile/history") {
       const before = body.before;
       if (before != null && (!Number.isSafeInteger(before.created) || !uuid.test(before.id))) throw new Fault(400, "invalid_cursor");
@@ -209,12 +252,60 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const config = catalog(settings.catalog);
     if (!["desktop","text"].includes(body.runtime ?? "text")) throw new Fault(409,"runtime_unavailable");
     if (needsDesktop(body.prompt, body.runtime)) {
+      if (settings.mobileAccountChat === true) {
+        if (config.disabledMobileSkills?.includes("desktop")) throw new Fault(409, "skill_paused");
+        const notice = mobileCatalog(body.language || preferredMobileLanguage(req.headers["accept-language"])).messages.computerNeeded;
+        const answer = ledger.tx(() => {
+          const saved = db.prepare("SELECT thread,prompt,answer,state FROM mobile_turns WHERE owner=? AND id=?").get(owner,body.id);
+          if (saved) {
+            if (saved.thread !== thread || saved.prompt !== body.prompt || saved.state !== "computer_needed") throw new Fault(409, "request_exists");
+            return saved.answer;
+          }
+          const now = Date.now();
+          if (!lookup.get(owner,thread)) {
+            if (lists.all(owner).length >= 50) throw new Fault(409,"history_full");
+            db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run(owner,thread,body.prompt.trim().slice(0,80),now);
+            if (body.provider === "openrouter") {
+              const key = personalAI.keyHash(session);
+              if (!key) throw new Fault(409,"provider_disconnected");
+              db.prepare("INSERT INTO mobile_byok_threads VALUES (?,?,?)").run(owner,thread,key);
+            }
+          }
+          if (db.prepare("SELECT count(*) n FROM mobile_turns WHERE owner=? AND thread=?").get(owner,thread).n >= 80) throw new Fault(409,"thread_full");
+          db.prepare("INSERT INTO mobile_turns(owner,thread,id,prompt,answer,state,created) VALUES (?,?,?,?,?,'computer_needed',?)").run(owner,thread,body.id,body.prompt,notice,now);
+          db.prepare("UPDATE mobile_threads SET updated=? WHERE owner=? AND id=?").run(now,owner,thread);
+          return notice;
+        });
+        native.changed(owner);
+        if (companion) return json(200, {ok:true,threadId:thread});
+        res.writeHead(200, {"content-type":"application/x-ndjson"});
+        return res.end(JSON.stringify({text:answer})+"\n"+JSON.stringify({state:"complete"})+"\n");
+      }
       if (!settings.mobileDesktopHandoff) throw new Fault(409, "desktop_required");
       if (config.disabledMobileSkills?.some(value => value === "desktop" || value === skill)) throw new Fault(409,"skill_paused");
       const input = { id:body.id, prompt:body.prompt };
       if (body.target != null) {
         if (!uuid.test(body.target)) throw new Fault(400,"invalid_target");
         input.target = body.target;
+      }
+      if (companion) {
+        if (!native.allowsDrafts(session.hash)) throw new Fault(409, "desktop_required");
+        let draft = await desktopDraft(session,input,"offer");
+        const messages = mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages;
+        if (draft.state === "choose") {
+          native.choose(session,body,draft.devices,messages.desktopChoose);
+          throw new Fault(409,"desktopChoose");
+        }
+        for (let attempt=0; draft.state === "waiting" && attempt<7 && !res.destroyed; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          draft = await desktopDraft(session,{id:input.id},"status");
+        }
+        if (draft.state !== "received") {
+          const message = ["waiting","expired"].includes(draft.state) ? "desktopUnconfirmed" : "desktop_unavailable";
+          throw new Fault(409, message);
+        }
+        native.received(owner, body, messages, session);
+        return json(200, {ok:true,threadId:body.thread});
       }
       return json(200,{desktop:await desktopDraft(session,input,"offer")});
     }
@@ -230,7 +321,11 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     if (!isNew) {
       const pinned = db.prepare("SELECT keyHash FROM mobile_byok_threads WHERE owner=? AND thread=?").get(owner, thread);
       const current = ownKey && personalAI.keyHash(session);
-      if (Boolean(pinned) !== ownKey || (pinned && current && pinned.keyHash !== current)) throw new Fault(409, "provider_conflict");
+      if (companion && pinned && ownKey && current !== pinned.keyHash) {
+        native.offerWallet(session,body,mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages);
+        throw new Fault(409,"provider_disconnected");
+      }
+      if (!(companion && body.switchWallet) && (Boolean(pinned) !== ownKey || (pinned && current && pinned.keyHash !== current))) throw new Fault(409, "provider_conflict");
     }
     if (ownKey) {
       const connection = personalAI.info(session);
@@ -244,6 +339,10 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const messages = ledger.tx(() => {
       if (db.prepare("SELECT 1 FROM mobile_turns WHERE owner=? AND id=?").get(owner, body.id))
         throw new Fault(409, "request_exists");
+      if (companion && body.switchWallet) {
+        useWallet(owner,thread);
+        native.clearChoice(session,thread,body.id);
+      }
       if (!lookup.get(owner, thread)) {
         if (lists.all(owner).length >= 50) throw new Fault(409, "history_full");
         db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run(owner, thread, body.prompt.trim().slice(0, 80), Date.now());
@@ -266,9 +365,12 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       return [{ role: "system", content: [instructions, textSkills.get(skill)].filter(Boolean).join(" ") }, ...context, { role: "user", content: body.prompt }];
     });
     const controller = new AbortController();
-    res.on("close", () => controller.abort());
-    if (res.destroyed) controller.abort();
+    if (!companion) {
+      res.on("close", () => controller.abort());
+      if (res.destroyed) controller.abort();
+    } else native.changed(owner);
     const frame = (data) => {
+      if (companion) return;
       if (res.destroyed) throw new Error("disconnected");
       if (!res.headersSent) res.writeHead(200, { "content-type": "application/x-ndjson", "x-accel-buffering": "no" });
       res.write(JSON.stringify(data) + "\n");
@@ -282,6 +384,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       const choice = result.choices[0];
       const state = choice.finish_reason === "stop" ? "complete" : "limited";
       finish.run(state, choice.message.content, owner, body.id);
+      native.changed(owner);
+      if (companion) return res.destroyed ? undefined : json(200, { ok:true, threadId:thread });
       frame({ state });
       res.end();
     } catch (error) {
@@ -293,10 +397,20 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
           if (isNew) db.prepare("DELETE FROM mobile_threads WHERE owner=? AND id=? AND NOT EXISTS (SELECT 1 FROM mobile_turns WHERE owner=? AND thread=?)").run(owner, thread, owner, thread);
         });
       } else finish.run("interrupted", "", owner, body.id);
+      native.changed(owner);
       if (res.destroyed) return;
       if (!res.headersSent) throw error;
       frame({ state: "interrupted" });
       res.end();
+    }
+  }
+  return async (req,res,path,json) => {
+    try {
+      return await handle(req,res,path,json);
+    } catch (error) {
+      if (!(error instanceof Fault) || !(nativePath(path) || req.headers["x-startupbot-client"] === "companion")) throw error;
+      const messages = mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages;
+      json(error.status, {error:messages[error.message] ?? error.message});
     }
   };
 }

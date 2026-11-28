@@ -2,7 +2,11 @@
 
 Đối chiếu file giao việc ngày 28/11/2026. Các mục dưới đây bám theo số trong bản gốc. [Báo cáo founder và liên kết PR](startupbot-mobile-standalone-final-report.md) · [Quyết định kiến trúc](../architecture/mobile-standalone-assessment.md)
 
-**Ưu tiên trải nghiệm trên điện thoại.** Bản pilot giữ ba điểm vào trên màn hình hiện có của mỗi nền tảng. Luồng độc lập mở giao diện chat dùng lại StartupBot Inbox ngay trong app. Đối chiếu sáu dòng tích hợp ở bốn file với hai bản phát hành native của MausBot, cùng kết quả Chromium/WebKit ở 320 và 390 px, được ghi trong [báo cáo founder](startupbot-mobile-standalone-final-report.md). Kiểm thử bàn phím hệ thống và trình đọc màn hình trên thiết bị vật lý vẫn còn mở.
+**Ưu tiên trải nghiệm trên điện thoại.** Bản pilot giữ ba điểm vào trên màn hình hiện có của mỗi nền tảng. Luồng độc lập dùng màn hình chat gốc SwiftUI và Compose sau khi xác minh email. Bản web dùng cùng gateway. [Báo cáo founder](startupbot-mobile-standalone-final-report.md)
+
+Khi đồng bộ MausBot, màn hình hội thoại, ô soạn tin và thẻ chọn thiết bị tiếp tục dùng các component SwiftUI và Compose hiện có của StartupBot. Luồng OTP bổ sung một điểm đăng nhập. Gateway trả về đúng cấu trúc hội thoại mà hai app đang đọc. Bản xem trước Safari chỉ phục vụ pilot trước khi có bản ký iOS.
+
+Kiểm thử bàn phím hệ thống và trình đọc màn hình trên thiết bị vật lý vẫn còn mở.
 
 ## 36 mục của nhiệm vụ
 
@@ -16,7 +20,7 @@
 | 6. Phản biện | ADR ghi lựa chọn shared gateway, native/browser, phân quyền, guest, chi phí và rollback. | Chất lượng model, tỷ lệ quay lại và hiệu quả kinh doanh cần pilot thật. |
 | 7. Universal Account | OTP, ID bất biến, owner được issuer xác minh, nhiều phiên, liệt kê và thu hồi một hoặc tất cả phiên. Xác minh lại email sau hết hạn. | Chưa có refresh token riêng ở Mobile, quy trình mất quyền truy cập email, liên kết SSO, MFA hoặc xóa account xuyên subsystem. |
 | 8. Onboarding | Email vào chat, credit hoặc trial, điều khiển provider trong phần tùy chọn. 78 nhãn web dùng catalog chung của 16 ngôn ngữ. | Native cần kiểm tra thực địa, đọc màn hình, bàn phím và xoay màn hình. |
-| 9. Chat | Stream, stop, retry có định danh, code block, copy, rename/delete, lịch sử theo trang, bounded context. | Model do operator chọn; regenerate, file, thoại, search và memory cá nhân chưa có trên bề mặt mới. |
+| 9. Chat | Stream, stop, retry có định danh, code block, copy, rename/delete, lịch sử theo trang, tìm và mở tin nhắn tiếng Việt, chia sẻ từng hội thoại từ app native dưới dạng Markdown hoặc JSON, bounded context. | Model do operator chọn; regenerate, file, thoại và memory cá nhân chưa có trên bề mặt mới. |
 | 10. Provider | Managed OpenRouter và OAuth PKCE cá nhân có ledger riêng, khóa phiên, cancellation và không tự đổi payer. | ChatGPT cần partner grant, Claude subscription không sử dụng. Chưa có live OAuth/inference, lựa chọn model nâng cao hoặc adapter Mobile cho mọi API. |
 | 11. Execution Router | Text skill allowlist, chặn thao tác Desktop được nhận diện, từ chối runtime không được hỗ trợ trước inference. | Chưa có discovery khả năng host trực tuyến hoặc bộ định tuyến hiểu đầy đủ yêu cầu ngôn ngữ tự nhiên. |
 | 12. Task state | Mobile turn có trạng thái DB running, complete, limited, interrupted; xác nhận từ stream. Runtime chưa gắn trả lỗi trước dispatch. | Desktop có receipt mở bản nháp, claim một lần và hết hạn theo phiên nhận online. Chưa có trạng thái thực thi chung với Cloud. |

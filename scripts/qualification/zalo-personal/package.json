@@ -9,7 +9,8 @@
   "scripts": {
     "test": "node qualify.mjs",
     "benchmark": "node bench.mjs",
-    "test:integration": "node --test worker-integration.mjs delivery-cases.mjs"
+    "test:integration": "node --test worker-integration.mjs delivery-cases.mjs",
+    "test:soak-smoke": "node soak.mjs --smoke"
   },
   "dependencies": {
     "zca-js": "2.2.0"

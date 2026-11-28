@@ -657,7 +657,8 @@ import { createInstanceRoutes } from "./routes/instances.ts";
 import { createMcpConfig } from "./host/mcp-config.ts";
 import { createMcpServerRoutes } from "./routes/mcp-servers.ts";
 import { teamAdminSummary } from "./cloud-team-admin.ts"; import { createConnectionHealthHost } from "./host/connection-health-host.ts";
-import { createDesktopImportRoutes } from "./routes/setup-import.ts";
+import { attachZaloRetention } from "./zalo-retention.ts";
+import { zaloPeriodService, createDesktopImportRoutes } from "./routes/setup-import.ts";
 import { createComputerRoutes } from "./routes/computers.ts";
 import { createStatusRoutes } from "./routes/status.ts";
 import { findAntigravityLeftovers, removeAntigravityLeftovers } from "./drivers/antigravity-temp.ts";
@@ -7256,9 +7257,9 @@ class DirectSendRefused extends Error {
   }
 }
 
-function directSendRefusal(botId: string, threadId: string): DirectSendRefused | null { const standIn = store.standIns.get(botId); if (standIn) return new DirectSendRefused(409, { error: botMoveRefusal(standIn)!, code: "moved" });
+function directSendRefusal(botId: string, threadId: string, admit = true): DirectSendRefused | null { const standIn = store.standIns.get(botId); if (standIn) return new DirectSendRefused(409, { error: botMoveRefusal(standIn)!, code: "moved" });
   try {
-    assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(botId, true, threadLanguage(threadId));
+    if (admit) { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(botId, true, threadLanguage(threadId)); }
   } catch (error) {
     return new DirectSendRefused(409, { error: error instanceof Error ? error.message : String(error), code: "spend_cap" });
   }
@@ -8888,7 +8889,7 @@ const automationDestinations = createAutomationDestinations({ store, mainThread:
 const routineModelChecks: RoutineModelChecks = { check: (raw) => checkedModelSelection(raw), bot: (botId) => store.bot(botId), engineSwitchNeedsAsk };
 routines = new RoutineManager({
   beforeHandoffRoutineCommit: (request, existing, runs) => assertWorkBotRoutineSafe(store, threadLanguage, request, existing, runs, workBotLinksForThread),
-  emit: broadcast, limitResetAt: (engine) => limitClock.resetAt(engine), checks: proactive.checks,
+  localReportSchedule: zaloPeriodService(DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE), emit: broadcast, limitResetAt: (engine) => limitClock.resetAt(engine), checks: proactive.checks,
   limitBackup: (botId, scope) => { const bot = store.bot(botId); return quotaSwitchEnabled() ? Boolean(bot && limitTakeover.backups(botId, bot.modelSelection, scope, approvalModeFor(bot)).length) : Boolean(bot && startupBackups(bot, cfg.automaticRecovery).length); },
   launchId: DESKTOP_MANAGED && /^[\w-]{1,100}$/.test(process.env.OMB_DESKTOP_LAUNCH_ID ?? "")
     ? process.env.OMB_DESKTOP_LAUNCH_ID : undefined,
@@ -12388,7 +12389,7 @@ ROUTES.push(createMcpServerRoutes({
   cloudHome: CLOUD_HOME,
   fallbackPublicUrl: FALLBACK_PUBLIC_URL,
   mcpServerResponse, savedCustomDomain, appCatalog: chatAppsMcp, config: mcpConfig, lender: sessionLendingPrincipal, connectionHealth, ownsVault: () => !CLOUD_TEAM && !HOSTED_WORKSPACE, place: (server, auth) => lentMcp.place(server, { principal: sessionLendingPrincipal(auth), ...(auth.kind === "session" ? { session: auth.session.id } : {}), newest: true }) }));
-ROUTES.push(...createDesktopImportRoutes({ local: DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE, cfg, mcpPolicyRefusal, persistMcpServers: persistAnnouncedMcpServers,
+ROUTES.push(...createDesktopImportRoutes({ onLocalReportScheduleChanged: () => routines?.pokeSchedule(), local: DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE, cfg, mcpPolicyRefusal, persistMcpServers: persistAnnouncedMcpServers,
   mcpConfigBusy: mcpConfig.busy }));
 ROUTES.push(createComputerRoutes({
   store, cfg, sessions, teamComputers, computerControl,
@@ -15230,10 +15231,9 @@ const handleRequest = async (req: IncomingMessage, res: ServerResponse) => {
     releaseWorkspaceRequest?.();
   }
 };
-
 const server = createServer(IDLE_HTTP_SERVER, handleRequest);
 upgrades.attach(server, handleRequest);
-
+attachZaloRetention(server, DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE);
 moveFreeze.hold(() => calendarCalls.start(), () => calendarCalls.stop());
 
 // Resolve the edition before accepting requests so /api/edition is never a guess.

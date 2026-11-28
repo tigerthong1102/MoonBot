@@ -42,6 +42,9 @@ export async function startMobileFixture({ mobileOrigin = "https://mobile.exampl
         if (behavior.beforeMe) await behavior.beforeMe();
         return Response.json({ user });
       }
+      if (url.pathname.startsWith("/v1/mobile-drafts") && tokens.has(token) && behavior.desktopDraft) {
+        return Response.json(await behavior.desktopDraft(url.pathname,body));
+      }
       if (url.pathname === "/v1/installations" && tokens.has(token)) {
         return Response.json({ installations:[{ id:randomUUID(), clientInstanceId:randomUUID(),
           name:tokens.get(token).id + " laptop", platform:"darwin", appVersion:"1.0.0" }] });

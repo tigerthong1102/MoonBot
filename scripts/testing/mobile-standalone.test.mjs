@@ -15,6 +15,31 @@ beforeEach(async () => {
 });
 afterEach(async () => f.close());
 
+it("syncs account chat both ways and persists a computer notice while the desktop is offline", async () => {
+  f.settings.mobileAccountChat = true;
+  const accountToken = [...f.tokens.keys()][0];
+  const desktopLogin = {client:"desktop-account", account:"alice", email:"alice@example.test"};
+  const headers = {authorization:"Bearer " + accountToken};
+  const denied = await f.call("/login", null, {...desktopLogin, account:"other"}, {headers});
+  expect(denied.status).toBe(401);
+  const login = await f.call("/login", null, desktopLogin, {headers});
+  expect(login.status).toBe(200);
+  const desktop = login.headers.get("set-cookie").split(";")[0];
+  const mobile = cookie, scope = {account:"alice",thread};
+  const ready = await (await f.call("/sync", desktop, scope)).json();
+  const request = message({prompt:"Mở Excel", language:"vi"});
+  const sent = await f.call("/send", mobile, request);
+  expect(await sent.text()).toContain("Việc này cần thực hiện trên máy tính.");
+  const changed = await (await f.call("/sync",desktop,{...scope,revision:ready.revision})).json();
+  expect(changed.turns).toMatchObject([{id:request.id,prompt:"Mở Excel",state:"computer_needed"}]);
+  expect((await (await f.call("/sync",desktop,{...scope,revision:changed.revision})).json()).unchanged).toBe(true);
+  await (await f.call("/send", desktop, message({prompt:"Xin chào"}))).text();
+  expect((await (await f.call("/sync",mobile,scope)).json()).turns.map(t=>t.prompt)).toEqual(["Mở Excel","Xin chào"]);
+  await (await f.call("/send",mobile,request)).text();
+  expect((await (await f.call("/sync",mobile,scope)).json()).turns).toHaveLength(2);
+  expect((await f.call("/sync",await f.login("bob"),scope)).status).toBe(409);
+});
+
 it("enters chat with an email code, requires a verified account and invalidates the bearer on logout", async () => {
   expect((await f.call("/threads")).status).toBe(401);
   expect((await f.call("/threads", cookie)).status).toBe(200);

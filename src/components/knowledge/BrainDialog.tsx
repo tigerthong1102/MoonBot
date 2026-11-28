@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "@/lib/i18n";
+import { localSetupImport } from "@/lib/setup-import";
+import { ZaloPrivateKnowledge } from "./ZaloPrivateKnowledge";
 import { libraryOwner } from "./source-cache";
 import { observeLibraryOwner } from "./source-sync";
 import {
@@ -19,13 +21,14 @@ import {
 import { cloudAsleep } from "@/lib/cloud-power";
 import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { Select } from "../Select";
+import { ZaloKnowledgeDraft, type ZaloKnowledgeExcerpt } from "./ZaloKnowledgeDraft";
 import { SourceCitation } from "./SourceCitation";
 import { useStore } from "@/state/store";
 import { closeConversationDialog } from "../conversation-share/conversation-share";
 
 const field = "my-1 block w-full rounded-lg border border-hairline bg-inset p-2 text-ink";
 
-export default function BrainDialog({ threadId, selection, initialQuery = "", close = closeConversationDialog }: { threadId: string; selection?: BrainSelection; initialQuery?: string; close?: () => void }) {
+export default function BrainDialog({ threadId, selection, initialQuery = "", zaloExcerpt, close = closeConversationDialog }: { threadId: string; selection?: BrainSelection; initialQuery?: string; zaloExcerpt?: ZaloKnowledgeExcerpt; close?: () => void }) {
   const panel = useRef<HTMLDivElement>(null);
   useModalDialog(panel, close);
   const { state, dispatch } = useStore();
@@ -34,6 +37,7 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", cl
   const [query, setQuery] = useState(initialQuery);
   const [error, setError] = useState(false);
   const [ready, setReady] = useState(false);
+  const [shelfOpen, setShelfOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [epoch, refresh] = useState(0);
   const view = useRef<AbortController | null>(null);
@@ -224,6 +228,7 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", cl
           {t("reconcile.close")}
         </button>
       </header>
+      {ready && !draft && account.current === "local" && localSetupImport(state.config?.cloudHome === true) && <ZaloPrivateKnowledge query={query} open={shelfOpen} setOpen={setShelfOpen} />}
       {error && (
         <p role="alert">
           {t("brain.unavailable")}{" "}
@@ -301,6 +306,8 @@ export default function BrainDialog({ threadId, selection, initialQuery = "", cl
                 </p>
                 <p className="my-2 whitespace-pre-wrap break-words">{item.page.body}</p>
                 {reference(item.evidence)}
+                {zaloExcerpt && view.current && item.page.approvedAt > 0 && item.page.source.kind === "document" && item.page.source.threadId === threadId &&
+                  <ZaloKnowledgeDraft key={item.page.id + ":" + item.page.version} item={item} excerpt={zaloExcerpt} viewSignal={view.current.signal} />}
                 {pages.some((p) => p.page.id !== item.page.id && sharesSource(p.page.source, item.page.source)) && (
                   <details>
                     <summary>{t("brain.related")}</summary>

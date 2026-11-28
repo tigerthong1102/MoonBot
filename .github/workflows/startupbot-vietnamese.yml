@@ -29,9 +29,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Build the preview and test Vietnamese onboarding
+        env:
+          MOBILE_ORIGIN: ${{ vars.STARTUPBOT_MOBILE_PILOT_ORIGIN || 'https://mobile.example.invalid' }}
         run: |
           export JAVA_HOME="$JAVA_HOME_17_X64"
-          ./gradlew -PstartupbotMobileOrigin=https://mobile.example.invalid :app:assemblePreview :core:test :app:testDebugUnitTest --tests '*OnboardingRoutingTest' --tests '*Notification*Test'
+          ./gradlew "-PstartupbotMobileOrigin=$MOBILE_ORIGIN" :app:assemblePreview :core:test :app:testDebugUnitTest --tests '*OnboardingRoutingTest' --tests '*Notification*Test'
+      - name: Save the installable Android pilot
+        if: vars.STARTUPBOT_MOBILE_PILOT_ORIGIN != '' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: startupbot-android-pilot
+          path: android/app/build/outputs/apk/preview/*universal*.apk
+          if-no-files-found: error
+          retention-days: 7
   ios:
     runs-on: macos-26-intel
     timeout-minutes: 35

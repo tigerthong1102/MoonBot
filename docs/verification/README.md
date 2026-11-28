@@ -79,9 +79,18 @@ Use only mapped, tested commands:
 - [Phone web app installation and safe areas](phone-web-app.md)
 - [Welcome flow and guided tour](onboarding.md)
 - [Channels](channels.md)
+- [Erase a paired Zalo source and verify workspace restore](zalo-source-erasure.md)
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
+- [Desktop owner approval for one private Zalo reply](zalo-official-approved-send.md)
+- [Private Zalo source bookmarks in Second Brain](zalo-private-knowledge.md)
+- [Operator-driven Zalo Official round-trip qualification](zalo-official-roundtrip.md)
+- [Internal Zalo Official webhook and one-time pairing](zalo-official-webhook.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
+- [AI Twin local owner-written Zalo style sample](zalo-owner-style.md)
+- [Analyze selected Zalo excerpts with the bot model](zalo-bot-model-analysis.md)
 - [Zalo excerpt review, intelligence and release evidence](zalo-intelligence.md)
+- [Duyệt đề xuất quy trình từ một dòng Zalo](zalo-workflow-review.md)
+- [Báo cáo Zalo theo lịch trong Today](zalo-period-report.md)
 - [In-chat team coordination](room-coordination.md)
 - [Question cards: a teammate's question, in its chat and the person's inbox](question-cards.md)
 - [Chief authority over additional departments](team-access.md)
@@ -350,6 +359,8 @@ The [Zalo release assessment](zalo-release-assessment.md) records which messagin
 The [Gemini speech fixture](gemini-speech.md) checks write-only credentials,
 voice selection and WAV synthesis against an offline provider in an isolated
 server, with manual steps for real Google access and playback.
+
+The [Zalo browser comparison and SQLite endurance fixture](zalo-load.md) measures local processing time, duplicate handling, and restart recovery with synthetic messages.
 
 The [persistence responsiveness benchmark](persistence-performance.md) measures
 synthetic message/log bursts and history scans, with isolated chat, visibility

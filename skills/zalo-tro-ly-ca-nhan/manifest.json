@@ -1,0 +1,11 @@
+{
+  "id": "zalo-tro-ly-ca-nhan",
+  "name": "Rà soát lịch hẹn và nhắc việc",
+  "version": "1.0.0",
+  "description": "Tìm đề xuất lịch hẹn, nhắc việc và yêu cầu phản hồi trong đoạn trích người dùng cung cấp.",
+  "defaultEnabled": false,
+  "triggerTerms": [
+    "$zalo-tro-ly-ca-nhan"
+  ],
+  "requiredCapabilities": []
+}

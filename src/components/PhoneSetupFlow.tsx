@@ -1,3 +1,4 @@
+import { AccountCodeFields } from "./AccountCodeFields";
 import { companionBridge } from "@/lib/companion-bridge";
 import {
   useCallback,
@@ -152,7 +153,7 @@ export interface PhoneSetupController {
   useTailscale: () => void;
   refreshTailscale: () => void;
   requestCode: () => void;
-  verifyCode: () => void;
+  verifyCode: (mode?: "account") => void;
   retryAccount: () => void;
   cancel: () => void;
   refreshCode: () => void;
@@ -535,13 +536,13 @@ export function usePhoneSetupController(profileEmail = ""): PhoneSetupController
       });
   }, [email]);
 
-  const verifyCode = useCallback(() => {
+  const verifyCode = useCallback((mode?: "account") => {
     const remote = companionAccountBridge();
     const normalized = email.trim().toLowerCase();
     if (!remote || code.length !== 8) return;
     const generation = setupGeneration.current;
     setAccountBusy(true);
-    setProvisioning(true);
+    setProvisioning(mode !== "account");
     setSetupTimedOut(false);
     setAccountError(null);
     void mutateCompanionBridgeState(
@@ -553,7 +554,7 @@ export function usePhoneSetupController(profileEmail = ""): PhoneSetupController
         setAccount(next);
         setCodeState("");
         setCodeSent(false);
-        await openPairing("automatic", next, generation);
+        if (mode !== "account") await openPairing("automatic", next, generation);
       })
       .catch((cause: unknown) => {
         if (!mounted.current || setupGeneration.current !== generation) return;
@@ -855,7 +856,6 @@ function ValuePoints() {
 export function PhoneSetupFlowView({ controller }: { controller: PhoneSetupController }) {
   const c = controller;
   const actionError = companionAccountActionError(c.account, c.accountError);
-  const canSubmitEmail = /^\S+@\S+\.\S+$/.test(c.email.trim());
   const manualCodeMode = phonePairingManualCodeMode(Boolean(c.state?.pairing), c.pairingLink);
   if (c.phase === "qr" && c.state?.e2e?.enabled && c.pairingLink) return <PhonePairingQr c={c} signedIn={Boolean(c.account?.email)} />;
 
@@ -909,61 +909,7 @@ export function PhoneSetupFlowView({ controller }: { controller: PhoneSetupContr
         {(unavailable || failed) && <PairingFailureCheck account={c.account} state={c.state} setupTimedOut={c.setupTimedOut} />}
 
         {!unavailable && !failed && (
-          <div className="mt-5 flex flex-col gap-3">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] font-medium text-ink-secondary">{t("phone.signIn.email")}</span>
-              <input
-                autoFocus
-                autoComplete="email"
-                inputMode="email"
-                value={c.email}
-                disabled={c.accountBusy || c.codeSent}
-                onChange={(event) => c.setEmail(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !c.codeSent && canSubmitEmail) c.requestCode();
-                }}
-                placeholder={t("common.emailPlaceholder")}
-                className="rounded-lg border border-hairline/50 bg-inset px-3 py-2.5 text-[14px] text-ink outline-none placeholder:text-ink-tertiary focus:border-accent disabled:opacity-50"
-              />
-            </label>
-            {c.codeSent && (
-              <label className="flex flex-col gap-1.5">
-                <span className="text-[12px] font-medium text-ink-secondary">{t("phone.signIn.emailCode")}</span>
-                <input
-                  autoFocus
-                  autoComplete="one-time-code"
-                  inputMode="numeric"
-                  value={c.code}
-                  disabled={c.accountBusy}
-                  onChange={(event) => c.setCode(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && c.code.length === 8) c.verifyCode();
-                  }}
-                  placeholder="12345678"
-                  className="rounded-lg border border-hairline/50 bg-inset px-3 py-2.5 font-mono text-[16px] tracking-[0.18em] text-ink outline-none placeholder:tracking-normal placeholder:text-ink-tertiary focus:border-accent disabled:opacity-50"
-                />
-              </label>
-            )}
-            <button
-              disabled={c.accountBusy || (!c.codeSent && !canSubmitEmail) || (c.codeSent && c.code.length !== 8)}
-              onClick={c.codeSent ? c.verifyCode : c.requestCode}
-              className="rounded-lg bg-accent py-2.5 text-[14px] font-medium text-white hover:opacity-90 disabled:opacity-40"
-            >
-              {c.accountBusy ? t("phone.signIn.working") : c.codeSent ? t("phone.signIn.verify") : t("phone.signIn.sendCode")}
-            </button>
-            {c.codeSent && (
-              <button
-                disabled={c.accountBusy}
-                onClick={c.changeEmail}
-                className="text-[12px] text-ink-secondary hover:text-ink disabled:opacity-40"
-              >
-                {t("phone.signIn.otherEmail")}
-              </button>
-            )}
-            {c.codeSent && !actionError && (
-              <p className="text-[12px] text-ink-secondary">{t("phone.signIn.expires")}</p>
-            )}
-          </div>
+          <AccountCodeFields controller={c} actionError={actionError} />
         )}
 
         {(unavailable || failed) && (

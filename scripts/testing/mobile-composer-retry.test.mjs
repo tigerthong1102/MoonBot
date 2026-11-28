@@ -32,7 +32,6 @@ beforeEach(async () => {
   });
   await import("../../apps/ai-pilot/mobile-ui.js");
   await vi.waitFor(() => expect(el("chat").hidden, el("status").textContent).toBe(false));
-  el("consent").checked = true;
   el("prompt").value = "original";
 });
 
@@ -204,7 +203,7 @@ it("reconnects without replacing an unsaved conversation or its newer draft", as
   expect(el("retry").hidden).toBe(true);
   expect(el("threads").value).toBe("");
   expect(el("prompt").value).toBe("newer draft");
-  expect(el("consent").checked).toBe(true);
+  expect(el("consent")).toBeNull();
   el("prompt").value = "original";
   submit();
   await idle();
@@ -225,7 +224,6 @@ it("starts New conversation with a fresh thread after a saved reply and a failed
   await idle();
   expect(el("transcript").textContent).toBe("");
   el("prompt").value = "separate topic";
-  el("consent").checked = true;
   submit();
   await idle();
   const second = send.mock.calls[1][0];

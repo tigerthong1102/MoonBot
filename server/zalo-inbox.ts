@@ -1,3 +1,5 @@
+import { purgeExpiredZaloReportHistory } from "./zalo-period-report.ts";
+import { zaloWrite } from "./zalo-write.ts";
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { z } from "zod";
@@ -12,21 +14,12 @@ export type ZaloReceipt = "persisted" | "duplicate" | "conflict" | "revoked" | "
 /** The host supplies a private database dedicated to this principal, outside backup and cloud replication. */
 export function createZaloInbox(db: DatabaseSync, now: () => number = Date.now) {
   db.exec(zaloInboxSchema);
-  function write<T>(operation: () => T) {
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const result = operation();
-      db.exec("COMMIT");
-      return result;
-    } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
-    }
-  }
+  const write = <T>(operation: () => T) => zaloWrite(db, operation);
   const grant = (grantId: string) => db.prepare("SELECT * FROM zalo_grants WHERE grantId=?").get(grantId) as Grant | undefined;
   function prune(time: number) {
     db.prepare("DELETE FROM zalo_events WHERE expires <= ?").run(time);
     db.prepare("DELETE FROM zalo_poll_gaps WHERE expires <= ?").run(time);
+    db.prepare("DELETE FROM zalo_webhook_time_gaps WHERE expires <= ?").run(time);
     db.prepare("DELETE FROM zalo_erased_ranges WHERE expires <= ?").run(time);
     db.prepare("DELETE FROM zalo_poll_leases WHERE until <= ? AND NOT EXISTS (SELECT 1 FROM zalo_grants WHERE grantId=grantedTo)").run(time);
   }
@@ -113,7 +106,8 @@ export function createZaloInbox(db: DatabaseSync, now: () => number = Date.now) 
         const observed = db.prepare("SELECT COUNT(*) AS count,MIN(timestamp) AS first,MAX(timestamp) AS last FROM zalo_events WHERE grantId=?")
           .get(grantId) as { count: number; first: number | null; last: number | null };
         const recentGaps = db.prepare("SELECT start,end FROM zalo_poll_gaps WHERE grantId=? ORDER BY end DESC LIMIT 50").all(grantId);
-        return { ...observed, lastPoll: scope.lastPoll, recentGaps, completeHistory: false as const };
+        const webhookTiming = db.prepare("SELECT reason,observed FROM zalo_webhook_time_gaps WHERE grantId=? ORDER BY observed DESC,reason").all(grantId);
+        return { ...observed, ...(webhookTiming.length ? { webhookTiming } : {}), lastPoll: scope.lastPoll, recentGaps, completeHistory: false as const };
       });
     },
     beginOfficialPoll(grantId: string) {
@@ -121,7 +115,7 @@ export function createZaloInbox(db: DatabaseSync, now: () => number = Date.now) 
         const time = now();
         prune(time);
         const scope = grant(grantId);
-        if (scope?.adapter !== "official") return undefined;
+        if (scope?.adapter !== "official" || db.prepare("SELECT 1 FROM zalo_webhook_endpoints WHERE accountId=?").get(scope.accountId)) return undefined;
         const existing = db.prepare("SELECT until FROM zalo_poll_leases WHERE accountId=?").get(scope.accountId);
         if (existing && Number(existing.until) > time) return undefined;
         gap(scope, scope.lastPoll ?? scope.since, time);
@@ -146,7 +140,11 @@ export function createZaloInbox(db: DatabaseSync, now: () => number = Date.now) 
       });
     },
     purgeExpired() {
-      write(() => prune(now()));
+      write(() => {
+        const time = now();
+        prune(time);
+        purgeExpiredZaloReportHistory(db, time);
+      });
     },
   };
 }

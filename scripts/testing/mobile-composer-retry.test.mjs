@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { mobileCatalog } from "../../apps/ai-pilot/mobile-catalog.mjs";
+import { mobileCatalog, renderMobilePage } from "../../apps/ai-pilot/mobile-catalog.mjs";
 import html from "../../apps/ai-pilot/mobile.html?raw";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -9,7 +9,8 @@ let send, history;
 
 beforeEach(async () => {
   vi.resetModules();
-  document.body.innerHTML = html.split("<body>")[1].split("<script")[0];
+  document.documentElement.lang = "en";
+  document.body.innerHTML = renderMobilePage(html, mobileCatalog("en")).split("<body>")[1].split('<script type="module"')[0];
   vi.stubGlobal("Option", function Option(text, value) {
     const option = document.createElement("option");
     option.textContent = text;
@@ -20,7 +21,6 @@ beforeEach(async () => {
   history = vi.fn();
   vi.stubGlobal("BroadcastChannel", undefined);
   vi.stubGlobal("fetch", async (path, init) => {
-    if (path.startsWith("/mobile/messages?")) return Response.json(mobileCatalog("en"));
     if (path === "/mobile/threads") return Response.json({ account:"test", threads:[] });
     if (path === "/mobile/history") return history();
     if (path === "/mobile/send") return send(JSON.parse(init.body));

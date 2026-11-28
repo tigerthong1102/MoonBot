@@ -221,3 +221,18 @@ it("serves mobile copy from the registered catalogs with script, region and fall
     expect(data.messages["personalInbox.title"]).toBeUndefined();
   }
 });
+
+it("delivers localized catalog data inside the first HTML response", async () => {
+  for (const [path, header, expected] of [
+    ["/mobile", "xx;q=1,fr;q=0.25,zh-Hant-HK;q=0.9", "zh-tw"],
+    ["/mobile?lang=ja-JP", "vi-VN", "ja"], ["/mobile", "vi;q=0,pt-PT", "pt-br"],
+  ]) {
+    const response = await fetch(f.url + path, { headers:{ "accept-language":header } });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("vary")).toBe("Accept-Language");
+    const shell = await response.text();
+    expect(shell).toContain('<html lang="' + expected + '">');
+    const json = shell.match(/<script id="mobileCatalog" type="application\/json">([^<]+)<\/script>/);
+    expect(JSON.parse(json[1])).toMatchObject({ locale:expected, messages:{ code:expect.any(String) } });
+  }
+});

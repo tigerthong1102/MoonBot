@@ -41,3 +41,24 @@ export function mobileCatalog(tag) {
   const messages = Object.fromEntries(Object.keys(english).map(key => [key, t(key)]));
   return { locale, messages };
 }
+
+/** Browser requests can carry several language ranges, including unsupported ones ahead of a supported preference. */
+export function preferredMobileLanguage(header = "") {
+  const preferences = header.split(",").map(part => {
+    const [tag, weight] = part.trim().split(/\s*;\s*/);
+    const match = weight?.match(/^q=(0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/i);
+    return { tag, quality:weight === undefined ? 1 : match ? Number(match[1]) : 0 };
+  }).filter(({ tag, quality }) => quality > 0 &&
+    (catalogLanguage(tag, languageNames) !== "en" || /^en(?:[-_]|$)/i.test(tag)));
+  return preferences.sort((left, right) => right.quality - left.quality)[0]?.tag || "en";
+}
+
+export function renderMobilePage(template, catalog) {
+  // Even inert script data ends at an HTML closing script tag. Escape '<' before inserting JSON.
+  const data = JSON.stringify(catalog).replaceAll("<", "\\u003c");
+  const retry = catalog.messages.retry.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return template.replace('<html lang="en">', () => '<html lang="' + catalog.locale + '">')
+    .replace('id="startupRetry" href="/mobile"', () => 'id="startupRetry" href="/mobile?lang=' + encodeURIComponent(catalog.locale) + '"')
+    .replace("<!--mobile-retry-label-->", () => retry)
+    .replace("<!--mobile-catalog-->", () => data);
+}

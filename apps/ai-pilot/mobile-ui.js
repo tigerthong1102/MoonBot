@@ -1,13 +1,22 @@
 import { copyText } from "./clipboard-write.js";
 
-const requestedLanguage = new URLSearchParams(location.search).get("lang") || navigator.language;
-const catalog = await (await fetch("/mobile/messages?lang=" + encodeURIComponent(requestedLanguage))).json();
-const locale = catalog.locale;
-const t = key => Object.hasOwn(catalog.messages, key) ? catalog.messages[key] : undefined;
-document.documentElement.lang = locale;
 const el = id => document.getElementById(id);
-for (const node of document.querySelectorAll("[data-t]")) node.textContent = t(node.dataset.t);
-for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
+const locale = document.documentElement.lang;
+function readCatalog() {
+  try {
+    const data = JSON.parse(el("mobileCatalog").textContent);
+    const keys = [...document.querySelectorAll("[data-t], [data-t-label]")].map(node => node.dataset.t || node.dataset.tLabel);
+    if (data.locale === locale && keys.every(key => typeof data.messages?.[key] === "string" && data.messages[key]))
+      return data;
+  } catch { /* The server-rendered recovery link remains usable. */ }
+  return null;
+}
+const catalog = readCatalog();
+const t = key => catalog && Object.hasOwn(catalog.messages, key) ? catalog.messages[key] : undefined;
+if (catalog) {
+  for (const node of document.querySelectorAll("[data-t]")) node.textContent = t(node.dataset.t);
+  for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
+}
 let account, thread, busy = false, active, pending;
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("startupbot-account") : null;
 channel?.addEventListener("message", () => location.reload());
@@ -35,7 +44,7 @@ async function api(path, body, signal) {
     body: body ? JSON.stringify({ ...body, account }) : undefined, signal, redirect:"error", cache:"no-store"
   });
   if (!response.ok) {
-    const code = (await response.json()).error?.code;
+    const code = (await response.json().catch(() => null))?.error?.code;
     if (response.status === 401 && path !== "login") signedOut();
     if (code === "account_changed") location.reload();
     const message = code === "request_exists" ? t("interrupted") : t(code) || (code === "account_unavailable" ? t("unavailable") : t("error"));
@@ -117,7 +126,7 @@ async function action(work) {
   if (busy) return;
   lock(true);
   status();
-  try { await work(); } catch (error) { status(error.name === "AbortError" ? t("interrupted") : error.message === "Failed to fetch" ? t("error") : error.message); }
+  try { await work(); } catch (error) { status(error.name === "AbortError" ? t("interrupted") : ["TypeError", "SyntaxError"].includes(error.name) ? t("error") : error.message); }
   finally { lock(false); }
 }
 async function openChat() {
@@ -209,4 +218,7 @@ el("compose").onsubmit = event => {
     }
   });
 };
-action(openChat);
+if (catalog) {
+  el("startupRetry").hidden = true;
+  action(openChat);
+}

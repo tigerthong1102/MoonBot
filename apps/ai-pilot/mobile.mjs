@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
-import { mobileCatalog } from "./mobile-catalog.mjs";
+import { mobileCatalog, preferredMobileLanguage, renderMobilePage } from "./mobile-catalog.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
 import { catalog, Fault } from "./ledger.mjs";
 
@@ -64,8 +64,15 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     }
     if (assets.has(path) && method === "GET") {
       const [file, type] = assets.get(path);
+      const source = readFileSync(new URL(file, import.meta.url), "utf8");
+      if (type === "text/html") {
+        const tag = new URL(req.url, origin).searchParams.get("lang") || preferredMobileLanguage(req.headers["accept-language"]);
+        const page = renderMobilePage(source, mobileCatalog(tag));
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", vary: "Accept-Language" });
+        return res.end(page);
+      }
       res.writeHead(200, { "content-type": type + "; charset=utf-8" });
-      return res.end(readFileSync(new URL(file, import.meta.url)));
+      return res.end(source);
     }
     const body = method === "POST" ? await readObject(req) : {};
     let owner;

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { createElement } from "react";
+import { createElement, useState } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
@@ -36,7 +36,11 @@ it("reads on demand, confirms a reference without posting its text and erases th
   const root = createRoot(el);
   const button = (label: string) => Array.from(el.querySelectorAll("button")).find((b) => b.textContent === label);
   try {
-    flushSync(() => root.render(createElement(ZaloPrivateKnowledge, { query: "chinh sach" })));
+    function Shelf() {
+      const [open, setOpen] = useState(false);
+      return createElement(ZaloPrivateKnowledge, {query: "chinh sach", open, setOpen});
+    }
+    flushSync(() => root.render(createElement(Shelf)));
     await vi.waitFor(() => expect(button("Private Zalo references")).toBeDefined());
     expect(calls).toHaveLength(1);
     expect(el.textContent).not.toContain(entry.quote);

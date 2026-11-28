@@ -172,3 +172,28 @@ it("does not approve after a chat edit or retrieve when a message is deleted", a
   vi.mocked(api).mockResolvedValue({ messages: [], activeLeafId: null });
   expect(await verifiedPages(owner, signal())).toEqual([]);
 });
+
+it("keeps the private shelf open across an owner recheck and hides evidence while the recheck is pending", async () => {
+  vi.stubGlobal("ogb", {remoteClient: {active: false}});
+  vi.mocked(libraryOwner).mockResolvedValue("local");
+  const item = { sourceId:"m", grantId:"g", quote:"Source visible only while allowed", timestamp:Date.now(),
+    expires:Date.now()+60_000, conversationId:"chat", senderId:"sender", saved:true, revision:"rev" };
+  let allowed = true;
+  vi.mocked(api).mockImplementation(async path => String(path).includes("capability") ? {enabled:true} : {items:allowed ? [item] : []});
+  const host = document.createElement("div"); document.body.append(host);
+  const root = createRoot(host);
+  const toggle = () => [...host.querySelectorAll("button")].find(b => b.textContent === t("zaloKnowledgeShelf.title"));
+  try {
+    await act(async () => root.render(createElement(BrainDialog, {threadId})));
+    await act(async () => toggle()!.click());
+    expect(host.textContent).toContain(item.quote);
+    let finish!: (owner:string) => void;
+    vi.mocked(libraryOwner).mockImplementationOnce(() => new Promise(resolve => {finish=resolve;}));
+    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    expect(host.textContent).not.toContain(item.quote);
+    allowed = false;
+    await act(async () => finish("local"));
+    expect(toggle()?.getAttribute("aria-expanded")).toBe("true");
+    expect(host.textContent).not.toContain(item.quote);
+  } finally {await act(async () => root.unmount()); host.remove();}
+});

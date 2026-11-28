@@ -11,9 +11,8 @@ import { searchPages } from "./brain";
 
 const localRequest = { mode: "same-origin", redirect: "error", cache: "no-store" } as const;
 
-export function ZaloPrivateKnowledge({ query }: { query: string }) {
+export function ZaloPrivateKnowledge({ query, open, setOpen }: { query: string; open: boolean; setOpen: (open: boolean) => void }) {
   const [enabled, setEnabled] = useState(false);
-  const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ZaloKnowledgeItem[]>([]);
   const [changed, setChanged] = useState(false);
   const [error, setError] = useState(false);
@@ -33,7 +32,7 @@ export function ZaloPrivateKnowledge({ query }: { query: string }) {
     return () => control.abort();
   }, []);
   useEffect(() => {
-    if (!open) return;
+    if (!enabled || !open) return;
     const control = new AbortController();
     request.current = control;
     const reload = () => {
@@ -70,7 +69,7 @@ export function ZaloPrivateKnowledge({ query }: { query: string }) {
       window.removeEventListener("startupbot-zalo-scope-changed", reload);
       document.removeEventListener("visibilitychange", reload);
     };
-  }, [open, refresh]);
+  }, [enabled, open, refresh]);
   async function choose(item: ZaloKnowledgeItem) {
     if (busy || !open || document.hidden || item.expires <= Date.now()) return;
     request.current?.abort();

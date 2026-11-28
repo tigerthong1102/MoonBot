@@ -91,6 +91,15 @@ struct RootView: View {
                         session.endPairing()
                         reconcileNotificationOnboarding()
                     }
+            case .revoked where session.isMobileAccount:
+                VStack {
+                    Text("Sign in again to continue chatting", tableName: "StartupBotMobile")
+                    MobileChatButton()
+                    ForEach(session.connections.filter { $0.id != session.connection?.id }) { other in
+                        Button(other.name) { session.switchComputer(to: other.id) }
+                    }
+                    Button("Connect computer", action: { session.signOut(); startPairing() })
+                }.padding()
             case .revoked:
                 UnpairedView(
                     onPairAgain: {

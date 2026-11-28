@@ -399,6 +399,7 @@ struct ChatView: View {
                 GlassButton(systemImage: "display", size: 44, weight: .medium) {
                     showingComputer = true
                 }
+                .disabled(session.isMobileAccount)
                 .accessibilityLabel("Watch \(current.name)'s computer")
             } else {
                 Color.clear.frame(width: 44, height: 44)
@@ -434,6 +435,7 @@ struct ChatView: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .disabled(session.isMobileAccount)
                 .allowsHitTesting(!islandVisible)
                 .accessibilityHidden(islandVisible)
                 .accessibilityLabel("Open \(current.name) settings")
@@ -538,7 +540,7 @@ struct ChatView: View {
 
     private var plusActions: [PlusAction] {
         let canAddAttachment = (!supportsCouncil || council == .off) && attachments.count < AttachmentPolicy.maximumItems
-            && !preparingAttachments && !sendingMessage
+            && !preparingAttachments && !sendingMessage && !session.isMobileAccount
         var out: [PlusAction] = [
             PlusAction(
                 id: "photos", systemImage: "photo.on.rectangle", title: "Photo Library",
@@ -564,11 +566,11 @@ struct ChatView: View {
             ) { showingTasks = true })
             out.append(PlusAction(
                 id: "settings", systemImage: "gearshape", title: "Bot settings",
-                subtitle: "Model, profile, voice and notifications"
+                subtitle: "Model, profile, voice and notifications", disabled: session.isMobileAccount
             ) { showingProfile = true })
             out.append(PlusAction(
                 id: "computer", systemImage: "display", title: "Watch computer",
-                subtitle: "Live view of what \(bot.name) is doing"
+                subtitle: "Live view of what \(bot.name) is doing", disabled: session.isMobileAccount
             ) { showingComputer = true })
         }
         if case let .room(room) = current, room.dm != true {
@@ -1061,7 +1063,7 @@ struct ChatView: View {
                 CommandSkillHUDView(
                     text: $draft,
                     isVisible: $showCommandHUD,
-                    commands: current.isBot
+                    commands: current.isBot && !session.isMobileAccount
                         ? CommandSkillHUDView.defaultCommands
                         : CommandSkillHUDView.defaultCommands.filter {
                             $0.id != "computer" && (current.supportsTasks || $0.id != "tasks")
@@ -1303,10 +1305,12 @@ struct MessageRow: View {
             }
         }
         .contextMenu {
-            ForEach(Self.reactionChoices, id: \.self) { emoji in
-                Button(emoji) {
-                    Haptics.selection()
-                    Task { await session.react(to: message, in: chat.threadId, emoji: emoji) }
+            if !session.isMobileAccount {
+                ForEach(Self.reactionChoices, id: \.self) { emoji in
+                    Button(emoji) {
+                        Haptics.selection()
+                        Task { await session.react(to: message, in: chat.threadId, emoji: emoji) }
+                    }
                 }
             }
             let visibleText = attachedContent.text
@@ -1321,7 +1325,8 @@ struct MessageRow: View {
                     selecting = SelectableText(text: visibleText)
                 }
             }
-            if message.role == .user,
+            if !session.isMobileAccount,
+               message.role == .user,
                message.kind == .text,
                attachedContent.attachments.isEmpty,
                case let .bot(bot) = chat {

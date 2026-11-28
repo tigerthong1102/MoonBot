@@ -11949,6 +11949,8 @@
   "mobileChat.managed_budget_exhausted": "The shared AI budget has reached its limit.",
   "mobileChat.managed_ai_paused": "AI is paused.",
   "mobileChat.signed_out": "Sign in to continue.",
+  "mobileChat.useWallet": "Use the StartupBot wallet for this conversation",
+  "mobileChat.computerNeeded": "This task needs a computer.",
   "mobileChat.desktop_required": "This action needs a connected computer. Open Connect computer in StartupBot. Nothing has been run.",
   "mobileChat.thread_full": "Start a new conversation to continue.",
   "mobileChat.history_full": "Delete a conversation to make room.",

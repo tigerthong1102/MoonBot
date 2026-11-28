@@ -4544,6 +4544,8 @@
   "mobileChat.managed_budget_exhausted": "Das gemeinsame KI-Budget ist ausgeschöpft.",
   "mobileChat.managed_ai_paused": "Die KI ist pausiert.",
   "mobileChat.signed_out": "Melde dich an, um fortzufahren.",
+  "mobileChat.useWallet": "StartupBot-Guthaben für diesen Chat verwenden",
+  "mobileChat.computerNeeded": "Für diese Aufgabe ist ein Computer erforderlich.",
   "mobileChat.desktop_required": "Hierfür wird ein verbundener Computer benötigt. Öffne die Computerverbindung in StartupBot. Es wurde nichts ausgeführt.",
   "mobileChat.thread_full": "Beginne ein neues Gespräch, um fortzufahren.",
   "mobileChat.history_full": "Lösche ein Gespräch, um Platz zu schaffen.",

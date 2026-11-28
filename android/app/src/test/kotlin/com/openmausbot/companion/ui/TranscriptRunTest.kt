@@ -133,6 +133,15 @@ class ChatActionsTest {
     }
 
     @Test
+    fun `a text-only mobile account can manage and share its threads`() {
+        val actions = ChatActions.sheet(Chat.BotChat(bot()), hasPendingApproval = false, canAddAttachment = false, desktopControls = false)
+        assertEquals(
+            listOf(ChatActionId.NEW_TASK, ChatActionId.TASKS, ChatActionId.SHARE_MARKDOWN, ChatActionId.SHARE_JSON),
+            actions.filter { it.enabled }.map { it.id },
+        )
+    }
+
+    @Test
     fun `an idle bot offers no interrupt`() {
         val actions = sheet(Chat.BotChat(bot()))
         assertFalse(actions.any { it.id == ChatActionId.INTERRUPT })

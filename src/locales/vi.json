@@ -11949,6 +11949,8 @@
   "mobileChat.managed_budget_exhausted": "Đã dùng hết ngân sách AI dùng chung.",
   "mobileChat.managed_ai_paused": "AI đang tạm dừng.",
   "mobileChat.signed_out": "Hãy đăng nhập để tiếp tục.",
+  "mobileChat.useWallet": "Dùng ví StartupBot cho hội thoại này",
+  "mobileChat.computerNeeded": "Việc này cần thực hiện trên máy tính.",
   "mobileChat.desktop_required": "Tác vụ này cần máy tính. Mở Kết nối máy tính trong StartupBot. Chưa có tác vụ nào được thực hiện.",
   "mobileChat.thread_full": "Hãy mở hội thoại mới để tiếp tục.",
   "mobileChat.history_full": "Hãy xóa một hội thoại để có chỗ trống.",

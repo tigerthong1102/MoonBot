@@ -5,6 +5,7 @@ import languageNames from "../../shared/app-language-names.json" with { type: "j
 const sharedKeys = {
   transcript: "settings.appearance.chat",
   copy: "connect.copy",
+  cancel: "common.cancel",
   retry: "connectors.action.reconnect",
   email: "email.address",
   login: "settings.account.signIn",

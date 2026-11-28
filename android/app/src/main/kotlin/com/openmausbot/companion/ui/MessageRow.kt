@@ -121,6 +121,8 @@ fun MessageRow(
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val state by session.state.collectAsState()
+    val connection by session.connection.collectAsState()
+    val desktopControls = connection?.serverEnvironmentId?.startsWith("startupbot-mobile:") != true
     val clipboard = LocalClipboard.current
     var menuOpen by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
@@ -242,7 +244,7 @@ fun MessageRow(
         }
 
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-            if (!isPendingEdit) Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+            if (desktopControls && !isPendingEdit) Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                 Reactions.CHOICES.forEach { emoji ->
                     Text(
                         text = emoji,
@@ -279,7 +281,7 @@ fun MessageRow(
                 )
             }
             val editableText = MessageActions.editableText(message)
-            if (editableText != null && bot != null && !isPendingEdit) {
+            if (desktopControls && editableText != null && bot != null && !isPendingEdit) {
                 HorizontalDivider()
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.ui_edit_and_retry)) },

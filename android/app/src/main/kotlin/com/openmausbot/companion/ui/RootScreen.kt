@@ -209,7 +209,15 @@ fun CompanionRoot(
                             )
                         }
 
-                        OnboardingRoute.REVOKED -> UnpairedScreen(
+                        OnboardingRoute.REVOKED -> if (connection?.serverEnvironmentId?.startsWith("startupbot-mobile:") == true) {
+                            EmptyState(title = stringResource(R.string.mobile_sign_in_again), description = "") {
+                                MobileChatButton()
+                                connections.filter { it.id != connection?.id }.forEach { other ->
+                                    TextButton(onClick = { session.switchComputer(other.id) }) { Text(other.name) }
+                                }
+                                TextButton(onClick = { session.signOut(); startPairing() }) { Text(stringResource(R.string.ui_onboardingcopy_welcome_connect)) }
+                            }
+                        } else UnpairedScreen(
                             onPairAgain = {
                                 session.signOut()
                                 startPairing()

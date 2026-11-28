@@ -298,7 +298,12 @@ it.each([
   const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    if (storage === "watch") await act(async () => { await vi.waitFor(() => expect(calls.filter(c => c.path === auth).length).toBeGreaterThanOrEqual(3)); });
+    if (storage === "watch") {
+      await vi.waitFor(async () => {
+        await act(async () => {});
+        expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }));
+      });
+    }
     if (storage === "memory") {
       const picker = host.querySelector<HTMLInputElement>("input[type=file]")!;
       Object.defineProperty(picker, "files", { value: [file] });

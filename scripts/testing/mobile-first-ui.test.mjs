@@ -24,7 +24,29 @@ beforeEach(() => {
   });
 });
 
-it("keeps each chat draft in its tab, requires first-send consent and clears drafts on sign-out", async () => {
+it("restores a continuous page after another device adds more than a page of messages", async () => {
+  const turn = n => ({id:crypto.randomUUID(), prompt:String(n), answer:"ok", state:"complete", created:n});
+  const turns = Array.from({length:26}, (_,i)=>turn(i));
+  const list = {account:"alice", threads:[{id:saved,title:"Synced",provider:"managed"}]};
+  const cursor = n => ({created:n,id:turns[n].id});
+  vi.stubGlobal("fetch", vi.fn(async (path, init) => {
+    if (path === "/mobile/threads") return Response.json(list);
+    if (path === "/mobile/sync") return Response.json({...list,revision:"new",turns:turns.slice(14),next:cursor(14)});
+    const before = JSON.parse(init.body).before;
+    const end = before?.created ?? 13, start = Math.max(0,end-12);
+    return Response.json({turns:turns.slice(start,end),next:start ? cursor(start) : null});
+  }));
+  await import("../../apps/ai-pilot/mobile-ui.js");
+  await idle();
+  window.dispatchEvent(new Event("focus"));
+  await vi.waitFor(()=>expect(el("transcript").querySelector("[data-turn]")?.dataset.turn).toBe(turns[14].id));
+  el("older").click(); await idle();
+  el("older").click(); await idle();
+  expect([...el("transcript").querySelectorAll("article.mine")].map(node=>node.dataset.turn)).toEqual(turns.map(t=>t.id));
+  expect(el("older").hidden).toBe(true);
+});
+
+it("keeps each chat draft in its tab, syncs sent messages automatically and clears drafts on sign-out", async () => {
   const calls = [];
   vi.stubGlobal("fetch", vi.fn(async (path, init) => {
     calls.push({ path, body:init.body && JSON.parse(init.body) });
@@ -51,8 +73,7 @@ it("keeps each chat draft in its tab, requires first-send consent and clears dra
   el("new").click();
   await idle();
   expect(el("prompt").value).toBe("unsent new chat");
-  expect(el("consent").checked).toBe(false);
-  el("consent").checked = true;
+  expect(el("consent")).toBeNull();
   el("compose").dispatchEvent(new SubmitEvent("submit", { cancelable:true, submitter:el("send") }));
   await idle();
   expect(calls.filter(c => c.path.endsWith("/send")).map(c => c.body.save)).toEqual([true]);
@@ -104,8 +125,7 @@ it("shows the receiving machine and retains both the phone draft and its receipt
     throw Error(path);
   });
   await import("../../apps/ai-pilot/mobile-ui.js");
-  await idle();
-  el("consent").checked=true;el("skill").value="desktop";el("prompt").value="Review my file";
+  await idle();el("skill").value="desktop";el("prompt").value="Review my file";
   const submit=()=>el("compose").dispatchEvent(new Event("submit",{cancelable:true}));
   submit();await idle();
   expect(el("handoffTargets").textContent).toContain("abcd1234");

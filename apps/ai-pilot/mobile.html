@@ -6,7 +6,7 @@
 #tools{max-height:45dvh;overflow:auto;padding:.3rem 1rem;border-bottom:1px solid var(--color-hairline)}#tools summary{padding:.6rem 0}
 .controls{display:flex;flex-wrap:wrap;gap:.4rem}#compose{padding-bottom:max(.7rem,env(safe-area-inset-bottom));overflow:auto}
 #prompt{flex:1;min-width:0;border:0;background:transparent;resize:vertical;font-size:max(16px,1rem)}
-#compose label:has(#consent){display:flex;align-items:flex-start}#send,#stop{min-height:44px}
+#send,#stop{min-height:44px}
 #posts pre{white-space:pre-wrap;overflow-wrap:anywhere}header #logout{margin-inline-start:auto}#status{overflow-wrap:anywhere}
 </style></head><body><header><b>StartupBot</b><button class="ui-button" hidden id="logout" data-t="logout"></button></header>
 <main><a id="startupRetry" href="/mobile"><!--mobile-retry-label--></a><form id="login" hidden>
@@ -18,10 +18,11 @@
 <details id="usage"><summary data-t="usage"></summary><p id="usageText"></p></details>
 <details id="sessions"><summary data-t="sessions"></summary><ul id="sessionList"></ul><button class="ui-button" id="logoutAll" data-t="logoutAll"></button></details>
 <details id="devices"><summary data-t="devices"></summary><p data-t="deviceNote"></p><ul id="deviceList"></ul></details>
+<button class="ui-button" type="button" id="useWallet" data-t="useWallet" hidden></button>
 <details id="providers" hidden><summary data-t="providers"></summary><p data-t="providerNote"></p><div class="controls"><button class="ui-button" id="connectProvider" data-t="connectProvider"></button><button class="ui-button" id="disconnectProvider" data-t="disconnectProvider"></button><a id="providerKeys" rel="noreferrer" target="_blank" href="https://openrouter.ai/keys" data-t="providerKeys"></a></div></details>
+<details id="skills"><summary data-t="skill"></summary><div id="billing" hidden><label for="provider" data-t="billing"></label><inbox-select id="provider"><option value="managed" data-t="managed"></option><option value="openrouter" data-t="personal"></option></inbox-select></div><label for="skill" data-t="skill"></label><inbox-select id="skill"><option value="chat" data-t="ask"></option><option value="write" data-t="write"></option><option value="translate" data-t="translate"></option><option value="summarize" data-t="summarize"></option><option value="campaign-plan" data-t="campaign"></option><option value="draft-outreach" data-t="outreach"></option><option value="desktop" data-t="desktop"></option></inbox-select></details>
 </details><div id="history"><button class="ui-button" hidden id="older" data-t="older"></button><div id="posts"><section id="transcript" data-t-label="transcript" style="display:contents"></section></div></div>
-<form id="compose"><details id="skills"><summary data-t="skill"></summary><div id="billing" hidden><label for="provider" data-t="billing"></label><inbox-select id="provider"><option value="managed" data-t="managed"></option><option value="openrouter" data-t="personal"></option></inbox-select></div><label for="skill" data-t="skill"></label><inbox-select id="skill"><option value="chat" data-t="ask"></option><option value="write" data-t="write"></option><option value="translate" data-t="translate"></option><option value="summarize" data-t="summarize"></option><option value="campaign-plan" data-t="campaign"></option><option value="draft-outreach" data-t="outreach"></option><option value="desktop" data-t="desktop"></option></inbox-select></details><label for="prompt" class="sr" data-t="message"></label>
-<label><input type="checkbox" id="consent" required> <span data-t="consent"></span> <span id="desktopConsent" hidden data-t="desktopConsent"></span></label>
+<form id="compose"><label for="prompt" class="sr" data-t="message"></label>
 <div class="compose-row"><div class="draft-field"><textarea dir="auto" id="prompt" rows="1" required maxlength="8192"></textarea></div>
 <button id="send" class="ui-button" data-t="send"></button><button type="button" id="stop" hidden class="ui-button" data-t="stop"></button></div>
 <div id="handoffTargets" hidden></div></form></section><button class="ui-button" hidden id="retry" data-t="retry"></button><p id="status" aria-hidden="true"></p><div class="sr" id="announcement" role="status" aria-live="polite" aria-atomic="true" dir="auto"></div></main>

@@ -100,7 +100,7 @@ export function ZaloPairingSetup() {
       <p>{t("zaloPair.deleteNotice")}</p>
       <div className="flex gap-2">
         <button className="ui-button" type="button" onClick={() => void update({ action: "revoke", revision: status.revision })}>{t("zaloPair.confirmRevoke")}</button>
-        <button className="ui-button" type="button" onClick={() => setConfirmRevoke(false)}>{t("zaloPair.cancel")}</button>
+        <button autoFocus className="ui-button" type="button" onClick={() => setConfirmRevoke(false)}>{t("zaloPair.cancel")}</button>
       </div>
     </div>}
   </section>;

@@ -76,6 +76,11 @@ where they belong instead of adding new places.
   The same exception applies when the person permanently deletes an AI Twin
   profile. Confirm once in that profile and name the writing preferences that
   will be deleted, along with its lessons and grants. Keeping a copy for Undo would retain that personal data.
+  To pair a private Zalo conversation, the desktop owner verifies the sender,
+  conversation and retention period before StartupBot keeps messages. A pairing
+  code identifies a candidate. The owner grants access to that chat in Settings.
+  When revoking the endpoint or erasing its retained messages, show the scope,
+  offer Cancel and confirm once. Undo would require keeping the erased data.
   The main helper may offer a dedicated bot for work the person has just
   described, in any language. The decision uses the meaning of the message.
   A pending offer for one responsibility leaves other subjects eligible.

@@ -22,7 +22,7 @@ Sáu dòng gọi nút là toàn bộ phần chênh ở bốn file màn hình nat
 
 Với Better Auth và D1 chạy trong workerd, hai mã OTP qua hộp thư cục bộ đã tạo hai phiên độc lập. Sau khi đăng xuất phiên ví trực tiếp ở issuer, cùng bearer từ HTTP 200 chuyển sang 401 ở gateway. Phiên chat ở điện thoại vẫn nhận 200, sau đó trả 401 khi người dùng đăng xuất riêng phiên đó. Provider AI vẫn là fixture. Phiên ví email thiếu thông tin xác minh từ issuer cần đăng nhập lại một lần.
 
-80 nhãn standalone đi qua catalog hiện có của 16 ngôn ngữ. Chromium đã hiển thị đúng nhãn đăng nhập và nhãn trợ năng cho tiếng Pháp Canada, Nhật, Hoa phồn thể Hong Kong, Bồ Đào Nha Brazil và Việt. Bản dịch mới chưa được biên tập viên bản ngữ nghiệm thu. Kiểm tra ghép với main của fork tại `46d3ed2a6` không có xung đột. Kiểm tra monorepo MausBot vẫn cho cùng 474 đường dẫn như trước nhiệm vụ. Kết quả Codex review và CI trên từng commit được cập nhật trong các PR bên dưới.
+78 nhãn standalone đi qua catalog hiện có của 16 ngôn ngữ. Chromium đã hiển thị đúng nhãn đăng nhập và nhãn trợ năng cho tiếng Pháp Canada, Nhật, Hoa phồn thể Hong Kong, Bồ Đào Nha Brazil và Việt. Bản dịch mới chưa được biên tập viên bản ngữ nghiệm thu. Kiểm tra ghép với main của fork tại `46d3ed2a6` không có xung đột. Kiểm tra monorepo MausBot vẫn cho cùng 474 đường dẫn như trước nhiệm vụ. Kết quả Codex review và CI trên từng commit được cập nhật trong các PR bên dưới.
 
 ## B. Thay đổi so với main
 

@@ -1,4 +1,3 @@
-import { mobileCatalog } from "./mobile-catalog.mjs";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
@@ -6,12 +5,22 @@ import { revokeWalletSessions } from "./accounts.mjs";
 import { inboxSkinCSS } from "../../cloudflare/control-plane/inbox/skin-css.mjs";
 import { mobileOpenRouter } from "./mobile-openrouter.mjs";
 import { mobileTextSkills } from "./mobile-text-skills.mjs";
+import { mobileCatalog, preferredMobileLanguage, renderMobilePage } from "./mobile-catalog.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
 import { catalog, Fault } from "./ledger.mjs";
 
 
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
-const assets = new Map([["/mobile", ["./mobile.html", "text/html"]], ["/mobile/callback", ["./mobile.html", "text/html"]], ["/mobile/inbox.css", ["../../cloudflare/control-plane/inbox/public/inbox.css", "text/css"]], ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]]]);
+const inboxPublic = "../../cloudflare/control-plane/inbox/public/";
+const assets = new Map([
+  ["/mobile/inbox.css", [inboxPublic + "inbox.css", "text/css"]],
+  ["/mobile/callback", ["./mobile.html", "text/html"]],
+  ["/mobile", ["./mobile.html", "text/html"]],
+  ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]],
+  ["/mobile/inbox-select.js", [inboxPublic + "inbox-select.js", "application/javascript"]],
+  ["/mobile/inbox-select-template.js", [inboxPublic + "inbox-select-template.js", "application/javascript"]],
+  ["/mobile/inbox-select.css", [inboxPublic + "inbox-select.css", "text/css"]],
+]);
 const instructions = "You are StartupBot on a phone. Answer in the user's language. You can write, translate and explain text. You have no access to a computer, local files, apps, cloud agent or tools. If a request needs them, explain that it needs a connected computer. Never state that an external action was performed.";
 
 export function mobileService(ledger, settings, gateway, http, readObject) {
@@ -66,8 +75,15 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     }
     if (assets.has(path) && method === "GET") {
       const [file, type] = assets.get(path);
+      const source = readFileSync(new URL(file, import.meta.url), "utf8");
+      if (type === "text/html") {
+        const tag = new URL(req.url, origin).searchParams.get("lang") || preferredMobileLanguage(req.headers["accept-language"]);
+        const page = renderMobilePage(source, mobileCatalog(tag));
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8", vary: "Accept-Language" });
+        return res.end(page);
+      }
       res.writeHead(200, { "content-type": type + "; charset=utf-8" });
-      return res.end(readFileSync(new URL(file, import.meta.url)));
+      return res.end(source);
     }
     const body = method === "POST" ? await readObject(req) : {};
     let owner, session;

@@ -392,3 +392,34 @@ it("serves mobile copy from the registered catalogs with script, region and fall
     expect(data.messages["personalInbox.title"]).toBeUndefined();
   }
 });
+
+it("delivers localized catalog data inside the first HTML response", async () => {
+  for (const [path, header, expected] of [
+    ["/mobile", "xx;q=1,fr;q=0.25,zh-Hant-HK;q=0.9", "zh-tw"],
+    ["/mobile?lang=ja-JP", "vi-VN", "ja"], ["/mobile", "vi;q=0,pt-PT", "pt-br"],
+  ]) {
+    const response = await fetch(f.url + path, { headers:{ "accept-language":header } });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("vary")).toBe("Accept-Language");
+    const shell = await response.text();
+    expect(shell).toContain('<html lang="' + expected + '">');
+    const json = shell.match(/<script id="mobileCatalog" type="application\/json">([^<]+)<\/script>/);
+    expect(JSON.parse(json[1])).toMatchObject({ locale:expected, messages:{ code:expect.any(String) } });
+  }
+});
+
+it("serves the shared Inbox Select module, rendered template and skin stylesheet", async () => {
+  const page = await (await fetch(f.url + "/mobile")).text();
+  expect(page).toContain('href="/mobile/inbox-select.css"');
+  const assets = [
+    ["inbox-select.js", "application/javascript", 'from "./inbox-select-template.js"'],
+    ["inbox-select-template.js", "application/javascript", 'export const selectMarkup'],
+    ["inbox-select.css", "text/css", "[data-inbox-select] > svg"],
+  ];
+  for (const [path, mime, content] of assets) {
+    const response = await fetch(f.url + "/mobile/" + path);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain(mime);
+    expect(await response.text()).toContain(content);
+  }
+});

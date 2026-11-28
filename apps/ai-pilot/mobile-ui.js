@@ -1,15 +1,23 @@
+import { installInboxSelects } from "./inbox-select.js";
 import { copyText } from "./clipboard-write.js";
 
 let callback = location.pathname === "/mobile/callback" ? new URLSearchParams(location.search) : null;
 if (callback) history.replaceState(null, "", "/mobile");
-const requestedLanguage = new URLSearchParams(location.search).get("lang") || navigator.language;
-const catalog = await (await fetch("/mobile/messages?lang=" + encodeURIComponent(requestedLanguage))).json();
-const locale = catalog.locale;
-const t = key => Object.hasOwn(catalog.messages, key) ? catalog.messages[key] : undefined;
-document.documentElement.lang = locale;
 const el = id => document.getElementById(id);
-for (const node of document.querySelectorAll("[data-t]")) node.textContent = t(node.dataset.t);
-for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
+const locale = document.documentElement.lang;
+function readCatalog() {
+  let data;
+  try { data = JSON.parse(el("mobileCatalog").textContent); } catch { return null; }
+  const keys = [...document.querySelectorAll("[data-t], [data-t-label]")].map(node => node.dataset.t || node.dataset.tLabel);
+  return data?.locale === locale && keys.every(key => typeof data.messages?.[key] === "string" && data.messages[key]) ? data : null;
+}
+const catalog = readCatalog();
+const t = key => catalog && Object.hasOwn(catalog.messages, key) ? catalog.messages[key] : undefined;
+if (catalog) {
+  installInboxSelects(document.querySelectorAll("inbox-select, select"));
+  for (const node of document.querySelectorAll("[data-t]")) node.textContent = t(node.dataset.t);
+  for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
+}
 let account, thread, busy = false, active, pending, connection;
 let conversations = [], before, newThread;
 const drafts = new Map();
@@ -49,7 +57,7 @@ async function api(path, body, signal) {
     body: body ? JSON.stringify({ ...body, account }) : undefined, signal, redirect:"error", cache:"no-store"
   });
   if (!response.ok) {
-    const code = (await response.json()).error?.code;
+    const code = (await response.json().catch(() => null))?.error?.code;
     if (response.status === 401 && path !== "login") signedOut();
     if (code === "account_changed") location.reload();
     const message = code === "request_exists" ? t("interrupted") : t(code) || (code === "account_unavailable" ? t("unavailable") : t("error"));
@@ -127,6 +135,7 @@ function formatAnswer(element, text) {
   }
   element.replaceChildren(fragment);
   const copy = document.createElement("button");
+  copy.className = "ui-button";
   copy.type = "button";
   copy.textContent = t("copy");
   copy.onclick = async () => {
@@ -183,7 +192,7 @@ async function action(work) {
   if (busy) return;
   lock(true);
   status();
-  try { await work(); } catch (error) { status(error.name === "AbortError" ? t("interrupted") : error.message === "Failed to fetch" ? t("error") : error.message); }
+  try { await work(); } catch (error) { status(error.name === "AbortError" ? t("interrupted") : ["TypeError", "SyntaxError"].includes(error.name) ? t("error") : error.message); }
   finally { lock(false); }
 }
 async function openChat() {
@@ -246,9 +255,9 @@ async function showSessions() {
     const item = document.createElement("li"), button = document.createElement("button");
     if (session.current) item.append(t("currentSession") + " · ");
     item.append(new Date(session.createdAt).toLocaleString(locale) + " · " + t("expires") + " " + new Date(session.expiresAt).toLocaleString(locale) + " ");
+    button.className = "ui-button";
     button.textContent = t("revoke");
     button.onclick = () => action(async () => {
-      if (!window.confirm(t("confirmRevoke"))) return;
       await api("sessions/revoke", { sessionId:session.id });
       await showSessions();
     });
@@ -261,7 +270,6 @@ el("sessions").ontoggle = () => {
   if (el("sessions").open) showSessions().catch(error => status(error.message));
 };
 el("logoutAll").onclick = () => action(async () => {
-  if (!window.confirm(t("confirmAll"))) return;
   await api("sessions/logout-all", {});
   signedOut();
   channel?.postMessage("changed");
@@ -360,4 +368,7 @@ el("compose").onsubmit = event => {
     }
   });
 };
-action(openChat);
+if (catalog) {
+  el("startupRetry").hidden = true;
+  action(openChat);
+}

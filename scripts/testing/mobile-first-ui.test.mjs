@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { mobileCatalog } from "../../apps/ai-pilot/mobile-catalog.mjs";
+import { mobileCatalog, renderMobilePage } from "../../apps/ai-pilot/mobile-catalog.mjs";
 import html from "../../apps/ai-pilot/mobile.html?raw";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -7,7 +7,8 @@ afterEach(() => { vi.unstubAllGlobals(); document.body.replaceChildren(); });
 
 it("keeps each chat draft in its tab, requires first-send consent and clears drafts on sign-out", async () => {
   const saved = "970f6a6d-8f24-4331-8400-7d673278185a";
-  const body = html.slice(html.indexOf("<body>") + "<body>".length, html.indexOf("<script type="));
+  document.documentElement.lang = "en";
+  const body = renderMobilePage(html, mobileCatalog("en")).split("<body>")[1].split('<script type="module"')[0];
   document.body.innerHTML = body;
   const el = id => document.getElementById(id);
   const calls = [];
@@ -20,7 +21,6 @@ it("keeps each chat draft in its tab, requires first-send consent and clears dra
     return node;
   });
   vi.stubGlobal("fetch", vi.fn(async (path, init) => {
-    if (path.startsWith("/mobile/messages?")) return Response.json(mobileCatalog("en"));
     calls.push({ path, body:init.body && JSON.parse(init.body) });
     if (path.endsWith("/threads")) return Response.json({ account:"fixture", threads:[{ id:saved, title:"Saved", provider:"managed" }] });
     if (path.endsWith("/history")) return Response.json({ turns:[], next:null });

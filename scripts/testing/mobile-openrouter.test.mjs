@@ -85,3 +85,24 @@ it("protects history from a different session's payer and releases yesterday's p
   expect((await (await send()).json()).error.code).toBe("provider_conflict");
   expect(f.generations).toHaveLength(2);
 });
+
+it("retries confirmed personal credit rejections with the same ID and retains rejected attempts for rate limits", async () => {
+  f.settings.openRouterOAuth = true;
+  await complete(await begin());
+  const body = { thread, id:randomUUID(), prompt:"hello", save:true, provider:"openrouter" };
+  for (const status of [429,402]) {
+    f.behavior.chatRejection = status;
+    expect((await post("/send", body)).status).toBe(status);
+  }
+  expect(f.ledger.db.prepare("SELECT httpStatus FROM mobile_byok_rejections ORDER BY rowid").all().map(x => x.httpStatus)).toEqual([429,402]);
+  expect(f.ledger.db.prepare("SELECT count(*) n FROM mobile_byok_usage").get().n).toBe(0);
+  f.behavior.chatRejection = 0;
+  expect((await post("/send", { ...body, prompt:"different" })).status).toBe(409);
+  expect(await (await post("/send", body)).text()).toContain('"state":"complete"');
+  expect((await post("/send", body)).status).toBe(409);
+  expect(f.generations).toHaveLength(1);
+  f.behavior.chatRejection = 429;
+  for (let i = 0; i < 7; i++) expect((await send()).status).toBe(429);
+  const limited = await send();
+  expect((await limited.json()).error.code).toBe("account_rate_limit");
+});

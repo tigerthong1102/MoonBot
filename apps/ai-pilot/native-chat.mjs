@@ -14,6 +14,10 @@ export function nativeChat(ledger, lists, origin) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS mobile_native_task_groups(owner TEXT NOT NULL,thread TEXT NOT NULL,bot TEXT NOT NULL,
       PRIMARY KEY(owner,thread), FOREIGN KEY(owner,thread) REFERENCES mobile_threads(owner,id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS mobile_native_task_preferences(owner TEXT NOT NULL,thread TEXT NOT NULL,value TEXT NOT NULL,
+      PRIMARY KEY(owner,thread), FOREIGN KEY(owner,thread) REFERENCES mobile_threads(owner,id) ON DELETE CASCADE);
+    CREATE TABLE IF NOT EXISTS mobile_native_receipts(owner TEXT NOT NULL,id TEXT NOT NULL,session TEXT NOT NULL REFERENCES mobile_sessions(handle) ON DELETE CASCADE,
+      fingerprint TEXT NOT NULL,PRIMARY KEY(owner,id), FOREIGN KEY(owner,id) REFERENCES mobile_turns(owner,id) ON DELETE CASCADE);
     CREATE TABLE IF NOT EXISTS mobile_native_choices(session TEXT NOT NULL REFERENCES mobile_sessions(handle) ON DELETE CASCADE,
       owner TEXT NOT NULL,thread TEXT NOT NULL,id TEXT NOT NULL,prompt BLOB NOT NULL,devices TEXT NOT NULL,title TEXT NOT NULL,expires INTEGER NOT NULL,
       PRIMARY KEY(session,thread), FOREIGN KEY(owner,thread) REFERENCES mobile_threads(owner,id) ON DELETE CASCADE);
@@ -23,7 +27,11 @@ export function nativeChat(ledger, lists, origin) {
   function roster(owner) {
     const groups = new Map();
     const parent = new Map(db.prepare("SELECT thread,bot FROM mobile_native_task_groups WHERE owner=?").all(owner).map(row => [row.thread,row.bot]));
+    const preferences = new Map(db.prepare("SELECT thread,value FROM mobile_native_task_preferences WHERE owner=?").all(owner).map(row => [row.thread,JSON.parse(row.value)]));
     for (const thread of lists.all(owner)) {
+      thread.preferences = preferences.get(thread.id) ?? {};
+      const until = thread.preferences.snoozedUntil;
+      if (until > 0 && until <= Date.now()) delete thread.preferences.snoozedUntil;
       const id = parent.get(thread.id) ?? thread.id;
       if (!groups.has(id)) groups.set(id,[]);
       groups.get(id).push(thread);
@@ -67,9 +75,30 @@ export function nativeChat(ledger, lists, origin) {
     const root = threads.find(t => t.id === id) ?? thread;
     return { id, threadId:thread.id, name:root.title, title:"", description:"",
       notifications:false, unread:false, color:"cyan", createdAt:root.updated,
-      tasks:threads.map(t => ({threadId:t.id,title:t.title,createdAt:t.updated})),
+      tasks:threads.map(t => ({threadId:t.id,title:t.title,createdAt:t.updated,...t.preferences})),
       modelSelection:{instanceId:thread.provider, model:thread.provider},
       ...page(transcript(owner,thread.id,session),limit) };
+  }
+  function patchTask(owner,task,body) {
+    const keys = Object.keys(body);
+    if (!keys.length || keys.some(k => !["title","pinned","archivedAt","snoozedUntil"].includes(k))) throw new Fault(400,"invalid_task");
+    if ("title" in body && (typeof body.title !== "string" || !body.title.trim() || body.title.trim().length>100)) throw new Fault(400,"invalid_title");
+    if ("pinned" in body && typeof body.pinned !== "boolean") throw new Fault(400,"invalid_task");
+    for (const key of ["archivedAt","snoozedUntil"]) {
+      if (body[key] != null && (!Number.isSafeInteger(body[key]) || body[key]<0)) throw new Fault(400,"invalid_task");
+    }
+    ledger.tx(() => {
+      if ("title" in body) {
+        task.title = body.title.trim();
+        db.prepare("UPDATE mobile_threads SET title=? WHERE owner=? AND id=?").run(task.title,owner,task.id);
+      }
+      for (const key of keys.filter(k => k !== "title")) {
+        if (body[key] == null) delete task.preferences[key];
+        else task.preferences[key] = body[key];
+      }
+      db.prepare("INSERT INTO mobile_native_task_preferences VALUES (?,?,?) ON CONFLICT(owner,thread) DO UPDATE SET value=excluded.value")
+        .run(owner,task.id,JSON.stringify(task.preferences));
+    });
   }
   function changed(owner) {
     const streams = activeStreams.get(owner);
@@ -144,9 +173,7 @@ export function nativeChat(ledger, lists, origin) {
         db.prepare("DELETE FROM mobile_threads WHERE owner=? AND id=?").run(owner,taskId);
         threads.splice(threads.indexOf(task),1);
       } else {
-        if (typeof body.title !== "string" || !body.title.trim() || body.title.trim().length>100) throw new Fault(400,"invalid_title");
-        task.title = body.title.trim();
-        db.prepare("UPDATE mobile_threads SET title=? WHERE owner=? AND id=?").run(task.title,owner,taskId);
+        patchTask(owner,task,body);
       }
       changed(owner);
       json(200,{bot:bot(owner,id,threads,limit,session)});
@@ -172,6 +199,11 @@ export function nativeChat(ledger, lists, origin) {
     const thread = threads.find(t => t.id === body.threadId);
     if (thread && action === "messages") {
       const previous = db.prepare("SELECT thread,prompt,state FROM mobile_turns WHERE owner=? AND id=?").get(owner,body.sendId ?? "");
+      if (previous?.state === "desktop") {
+        const receipt = db.prepare("SELECT fingerprint FROM mobile_native_receipts WHERE owner=? AND id=? AND session=?").get(owner,body.sendId,session.hash);
+        if (previous.thread !== thread.id || typeof body.text !== "string" || receipt?.fingerprint !== session.draftFingerprint(body.sendId,body.text)) throw new Fault(409,"request_exists");
+        json(200,{ok:true,threadId:thread.id}); return;
+      }
       if (previous?.thread === thread.id && previous.prompt === body.text && ["running","complete","limited"].includes(previous.state)) {
         json(200,{ok:true,threadId:thread.id}); return;
       }
@@ -192,10 +224,14 @@ export function nativeChat(ledger, lists, origin) {
     changed(session.owner);
   }
   function received(owner, body, messages, session) {
-    db.prepare("DELETE FROM mobile_native_choices WHERE session=? AND thread=? AND id=?").run(session.hash,body.thread,body.id);
-    // Keep desktop prompts out of the cloud transcript and future model context.
-    db.prepare("INSERT OR IGNORE INTO mobile_turns(owner,thread,id,prompt,answer,state,created) VALUES (?,?,?,?,?,'desktop',?)")
-      .run(owner,body.thread,body.id,messages.desktop,messages.desktopReceived,Date.now());
+    ledger.tx(() => {
+      db.prepare("DELETE FROM mobile_native_choices WHERE session=? AND thread=? AND id=?").run(session.hash,body.thread,body.id);
+      // Keep desktop prompts out of the cloud transcript and future model context.
+      db.prepare("INSERT OR IGNORE INTO mobile_turns(owner,thread,id,prompt,answer,state,created) VALUES (?,?,?,?,?,'desktop',?)")
+        .run(owner,body.thread,body.id,messages.desktop,messages.desktopReceived,Date.now());
+      db.prepare("INSERT OR IGNORE INTO mobile_native_receipts VALUES (?,?,?,?)")
+        .run(owner,body.id,session.hash,session.draftFingerprint(body.id,body.prompt));
+    });
     changed(owner);
   }
   return { environment, route, changed, allowsDrafts, choose, received };

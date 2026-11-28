@@ -104,6 +104,11 @@ it("deletes and renames tasks only in their owning native roster", async () => {
     return fetch(fixture.url+url+"/"+id,options);
   };
   expect((await mutate(next.threadId,"PATCH",{title:"Updated"})).status).toBe(200);
+  const ts = Date.now()+60000;
+  expect((await mutate(next.threadId,"PATCH",{pinned:true,archivedAt:0,snoozedUntil:ts})).status).toBe(200);
+  const {bots:[persisted]} = await (await request(token,"/api/bots")).json();
+  expect(persisted.tasks.find(t=>t.threadId===next.threadId)).toMatchObject({pinned:true,archivedAt:0,snoozedUntil:ts});
+  expect((await mutate(next.threadId,"PATCH",{archivedAt:null})).status).toBe(200);
   const {bot:remaining} = await (await mutate(root.threadId,"DELETE")).json();
   expect(remaining.id).toBe(root.id);
   expect(remaining.tasks.map(t=>t.title)).toEqual(["Updated"]);
@@ -124,7 +129,7 @@ it("uses the existing native answer card to hand a private draft to the selected
     delivered = await unsealDraft(body.envelope,keys.privateKey,body.id,listener);
     return {state:"received"};
   };
-  expect((await request(token,"/api/bots/"+bot.id+"/messages",input)).status).toBe(200);
+  expect((await request(token,"/api/bots/"+bot.id+"/messages",input)).status).toBe(409);
   const read = async bearer => (await (await request(bearer,"/api/threads/"+bot.threadId+"/messages")).json()).messages;
   const card = (await read(token)).at(-1).card;
   expect(card.options[1]).toContain("Home");
@@ -136,6 +141,8 @@ it("uses the existing native answer card to hand a private draft to the selected
   expect(delivered).toBeUndefined();
   expect((await request(token,response,answer)).status).toBe(200);
   expect(delivered).toBe(input.text);
+  fixture.behavior.desktopDraft = () => { throw new Error("Delivered drafts must not be offered a second time"); };
+  expect((await request(token,"/api/bots/"+bot.id+"/messages",input)).status).toBe(200);
   expect(JSON.stringify(await read(token))).not.toContain(input.text);
   expect(fixture.generations).toHaveLength(0);
 });

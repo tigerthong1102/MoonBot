@@ -238,7 +238,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
         const messages = mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages;
         if (draft.state === "choose") {
           native.choose(session,body,draft.devices,messages.desktopChoose);
-          return json(200,{ok:true,threadId:body.thread});
+          throw new Fault(409,"desktopChoose");
         }
         for (let attempt=0; draft.state === "waiting" && attempt<7 && !res.destroyed; attempt++) {
           await new Promise(resolve => setTimeout(resolve, 1000));

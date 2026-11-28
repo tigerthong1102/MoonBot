@@ -14,7 +14,7 @@ function open(value, master) {
   return Buffer.concat([cipher.update(data.subarray(12, -16)), cipher.final()]).toString("utf8");
 }
 
-function boundedRequest(body, config, owner) {
+export function boundedRequest(body, config, owner) {
   if (
     body.model !== config.model ||
     !Array.isArray(body.messages) ||
@@ -63,6 +63,13 @@ function boundedRequest(body, config, owner) {
     ...(typeof body.temperature === "number" ? { temperature: body.temperature } : {}),
   };
 }
+export function maximumCost(request, config) {
+    // A byte bound plus per-message framing covers text and tool schemas without relying on a model-specific tokenizer.
+    const upperInput = Buffer.byteLength(JSON.stringify(request)) + 32 * request.messages.length + 256;
+    return Math.ceil(
+      upperInput * config.maxPromptUsdPerMillion + request.max_tokens * config.maxOutputUsdPerMillion,
+    );
+}
 export function router(ledger, settings, http = fetch) {
   const db = ledger.db;
   function master() {
@@ -108,11 +115,7 @@ export function router(ledger, settings, http = fetch) {
   }
   async function run(owner, id, body, config, stream) {
     const request = boundedRequest(body, config, owner);
-    // A byte bound plus per-message framing covers text and tool schemas without relying on a model-specific tokenizer.
-    const upperInput = Buffer.byteLength(JSON.stringify(request)) + 32 * request.messages.length + 256;
-    const reserve = Math.ceil(
-      upperInput * config.maxPromptUsdPerMillion + request.max_tokens * config.maxOutputUsdPerMillion,
-    );
+    const reserve = maximumCost(request, config);
     if (settings.mobileOrigin && !config.managedLimits) throw new Fault(503, "managed_ai_paused");
     ledger.reserve(owner, id, digest(JSON.stringify(request)), reserve, request.model, config.managedLimits);
     try {

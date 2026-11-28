@@ -440,6 +440,9 @@ const bridge = {
     send: (pane, text) => ipcRenderer.invoke("terminal:pane", "send", pane, text),
   },
   openInstallTerminal: (command) => ipcRenderer.invoke("engine:open-terminal", command),
+  ...(isLocalPage && !desktopRemoteClient && process.argv.includes("--startupbot-mobile-handoff") ? {
+    mobileDraft: (action, listener, id) => ipcRenderer.invoke("mobile-draft:receive", action, listener, id),
+  } : {}),
   copyText: (text) => ipcRenderer.invoke("clipboard:write-text", text),
   /** Unlike window.open, this still works after an asynchronous API request. */
   openExternal: (url) => ipcRenderer.invoke("desktop:open-external", url),

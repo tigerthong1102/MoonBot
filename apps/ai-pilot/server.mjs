@@ -3,8 +3,9 @@ import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { accountSignIn, invite } from "./accounts.mjs";
+import { accountSignIn, invite, validateWalletIssuer } from "./accounts.mjs";
 import { Ledger, Fault, catalog, digest } from "./ledger.mjs";
+import { budgetExposure } from "./managed-budget.mjs";
 import { mobileService } from "./mobile.mjs";
 import { payments } from "./payments.mjs";
 import { asEventStream, router } from "./router.mjs";
@@ -87,11 +88,18 @@ export function pilotServer(ledger, settings, http = fetch) {
       const bearer = req.headers.authorization?.match(/^Bearer (sbpilot_[\w-]+)$/)?.[1];
       if (!bearer) throw new Fault(401, "invalid_pilot_token");
       const owner = ledger.authenticate(bearer, path?.startsWith("/v1/"));
+      const body = method === "POST" ? await readObject(req) : null;
+      if (method === "POST" && path === "/wallet/sign-out") {
+        ledger.db.prepare("DELETE FROM wallet_sessions WHERE token=? AND owner=?").run(digest(bearer), owner);
+        return json(200, { ok: true });
+      }
+      if (bearer.startsWith("sbpilot_session_"))
+        await validateWalletIssuer(ledger, settings.accountOrigin, http, bearer, owner);
       const config = catalog(settings.catalog);
       if (method === "GET" && path === "/wallet")
         return json(200, {
           account: owner,
-          ...ledger.summary(owner),
+          ...ledger.summary(owner, config.managedLimits?.trialPaused),
           currency: config.currency,
           offers: config.offers,
           model: config.model,
@@ -103,11 +111,7 @@ export function pilotServer(ledger, settings, http = fetch) {
           data: [{ id: config.model, object: "model", owned_by: "startupbot-pilot" }],
         });
       if (method !== "POST") throw new Fault(404, "not_found");
-      const body = await readObject(req);
-      if (path === "/wallet/sign-out") {
-        ledger.db.prepare("DELETE FROM wallet_sessions WHERE token=? AND owner=?").run(digest(bearer), owner);
-        return json(200, { ok: true });
-      }
+
       if (path === "/wallet/engine-token") return json(200, { token: ledger.issueEngineToken(owner) });
       if (path === "/wallet/checkout") {
         const existing = ledger.db
@@ -169,6 +173,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const settings = {
     origin: "http://127.0.0.1:" + port,
     catalog: process.env.STARTUPBOT_PILOT_CATALOG || new URL("./catalog.example.json", import.meta.url),
+    openRouterOAuth: process.env.STARTUPBOT_MOBILE_OPENROUTER_OAUTH === "1",
+    mobileDesktopHandoff: process.env.STARTUPBOT_MOBILE_DESKTOP_HANDOFF === "1",
     mobileOrigin: process.env.STARTUPBOT_MOBILE_ORIGIN,
     accountOrigin: process.env.STARTUPBOT_PILOT_ACCOUNT_ORIGIN,
     stripeKey: process.env.STRIPE_TEST_KEY,
@@ -177,7 +183,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     masterKey: process.env.STARTUPBOT_PILOT_ENCRYPTION_KEY,
   };
   const [command, owner, id, generation] = process.argv.slice(2);
-  if (command === "issue-token") console.log(ledger.issue(owner ?? ""));
+  if (command === "budget-status") {
+    const limits = catalog(settings.catalog).managedLimits ?? null;
+    const exposure = budgetExposure(ledger.db);
+    const unresolved = ledger.db.prepare("SELECT count(*) requests,min(created) oldest FROM requests WHERE state='held'").get();
+    const fraction = limits ? Math.max(exposure.day / limits.dailyMicros, exposure.month / limits.monthlyMicros) : null;
+    console.log(JSON.stringify({ limits, exposure, unresolved, level:fraction === null ? "unconfigured" :
+      fraction >= 0.95 ? "critical" : fraction >= 0.8 ? "warning" : "normal" }));
+  } else if (command === "issue-token") console.log(ledger.issue(owner ?? ""));
   else if (command === "invite") invite(ledger, owner, id);
   else if (command === "revoke-token")
     ledger.tx(() => {

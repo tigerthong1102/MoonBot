@@ -4242,7 +4242,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "es": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -10969,7 +10977,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "fr": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -14997,7 +15013,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "hi": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -18879,7 +18903,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "ja": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -27200,7 +27232,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "pt-br": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -38674,7 +38714,15 @@
       "review.notes.invalid": "0b2ab8ca325328c93d7ebcdda176f1f38d189f11948937ce91421988139874ee",
       "computer.files.turnEvidence": "46f294dc57d541e707ee578409f35d7547c81bb3bae575c10902a5c24e6b4f89",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "zh": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -49144,7 +49192,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "zh-tw": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -59721,7 +59777,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "uk": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -64024,7 +64088,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "vi": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -75477,7 +75549,15 @@
       "review.notes.invalid": "0b2ab8ca325328c93d7ebcdda176f1f38d189f11948937ce91421988139874ee",
       "computer.files.turnEvidence": "46f294dc57d541e707ee578409f35d7547c81bb3bae575c10902a5c24e6b4f89",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "tr": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -81704,7 +81784,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "pl": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -89196,7 +89284,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "ru": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -96741,7 +96837,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "it": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -104093,7 +104197,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     },
     "ko": {
       "workflow.controls": "e4b4db0dc48d292a99cdecbc1c1eb07bb631d4d8cd8fe67c73723e9a54591d15",
@@ -112104,7 +112216,15 @@
       "browser.evidence.add": "52f05c6ed4f5cff6f3651b95b26aadbacb0417e7a07066885e52457b5e9dde2a",
       "browser.evidence.failed": "b709ab852ccae919ce9316aca7a62a8331d8adb127e828176011ef880c9bd0a9",
       "pilot.wallet": "a1b38332b8903182d88774286d05c77001b616d0c855d0fbf39fe74d40bca9a7",
-      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd"
+      "pilot.open": "db097c4be136397797db8189d56020d0199ed2f63790cf7e9b6fae18c20398cd",
+      "mobileChat.desktopListen": "8caf382b358c71d2b26da234eeda1d6331271f5a70970856c8a4120e5eadc563",
+      "mobileChat.desktopListening": "73699810906a7298de4e4f63c2603f98cb4274060d7df214588e45b2c2497be2",
+      "mobileChat.desktopChoose": "d5523db152cd79f868f526ec247fef05dca505fc6f9bd6dff0152f472584187f",
+      "mobileChat.desktopWaiting": "a1e69703b04eca79a90362fdb66124a2d679424676de8285f80c0e52fa0edc0a",
+      "mobileChat.desktopReceived": "3ffd4f6ab4040c1222d15a65bd11733018a5209ff8fc60d746f3ceb90c88f2b2",
+      "mobileChat.desktopUnconfirmed": "f152f85f647420fc421f7d692725279490ea30bd71aca6d93eaa626ded4b7334",
+      "mobileChat.desktop_unavailable": "10e3f329c22c9cc624ed335fad10b01f2416bcd046a7c3e9b205de5412555877",
+      "mobileChat.desktopConsent": "67ce4134f5d491757bec746e3743933125779df76161f5681bb4066c770346dc"
     }
   }
 }

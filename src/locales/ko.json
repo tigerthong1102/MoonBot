@@ -8300,5 +8300,13 @@
   "mobileChat.unavailable": "계정 서비스를 일시적으로 이용할 수 없습니다.",
   "mobileChat.account_changed": "계정이 변경되었습니다. 대화를 다시 여세요.",
   "mobileChat.invalid_message": "메시지를 줄이고 저장에 동의했는지 확인하세요.",
-  "email.address": "이메일 주소"
+  "email.address": "이메일 주소",
+  "mobileChat.desktopListen": "휴대전화에서 작업 받기",
+  "mobileChat.desktopListening": "수신 대기 중 · 중지",
+  "mobileChat.desktopChoose": "컴퓨터를 선택하세요.",
+  "mobileChat.desktopWaiting": "컴퓨터를 기다리는 중…",
+  "mobileChat.desktopReceived": "컴퓨터에서 초안을 열었습니다. 내용을 확인한 뒤 보내세요.",
+  "mobileChat.desktopUnconfirmed": "수신이 확인되지 않았습니다. 다시 시도하기 전에 컴퓨터를 확인하세요.",
+  "mobileChat.desktop_unavailable": "준비된 컴퓨터가 없습니다. 컴퓨터의 개인 채팅에서 입력란을 비우고 휴대전화 작업 수신을 켜세요.",
+  "mobileChat.desktopConsent": "컴퓨터가 필요한 작업은 수신 대기 중인 내 컴퓨터로 비공개 초안을 보냅니다."
 }

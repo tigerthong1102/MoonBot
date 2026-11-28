@@ -25,7 +25,10 @@ export function createZaloOfficialRoutes(localDesktop: boolean, probe = probeZal
     const closed = () => controller.abort();
     res.once("close", closed);
     try {
-      const parsed = input.safeParse(await readBody(req, 1024));
+      const body: unknown = await readBody(req, 1024);
+      const parsed = input.safeParse(body);
+      // readBody retains the parsed object for request observers.
+      if (body && typeof body === "object" && "token" in body) delete body.token;
       if (!parsed.success) return json(res, 400, { error: "configuration" });
       const result = await probe(parsed.data.token, controller.signal);
       if (controller.signal.aborted) return;

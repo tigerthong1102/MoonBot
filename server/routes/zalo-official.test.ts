@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { afterEach, expect, it, vi } from "vitest";
-import { json, readBody } from "../harness/http.ts";
+import { json, parsedBodyOf, readBody } from "../harness/http.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import { probeZaloOfficialToken } from "../zalo-official.ts";
 import { createZaloOfficialRoutes } from "./zalo-official.ts";
@@ -11,16 +11,18 @@ const owner: RequestAuth = { kind: "loopback", scopes: ["admin"], desktopOwner: 
 
 async function fixture(local: boolean, auth: RequestAuth, probe: typeof probeZaloOfficialToken) {
   const route = createZaloOfficialRoutes(local, probe);
+  const observedBodies: unknown[] = [];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url!, "http://localhost");
     await route({ req, res, url, path: url.pathname, method: req.method!, auth, readBody, json });
+    observedBodies.push(parsedBodyOf(req));
   });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
   if (!address || typeof address === "string") throw Error("missing port");
   const endpoint = `http://127.0.0.1:${address.port}/api/zalo-official/probe`;
-  return { get: () => fetch(endpoint), post: (payload: unknown, signal?: AbortSignal) => fetch(endpoint, {
+  return { observedBodies, get: () => fetch(endpoint), post: (payload: unknown, signal?: AbortSignal) => fetch(endpoint, {
     signal, method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload),
   }), close: () => new Promise<void>(resolve => server.close(() => resolve())) };
 }
@@ -66,6 +68,7 @@ it("checks feature availability and returns scoped identity despite unavailable 
     expect(await response.json()).toEqual({ identityVerified: true, accountId: "provider-id", accountName: "bot.fixture",
       webhookConfigured: null, webhookError: "webhook-not-found" });
     expect(calls).toEqual(["getMe", "getWebhookInfo"]);
+    expect(JSON.stringify(f.observedBodies)).not.toContain("123:fixture");
   } finally { await f.close(); }
 });
 

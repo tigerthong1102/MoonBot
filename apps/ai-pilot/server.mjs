@@ -50,7 +50,7 @@ export function pilotServer(ledger, settings, http = fetch) {
     res.setHeader("referrer-policy", "no-referrer");
     res.setHeader(
       "content-security-policy",
-      "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     );
     try {
       const path = req.url?.split("?")[0],

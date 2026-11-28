@@ -143,6 +143,18 @@ it("stops a live generation while preserving its unresolved charge, then admits 
   expect(await (await f.call("/send", cookie, message())).text()).toContain('"state":"complete"');
 });
 
+it("includes the visible answer when continuing an output-limited turn", async () => {
+  f.behavior.finish = "length";
+  expect(await (await f.call("/send", cookie, message())).text()).toContain('"state":"limited"');
+  const { turns } = await (await f.call("/history", cookie, { account:"alice", thread })).json();
+  expect(turns[0].answer).toBeTruthy();
+  f.behavior.finish = "stop";
+  expect(await (await f.call("/send", cookie, message({ prompt:"Continue" }))).text()).toContain('"state":"complete"');
+  expect(f.generations.at(-1).messages.slice(-3)).toEqual([
+    { role:"user", content:turns[0].prompt }, { role:"assistant", content:turns[0].answer }, { role:"user", content:"Continue" },
+  ]);
+});
+
 it("offers only allowlisted text skills and keeps the context window bounded", async () => {
   expect((await f.call("/send", cookie, message({ skill:"unknown" }))).status).toBe(400);
   for (let n = 0; n < 4; n++)

@@ -40,39 +40,39 @@ async function open() {
   return { host, button, draw, close: () => act(() => root.unmount()) };
 }
 
-it("prepares the catalog command after owner approval and opens the regular chat without dispatching the message or importing the excerpt", async () => {
+it("opens the exact workflow revision after approval without writing a chat draft or dispatching a message", async () => {
   vi.mocked(api).mockResolvedValue(answer);
   const view = await open();
   try {
     expect(view.host.textContent).toContain("Proposal from Owner-provided source, line 2");
     expect(view.host.textContent).toContain("Compare totals");
     expect(getDraft(localStorage, id)).toBe("");
-    await act(async () => view.button("Approve and prepare").click());
-    expect(getDraft(localStorage, id)).toBe("/verify-invoice");
-    await act(async () => view.button("Open the chat draft").click());
-    expect(env.dispatch.mock.calls.map(args => args[0].type)).toEqual(["toggleAppSettings", "toggleSettings", "showChat"]);
-    expect(vi.mocked(api).mock.calls.map(args => args[0])).toEqual(["/api/zalo-workflow-review/bot-a", "/api/zalo-workflow-review/bot-a"]);
+    await act(async () => view.button("Approve the workflow proposal").click());
+    expect(getDraft(localStorage, id)).toBe("");
+    await act(async () => view.button("Open this revision").click());
+    expect(env.dispatch.mock.calls).toEqual([[{ type: "showSkillBurgers", reviewed: { botId: bot.id, threadId: bot.threadId, name: workflow.name, sha256: workflow.sha256 } }]]);
+    expect(vi.mocked(api).mock.calls.map(args => args[0])).toEqual(Array(3).fill("/api/zalo-workflow-review/bot-a"));
     expect(JSON.stringify(vi.mocked(api).mock.calls)).not.toContain("run-private");
   } finally { view.close(); }
 });
 
-it("requires the selected connected device, keeps an occupied composer intact and rechecks the workflow revision", async () => {
+it("requires the selected connected device and rejects a workflow change after staging and before opening the library", async () => {
   vi.mocked(api).mockResolvedValue(answer);
   env.connected = false;
   const view = await open();
   try {
-    expect(view.button("Approve and prepare").disabled).toBe(true);
+    expect(view.button("Approve the workflow proposal").disabled).toBe(true);
     expect(view.host.textContent).toContain("No work has started");
     env.connected = true; env.platform = "darwin"; await view.draw();
     await act(async () => view.host.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click());
-    expect(view.button("Approve and prepare").disabled).toBe(true);
+    expect(view.button("Approve the workflow proposal").disabled).toBe(true);
     env.platform = "win32"; await view.draw();
     setDraft(localStorage, id, "Keep this draft");
-    await act(async () => view.button("Approve and prepare").click());
+    await act(async () => view.button("Approve the workflow proposal").click());
     expect(getDraft(localStorage, id)).toBe("Keep this draft");
-    expect(view.host.textContent).toContain("already has a draft");
+    expect(view.host.textContent).toContain("Proposal approved for inspection");
     vi.mocked(api).mockResolvedValue({ workflows: [{ ...workflow, sha256: "changed" }] });
-    await act(async () => view.button("Approve and prepare").click());
+    await act(async () => view.button("Open this revision").click());
     expect(view.host.textContent).toContain("workflow changed");
     expect(env.dispatch).not.toHaveBeenCalled();
   } finally { view.close(); }
@@ -84,7 +84,7 @@ it("invalidates an in-flight approval when the operator clears the source", asyn
   vi.mocked(api).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const view = await open();
   try {
-    await act(async () => view.button("Approve and prepare").click());
+    await act(async () => view.button("Approve the workflow proposal").click());
     await act(async () => view.button("Clear").click());
     await act(async () => finish(answer));
     expect(getDraft(localStorage, id)).toBe("");

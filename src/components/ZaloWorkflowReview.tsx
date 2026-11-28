@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { prepareWorkflowDraft } from "@/lib/drafts";
 import { t } from "@/lib/i18n";
 import { effectivePlace } from "@/lib/place";
-import { runCommand } from "@/lib/skill-burger";
 import { api } from "@/state/api";
 import { useStore, type Bot } from "@/state/store";
 import { useDesktopCapabilities } from "./DesktopCapabilities";
@@ -12,7 +10,7 @@ import { SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 
 interface ReviewedWorkflow { name: string; summary: string; sha256: string; steps: string[]; inputs: string[] }
 type Result = { workflows: ReviewedWorkflow[] };
-type Status = "loading" | "ready" | "failed" | "changed" | "occupied" | "prepared";
+type Status = "loading" | "ready" | "failed" | "changed" | "prepared";
 
 export default function ZaloWorkflowReview({ bot, source, line }: { bot: Bot; source: string; line: number }) {
   const { state, dispatch } = useStore();
@@ -51,8 +49,8 @@ export default function ZaloWorkflowReview({ bot, source, line }: { bot: Bot; so
     return () => { controller.abort(); pending.current?.abort(); };
   }, [endpoint, reload]);
 
-  async function prepare() {
-    if (!available || !selected || pending.current || status === "prepared") return;
+  async function confirm(open: boolean) {
+    if (!available || !selected || pending.current) return;
     const controller = new AbortController();
     pending.current = controller;
     setChecking(true);
@@ -60,7 +58,11 @@ export default function ZaloWorkflowReview({ bot, source, line }: { bot: Bot; so
       const { workflows: fresh } = await api<Result>(endpoint, { signal: controller.signal });
       if (controller.signal.aborted || !current.current) return;
       if (!fresh.some(item => item.name === selected.name && item.sha256 === selected.sha256)) { setStatus("changed"); return; }
-      setStatus(prepareWorkflowDraft(bot.id, bot.threadId, runCommand(selected.name)) ? "prepared" : "occupied");
+      if (open) {
+        dispatch({ type: "showSkillBurgers", reviewed: { botId: bot.id, threadId: bot.threadId, name: selected.name, sha256: selected.sha256 } });
+      } else {
+        setStatus("prepared");
+      }
     } catch { if (!controller.signal.aborted) setStatus("failed"); }
     finally { if (!controller.signal.aborted) { pending.current = null; setChecking(false); } }
   }
@@ -82,8 +84,8 @@ export default function ZaloWorkflowReview({ bot, source, line }: { bot: Bot; so
     {status === "loading" ? <p role="status">{t("skills.loading")}</p> : status === "failed" || status === "changed" ?
       <><p role="alert">{t(status === "changed" ? "zalo.workflow.changed" : "skillBurger.list.loadFailed")}</p>
         <button type="button" className="ui-button" onClick={() => setReload(value => value + 1)}>{t("common.tryAgain")}</button></> :
-      status === "prepared" ? <><p role="status">{t("zalo.workflow.prepared")}</p>
-        <button className="ui-button" type="button" onClick={() => openChat()}>{t("zalo.workflow.openChat")}</button></> :
+      status === "prepared" ? <><p dir="auto">{selected?.summary}</p><p role="status">{t("zalo.workflow.prepared")}</p>
+        <button className="ui-button" type="button" disabled={!available || checking} onClick={() => void confirm(true)}>{t("zalo.workflow.openChat")}</button></> :
         !workflows.length ? <p role="status">{t("zalo.workflow.empty")}</p> : <>
           <SettingsField label={t("skillBurger.list.title")}><Select className={SETTINGS_INPUT} disabled={checking} value={choice}
             onChange={event => { setChoice(event.target.value); setStatus("ready"); }}>
@@ -92,8 +94,7 @@ export default function ZaloWorkflowReview({ bot, source, line }: { bot: Bot; so
           </Select></SettingsField>
           {selected && <><p dir="auto">/{selected.name}</p><ol className="list-decimal pl-5">{selected.steps.map((step, i) => <li key={i}>{step}</li>)}</ol>
             {selected.inputs.length > 0 && <p>{t("zalo.workflow.inputs", { inputs: selected.inputs.join(", ") })}</p>}
-            {status === "occupied" && <p role="alert">{t("zalo.workflow.occupied")}</p>}
-            <button type="button" className="ui-button" disabled={!available || checking} onClick={() => void prepare()}>{t("zalo.workflow.prepare")}</button></>}
+            <button type="button" className="ui-button" disabled={!available || checking} onClick={() => void confirm(false)}>{t("zalo.workflow.prepare")}</button></>}
         </>}
   </section>;
 }

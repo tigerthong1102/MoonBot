@@ -104,6 +104,10 @@ export function SkillBurgersPage() {
   const { skills, error, refresh } = useSavedBurgers();
   const team = useStoreSelector((state) => Boolean(state.config?.team));
   const { removed, problem, remove, undo } = useBurgerRemoval(team);
+  const reviewed = useStoreSelector(state => state.reviewedWorkflow);
+  const currentThread = useStoreSelector(state => reviewed && state.bots.find(bot => bot.id === reviewed.botId)?.threadId);
+  const chosen = reviewed && currentThread === reviewed.threadId ? skills?.find(skill => !skill.everyChat && skill.botId === reviewed.botId
+    && skill.name === reviewed.name && skill.sha256 === reviewed.sha256) : undefined;
   const back = useRef<HTMLButtonElement>(null);
   useEffect(() => { back.current?.focus({ preventScroll: true }); }, []);
 
@@ -114,6 +118,14 @@ export function SkillBurgersPage() {
       </ToolPageHeader>
       <div className="min-h-0 flex-1 overflow-y-auto" data-skill-burgers={skills ? skills.length : "loading"}>
         <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
+          {reviewed ? <section aria-label={t("zalo.workflow.review")} className="flex flex-col items-start gap-3">
+            {!skills && !error ? <p role="status">{t("skills.loading")}</p> : chosen ? <>
+              <h2 dir="auto">{chosen.summary}</h2>
+              <ol className="list-decimal pl-5">{chosen.layers.map((step, index) => <li key={index}>{step.label}</li>)}</ol>
+              <p>{t("zalo.workflow.prepared")}</p>
+            </> : <p role="alert">{t("zalo.workflow.changed")}</p>}
+            <button type="button" className="ui-button" onClick={() => dispatch({ type: "showSkillBurgers" })}>{t("zalo.workflow.all")}</button>
+          </section> : <>
           {removed && (
             <div role="status" className="mb-3 flex items-center gap-2 rounded-xl bg-card px-3.5 py-2.5 text-[13px] text-ink-secondary">
               <span className="min-w-0 flex-1 truncate">{t("skillBurger.list.removed", { name: removed.skill.name })}</span>
@@ -137,6 +149,7 @@ export function SkillBurgersPage() {
               {skills.map((skill) => <BurgerCard key={`${skill.everyChat ? "every" : skill.botId}:${skill.name}`} skill={skill} onRemove={() => void remove(skill)} />)}
             </ul>
           ) : null}
+          </>}
         </div>
       </div>
     </ToolPage>

@@ -41,7 +41,12 @@ export async function startMobileFixture({ mobileOrigin = "https://mobile.exampl
         if (behavior.beforeMe) await behavior.beforeMe();
         return Response.json({ user:tokens.get(token) });
       }
-      if (url.pathname.endsWith("/sign-out")) { tokens.delete(token); return Response.json({ success:true }); }
+      if (url.pathname.endsWith("/sign-out")) {
+        if (!init.body || new Headers(init.headers).get("content-type") !== "application/json")
+          return Response.json({ error:"unsupported_media_type" }, { status:415 });
+        tokens.delete(token);
+        return Response.json({ success:true });
+      }
       return Response.json({ code:"unauthorized" }, { status:401 });
     }
     if (url.origin !== "https://openrouter.ai") throw Error("Unexpected fixture origin");

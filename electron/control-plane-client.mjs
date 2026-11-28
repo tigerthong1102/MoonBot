@@ -500,6 +500,7 @@ export function createControlPlaneClient({
       if (!boundedSecret(accountToken)) return;
       await request("/api/auth/sign-out", {
         method: "POST",
+        body: {},
         token: accountToken,
       });
     },

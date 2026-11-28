@@ -1,0 +1,28 @@
+# Unified memory: initial authority boundaries
+
+This audit concerns the source tree at `acce394ee108d1bc8389e5d53623579af4e30aa9`. It is not evidence that unified memory is ready for production. The goal is a common retrieval interface without changing who owns existing data.
+
+## Existing stores
+
+| Store | Authority and current limits | Consequence |
+| --- | --- | --- |
+| AI Twin | `server/ai-twin.ts` stores a workspace-bound private profile with up to 80 lessons. `server/host/ai-twin.ts` restricts access to the desktop owner or a signed-in personal Cloud administrator. | It is not a per-person Team Cloud memory store. Do not expose it to coworkers or copy it into organization memory. |
+| Second Brain | `src/components/knowledge/brain.ts` and `source-cache.ts` use browser IndexedDB. The document index is keyed by current session or local owner and thread; Brain pages are keyed by owner, page and version. Source verification is performed by the client. | An IndexedDB key or client-provided citation is not proof of server-side document ownership or authorization. Old snapshots cannot be assigned to an organization automatically. |
+| Knowledge answers | `server/routes/knowledge-answers.ts` checks access to the conversation and accepts evidence supplied by the client. | It is not an authoritative enterprise retrieval adapter. A server-owned source and its current access, revision and audience must be verified before using it as one. |
+| Bot and thread memory | `docs/memory.md` describes separate, bounded bot and thread stores. Thread/mine routes check their own access; bot-scoped access also relies on the global visibility middleware. | Keep their distinct ownership and lifetime; do not import them wholesale into Twin or organization memory. |
+
+AI Twin semantic recall currently uses model selection and verification, not embeddings or vector search. The document index in `src/components/knowledge/source-index.ts` uses lexical scoring; it is not evidence of vector search or an enterprise authorization layer. A user-approved Twin lesson sourced from a conversation does not currently retain source provenance that could support automatic downstream revocation. Stopping the learning source and deleting an explicitly taught lesson are distinct operations; legacy lessons must not be silently deleted or assigned fabricated provenance.
+
+## Decision
+
+Keep storage and authorization boundaries separate. A future orchestrator must derive identity and scope server-side, enforce source and audience permissions independently of the model, and revalidate them at retrieval and before disclosure. Do not promote browser-provided paths, text, digests or citations into authority. Deny an integration when the current source permission or its revision cannot be established. Do not automatically turn on organization sharing, learning, provider access, or delegation during migration.
+
+Thread-access revalidation can reduce stale UI use of local cache, but does not establish source-level authorization, revoke content already seen or copied, or close a cross-service race at provider egress. Data already present in a browser controlled by a former reader cannot be made inaccessible to that reader merely by hiding it in the application. The existing knowledge-answer path must not be presented as proof of source revocation for unified or enterprise retrieval.
+
+## Qualification gaps
+
+No current evidence establishes end-to-end cross-tenant isolation for the proposed unified integration, enterprise source ACL/revision verification, offline revocation, derived-memory deletion, backup tombstones, or provider-side cancellation. Do not enable organization-wide unified retrieval until those are designed and independently tested. Measure exact, semantic, Vietnamese, adversarial, unauthorized and held-out cases separately; report real model, fake model, packaged and production evidence separately. A passing exact-match fixture does not establish semantic accuracy.
+
+The synthetic baseline run of `evals/ai-twin/agenticos-memory.test.ts`, `server/ai-twin-capacity.test.ts`, `src/components/knowledge/source-index.test.ts`, and `src/components/knowledge/brain.dom.test.ts` passed 62 tests in 4.22 seconds on a clean checkout with the same Git tree as the audited commit. The Brain DOM fixture uses mocks and is not a production end-to-end test. The 50-row AgenticOS fixture exercises lesson operations and exact lookup; it is not a semantic quality benchmark. A single-process local warm-filesystem-cache microbenchmark of 1,000 repetitions of the same exact Twin query at 80 lessons measured P50 0.120 ms and P95 0.179 ms on macOS arm64 with Node 26.4.0. It excludes model calls, networking, permission checks and UI; process RSS was cumulative, not an isolated memory cost. More than 80 Twin lessons are not supported by this implementation, so this is not a 1,000- or 100,000-record benchmark.
+
+The thread-access proof introduced in the first cache-hardening slice is a fail-closed compatibility change: a newer client cannot open this cache against an older server that does not implement the proof endpoint. Upgrade the server and client together to restore access. The proof does not replace document authorization, nor does it make a local cache private from a person with control of that browser. Additional checks add network requests; their impact on larger libraries and remote connections requires measurement before claiming acceptable overhead.

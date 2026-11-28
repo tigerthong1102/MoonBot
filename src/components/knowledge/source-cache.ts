@@ -14,11 +14,33 @@ export async function libraryOwner(fetchImpl?: typeof fetch, reportOffline = fal
   return null;
 }
 
-const backgroundFetch: typeof fetch = (input, init) => apiFetch(input, { ...init, background: true, timeoutMs: 30_000 });
-
-export async function libraryKey(threadId: string, options?: { reportOffline?: boolean; background?: boolean }) {
-  const owner = await libraryOwner(options?.background ? backgroundFetch : undefined, options?.reportOffline);
-  return owner ? JSON.stringify([owner, threadId]) : null;
+export async function libraryKey(threadId: string, options?: { reportOffline?: boolean; background?: boolean; signal?: AbortSignal }) {
+  try {
+    const owner = await libraryOwner(options?.background
+      ? (input, init) => apiFetch(input, { ...init, background: true, signal: options.signal, timeoutMs: 30_000 })
+      : options?.signal ? (input, init) => apiFetch(input, { ...init, signal: options.signal, timeoutMs: 30_000 }) : undefined,
+    options?.reportOffline);
+    if (!owner) return null;
+    const response = await apiFetch(`/api/threads/${encodeURIComponent(threadId)}/knowledge-access`, {
+      credentials: "same-origin", cache: "no-store", background: options?.background, signal: options?.signal, timeoutMs: 30_000,
+    });
+    if ([401, 403].includes(response.status)) return null;
+    if (response.status === 404) {
+      const body = await response.json().catch(() => ({}));
+      if (body?.code === "knowledge_thread_unavailable") return null;
+      throw new ApiError("Source access check unavailable", 404, { code: "source_access_unavailable" });
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new ApiError("Source server unavailable", response.status, body);
+    }
+    const value: unknown = await response.json();
+    const confirmed = (value && typeof value === "object" && "owner" in value) ? value.owner : undefined;
+    return confirmed === owner ? JSON.stringify([owner, threadId]) : null;
+  } catch (error) {
+    if (options?.reportOffline) throw error;
+    return null;
+  }
 }
 
 export function readLibrary(key: string): Promise<Index | undefined> {

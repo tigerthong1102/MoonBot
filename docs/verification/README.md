@@ -83,6 +83,7 @@ Use only mapped, tested commands:
 - [Operator-driven Zalo Official round-trip qualification](zalo-official-roundtrip.md)
 - [Internal Zalo Official webhook and one-time pairing](zalo-official-webhook.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
+- [AI Twin local owner-written Zalo style sample](zalo-owner-style.md)
 - [Zalo excerpt review, intelligence and release evidence](zalo-intelligence.md)
 - [Báo cáo Zalo theo lịch trong Today](zalo-period-report.md)
 - [In-chat team coordination](room-coordination.md)

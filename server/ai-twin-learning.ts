@@ -10,7 +10,11 @@ export type TwinLearningRow = Pick<AiTwinLearningExample, "thread" | "message" |
 export function twinLearningText(line: Message): string | undefined {
   if (line.role !== "user" || line.kind !== "text" || line.automated || line.relayed || line.via
       || line.fromApp || line.aside || line.peerAsk || line.automation || line.dataContext || line.attachments?.length || line.pointed?.length) return;
-  const text = line.text?.trim();
+  return twinLearningSample(line.text);
+}
+
+export function twinLearningSample(value?: string): string | undefined {
+  const text = value?.trim();
   if (!text || text.length < 12 || text.length > 2_000 || redactSecretsInText(text) !== text) return;
   if (/(?:https?:\/\/|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:\d[\s().+-]*){7,})/i.test(text)) return;
   return text;

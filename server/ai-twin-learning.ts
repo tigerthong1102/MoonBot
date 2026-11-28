@@ -2,14 +2,15 @@ import {
   AI_TWIN_LESSON_ANSWER_MAX, AI_TWIN_LESSON_QUESTION_MAX, type AiTwinLearnedStyle, type AiTwinLearningExample, type AiTwinLearningView,
 } from "../shared/ai-twin.ts";
 import { redactSecretsInText } from "../shared/redact.ts";
+import { routedWorkMarker } from "./delta-context.ts";
 import { twinLessonKey } from "./ai-twin-lessons.ts";
 import type { Message } from "./store.ts";
 
 export type TwinLearningRow = Pick<AiTwinLearningExample, "thread" | "message" | "text"> & { ts: number; replyToId?: string };
 
-export function twinLearningText(line: Message): string | undefined {
+export function twinLearningText(line: Message, parent?: Message): string | undefined {
   if (line.role !== "user" || line.kind !== "text" || line.automated || line.relayed || line.via
-      || line.fromApp || line.aside || line.peerAsk || line.automation || line.dataContext || line.attachments?.length || line.pointed?.length) return;
+      || routedWorkMarker(line) || (parent && routedWorkMarker(parent)) || line.fromApp || line.aside || line.peerAsk || line.automation || line.dataContext || line.attachments?.length || line.pointed?.length) return;
   return twinLearningSample(line.text);
 }
 

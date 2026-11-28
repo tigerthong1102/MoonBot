@@ -40,8 +40,43 @@ function fixture() {
     }).then(() => status);
     return { done, body: () => body, disconnect: () => res.emit("close") };
   }
-  return { send, accessible, generate, writer, contextChanged, unavailable };
+  return { send, accessible, generate, writer, contextChanged, unavailable, store, threadId: threads[0]! };
 }
+
+it("uses the provider-facing history for held work without hiding ordinary conversation", async () => {
+  const { store, threadId, send, generate } = fixture();
+  store.appendMessage(threadId, { role: "user", kind: "text", text: "Ordinary inventory note" });
+  store.appendMessage(threadId, { role: "user", kind: "text", text: "Settled inventory note",
+    workBotCopy: { sourceThreadId: "source", sourceMessageId: "sample", requestMessageId: "request", status: "settled" } });
+  store.appendMessage(threadId, { role: "user", kind: "text", text: "Synthetic held request", workBotReviewHold: true });
+  expect(await send(member("reader", "reader@example.test"), 0).done).toBe(200);
+  const prepared = generate.mock.calls[0]![0];
+  expect(prepared).toContain("Ordinary inventory note");
+  expect(prepared).toContain("Settled inventory note");
+  expect(prepared).toContain("held for review");
+  expect(prepared).not.toContain("Synthetic held request");
+});
+
+it.each(["waiting", "preparing", "answering"] as const)("rejects a source answer if its history becomes held while %s", async phase => {
+  const { store, threadId, send, generate, contextChanged } = fixture();
+  const row = store.appendMessage(threadId, { role: "user", kind: "text", text: "Synthetic inventory request" });
+  const dispatched = vi.fn();
+  generate.mockImplementationOnce(async (_prompt, options) => {
+    if (phase === "waiting") store.patchMessage(threadId, row.id, { workBotReviewHold: true });
+    options?.started?.();
+    if (phase === "preparing") {
+      await Promise.resolve();
+      store.patchMessage(threadId, row.id, { workBotReviewHold: true });
+      options?.signal?.throwIfAborted();
+    }
+    dispatched();
+    if (phase === "answering") store.patchMessage(threadId, row.id, { workBotReviewHold: true });
+    return response;
+  });
+  expect(await send(member("reader", "reader@example.test"), 0).done).toBe(409);
+  expect(dispatched).toHaveBeenCalledTimes(phase === "answering" ? 1 : 0);
+  expect(contextChanged).not.toHaveBeenCalled();
+});
 
 it("admits one source request per person across sessions, bots and threads, and frees it on every exit", async () => {
   const { send, generate, accessible } = fixture();

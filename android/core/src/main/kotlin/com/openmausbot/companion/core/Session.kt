@@ -209,13 +209,13 @@ class Session(
         connect()
     }
 
-    suspend fun signInToMobile(connection: Connection, email: String, code: String) {
+    suspend fun signInToMobile(connection: Connection, email: String, code: String, allowDrafts: Boolean) {
         awaitRestored()
-        val result = CompanionClient(connection, null, httpClient).mobileLogin(email, code)
+        val result = CompanionClient(connection, null, httpClient).mobileLogin(email, code, allowDrafts)
         require(result.token.startsWith("sb_mobile_") &&
             result.environment.environmentId == "startupbot-mobile:" + connection.activeEndpoint?.url)
         val stored = connection.establishingRoutePolicyFromInvite().copy(
-            name = result.environment.label,
+            id = result.connectionId, name = result.environment.label,
             serverEnvironmentId = result.environment.environmentId,
             serverScopes = listOf("chat"),
         )
@@ -227,7 +227,9 @@ class Session(
         var stored = pairedConnection
         val winner = stored.activeEndpoint
             ?: CompanionEndpoint.direct(stored.host, stored.port, priority = 10_000)
-        registry.matchingConnection(stored)?.let { existing -> stored = stored.copy(id = existing.id) }
+        if (!pairedToken.startsWith("sb_mobile_")) {
+            registry.matchingConnection(stored)?.let { existing -> stored = stored.copy(id = existing.id) }
+        }
         val firstPairing = registry.connections.isEmpty()
         val updatedRegistry = registry.upsert(stored)
 

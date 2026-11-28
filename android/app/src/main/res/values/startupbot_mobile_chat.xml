@@ -8,4 +8,5 @@
     <string name="mobile_send_code">Send email code</string>
     <string name="mobile_sign_in_again">Sign in again to continue chatting</string>
     <string name="mobile_save_history">Save chats to my account</string>
+    <string name="mobile_allow_drafts">Send desktop tasks to my receiving computer</string>
 </resources>

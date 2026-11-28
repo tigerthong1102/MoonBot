@@ -776,21 +776,25 @@ class CompanionClient(
     }
 
     @Serializable
-    data class MobileLogin(val token: String, val environment: ServerEnvironment)
+    data class MobileLogin(val token: String, val environment: ServerEnvironment, val connectionId: String)
 
     private fun mobileRequest(path: String, body: JsonObject): Request {
         val origin = requireNotNull(connection.activeEndpoint?.url)
         require(token == null && origin.startsWith("https://"))
-        return makeRequest("POST", path, body = body).newBuilder().header("Origin", origin).build()
+        return makeRequest("POST", path, body = body).newBuilder().header("Origin", origin).header("X-StartupBot-Client", "companion").build()
     }
 
-    suspend fun requestMobileCode(email: String) {
-        val request = mobileRequest("/mobile/code", jsonBody("email" to email))
-        check(perform(request, mobileLoginClient()))
+    @Serializable
+    data class MobileCodeResponse(val desktopHandoff: Boolean)
+
+    suspend fun requestMobileCode(email: String): MobileCodeResponse {
+        val request = mobileRequest("/mobile/code", jsonBody("client" to "companion", "email" to email))
+        return send(request, mobileLoginClient())
     }
 
-    suspend fun mobileLogin(email: String, code: String): MobileLogin = send(
-        mobileRequest("/mobile/login", jsonBody("client" to "companion", "email" to email, "otp" to code)),
+    suspend fun mobileLogin(email: String, code: String, allowDrafts: Boolean): MobileLogin = send(
+        mobileRequest("/mobile/login", jsonBody("client" to "companion", "email" to email, "otp" to code,
+            "desktopDrafts" to if (allowDrafts) "allow" else "deny")),
         mobileLoginClient(),
     )
 
@@ -856,7 +860,10 @@ class CompanionClient(
     }
 
     private suspend fun sendForReceipt(request: Request): SendReceipt {
-        val raw = perform(request)
+        val client = if (token?.startsWith("sb_mobile_") == true) {
+            actionClient.newBuilder().callTimeout(120, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
+        } else actionClient
+        val raw = perform(request, client)
         check(raw)
         return try {
             CompanionJson

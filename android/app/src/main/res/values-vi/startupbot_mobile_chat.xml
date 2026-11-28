@@ -8,4 +8,5 @@
     <string name="mobile_send_code">Gửi mã qua email</string>
     <string name="mobile_sign_in_again">Đăng nhập lại để tiếp tục trò chuyện</string>
     <string name="mobile_save_history">Lưu lịch sử chat vào tài khoản của tôi</string>
+    <string name="mobile_allow_drafts">Gửi việc cần máy tính dưới dạng bản nháp đến máy đang nhận của tôi</string>
 </resources>

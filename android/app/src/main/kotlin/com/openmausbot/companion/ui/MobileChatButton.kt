@@ -47,6 +47,8 @@ private fun MobileEmailLogin(connection: Connection, close: () -> Unit) {
     val scope = rememberCoroutineScope()
     var email by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
+    var handoffAvailable by remember { mutableStateOf(false) }
+    var allowDrafts by remember { mutableStateOf(false) }
     var saveHistory by remember { mutableStateOf(false) }
     var sent by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
@@ -58,6 +60,13 @@ private fun MobileEmailLogin(connection: Connection, close: () -> Unit) {
                 OutlinedTextField(email, { email = it }, enabled = !busy && !sent, singleLine = true,
                     label = { Text("Email") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                 if (sent) {
+                    if (handoffAvailable) {
+                        Row(Modifier.toggleable(value = allowDrafts, onValueChange = { allowDrafts = it }),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = allowDrafts, onCheckedChange = null)
+                            Text(stringResource(R.string.mobile_allow_drafts))
+                        }
+                    }
                     Row(Modifier.toggleable(value = saveHistory, onValueChange = { saveHistory = it }),
                         verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = saveHistory, onCheckedChange = null)
@@ -80,10 +89,12 @@ private fun MobileEmailLogin(connection: Connection, close: () -> Unit) {
                 scope.launch {
                     try {
                         if (sent) {
-                            session.signInToMobile(connection, email.trim(), code.trim())
+                            session.signInToMobile(connection, email.trim(), code.trim(), allowDrafts)
                             close()
                         } else {
-                            CompanionClient(connection, null).requestMobileCode(email.trim())
+                            handoffAvailable = CompanionClient(connection, null).requestMobileCode(email.trim()).desktopHandoff
+                            allowDrafts = false
+                            saveHistory = false
                             sent = true
                         }
                     } catch (e: CancellationException) { throw e }

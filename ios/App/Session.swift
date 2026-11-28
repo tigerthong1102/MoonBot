@@ -288,8 +288,8 @@ final class Session: ObservableObject {
         try commitPairing(stored, token: paired.token, winner: winner)
     }
 
-    func signInToMobile(_ connection: Connection, email: String, code: String) async throws {
-        let result = try await CompanionClient(connection: connection, token: nil).mobileLogin(email: email, code: code)
+    func signInToMobile(_ connection: Connection, email: String, code: String, allowDrafts: Bool) async throws {
+        let result = try await CompanionClient(connection: connection, token: nil).mobileLogin(email: email, code: code, allowDrafts: allowDrafts)
         try Task.checkCancellation()
         guard let origin = connection.activeEndpoint?.url,
               result.environment.environmentId == "startupbot-mobile:" + origin,
@@ -299,7 +299,7 @@ final class Session: ObservableObject {
         stored.name = result.environment.label
         stored.serverEnvironmentId = result.environment.environmentId
         stored.serverScopes = ["chat"]
-        if let existing = registry.matchingConnection(for: stored) { stored.id = existing.id }
+        stored.id = result.connectionId
         try commitPairing(stored, token: result.token)
     }
 

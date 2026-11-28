@@ -10,7 +10,7 @@ import { mobileOpenRouter } from "./mobile-openrouter.mjs";
 import { mobileTextSkills } from "./mobile-text-skills.mjs";
 import { mobileCatalog, preferredMobileLanguage, renderMobilePage } from "./mobile-catalog.mjs";
 import { mobileSessions } from "./mobile-sessions.mjs";
-import { catalog, Fault } from "./ledger.mjs";
+import { catalog, digest, Fault } from "./ledger.mjs";
 
 
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
@@ -79,7 +79,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     db.prepare("UPDATE mobile_turns SET state='interrupted' WHERE owner=? AND state='running' AND created<?")
       .run(owner, Date.now() - 5 * 60000);
   }
-  return async (req, res, path, json) => {
+  async function handle(req, res, path, json) {
     const method = req.method;
     const companion = nativePath(path);
     if (method === "GET" && path === "/.well-known/openmausbot/environment") return json(200, native.environment);
@@ -109,18 +109,18 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       res.writeHead(200, { "content-type": type + "; charset=utf-8" });
       return res.end(source);
     }
-    let body = method === "POST" && (!companion || path.endsWith("/messages")) ? await readObject(req) : {};
+    let body = method === "POST" && (!companion || (path.endsWith("/messages") || path.endsWith("/tasks"))) ? await readObject(req) : {};
     let owner, session;
     try {
       if (method === "POST" && path === "/mobile/code") {
         await accounts.requestOTP(body.email);
-        return json(200, { ok: true });
+        return json(200, body.client === "companion" ? { desktopHandoff:settings.mobileDesktopHandoff === true } : { ok:true });
       }
       if (method === "POST" && path === "/mobile/login") {
         const { accountToken, user } = await accounts.verifyOTP(body.email, body.otp);
         if (body.client === "companion") {
-          const token = sessions.issue(res, user.id, accountToken, true);
-          return json(200, { token, environment: native.environment });
+          const token = sessions.issue(res, user.id, accountToken, true, settings.mobileDesktopHandoff && body.desktopDrafts === "allow");
+          return json(200, { token, connectionId:"mobile-" + digest(JSON.stringify([origin.origin,user.id])), environment: native.environment });
         }
         sessions.issue(res, user.id, accountToken);
         return json(200, { ok: true });
@@ -231,7 +231,21 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
         if (!uuid.test(body.target)) throw new Fault(400,"invalid_target");
         input.target = body.target;
       }
-      if (companion) throw new Fault(409, "desktop_handoff_requires_confirmation");
+      if (companion) {
+        if (!native.allowsDrafts(session.hash)) throw new Fault(409, "desktop_required");
+        let draft = await desktopDraft(session,input,"offer");
+        for (let attempt=0; draft.state === "waiting" && attempt<7 && !res.destroyed; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          draft = await desktopDraft(session,{id:input.id},"status");
+        }
+        if (draft.state !== "received") {
+          const message = ["waiting","expired"].includes(draft.state) ? "desktopUnconfirmed" : "desktop_unavailable";
+          throw new Fault(409, message);
+        }
+        const messages = mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages;
+        native.received(owner, body, messages);
+        return json(200, {ok:true,threadId:body.thread});
+      }
       return json(200,{desktop:await desktopDraft(session,input,"offer")});
     }
     if ((body.runtime ?? "text") !== "text" || /^(?:(?:hãy|vui lòng|please)\s+)?(?:chạy|run)\s+.{1,80}(?:khi máy tính tắt|when (?:my |the )?computer is off)/iu.test(body.prompt.trim()))
@@ -282,11 +296,13 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       return [{ role: "system", content: [instructions, textSkills.get(skill)].filter(Boolean).join(" ") }, ...context, { role: "user", content: body.prompt }];
     });
     const controller = new AbortController();
-    res.on("close", () => controller.abort());
-    if (res.destroyed) controller.abort();
+    if (!companion) {
+      res.on("close", () => controller.abort());
+      if (res.destroyed) controller.abort();
+    } else native.changed(owner);
     const frame = (data) => {
-      if (res.destroyed) throw new Error("disconnected");
       if (companion) return;
+      if (res.destroyed) throw new Error("disconnected");
       if (!res.headersSent) res.writeHead(200, { "content-type": "application/x-ndjson", "x-accel-buffering": "no" });
       res.write(JSON.stringify(data) + "\n");
     };
@@ -300,7 +316,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       const state = choice.finish_reason === "stop" ? "complete" : "limited";
       finish.run(state, choice.message.content, owner, body.id);
       native.changed(owner);
-      if (companion) return json(200, { ok:true, threadId:thread });
+      if (companion) return res.destroyed ? undefined : json(200, { ok:true, threadId:thread });
       frame({ state });
       res.end();
     } catch (error) {
@@ -312,10 +328,20 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
           if (isNew) db.prepare("DELETE FROM mobile_threads WHERE owner=? AND id=? AND NOT EXISTS (SELECT 1 FROM mobile_turns WHERE owner=? AND thread=?)").run(owner, thread, owner, thread);
         });
       } else finish.run("interrupted", "", owner, body.id);
+      native.changed(owner);
       if (res.destroyed) return;
       if (!res.headersSent) throw error;
       frame({ state: "interrupted" });
       res.end();
+    }
+  }
+  return async (req,res,path,json) => {
+    try {
+      return await handle(req,res,path,json);
+    } catch (error) {
+      if (!(error instanceof Fault) || !(nativePath(path) || req.headers["x-startupbot-client"] === "companion")) throw error;
+      const messages = mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages;
+      json(error.status, {error:messages[error.message] ?? error.message});
     }
   };
 }

@@ -76,6 +76,16 @@
           }
         }
       }
+    },
+    "Send desktop tasks to my receiving computer": {
+      "localizations": {
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gửi việc cần máy tính dưới dạng bản nháp đến máy đang nhận của tôi"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

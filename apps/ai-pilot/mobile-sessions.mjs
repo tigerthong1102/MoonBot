@@ -20,13 +20,16 @@ export function open(secret, scope, sealed) {
 
 export function mobileSessions(db) {
   db.exec(`CREATE TABLE IF NOT EXISTS mobile_sessions(handle TEXT PRIMARY KEY,owner TEXT NOT NULL,sealed BLOB NOT NULL,expires INTEGER NOT NULL);
-    CREATE INDEX IF NOT EXISTS mobile_session_expiry ON mobile_sessions(expires)`);
-  function issue(res, owner, bearer, native = false) {
+    CREATE INDEX IF NOT EXISTS mobile_session_expiry ON mobile_sessions(expires);
+    CREATE TABLE IF NOT EXISTS mobile_native_draft_grants(session TEXT PRIMARY KEY REFERENCES mobile_sessions(handle) ON DELETE CASCADE)`);
+  function issue(res, owner, bearer, native = false, allowDrafts = false) {
     const secret = randomBytes(32), handle = secret.toString("base64url");
     // A database backup cannot decrypt an issuer token without the browser's random session secret.
     const sealed = seal(secret, owner, bearer);
     db.prepare("DELETE FROM mobile_sessions WHERE expires<=?").run(Date.now());
-    db.prepare("INSERT INTO mobile_sessions VALUES (?,?,?,?)").run(digest(native ? "native:" + handle : handle), owner, sealed, Date.now() + lifetime * 1000);
+    const hash = digest(native ? "native:" + handle : handle);
+    db.prepare("INSERT INTO mobile_sessions VALUES (?,?,?,?)").run(hash, owner, sealed, Date.now() + lifetime * 1000);
+    if (native && allowDrafts) db.prepare("INSERT INTO mobile_native_draft_grants VALUES (?)").run(hash);
     if (native) return "sb_mobile_" + handle;
     res.setHeader("Set-Cookie", name + "=" + handle + flags + "; Max-Age=" + lifetime);
   }

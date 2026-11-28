@@ -59,3 +59,35 @@ it("keeps browser cookies and native credentials on separate transports", async 
   expect((await fixture.call("/threads","__Host-startupbot-mobile="+token.slice(10))).status).toBe(401);
   expect((await fetch(fixture.url + "/api/bots",{headers:{cookie}})).status).toBe(401);
 });
+
+it("creates and switches tasks from the original thread picker without mixing history", async () => {
+  const token = await signIn("alice");
+  const { bots:[first] } = await (await request(token,"/api/bots")).json();
+  const route = "/api/bots/" + first.id + "/tasks";
+  const { bot:next } = await (await request(token,route,{ title:"Notes" })).json();
+  expect(next.id).toBe(first.id);
+  expect(next.threadId).not.toBe(first.threadId);
+  expect(next.tasks).toContainEqual(expect.objectContaining({title:"Notes",threadId:next.threadId}));
+  expect((await (await request(token,"/api/bots")).json()).bots[0].threadId).toBe(next.threadId);
+  const { bot:previous } = await (await request(token,route+"/"+first.threadId,{})).json();
+  expect(previous.threadId).toBe(first.threadId);
+  expect((await request(await signIn("bob"),route,{})).status).toBe(404);
+});
+
+it("finishes an accepted native turn after the phone disconnects without charging its retry twice", async () => {
+  fixture.behavior.delay = 400;
+  const token = await signIn("alice");
+  fixture.grant("alice");
+  const { bots:[bot] } = await (await request(token,"/api/bots")).json();
+  const path = "/api/bots/" + bot.id + "/messages";
+  const body = { threadId:bot.threadId, text:"Hello", sendId:randomUUID() };
+  const controller = new AbortController();
+  const sending = fetch(fixture.url+path,{method:"POST",signal:controller.signal,
+    headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:JSON.stringify(body)}).catch(() => {});
+  await expect.poll(() => fixture.generations.length).toBe(1);
+  controller.abort();
+  await sending;
+  expect((await request(token,path,body)).status).toBe(200);
+  await expect.poll(async () => (await (await request(token,"/api/bots")).json()).bots[0].messages.at(-1)?.role).toBe("bot");
+  expect(fixture.generations).toHaveLength(1);
+});

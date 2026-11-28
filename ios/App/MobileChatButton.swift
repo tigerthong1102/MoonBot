@@ -32,6 +32,8 @@ private struct MobileEmailLogin: View {
     @Environment(\.dismiss) private var dismiss
     @State private var email = ""
     @State private var code = ""
+    @State private var handoffAvailable = false
+    @State private var allowDrafts = false
     @State private var saveHistory = false
     @State private var sent = false
     @State private var error: String?
@@ -45,6 +47,9 @@ private struct MobileEmailLogin: View {
                     .keyboardType(.emailAddress).textContentType(.emailAddress)
                     .disabled(sent || submitting)
                 if sent {
+                    if handoffAvailable {
+                        Toggle(isOn: $allowDrafts) { Text("Send desktop tasks to my receiving computer", tableName: "StartupBotMobile") }
+                    }
                     Toggle(isOn: $saveHistory) { Text("Save chats to my account", tableName: "StartupBotMobile") }
                     TextField(text: $code) { Text("Email code", tableName: "StartupBotMobile") }
                         .keyboardType(.numberPad).textContentType(.oneTimeCode)
@@ -68,10 +73,13 @@ private struct MobileEmailLogin: View {
                 do {
                     let address = email.trimmingCharacters(in: .whitespacesAndNewlines)
                     if sent {
-                        try await session.signInToMobile(connection, email: address, code: code)
+                        try await session.signInToMobile(connection, email: address, code: code, allowDrafts: allowDrafts)
                         dismiss()
                     } else {
-                        try await CompanionClient(connection: connection, token: nil).requestMobileCode(email: address)
+                        let response = try await CompanionClient(connection: connection, token: nil).requestMobileCode(email: address)
+                        handoffAvailable = response.desktopHandoff
+                        allowDrafts = false
+                        saveHistory = false
                         sent = true
                     }
                 } catch { if !Task.isCancelled { self.error = error.localizedDescription } }

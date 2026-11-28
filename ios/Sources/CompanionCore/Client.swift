@@ -490,7 +490,7 @@ public struct CompanionClient: Sendable {
         var request = URLRequest(url: url)
         request.httpShouldHandleCookies = false
         request.httpMethod = method
-        request.timeoutInterval = requestTimeout
+        request.timeoutInterval = token?.hasPrefix("sb_mobile_") == true && path.hasSuffix("/messages") && method == "POST" ? 120 : requestTimeout
         if let token {
             if token.hasPrefix("sb_mobile_"),
                connection.serverEnvironmentId != "startupbot-mobile:" + base.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) {
@@ -643,6 +643,7 @@ public struct CompanionClient: Sendable {
     }
 
     public struct MobileLogin: Decodable, Sendable {
+        public let connectionId: String
         public let token: String
         public let environment: ServerEnvironment
     }
@@ -653,15 +654,20 @@ public struct CompanionClient: Sendable {
         }
         var request = try makeRequest("POST", path, body: body)
         request.setValue(origin, forHTTPHeaderField: "Origin")
+        request.setValue("companion", forHTTPHeaderField: "X-StartupBot-Client")
         return request
     }
 
-    public func requestMobileCode(email: String) async throws {
-        try await send(mobileRequest("/mobile/code", body: ["email":email]))
+    public struct MobileCodeResponse: Decodable, Sendable {
+        public let desktopHandoff: Bool
     }
 
-    public func mobileLogin(email: String, code: String) async throws -> MobileLogin {
-        let request = try mobileRequest("/mobile/login", body: ["client":"companion", "email":email, "otp":code])
+    public func requestMobileCode(email: String) async throws -> MobileCodeResponse {
+        try await send(mobileRequest("/mobile/code", body: ["client":"companion", "email":email]), as: MobileCodeResponse.self)
+    }
+
+    public func mobileLogin(email: String, code: String, allowDrafts: Bool) async throws -> MobileLogin {
+        let request = try mobileRequest("/mobile/login", body: ["client":"companion", "email":email, "otp":code, "desktopDrafts":allowDrafts ? "allow" : "deny"])
         return try await send(request, as: MobileLogin.self)
     }
 

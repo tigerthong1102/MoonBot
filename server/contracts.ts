@@ -553,7 +553,7 @@ export interface TextGenerationOptions {
   model?: string;
   /** How long the caller will wait; drivers with their own process timer use it instead of their default. */
   timeoutMs?: number;
-  /** Refuse a private preview if the driver cannot disable tools and session persistence. */
+  /** Private previews require disabled tools and session persistence. OpenAI-compatible requests must reject redirects. */
   requireIsolatedText?: true;
   /** In a comparison run, honor the bot's normal reasoning selection, including driver defaults. */
   comparison?: { effort?: EffortLevel; variant?: string };

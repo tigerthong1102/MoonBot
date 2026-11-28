@@ -115,8 +115,6 @@ let boatSlowHold: Promise<void> | null = null;
 let managedBoatRows: Array<Record<string, unknown>> = [];
 let managedBoatListRowsOverride: Array<Record<string, unknown>> | null = null;
 let managedBoatListStatus = 200;
-let managedBoatStopDelayMs = 0;
-let managedBoatRenameDelayMs = 0;
 type DeferredGate = {
   wait: Promise<void>;
   release: () => void;
@@ -136,6 +134,8 @@ const deferredGate = (): DeferredGate => {
 };
 let managedBoatListGate: DeferredGate | null = null;
 let managedBoatCreateGate: DeferredGate | null = null;
+let managedBoatRenameGate: DeferredGate | null = null;
+let managedBoatStopGate: { boxId: string; gate: DeferredGate } | null = null;
 let managedBoatDeleteGate: DeferredGate | null = null;
 const managedBoatRejectedTokens = new Set<string>();
 const managedBoatCreateBodies: Array<Record<string, unknown>> = [];
@@ -1140,8 +1140,10 @@ beforeAll(async () => {
         let raw = "";
         for await (const chunk of req) raw += chunk;
         const requestedName = raw ? JSON.parse(raw).name : undefined;
-        if (managedBoatRenameDelayMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, managedBoatRenameDelayMs));
+        const renameGate = managedBoatRenameGate;
+        if (renameGate && boatMatch[1] === managedBoatCreateId) {
+          renameGate.enter();
+          await renameGate.wait;
         }
         if (managedBoatCreateMode === "fail-rename") {
           res.statusCode = 503;
@@ -1163,8 +1165,10 @@ beforeAll(async () => {
       }
       const stopMatch = requestUrl.pathname.match(/^\/sandboxes\/(bx_[23456789abcdefghjkmnpqrstuvwxyz]{8})\/stop$/);
       if (method === "POST" && stopMatch) {
-        if (managedBoatStopDelayMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, managedBoatStopDelayMs));
+        const stopping = managedBoatStopGate;
+        if (stopping && stopping.boxId === stopMatch[1]) {
+          stopping.gate.enter();
+          await stopping.gate.wait;
         }
         managedBoatRows = managedBoatRows.map((row) => row.id === stopMatch[1] ? { ...row, state: "archived" } : row);
         return res.end(JSON.stringify({ ok: true }));
@@ -4266,6 +4270,27 @@ describe("harness HTTP API", () => {
 
   it("lists sanitized cloud computers and requires explicit safe lifecycle actions", async () => {
     let botId = "";
+    async function whileStopping(boxId: string, sleepPath: string, verify: () => Promise<void>) {
+      const gate = deferredGate();
+      managedBoatStopGate = { boxId, gate };
+      const sleeping = api("POST", sleepPath, {});
+      try {
+        await Promise.race([
+          gate.entered,
+          sleeping.then(({ status }) => {
+            throw new Error(`Cloud computer sleep returned ${status} before reaching the Boat stop gate`);
+          }),
+        ]);
+        await verify();
+        gate.release();
+        expect((await sleeping).status).toBe(200);
+      } finally {
+        gate.release();
+        managedBoatStopGate = null;
+        await sleeping.catch(() => undefined);
+      }
+    }
+
     try {
       expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
       const bot = (await api("POST", "/api/bots")).body.bot;
@@ -4323,49 +4348,34 @@ describe("harness HTTP API", () => {
       });
       expect(nullConfirmation.status).toBe(400);
       boatRouteCalls.length = 0;
-      managedBoatStopDelayMs = 1_000;
-      const sleeping = api("POST", "/api/computers/boxes/bx_23456789/sleep", {});
-      await expect.poll(() => boatRouteCalls.some(
-        (call) => call.method === "POST" && call.path === "/sandboxes/bx_23456789/stop",
-      )).toBe(true);
-      const racedTurn = await api("POST", `/api/bots/${bot.id}/messages`, { text: "do not race deletion" });
-      expect(racedTurn.status).toBe(409);
-      expect(racedTurn.body.error).toMatch(/cloud computer is being changed/i);
-      expect((await api("POST", `/api/bots/${bot.id}/computer/provision`, {})).status).toBe(409);
-      expect((await api("POST", `/api/bots/${bot.id}/computer/control`, { action: "take" })).status).toBe(409);
-      expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(409);
-      expect((await sleeping).status).toBe(200);
-      managedBoatStopDelayMs = 0;
+      await whileStopping("bx_23456789", "/api/computers/boxes/bx_23456789/sleep", async () => {
+        const racedTurn = await api("POST", `/api/bots/${bot.id}/messages`, { text: "do not race deletion" });
+        expect(racedTurn.status).toBe(409);
+        expect(racedTurn.body.error).toMatch(/cloud computer is being changed/i);
+        expect((await api("POST", `/api/bots/${bot.id}/computer/provision`, {})).status).toBe(409);
+        expect((await api("POST", `/api/bots/${bot.id}/computer/control`, { action: "take" })).status).toBe(409);
+        expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(409);
+      });
       expect(boatRouteCalls).toContainEqual({ method: "POST", path: "/sandboxes/bx_23456789/stop" });
 
       boatRouteCalls.length = 0;
-      managedBoatStopDelayMs = 1_000;
-      const orphanSleep = api("POST", "/api/computers/boxes/bx_abcdefgh/sleep", {});
-      await expect.poll(() => boatRouteCalls.some(
-        (call) => call.method === "POST" && call.path === "/sandboxes/bx_abcdefgh/stop",
-      )).toBe(true);
-      const racedOrphanDelete = await api("POST", "/api/computers/boxes/bx_abcdefgh/delete", {
-        confirmName: orphanName,
+      await whileStopping("bx_abcdefgh", "/api/computers/boxes/bx_abcdefgh/sleep", async () => {
+        const racedOrphanDelete = await api("POST", "/api/computers/boxes/bx_abcdefgh/delete", {
+          confirmName: orphanName,
+        });
+        expect(racedOrphanDelete.status).toBe(409);
+        expect(racedOrphanDelete.body.error).toMatch(/cloud computer is being changed/i);
+        expect(managedBoatDeleteConfirmations.some(({ boxId }) => boxId === "bx_abcdefgh")).toBe(false);
       });
-      expect(racedOrphanDelete.status).toBe(409);
-      expect(racedOrphanDelete.body.error).toMatch(/cloud computer is being changed/i);
-      expect(managedBoatDeleteConfirmations.some(({ boxId }) => boxId === "bx_abcdefgh")).toBe(false);
-      expect((await orphanSleep).status).toBe(200);
-      managedBoatStopDelayMs = 0;
 
       expect((await api("PATCH", `/api/bots/${bot.id}`, { computer: "cloud", cloudBackend: "box" })).status).toBe(200);
       managedBoatRows = managedBoatRows.map((row) => row.id === "bx_23456789" ? { ...row, state: "idle" } : row);
-      managedBoatStopDelayMs = 1_000;
       boatRouteCalls.length = 0;
-      const botScopedSleep = api("POST", `/api/bots/${bot.id}/computer/sleep`, {});
-      await expect.poll(() => boatRouteCalls.some(
-        (call) => call.method === "POST" && call.path === "/sandboxes/bx_23456789/stop",
-      )).toBe(true);
-      expect((await api("POST", "/api/computers/boxes/bx_23456789/delete", {
-        confirmName: managedName,
-      })).status).toBe(409);
-      expect((await botScopedSleep).status).toBe(200);
-      managedBoatStopDelayMs = 0;
+      await whileStopping("bx_23456789", `/api/bots/${bot.id}/computer/sleep`, async () => {
+        expect((await api("POST", "/api/computers/boxes/bx_23456789/delete", {
+          confirmName: managedName,
+        })).status).toBe(409);
+      });
 
       const removed = await api("POST", "/api/computers/boxes/bx_23456789/delete", { confirmName: managedName });
       expect(removed.status).toBe(202);
@@ -4378,7 +4388,6 @@ describe("harness HTTP API", () => {
       managedBoatListStatus = 200;
       managedBoatListGate?.release();
       managedBoatListGate = null;
-      managedBoatStopDelayMs = 0;
       managedBoatRows = [];
       managedBoatDeleteConfirmations.length = 0;
       if (botId) await api("DELETE", `/api/bots/${botId}`).catch(() => undefined);
@@ -8680,6 +8689,8 @@ describe("harness HTTP API", () => {
 
   it("rejects a Boat token change while create and rename own the lifecycle lane", async () => {
     let botId = "";
+    let provisioning: ReturnType<typeof api> | undefined;
+    const renameGate = deferredGate();
     try {
       managedBoatRows = [];
       expect((await api("PUT", "/api/config", { box: { token: "box_route" } })).status).toBe(200);
@@ -8689,18 +8700,22 @@ describe("harness HTTP API", () => {
       managedBoatCreateMode = "success";
       managedBoatCreateId = "bx_fghjkmnp";
       managedBoatCreateName = managedBoatNameForFixture(bot.id);
-      managedBoatRenameDelayMs = 1_000;
+      managedBoatRenameGate = renameGate;
       boatRouteCalls.length = 0;
 
-      const provisioning = api("POST", `/api/bots/${bot.id}/computer/provision`, {});
-      await expect.poll(() => boatRouteCalls.some(
-        (call) => call.method === "PATCH" && call.path === `/sandboxes/${managedBoatCreateId}`,
-      )).toBe(true);
+      provisioning = api("POST", `/api/bots/${bot.id}/computer/provision`, {});
+      await Promise.race([
+        renameGate.entered,
+        provisioning.then(({ status }) => {
+          throw new Error(`Bot provisioning returned ${status} before reaching the Boat rename gate`);
+        }),
+      ]);
       const racedChange = await api("PUT", "/api/config", { box: { token: "box_good" } });
       expect(racedChange.status).toBe(409);
       expect(racedChange.body.error).toMatch(/cloud computer actions/i);
+      renameGate.release();
       expect((await provisioning).status).toBe(200);
-      managedBoatRenameDelayMs = 0;
+      provisioning = undefined;
 
       expect((await api("POST", `/api/computers/boxes/${managedBoatCreateId}/delete`, {
         confirmName: managedBoatCreateName,
@@ -8708,7 +8723,9 @@ describe("harness HTTP API", () => {
       expect((await api("DELETE", `/api/bots/${bot.id}`)).status).toBe(200);
       botId = "";
     } finally {
-      managedBoatRenameDelayMs = 0;
+      renameGate.release();
+      managedBoatRenameGate = null;
+      await provisioning?.catch(() => undefined);
       managedBoatCreateMode = "refuse";
       managedBoatCreateId = "bx_cdefghjk";
       managedBoatCreateName = "";
@@ -9308,6 +9325,11 @@ describe("harness HTTP API", () => {
       const messages = async (): Promise<Msg[]> =>
         (await api("GET", "/api/bots?messages=40")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id).messages;
 
+      await expect.poll(async () => {
+        const { body } = await api("GET", `/api/threads/${bot.threadId}/events`);
+        return (body as InspectorPage).entries.some(entry => entry.kind === "runtime" &&
+          entry.data.type === "session.started" && entry.data.model === "claude-haiku-4-5");
+      }, { timeout: 5_000 }).toBe(true);
       const first = raise("ask-wc", "wc -l notes.md");
       const card = await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")?.card).toBeTruthy()
         .then(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")!.card!);

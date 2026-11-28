@@ -87,6 +87,7 @@ export async function startMobileFixture({ mobileOrigin = "https://mobile.exampl
       return Response.json({ key:randomUUID(), data:{ hash:randomUUID() } });
     }
     if (!url.pathname.endsWith("/chat/completions")) throw Error("Unexpected fixture route");
+    if (behavior.chatRejection) return Response.json({ error:"rejected" }, { status:behavior.chatRejection });
     generations.push(body);
     behavior.chatKeys.push(new Headers(init.headers).get("authorization"));
     const id = "gen-" + randomUUID(), encoder = new TextEncoder();

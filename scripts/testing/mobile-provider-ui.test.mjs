@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { mobileCatalog } from "../../apps/ai-pilot/mobile-catalog.mjs";
+import { mobileCatalog, renderMobilePage } from "../../apps/ai-pilot/mobile-catalog.mjs";
 import html from "../../apps/ai-pilot/mobile.html?raw";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -9,7 +9,8 @@ const idle = () => vi.waitFor(() => expect(el("send").disabled).toBe(false));
 async function open(path, connected) {
   vi.resetModules();
   history.replaceState(null, "", path);
-  document.body.innerHTML = html.split("<body>")[1].split("<script")[0];
+  document.documentElement.lang = "en";
+  document.body.innerHTML = renderMobilePage(html, mobileCatalog("en")).split("<body>")[1].split('<script type="module"')[0];
   vi.stubGlobal("BroadcastChannel", undefined);
   vi.stubGlobal("Option", function Option(text, value) {
     const node = document.createElement("option");
@@ -19,7 +20,6 @@ async function open(path, connected) {
   });
   const requests = [];
   vi.stubGlobal("fetch", async (url, init) => {
-    if (url.startsWith("/mobile/messages?")) return Response.json(mobileCatalog("en"));
     if (url === "/mobile/threads") return Response.json({ account:"fixture", threads:[], provider:{ enabled:true, connected } });
     if (url === "/mobile/provider/complete") return Response.json({ error:{ code:"provider_denied" } }, { status:400 });
     if (url === "/mobile/provider/disconnect") { connected = false; return Response.json({ ok:true }); }

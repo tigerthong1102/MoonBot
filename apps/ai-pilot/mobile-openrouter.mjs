@@ -15,6 +15,10 @@ export function mobileOpenRouter(ledger, settings, http) {
       sealed BLOB NOT NULL,keyHash TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS mobile_byok_usage(owner TEXT NOT NULL,id TEXT NOT NULL,created INTEGER NOT NULL,
       model TEXT NOT NULL,keyHash TEXT NOT NULL,reserved INTEGER NOT NULL,cost INTEGER,generation TEXT,input INTEGER,output INTEGER,PRIMARY KEY(owner,id));
+    CREATE TABLE IF NOT EXISTS mobile_byok_rejections(owner TEXT NOT NULL,id TEXT NOT NULL,created INTEGER NOT NULL,
+      keyHash TEXT NOT NULL,model TEXT NOT NULL,fingerprint TEXT NOT NULL,httpStatus INTEGER NOT NULL CHECK(httpStatus IN (402,429)));
+    CREATE INDEX IF NOT EXISTS mobile_byok_rejected_time ON mobile_byok_rejections(owner,created);
+    CREATE INDEX IF NOT EXISTS mobile_byok_rejected_request ON mobile_byok_rejections(owner,id);
     CREATE INDEX IF NOT EXISTS mobile_byok_time ON mobile_byok_usage(owner,created);
     CREATE TABLE IF NOT EXISTS mobile_byok_threads(owner TEXT NOT NULL,thread TEXT NOT NULL,keyHash TEXT NOT NULL,PRIMARY KEY(owner,thread),
       FOREIGN KEY(owner,thread) REFERENCES mobile_threads(owner,id) ON DELETE CASCADE);
@@ -66,6 +70,7 @@ export function mobileOpenRouter(ledger, settings, http) {
     const key = settings.openRouterOAuth && personal.get(session.hash);
     if (!key) throw new Fault(409, "provider_disconnected");
     const request = boundedRequest(body, config, session.owner), reserve = maximumCost(request, config);
+    const fingerprint = digest(JSON.stringify(request));
     const now = Date.now(), day = new Date(now);
     day.setUTCHours(0,0,0,0);
     const bearer = session.open("openrouter-key", key.sealed);
@@ -74,7 +79,10 @@ export function mobileOpenRouter(ledger, settings, http) {
       if (db.prepare("SELECT 1 FROM mobile_byok_usage WHERE owner=? AND id=?").get(session.owner, id))
         throw new Fault(409, "request_exists");
       const exposure = db.prepare("SELECT coalesce(sum(coalesce(cost,reserved)),0) n FROM mobile_byok_usage WHERE owner=? AND created>=?").get(session.owner, +day).n;
-      const recent = db.prepare("SELECT count(*) n FROM mobile_byok_usage WHERE owner=? AND created>=?").get(session.owner, now-60000).n;
+      const prior = db.prepare("SELECT keyHash,fingerprint FROM mobile_byok_rejections WHERE owner=? AND id=? LIMIT 1").get(session.owner,id);
+      if (prior && (prior.fingerprint !== fingerprint || prior.keyHash !== key.keyHash)) throw new Fault(409, "request_conflict");
+      const recent = db.prepare(`SELECT (SELECT count(*) FROM mobile_byok_usage WHERE owner=:owner AND created>=:since)
+        + (SELECT count(*) FROM mobile_byok_rejections WHERE owner=:owner AND created>=:since) AS n`).get({ owner:session.owner, since:now-60000 }).n;
       if (recent >= 10) throw new Fault(429, "account_rate_limit");
       if (exposure + reserve > 250000) throw new Fault(429, "provider_daily_limit");
       db.prepare("INSERT INTO mobile_byok_usage(owner,id,created,model,keyHash,reserved) VALUES (?,?,?,?,?,?)")
@@ -85,7 +93,15 @@ export function mobileOpenRouter(ledger, settings, http) {
       headers:{ authorization:"Bearer " + bearer, "content-type":"application/json" },
       body:JSON.stringify({ ...request, stream:true }) });
     if (!response.ok) {
-      if ([400,401,402,403,404,413,422,429].includes(response.status))
+      if (response.status === 402 || response.status === 429) {
+        ledger.tx(() => {
+          db.prepare("INSERT INTO mobile_byok_rejections(owner,id,created,keyHash,model,fingerprint,httpStatus) VALUES (?,?,?,?,?,?,?)")
+            .run(session.owner,id,now,key.keyHash,config.model,fingerprint,response.status);
+          db.prepare("DELETE FROM mobile_byok_usage WHERE owner=? AND id=?").run(session.owner,id);
+        });
+        throw new Fault(response.status, "provider_connection_failed");
+      }
+      if ([400,401,403,404,413,422].includes(response.status))
         db.prepare("UPDATE mobile_byok_usage SET cost=0 WHERE owner=? AND id=?").run(session.owner,id);
       throw new Fault(503, "provider_connection_failed");
     }

@@ -57,8 +57,10 @@ try {
 } finally {
   await vite.close();
 }
+await writeFile(new URL("./public/inbox-select-template.js", import.meta.url),
+  "export const selectMarkup = " + JSON.stringify(selectMarkup) + ";\n");
 await writeFile(new URL("./public/inbox-messages.js", import.meta.url), [
-  ["messages", messages], ["languageNames", languageNames], ["selectMarkup", selectMarkup],
+  ["messages", messages], ["languageNames", languageNames],
 ].map(([name, value]) => "export const " + name + " = " + JSON.stringify(value) + ";").join("\n") + "\n");
 
 

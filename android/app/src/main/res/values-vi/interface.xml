@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="mobile_chat_subtitle">Soạn nội dung, dịch hoặc đặt câu hỏi ngay trên điện thoại.</string>
-    <string name="mobile_standalone_chat">Chat không cần máy tính</string>
-    <string name="mobile_browser_unavailable">Hãy cài trình duyệt để mở hội thoại.</string>
     <string name="ui_1_open_startupbot_settings_phone">1.  Mở StartupBot → Cài đặt → Điện thoại</string>
     <string name="ui_1_row">1 hàng</string>
     <string name="ui_1_step">1 bước</string>

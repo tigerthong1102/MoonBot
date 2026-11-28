@@ -17,7 +17,6 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            MobileChatButton()
             if let origin = PersonalInboxView.origin {
                 NavigationLink {
                     PersonalInboxView(origin: origin).navigationTitle("Messages").navigationBarTitleDisplayMode(.inline)
@@ -50,6 +49,7 @@ struct SettingsView: View {
                 }
             }
 
+            MobileChatButton()
             Section {
                 if notificationsAreEnabled {
                     notificationRow

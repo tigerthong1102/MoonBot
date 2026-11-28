@@ -23,7 +23,7 @@ struct MobileChatButton: View {
     var body: some View {
         if let address {
             Button { presenting = true } label: {
-                Label("Chat without a computer", systemImage: "bubble.left.and.bubble.right")
+                Label { Text("Chat without a computer", tableName: "StartupBotMobile") } icon: { Image(systemName: "bubble.left.and.bubble.right") }
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)

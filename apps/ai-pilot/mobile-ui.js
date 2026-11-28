@@ -208,17 +208,22 @@ async function openChat() {
   el("prompt").placeholder = t("message");
   el("chat").hidden = el("logout").hidden = false;
   el("login").hidden = true;
-  const existing = threads.some(item => item.id === thread) ? thread : threads[0]?.id;
-  try { await show(thread && newThread === thread ? "" : existing || ""); }
-  catch (error) { el("retry").hidden = false; throw error; }
   if (callback) {
     const authorization = callback;
     callback = null;
-    await api("provider/complete", { code:authorization.get("code"), state:authorization.get("state") });
-    await list();
-    el("tools").open = el("providers").open = true;
+    try {
+      await api("provider/complete", { code:authorization.get("code"), state:authorization.get("state") });
+      el("tools").open = el("providers").open = true;
+      threads = await list();
+    } catch (error) {
+      if (!account) throw error;
+      el("retry").hidden = false;
+      status(error.message);
+    }
   }
-
+  const existing = threads.some(item => item.id === thread) ? thread : threads[0]?.id;
+  try { await show(thread && newThread === thread ? "" : existing || ""); }
+  catch (error) { el("retry").hidden = !account; throw error; }
 }
 el("login").onsubmit = event => {
   event.preventDefault();
@@ -344,6 +349,7 @@ el("compose").onsubmit = event => {
     status(t("waiting"));
     try {
       const response = await api("send", { thread, id, prompt, provider, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
+      if (newThread === thread) newThread = undefined;
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
       if (el("prompt").value === submitted) el("prompt").value = "";
       const history = el("history");
@@ -378,6 +384,7 @@ el("compose").onsubmit = event => {
       status(notice, [reply, notice].filter(Boolean).join("\n"));
     } catch (error) {
       if (error.code !== "request_exists") throw error;
+      if (newThread === thread) newThread = undefined;
       await loadHistory(true);
       if (el("prompt").value === submitted) el("prompt").value = "";
       pending = undefined;

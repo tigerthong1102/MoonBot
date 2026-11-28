@@ -1,6 +1,6 @@
 # StartupBot Mobile Standalone — báo cáo cho founder
 
-Ngày 28/11/2026. Phạm vi gồm sáu draft PR. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
+Ngày 28/11/2026. Phạm vi gồm sáu PR, từ #124 đến #129. PR #128 bổ sung quản lý phiên và kiểm soát chi phí sau lần đọc lại toàn bộ đặc tả. [Đối chiếu đủ 36 mục, 128 ca A–L và Definition of Done](mobile-standalone-requirements.md). **GO cho kiểm thử nội bộ bằng dữ liệu giả. NO-GO cho public beta và production.** Người dùng trên bản phát hành hiện tại chưa nhận được thay đổi.
 
 ## A. Người dùng làm được gì?
 
@@ -19,6 +19,8 @@ Sáu dòng gọi nút là toàn bộ phần chênh ở bốn file màn hình nat
 ### Audit trước khi merge
 
 Ở bản tích hợp `bb28e4311`, 70 test gateway, ví, OpenRouter, locale và tương tác giao diện đạt, cùng với lint và typecheck. Các ca ở vòng này có giao với số 2.489 ở vòng trước. Hai trình duyệt đều giữ được nội dung gõ khi đang chờ trả lời, lưu nháp khi mất mạng và theo được tin trả lời cho một câu hỏi nhiều dòng. Các test bổ sung kiểm tra gửi lại sau khi đã ghi nhận cùng yêu cầu, từ chối kết nối OpenRouter, đổi bên chi trả và nối tiếp câu trả lời bị giới hạn đầu ra.
+
+Hai lỗi được tái hiện trong vòng review sau khi đồng bộ với main. Khi tải lịch sử lỗi, luồng kết nối OpenRouter có thể bỏ qua callback. Khi lần gửi đầu tiên thành công nhưng tải lại danh sách lỗi, nút tạo hội thoại có thể dùng lại ID cũ. Kiểm thử hồi quy kiểm tra kết nối nhà cung cấp sau khi mạng phục hồi và ID riêng cho tin nhắn đầu tiên trong hội thoại kế tiếp.
 
 Với Better Auth và D1 chạy trong workerd, hai mã OTP qua hộp thư cục bộ đã tạo hai phiên độc lập. Sau khi đăng xuất phiên ví trực tiếp ở issuer, cùng bearer từ HTTP 200 chuyển sang 401 ở gateway. Phiên chat ở điện thoại vẫn nhận 200, sau đó trả 401 khi người dùng đăng xuất riêng phiên đó. Provider AI vẫn là fixture. Phiên ví email thiếu thông tin xác minh từ issuer cần đăng nhập lại một lần.
 
@@ -122,7 +124,7 @@ Lợi thế sản phẩm cần kiểm chứng là từ một bản nháp hay k�
 
 Local AI là một runtime khác, cần kiểm tra khả năng thiết bị, RAM, tốc độ, pin, dung lượng model, giấy phép từng bộ trọng số và chất lượng tiếng Việt. Có thể đánh giá Foundation Models trên thiết bị Apple đủ điều kiện và LiteRT-LM trên Android trước khi chọn. Luồng Mobile hiện tại không hứa làm việc offline. [Apple Foundation Models](https://developer.apple.com/documentation/foundationmodels) · [Google LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM)
 
-**GO nội bộ** với dữ liệu giả, hạn mức đã cấu hình và môi trường cô lập. **NO-GO public beta** do thiếu live-provider/thiết bị, xóa account, chính sách dữ liệu và xác minh OTP theo tải. **NO-GO production** cho tới khi vượt các cổng beta, hoàn tất restore/monitoring, đối soát thương mại, kiểm tra toàn bộ CI cần thiết và được founder phê duyệt. Không có thay đổi production hoặc merge vào main trong nhiệm vụ này.
+**GO nội bộ** với dữ liệu giả, hạn mức đã cấu hình và môi trường cô lập. **NO-GO public beta** do thiếu live-provider/thiết bị, xóa account, chính sách dữ liệu và xác minh OTP theo tải. **NO-GO production** cho tới khi vượt các cổng beta, hoàn tất restore/monitoring, đối soát thương mại, kiểm tra toàn bộ CI cần thiết và được founder phê duyệt. Quyết định merge mã nguồn vào main và quyết định bật tính năng cho khách hàng có hai cổng nghiệm thu riêng. Cờ pilot mặc định tắt.
 
 ## Kết quả sau khi đọc lại đặc tả
 

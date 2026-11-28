@@ -59,6 +59,8 @@ app
       if (dialogs === 0) {
         assert.ok(opts.detail.includes(expectedFingerprint));
         assert.ok(opts.message.includes("fingerprint"));
+      } else if (cfg.generated) {
+        for (const field of [cfg.endpoint, "fixture-model", cfg.room, cfg.origin, "5", "charges"]) assert.ok(opts.detail.includes(field), field);
       } else {
         assert.ok(cfg.exact);
         for (const field of [cfg.question, cfg.answer, cfg.room, cfg.origin])
@@ -92,7 +94,7 @@ app
         system: () => "en",
       }).t,
       localRequest: (p, init) =>
-        fetch(cfg.local + p, { ...init, headers: { "x-openmausbot-desktop-owner": cfg.ownerToken } }),
+        fetch(cfg.local + p, { ...init, headers: { ...init?.headers, "x-openmausbot-desktop-owner": cfg.ownerToken } }),
     }).install(ipcMain, local.localOnly, (e) => {
       assert.equal(e.sender, d.webContents);
       assert.equal(e.senderFrame, e.sender.mainFrame);
@@ -127,6 +129,9 @@ app
     assert.equal(dialogs, 1);
     await b.webContents.executeJavaScript('document.getElementById("twin-pair-confirm").click()');
     await until(b, 'document.querySelector("#twin-pair-active li")?.textContent');
+    if (cfg.generated) {
+      await require("./twin-generated-ui.cjs")({ d, b, mobile, cfg, until, delay, BrowserWindow, assert });
+    }
     if (cfg.exact) {
       await b.webContents.executeJavaScript(
         "const exactRealNow=Date.now; Date.now=()=>exactRealNow()+86400000;void 0;",

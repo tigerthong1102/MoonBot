@@ -1,3 +1,4 @@
+import { generatedStatus, recoverGenerated } from "./twin-online-generated.mjs";
 import { readExactStatus,recoverExact } from "./twin-online-exact.mjs";
 import { exactReplyJournal } from "./twin-exact-journal.mjs";
 import { createTwinInboxPairing } from "./twin-inbox-pairing.mjs";
@@ -195,6 +196,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
     }
     let pairing, disposePairing;
     const exactJournal = exactReplyJournal(path.join(app.getPath("userData"), "pending-exact-replies"));
+    const generatedJournal = exactReplyJournal(path.join(app.getPath("userData"), "pending-generated-replies"));
     function accountRequest(base, current) {
       const account = session.fromPartition(partition);
       return async (route, data) => {
@@ -214,13 +216,13 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
         return response.json();
       };
     }
-    function standalone() {
+    function standalone(journal = exactJournal) {
       const win = window(),
         base = origin();
       if (!base || new URL(base).protocol !== "https:" || !isLocal(win)) throw Error("exact_reply_unavailable");
       return {
         origin: base,
-        journal: exactJournal,
+        journal,
         inbox: accountRequest(base, () => !win.isDestroyed() && isLocal(win) && origin() === base),
       };
     }
@@ -244,7 +246,25 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
         return response.json();
       };
       const instance = createTwinInboxPairing({
-        exactJournal,
+        exactJournal, generatedJournal,
+        generatedProfile: () => localView("/api/ai-twin/inbox-generated"),
+        generate: async (body, signal) => {
+          if (!current()) throw Error("generated_reply_unavailable");
+          const res = await localRequest("/api/ai-twin/inbox-generated", { method: "POST", cache: "no-store", signal,
+            headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+          if (!res.ok || !current()) throw Error("generated_reply_unavailable");
+          return res.json();
+        },
+        approveGenerated: async ({ grant, chosen }) => {
+          const p = grant.provider;
+          const consent = await dialog.showMessageBox(win, {
+            type: "question", message: translate("personalInbox.generatedTitle"),
+            detail: [translate("personalInbox.generatedTerms"), p.name, p.model, p.destination,
+              grant.origin, grant.owner, ...chosen.map(r => r.title + " (" + r.id + ")"), new Date(grant.expires).toLocaleString()].join("\n\n"),
+            buttons: [translate("native.common.cancel"), translate("personalInbox.generatedOffer")], defaultId: 0, cancelId: 0,
+          });
+          return consent.response === 1;
+        },
         approveExact: async ({ grant, all, chosen }) => {
           const roomNames = all
             ? translate("personalInbox.exactAll")
@@ -299,6 +319,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       const dispose = () => {
         instance.reset();
         void instance.exact.recover().catch(() => {});
+        if (generatedJournal.hasPending()) void instance.generated.recover().catch(() => {});
         clearTimeout(timer);
         clearInterval(poll);
         win.removeListener("closed", dispose);
@@ -314,7 +335,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       const leaving = (_event, _url, isInPlace, isMainFrame) => {
         if (isMainFrame && !isInPlace) dispose();
       };
-      const poll = setInterval(() => void instance.exact.tick(), 1500);
+      const poll = setInterval(() => { void instance.exact.tick(); void instance.generated.tick(); }, 1500);
       poll.unref();
       const timer = setTimeout(dispose, 600_000);
       timer.unref();
@@ -328,6 +349,27 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
         dispose();
         throw error;
       }
+    });
+    async function readGeneratedStatus() {
+      if (pairing) return pairing.generated.status();
+      const ctx = standalone(generatedJournal);
+      return generatedStatus(ctx.inbox, await recoverGenerated(ctx));
+    }
+    handle("personal-inbox:twin-generated-status", async () => {
+      try { return await readGeneratedStatus(); }
+      catch (error) { if (generatedJournal.hasPending()) return { available: false, pendingRecovery: true }; throw error; }
+    });
+    handle("personal-inbox:twin-generated-choices", () => pairing?.generated.choices() ?? Promise.reject(Error("generated_reply_unavailable")));
+    handle("personal-inbox:twin-generated-offer", (_e, provider, rooms) => pairing?.generated.offer(provider, rooms) ?? false);
+    handle("personal-inbox:twin-generated-stop", async (_e, target) => {
+      pairing?.generated.reset();
+      const ctx = standalone(generatedJournal), me = await recoverGenerated(ctx);
+      if (target) {
+        if (target.owner !== me.id || typeof target.id !== "string") throw Error("generated_reply_unavailable");
+        const receipt = await ctx.inbox("twin-generated", { action: "revoke", owner: me.id, id: target.id });
+        if (receipt.id !== target.id || receipt.revoked !== true) throw Error("generated_reply_unavailable");
+      }
+      return readGeneratedStatus();
     });
     handle(
       "personal-inbox:twin-exact-choices",

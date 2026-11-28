@@ -1,0 +1,78 @@
+import { strict as assert } from "node:assert";
+import { test } from "node:test";
+import { createHash, generateKeyPairSync, randomUUID, verify } from "node:crypto";
+import { createOnlineGenerated } from "./twin-online-generated.mjs";
+import { generatedGrantMessage, generatedPostMessage } from "./twin-generated-message.mjs";
+import { generatedComposerNotice } from "../cloudflare/control-plane/inbox/public/twin-generated-notice.js";
+
+function fixture(t, overrides = {}) {
+  const provider = { key: randomUUID(), name: "Fixture", model: "fixture", destination: "http://127.0.0.1:19100" };
+  const origin = "https://inbox.example.test", now = 100000;
+  const pair = generateKeyPairSync("ed25519");
+  const key = { origin, key: pair.privateKey, id: randomUUID(), owner: randomUUID(), twin: randomUUID(), revision: 1, expires: now + 90000, deadline: 90000 };
+  const room = { id: randomUUID(), ref: randomUUID(), title:"Fixture", kind:"group" };
+  const job = { source:4, room:room.id, nonce:randomUUID(), expires:now + 45000 };
+  const question = "Is the fixture open?", inputHash = createHash("sha256").update(question).digest("hex");
+  let grant, generations = 0, elapsed = 0, central = true;
+  const records = new Map(), calls = [];
+  const inbox = async (path, data) => {
+    if (path === "me") return { id:key.owner, generatedAnswer:true };
+    if (path.endsWith("?rooms=1")) return { owner:key.owner, rooms:[room] };
+    calls.push(data);
+    switch (data.action) {
+      case "offer":
+        grant = {...data, twin:key.twin, revision:key.revision, origin};
+        assert(verify(null, Buffer.from(generatedGrantMessage(grant)), pair.publicKey, Buffer.from(data.signature, "hex")));
+        return {id:data.id,offered:true};
+      case "claim": return {now,challenge:job};
+      case "dispatch": return {question,inputHash,...overrides.dispatch};
+      case "check": return {active:central};
+      case "finish":
+        assert(verify(null, Buffer.from(generatedPostMessage({...grant,...job,inputHash,answer:data.answer})),
+          pair.publicKey, Buffer.from(data.signature,"hex")));
+        return {published:true,source:job.source};
+      case "revoke": return {id:data.id,revoked:true};
+      default: throw Error("unexpected action");
+    }
+  };
+  const service = createOnlineGenerated({state:()=>key,check:async()=>{},profile:async()=>({twin:{id:key.twin,revision:key.revision,paused:false},provider}),
+    generate:async (data, signal) => { generations++; assert.deepEqual(data,{id:key.twin,revision:key.revision,key:provider.key,question,job:job.nonce,useProvider:true});
+      return overrides.generate ? overrides.generate(signal) : {answer:"Fixture open."}; }, inbox, origin, approve:overrides.approve ?? (async()=>true),
+    journal:{add:r=>records.set(r.id,r),remove:r=>records.delete(r.id),list:()=>[...records.values()]},monotonic:()=>elapsed});
+  t.after(()=>service.reset());
+  return {service,provider,room,job,calls,records,generations:()=>generations,elapsed:n=>{elapsed=n;},revoke:()=>{central=false;}, offer:()=>service.offer({...provider},[room.ref])};
+}
+
+test("signs an explicitly authorized short-lived generated reply and never generates twice for its source", async t => {
+  const f=fixture(t);
+  await assert.rejects(f.service.offer(f.provider,["*"])); await assert.rejects(f.service.offer({...f.provider,model:"another"},[f.room.ref]));
+  assert.equal(f.calls.length,0); await f.offer(); await f.service.tick(); await f.service.tick();
+  assert.equal(f.generations(),1); assert.equal(f.calls.filter(c=>c.action==="finish").length,1);
+});
+
+test("a mismatched input hash, selected room, or expired challenge prevents provider dispatch", async t => {
+  for(const mode of ["hash","room","expired"]){
+    const f=fixture(t, mode==="hash"?{dispatch:{inputHash:"0".repeat(64)}}:{}); await f.offer();
+    if(mode==="room") f.job.room=randomUUID(); if(mode==="expired") f.job.expires=99999;
+    await f.service.tick(); assert.equal(f.generations(),0);assert.equal(f.records.size,0);
+  }
+});
+
+for (const reason of ["stop","revoke","model","expiry"]) test("discards an in-flight generated answer after " + reason, async t => {
+  const started=Promise.withResolvers(), release=Promise.withResolvers(); let sent;
+  const f=fixture(t,{generate:async signal=>{sent=signal; started.resolve();await release.promise;return {answer:"Must stay private."};}});
+  await f.offer();const pending=f.service.tick();await started.promise;
+  if(reason==="stop"){f.service.reset();assert(sent.aborted);} if(reason==="revoke")f.revoke();
+  if(reason==="model") f.provider.model="new-model"; if(reason==="expiry")f.elapsed(50000);
+  release.resolve();await pending; assert.equal(f.calls.some(c=>c.action==="finish"),false);
+});
+
+test("an Inbox notice cannot authorize a prior draft, another grant or another room", async () => {
+  const box={hidden:true,textContent:""},draft=Object.assign(new EventTarget(),{value:""}), input=s=>{draft.value=s;draft.dispatchEvent(new Event("input"));};
+  let room="one",next={id:"grant1",provider:{name:"Fixture",model:"M",destination:"https://model.example"}};
+  const notice=generatedComposerNotice({api:async()=>({notice:next}),me:()=>({id:"sender",generatedAnswer:true}),room:()=>room,el:id=>id==="draft"?draft:box,t:()=>next.provider.destination});
+  input("already typed");await notice.refresh();assert.equal(notice.forDraft(),undefined);
+  input("");input("informed");assert.equal(notice.forDraft(),"grant1");
+  next={...next,id:"grant2"};await notice.refresh();assert.equal(notice.forDraft(),undefined);
+  input("");input("again");assert.equal(notice.forDraft(),"grant2");room="two";assert.equal(notice.forDraft(),undefined);
+});

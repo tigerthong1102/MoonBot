@@ -19,11 +19,12 @@ const { launchVerificationServer } = await import(join(root, "scripts/control-om
 const scratch = mkdtempSync(join(tmpdir(), "sb-pair-ux-")),
   ownerToken = randomBytes(32).toString("base64url");
 const exact = process.argv.includes("--exact");
+const generated = process.argv.includes("--generated");
 const all = (path) => readFileSync(path, "utf8");
 const executable = process.env.PAIR_FIXTURE_ELECTRON ?? require("electron");
 assert.match(basename(executable), /^electron(?:\.exe)?$/i, "Expected an Electron runtime");
 assert.ok(existsSync(executable), "Install Electron or set PAIR_FIXTURE_ELECTRON");
-let fixture, mf, server, desktopServer, electron;
+let fixture, mf, server, desktopServer, electron, providerServer;
 try {
   const keyPath = join(scratch, "key.pem"),
     certPath = join(scratch, "cert.pem");
@@ -135,6 +136,7 @@ try {
         BETTER_AUTH_SECRET: randomBytes(32).toString("hex"),
         INBOX_PILOT_EMAILS: "owner@example.test,peer@example.test",
         ...(exact && { INBOX_EXACT_ANSWER: "1" }),
+        ...(generated && { INBOX_GENERATED_ANSWER: "1" }),
         EMAIL_FROM: "service@example.test",
       },
       serviceBindings: {
@@ -178,9 +180,9 @@ try {
   }
   const cookies = [await login(), await login(), await login()];
   const room = randomUUID(),
-    question = "When is lunch?",
-    answer = "At noon.";
-  if (exact) {
+    question = generated ? "What color is the synthetic invoice?" : "When is lunch?",
+    answer = generated ? "The fixture invoice is turquoise." : "At noon.";
+  if (exact || generated) {
     cookies.push(await login("peer@example.test"));
     const cookie = cookies[0].name + "=" + cookies[0].value;
     assert.equal(
@@ -189,10 +191,35 @@ try {
       200,
     );
   }
+  let endpoint, generations = 0;
+  if (generated) {
+    providerServer = createHttp(async (req, res) => {
+      res.setHeader("Content-Type", "application/json");
+      if (req.method === "GET" && req.url === "/v1/models") {
+        res.end(JSON.stringify({ object: "list", data: [{ id: "fixture-model", object: "model" }] }));
+        return;
+      }
+      if (req.method !== "POST" || req.url !== "/v1/chat/completions") { res.writeHead(404).end(); return; }
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks));
+      const containsQuestion = JSON.stringify(body.messages).includes(question);
+      if (containsQuestion) {
+        generations++;
+        if (body.model !== "fixture-model" || body.tools?.length || body.messages.some(m => m.role === "tool")) {
+          res.writeHead(400).end(); return;
+        }
+      }
+      res.end(JSON.stringify({ id: "fixture", model: "fixture-model", object: "chat.completion",
+        choices: [{ index: 0, message: { role: "assistant", content: containsQuestion ? answer : "Ready." }, finish_reason: "stop" }] }));
+    });
+    await new Promise(r => providerServer.listen(0, "127.0.0.1", r));
+    endpoint = "http://127.0.0.1:" + providerServer.address().port;
+  }
   fixture = await launchVerificationServer({
     OMB_TEST_DESKTOP_OWNER_TOKEN: ownerToken,
     OMB_DEV_TRUST_LOCAL_BROWSER: "0",
-  });
+  }, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, endpoint);
   async function twin(method = "GET", body, suffix = "") {
     return fetch(fixture.info.url + "/api/ai-twin" + suffix, {
       method,
@@ -253,6 +280,7 @@ try {
       cookies,
       ownerToken,
       exact,
+      generated, endpoint,
       room,
       question,
       answer,
@@ -299,10 +327,13 @@ try {
   } finally {
     clearTimeout(timer);
   }
+  if (generated) assert.equal(generations, 1, "One provider call for the disclosed question");
   console.log(
     "PASS: three fixture windows, separate OTP sessions, isolated workspace, Worker and D1. Native dialog arguments checked with a scripted response.",
   );
 } finally {
+  providerServer?.closeAllConnections();
+  providerServer?.close();
   electron?.kill();
   desktopServer?.closeAllConnections();
   desktopServer?.close();

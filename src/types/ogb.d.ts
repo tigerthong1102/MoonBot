@@ -138,11 +138,15 @@ const __APP_VERSION__: string;
       };
       openPersonalInbox?: () => Promise<void>;
       personalInbox?: {
+        generatedChoices?(): Promise<{rooms:{id:string;kind:string;title:string;ref:string}[];provider:{key:string;name:string;model:string;destination:string}}>;
+        offerGenerated?(provider:{key:string;name:string;model:string;destination:string},rooms:string[]): Promise<boolean>;
+        stopGenerated?(target?:{owner:string;id:string}): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number;count:number}|null}>;
+        generatedStatus?(): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number;count:number}|null}>;
         exactChoices?(): Promise<{rooms:{id:string;kind:string;title:string;ref:string}[];lessons:{id:string;question:string}[]}>;
         offerExact?(lesson:string,rooms:string[]): Promise<boolean>;
         stopExact?(target?:{owner:string;id:string}): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number}|null}>;
         exactStatus?(): Promise<{available:boolean;pendingRecovery?:boolean;owner?:string;local?:boolean;remote?:{id:string;enabled:boolean;expires:number}|null}>;
-        startTwinPairing?(): Promise<{ id:string; fingerprint:string; origin:string; expires:number; exactAvailable?:boolean }>;
+        startTwinPairing?(): Promise<{ id:string; fingerprint:string; origin:string; expires:number; exactAvailable?:boolean; generatedAvailable?:boolean }>;
         confirmTwinPairing?(): Promise<boolean>;
         create(draft: { id: string; title: string; emails: string[] }): Promise<"ok" | "unauthorized" | "rate_limited" | "room_limit_or_conflict" | "invalid_request" | "unavailable">;
         close(): Promise<void>;

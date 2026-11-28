@@ -1,3 +1,4 @@
+import { AiTwinGeneratedRelease } from "./AiTwinGeneratedRelease";
 import { AiTwinExactRelease } from "./AiTwinExactRelease";
 import { useState } from "react";
 import { t } from "@/lib/i18n";
@@ -9,7 +10,9 @@ export function AiTwinPairing() {
     fingerprint: string;
     origin: string;
     exactAvailable?: boolean;
+    generatedAvailable?: boolean;
   }>();
+  const [generatedAvailable, setGeneratedAvailable] = useState(false);
   const [exactAvailable, setExactAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -33,11 +36,11 @@ export function AiTwinPairing() {
   return (
     <details
       onToggle={(event) => {
-        if (event.target === event.currentTarget && event.currentTarget.open)
-          void bridge
-            .exactStatus?.()
-            .then((s) => setExactAvailable(s.available || s.pendingRecovery === true))
-            .catch(() => {});
+        if (event.target !== event.currentTarget || !event.currentTarget.open) return;
+        void bridge.generatedStatus?.()
+          .then(s => setGeneratedAvailable(s.available || s.pendingRecovery === true)).catch(() => {});
+        void bridge.exactStatus?.()
+          .then(s => setExactAvailable(s.available || s.pendingRecovery === true)).catch(() => {});
       }}
     >
       <summary>{t("personalInbox.pairTitle")}</summary>
@@ -69,6 +72,7 @@ export function AiTwinPairing() {
         </div>
       )}
       {(exactAvailable || ticket?.exactAvailable) && <AiTwinExactRelease paired={!!ticket?.exactAvailable} />}
+      {(generatedAvailable || ticket?.generatedAvailable) && <AiTwinGeneratedRelease paired={!!ticket?.generatedAvailable} />}
       <p role="status">{notice}</p>
     </details>
   );

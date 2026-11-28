@@ -63,7 +63,7 @@ export async function validateWalletIssuer(ledger, origin, http, token, owner) {
     ledger.db.prepare("DELETE FROM wallet_sessions WHERE token=? AND owner=?").run(hash, owner);
     throw new Fault(401, "invalid_pilot_token");
   };
-  // Tokens issued before sealing was introduced require a new email sign-in.
+  // A wallet session without a sealed issuer credential requires a new email sign-in.
   if (!row) reject();
   const client = createControlPlaneClient({ baseURL: origin, fetchImpl: http });
   if (client.origin !== row.origin) throw new Fault(503, "account_unavailable");

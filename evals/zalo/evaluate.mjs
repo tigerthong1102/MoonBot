@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { classifyZaloText, ZALO_INTENTS } from "../../shared/zalo-intelligence.ts";
 
 const data = JSON.parse(await readFile(new URL("./cases.json", import.meta.url), "utf8"));
+const validation = JSON.parse(await readFile(new URL("./validation.json", import.meta.url), "utf8"));
 const variants = [
   text => text, text => text.normalize("NFD"), text => text.toUpperCase(),
   text => text.replaceAll(" ", "  "), text => text.normalize("NFD").replace(/\p{M}/gu, "").replaceAll("đ", "d").replaceAll("Đ", "D"),
@@ -24,9 +25,14 @@ for (const [split, seeds] of Object.entries(data)) {
   console.log(JSON.stringify({ method: "local-rules", split, ...evaluate(rows, predictions) }));
 }
 
+console.log(JSON.stringify({ method: "local-rules", split: "validation", ...evaluate(validation, validation.map(([, text]) => {
+  const result = classifyZaloText(text); return [result.intents[0], result.urgent];
+})) }));
+
 if (process.argv.includes("--ollama")) {
   const model = process.argv.includes("--qwen") ? "qwen3.5:9b" : "llama3.2:3b";
-  const rows = data.heldOut;
+  const large = process.argv.includes("--validation");
+  const rows = large ? validation : data.heldOut;
   const predictions = [];
   let inputTokens = 0, outputTokens = 0;
   const start = performance.now();
@@ -48,6 +54,6 @@ if (process.argv.includes("--ollama")) {
     inputTokens += output.prompt_eval_count;
     outputTokens += output.eval_count;
   }
-  console.log(JSON.stringify({ method: model, split: "heldOut-original", milliseconds: Math.round(performance.now() - start),
+  console.log(JSON.stringify({ method: model, split: large ? "validation" : "heldOut-original", milliseconds: Math.round(performance.now() - start),
     inputTokens, outputTokens, ...evaluate(rows, predictions) }));
 }

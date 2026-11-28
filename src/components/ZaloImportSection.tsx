@@ -3,11 +3,12 @@ import { t } from "@/lib/i18n";
 import { api } from "@/state/api";
 import type { Bot } from "@/state/store";
 import { AI_TWIN_PATH, AI_TWIN_QUESTION_MAX, type AiTwinView } from "../../shared/ai-twin";
-import { reviewZaloExcerpt, ZALO_IMPORT_LIMIT, ZALO_RECIPES, type ZaloRecipe, type ZaloExcerpt } from "../../shared/zalo-intelligence";
+import { reviewZaloExcerpt, ZALO_IMPORT_LIMIT, ZALO_RECIPES, type ZaloRecipe, type ZaloSourceLine, type ZaloExcerpt } from "../../shared/zalo-intelligence";
+import { Select } from "./Select";
 import { AiTwinPreview } from "./AiTwinPreview";
 import { SETTINGS_INPUT, SettingsField, SettingsFoldRow } from "./SettingsPrimitives";
 
-function TwinForExcerpt({ text }: { text: string }) {
+function TwinForExcerpt({ text, source }: { text: string; source: ZaloSourceLine }) {
   const [view, setView] = useState<AiTwinView | null>(null);
   const [recipe, setRecipe] = useState<ZaloRecipe | undefined>();
   const [attempt, setAttempt] = useState(0);
@@ -24,11 +25,11 @@ function TwinForExcerpt({ text }: { text: string }) {
   if (failed) return <button type="button" className="ui-button" onClick={() => setAttempt(a => a + 1)}>{t("common.tryAgain")}</button>;
   if (!view) return <p role="status">{t("zalo.loading")}</p>;
   if (!view.twin || view.twin.paused) return <p role="status">{t("zalo.twinUnavailable")}</p>;
-  return <><SettingsField label={t("zalo.purpose")}><select className={SETTINGS_INPUT} value={recipe ?? ""}
+  return <><SettingsField label={t("zalo.purpose")}><Select className={SETTINGS_INPUT} value={recipe ?? ""}
     onChange={event => setRecipe(ZALO_RECIPES.find(id => id === event.target.value))}>
     <option value="">{t("settings.aiTwin.generateDraft")}</option>
     {ZALO_RECIPES.map(id => <option key={id} value={id}>{t(`zalo.${id}`)}</option>)}
-  </select></SettingsField><AiTwinPreview key={view.twin.id + (recipe ?? "")} zaloRecipe={recipe} twin={view.twin} provider={view.preview} initialQuestion={text}
+  </Select></SettingsField><AiTwinPreview key={view.twin.id + (recipe ?? "")} zaloRecipe={recipe} zaloSource={source} twin={view.twin} provider={view.preview} initialQuestion={text}
     allowSemantic={Boolean(view.lessons?.some(lesson => lesson.allowProvider))} refresh={() => setAttempt(a => a + 1)} /></>;
 }
 
@@ -86,7 +87,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
           onClick={() => setSelected(selected === row.line ? null : row.line)}>{t("settings.aiTwin.preview")}</button>}
         {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row.text)}>{t("zalo.brain")}</button>}
         {bot && row.intents[0] !== "other" && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
-        {selected === row.line && <TwinForExcerpt text={row.text} />}
+        {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
       </li>)}</ol>
     {bot && reminder && <Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}
       seed={{ kind: "routine", at: reminder.at, durationMinutes: 15, botIds: [bot.id], name: t("zalo.reminderTitle"), description: t("zalo.reminderPrompt", { line: reminder.line }) }}

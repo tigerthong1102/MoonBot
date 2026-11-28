@@ -11942,6 +11942,7 @@
   "zalo.zalo-bat-dong-san": "Nhu cầu bất động sản",
   "zalo.zalo-ke-toan": "Yêu cầu kế toán",
   "zalo.zalo-quan-ly": "Công việc quản lý",
+  "zalo.sendSource": "Khi phân tích theo ngành, model nhận tên nguồn “{source}”, dòng {line} và nguyên văn dòng này.",
   "zalo.brain": "Tìm trang liên quan trong Bộ não thứ hai",
   "zalo.title": "Rà soát đoạn chat Zalo",
   "zalo.description": "Đọc đoạn hội thoại trên máy này. Đóng mục rà soát để xóa nội dung và kết quả khỏi màn hình.",

@@ -11942,6 +11942,7 @@
   "zalo.zalo-bat-dong-san": "Property enquiries",
   "zalo.zalo-ke-toan": "Accounting requests",
   "zalo.zalo-quan-ly": "Management requests",
+  "zalo.sendSource": "Industry analysis sends the source name “{source}”, line {line} and the quoted line to the displayed model.",
   "zalo.brain": "Find related pages in Second Brain",
   "zalo.title": "Review a Zalo excerpt",
   "zalo.description": "Read a conversation excerpt on this computer. Closing the review clears the text and results.",

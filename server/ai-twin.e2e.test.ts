@@ -158,9 +158,12 @@ it("only makes a consented, tool-free text preview through the selected provider
       expect(recorded()).not.toContain("PROBE_TWIN");
 
       expect((await preview({ ...input, zaloRecipe: "arbitrary-tool" })).status).toBe(400);
-      const industry = await preview({ ...input, question: "PROBE_ZALO: Xin đối chiếu công nợ", zaloRecipe: "zalo-ke-toan" });
+      expect((await preview({ ...input, zaloRecipe: "zalo-ke-toan" })).status).toBe(400);
+      const industry = await preview({ ...input, question: "PROBE_ZALO: Xin đối chiếu công nợ", zaloRecipe: "zalo-ke-toan", zaloSource: { source: "Nhóm mẫu", line: 42 } });
       expect(industry.status).toBe(200);
       expect(recorded()).toContain("Rà soát yêu cầu kế toán");
+      expect(recorded()).toContain("Nhóm mẫu");
+      expect(recorded()).toContain("42");
       expect(recorded().match(/PROBE_ZALO/g)).toHaveLength(1);
 
       const response = await preview(input);

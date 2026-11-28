@@ -54,7 +54,11 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
       if (generation.current !== visit) return;
       const found = index.docs.get(file.name);
       const allowed = await libraryKey(threadId, { signal }) === key;
-      if (generation.current === visit) setDoc(allowed && found?.digest === digest && found.passages.some(p => p.start === start) ? found : null);
+      if (generation.current === visit) {
+        const verified = allowed && found?.digest === digest && found.passages.some(p => p.start === start) ? found : null;
+        setDoc(verified);
+        if (verified) setIssue(null);
+      }
     } catch {
       if (generation.current === visit) setDoc(null);
     } finally { if (generation.current === visit) setBusy(false); }

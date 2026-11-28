@@ -82,3 +82,22 @@ it("does not restore a manually selected source after access is suspended during
   expect(document.body.querySelector('[role="alert"]')).not.toBeNull();
   await act(async () => root.unmount());
 });
+
+it("clears the access error when a source is successfully reselected after access returns", async () => {
+  const key = JSON.stringify(["viewer", "thread"]), digest = createHash("sha256").update("Sensitive policy").digest("hex");
+  let revoke: (cause?: unknown) => void = () => {};
+  vi.mocked(libraryKey).mockResolvedValue(key);
+  vi.mocked(observeLibraryOwner).mockImplementation((_scope, unavailable) => { revoke = unavailable; return () => {}; });
+  vi.mocked(currentLibrary).mockResolvedValue(undefined);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(createElement(SourceCitation, { threadId: "thread", digest, start: 0 }, "[1]")));
+  await act(async () => host.querySelector("button")!.click());
+  await act(async () => revoke(new TypeError("offline")));
+  expect(document.body.querySelector('[role="alert"]')).not.toBeNull();
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+  Object.defineProperty(input, "files", { value: [new File(["Sensitive policy"], "secret.txt")] });
+  await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+  await vi.waitFor(() => expect(document.body.textContent).toContain("Sensitive policy"));
+  expect(document.body.querySelector('[role="alert"]')).toBeNull();
+  await act(async () => root.unmount());
+});

@@ -31,3 +31,5 @@ jobs:
         run: npm test
       - working-directory: scripts/qualification/zalo-personal
         run: npm run test:integration
+      - run: npm run test:soak-smoke
+        working-directory: scripts/qualification/zalo-personal

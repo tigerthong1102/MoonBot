@@ -81,6 +81,7 @@ Use only mapped, tested commands:
 - [Channels](channels.md)
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
+- [Zalo browser comparison and SQLite endurance fixture](zalo-load.md)
 - [In-chat team coordination](room-coordination.md)
 - [Question cards: a teammate's question, in its chat and the person's inbox](question-cards.md)
 - [Chief authority over additional departments](team-access.md)

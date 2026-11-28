@@ -60,7 +60,7 @@ export function createZaloModelAnalysis(deps: Deps, desktop: boolean, instance: 
     const signal = AbortSignal.any([disconnected.signal, AbortSignal.timeout(65_000)]);
     function check(admit = true) {
       const actual = destination(admit);
-      if (signal.aborted || !actual || offer!.expires <= Date.now() || actual.instance !== offer!.instance ||
+      if (signal.aborted || !actual || (admit && offer!.expires <= Date.now()) || actual.instance !== offer!.instance ||
           !sameModelSelection(actual.selection, offer!.selection)) throw new SelectionChanged();
       return actual;
     }

@@ -90,6 +90,19 @@ describe("manual Zalo analysis with the selected bot", () => {
     expect((await f.run(await f.prepare())).status).toBe(409);
     expect(dispatch).not.toHaveBeenCalled();
   });
+  it.each([true, false])("applies preview expiry at dispatch and never discards paid findings (expired before dispatch: %s)", async before => {
+    const f = fixture(), token = await f.prepare(), expired = Date.now() + 301_000;
+    const clock = vi.spyOn(Date, "now");
+    try {
+      f.generate.mockImplementation(async (_prompt, options) => {
+        if (before) clock.mockReturnValue(expired);
+        options?.beforeRequest?.();
+        clock.mockReturnValue(expired);
+        return JSON.stringify({ findings: [finding] });
+      });
+      expect((await f.run(token)).status).toBe(before ? 409 : 200);
+    } finally { clock.mockRestore(); }
+  });
   it("returns a paid result when its own charge reaches the admission cap", async () => {
     const f = fixture();
     f.generate.mockImplementation(async (_prompt, options) => {

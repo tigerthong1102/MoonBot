@@ -89,8 +89,13 @@ it("completes the provider callback once when the saved conversation history nee
 
 it("shows the receiving machine and retains both the phone draft and its receipt on retry", async () => {
   const sends=[];
+  let threadReads=0;
   vi.stubGlobal("fetch", async (path,init) => {
-    if (path.endsWith("/threads")) return Response.json({account:"owner",threads:[],desktopHandoff:true});
+    if (path.endsWith("/threads")) {
+      threadReads++;
+      if (threadReads>1) throw Error("unexpected chat refresh while picking a desktop");
+      return Response.json({account:"owner",threads:[],desktopHandoff:true});
+    }
     if (path.endsWith("/send")) {
       const body=JSON.parse(init.body);sends.push(body);
       const desktop=body.target ? {state:"received"} : {state:"choose",devices:[{id:saved,name:"Desktop",code:"abcd1234"}]};
@@ -114,4 +119,5 @@ it("shows the receiving machine and retains both the phone draft and its receipt
   expect(el("status").textContent).toContain("Draft opened");
   submit();await idle();
   expect(new Set(sends.map(one=>one.id)).size).toBe(1);
+  expect(threadReads).toBe(1);
 });

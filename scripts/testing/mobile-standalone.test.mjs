@@ -423,3 +423,15 @@ it("serves the shared Inbox Select module, rendered template and skin stylesheet
     expect(await response.text()).toContain(content);
   }
 });
+
+it("enforces the effective desktop skill pause before routing or charging",async()=>{
+  f.settings.mobileDesktopHandoff=true;
+  f.config.disabledMobileSkills=["desktop"];
+  f.save();
+  for (const input of [{prompt:"Mở Excel",skill:"chat"},{prompt:"Inspect the installed application",skill:"desktop",runtime:"desktop"}]) {
+    const response=await f.call("/send",cookie,message(input));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe("skill_paused");
+  }
+  expect(f.generations).toHaveLength(0);
+});

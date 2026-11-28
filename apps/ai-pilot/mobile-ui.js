@@ -350,9 +350,11 @@ el("compose").onsubmit = event => {
     el("stop").hidden = false;
     if (fromSendButton) el("stop").focus();
     status(t("waiting"));
+    let refreshThreads = true;
     try {
       const response = await api("send", { thread, id, prompt, provider, target:pending.target, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
       if (response.headers.get("content-type")?.includes("application/json")) {
+        refreshThreads = false;
         el("stop").hidden = true;
         let { desktop } = await response.json();
         const targets = el("handoffTargets");
@@ -384,10 +386,8 @@ el("compose").onsubmit = event => {
           desktop = await (await api("desktop-status",{id},active.signal)).json();
         }
         if (desktop?.state === "received") {
-          // Keep the phone copy and its receipt ID until the person edits it.
           status(t("desktopReceived"));
         } else {
-          // An expired claim might already be on the screen. Never automatically send it a second time.
           if (desktop?.state === "expired") pending = undefined;
 
           status(t(desktop?.state === "expired" || desktop?.state === "waiting" ? "desktopUnconfirmed" : "desktop_unavailable"));
@@ -438,7 +438,7 @@ el("compose").onsubmit = event => {
       if (document.activeElement === el("stop") && !el("chat").hidden) el("prompt").focus();
       el("stop").hidden = true;
       active = undefined;
-      if (account) await list().catch(() => { el("retry").hidden = false; });
+      if (account && refreshThreads) await list().catch(() => { el("retry").hidden = false; });
     }
   });
 };

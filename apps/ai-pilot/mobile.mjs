@@ -205,8 +205,12 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     if (path !== "/mobile/send") throw new Fault(404, "not_found");
     if (!uuid.test(body.id) || typeof body.prompt !== "string" || !body.prompt.trim() ||
         Buffer.byteLength(body.prompt) > 8192 || body.save !== true) throw new Fault(400, "invalid_message");
+    const skill = body.skill ?? "chat";
+    const config = catalog(settings.catalog);
+    if (!["desktop","text"].includes(body.runtime ?? "text")) throw new Fault(409,"runtime_unavailable");
     if (needsDesktop(body.prompt, body.runtime)) {
       if (!settings.mobileDesktopHandoff) throw new Fault(409, "desktop_required");
+      if (config.disabledMobileSkills?.some(value => value === "desktop" || value === skill)) throw new Fault(409,"skill_paused");
       const input = { id:body.id, prompt:body.prompt };
       if (body.target != null) {
         if (!uuid.test(body.target)) throw new Fault(400,"invalid_target");
@@ -216,9 +220,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     }
     if ((body.runtime ?? "text") !== "text" || /^(?:(?:hãy|vui lòng|please)\s+)?(?:chạy|run)\s+.{1,80}(?:khi máy tính tắt|when (?:my |the )?computer is off)/iu.test(body.prompt.trim()))
       throw new Fault(409, "runtime_unavailable");
-    const skill = body.skill ?? "chat";
     if (!textSkills.has(skill)) throw new Fault(400, "unsupported_skill");
-    const config = catalog(settings.catalog);
     if (config.disabledMobileSkills?.includes(skill)) throw new Fault(409, "skill_paused");
     const provider = body.provider ?? "managed";
     if (!["managed","openrouter"].includes(provider)) throw new Fault(400, "unsupported_provider");

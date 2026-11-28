@@ -25,7 +25,6 @@ export function createMobileDraftReceiver({ credentials, client, allowed }) {
     for (const event of ["destroyed", "did-start-navigation", "render-process-gone"]) {
       entry.sender.removeListener(event, entry.stop);
     }
-    // A final in-flight poll must settle before withdrawal, otherwise it could renew the closed listener.
     void Promise.resolve(entry.request)
       .catch(() => {})
       .then(() =>

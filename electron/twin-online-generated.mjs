@@ -8,15 +8,21 @@ function sameProvider(a, b) {
   return a && b && ["key", "name", "model", "destination"].every(k => typeof a[k] === "string" && a[k] && a[k] === b[k]);
 }
 
-export async function recoverGenerated({ journal, origin, inbox, keep }) {
+export async function recoverGenerated({ journal, origin, inbox, keep, onRevoked }) {
   const me = await inbox("me");
+  let removed = false;
   for (const ref of journal.list(me.id, origin)) {
     if (ref.id === keep?.()) continue;
     const receipt = await inbox("twin-generated", { action: "revoke", owner: ref.owner, id: ref.id });
     if (receipt.id !== ref.id || receipt.revoked !== true) throw unavailable();
     journal.remove(ref);
+    removed = true;
+    onRevoked?.();
   }
-  return me;
+  if (!removed) return me;
+  const current = await inbox("me");
+  if (current.id !== me.id) throw unavailable();
+  return current;
 }
 
 export async function generatedStatus(inbox, me, localId) {

@@ -11401,6 +11401,7 @@
   "room.members.far.missing": "Não está mais disponível",
   "personalInbox.exactTitle": "Resposta automática ensinada",
   "personalInbox.generatedManageOnly": "As respostas automáticas estão desativadas. Você ainda pode revogar esta permissão.",
+  "personalInbox.generatedChange": "Interrompa esta permissão antes de alterar o provedor, as salas ou o limite diário. Se o pareamento inicial de 10 minutos expirou, faça um novo pareamento para solicitar outra permissão.",
   "personalInbox.generatedUsage": "Esta conta usou {recent} de 5 tentativas nos últimos 10 minutos e {today} de {count} nas últimas 24 horas.",
   "personalInbox.generatedLeaseAt": "A permissão atual de 10 minutos termina em {time}.",
   "personalInbox.generatedAuthorityUntil": "A renovação termina até {time}.",

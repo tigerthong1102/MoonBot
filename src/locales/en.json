@@ -11558,6 +11558,7 @@
   "sidebar.newBotOn.needsUpdate": "My Cloud needs its next update for this.",
   "personalInbox.exactTitle": "Automatic taught answer",
   "personalInbox.generatedManageOnly": "Automatic replies are switched off. You can revoke this permission.",
+  "personalInbox.generatedChange": "Stop this permission before changing its provider, rooms or daily limit. If the original 10-minute pairing has expired, pair again to request a new permission.",
   "personalInbox.generatedUsage": "This account has used {recent} of 5 attempts in the last 10 minutes and {today} of {count} in the last 24 hours.",
   "personalInbox.generatedLeaseAt": "Current lease ends {time}.",
   "personalInbox.generatedAuthorityUntil": "Permission ends by {time}.",

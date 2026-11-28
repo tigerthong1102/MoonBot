@@ -21,15 +21,6 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
   async function run(action: "choose" | "offer" | "status" | "stop") {
     setBusy(true);
     try {
-      if (action === "choose") {
-        setChoices(await bridge!.generatedChoices!());
-        setRooms([]);
-        setScope("selected");
-        setOngoing(false);
-        setLimit("5");
-        setNote("");
-        return;
-      }
       if (action === "offer") {
         if (!choices || !validLimit) return;
         const accepted = ongoing ? await bridge!.offerGenerated!(choices.provider, refs, dailyLimit)
@@ -40,6 +31,16 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
       const state = action === "stop" ? await bridge!.stopGenerated!(target) : await bridge!.generatedStatus!();
       setManageOnly(state.manageOnly === true);
       setTarget(state.owner && state.remote ? {owner:state.owner,id:state.remote.id} : undefined);
+      if (action === "choose" && state.available && !state.remote && !state.manageOnly && !state.pendingRecovery) {
+        setChoices(await bridge!.generatedChoices!());
+        setRooms([]);
+        setScope("selected");
+        setOngoing(false);
+        setLimit("5");
+        setNote("");
+        return;
+      }
+      if (state.remote || action === "stop") setChoices(undefined);
       if (state.remote?.enabled && state.remote.dailyLimit !== undefined) {
         const active = state.remote.leaseActive && !state.manageOnly;
         const status = t(state.manageOnly ? "personalInbox.generatedManageOnly" : active ? "personalInbox.generatedOngoingEnabled" : "personalInbox.generatedOngoingWaiting", {count:state.remote.dailyLimit});
@@ -58,8 +59,8 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
     <summary>{t("personalInbox.generatedTitle")}</summary>
     <p>{t("personalInbox.generatedTerms")}</p>
     <fieldset disabled={busy}>
-      {paired && !manageOnly && <button type="button" className="ui-button" onClick={() => void run("choose")}>{t("personalInbox.generatedChoose")}</button>}
-      {paired && !manageOnly && choices && <>
+      {paired && !manageOnly && !target && <button type="button" className="ui-button" onClick={() => void run("choose")}>{t("personalInbox.generatedChoose")}</button>}
+      {paired && !manageOnly && !target && choices && <>
         <p dir="auto">{choices.provider.name} · {choices.provider.model} · {choices.provider.destination}</p>
         <div className="grid gap-1">
           <label htmlFor={scopeId}>{t("personalInbox.generatedScope")}</label>
@@ -96,5 +97,6 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
       <button type="button" className="ui-button" onClick={() => void run("stop")}>{t("personalInbox.generatedStop")}</button>
     </fieldset>
     <p role="status">{note}</p>
+    {target && <p>{t("personalInbox.generatedChange")}</p>}
   </details>;
 }

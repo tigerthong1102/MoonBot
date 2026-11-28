@@ -5,7 +5,7 @@ export function installExactReview({ api, me, t, el, generated = false }) {
     terms = el(mode + "-terms"),
     status = el(mode + "-status");
   let generation = 0,
-    timer;
+    timer, recoveryOwner;
   function reset() {
     generation++;
     clearTimeout(timer);
@@ -19,9 +19,18 @@ export function installExactReview({ api, me, t, el, generated = false }) {
     const live = () => run === generation && me()?.id === owner && panel.open;
     if (!owner || !live()) return;
     try {
+      if (generated && (me().generatedManageOnly || recoveryOwner === owner)) {
+        const fresh = await api("me");
+        if (!live() || fresh.id !== owner) return;
+        if (!fresh.generatedManageOnly && !fresh.generatedAnswer) {
+          status.textContent = t("personalInbox.generatedOff");
+          return;
+        }
+      }
       const result = await api(route),
         g = result.grant;
       if (!live() || result.owner !== owner) return;
+      if (generated) recoveryOwner = result.manageOnly ? owner : undefined;
       if (!g) {
         status.textContent = t(generated ? "personalInbox.generatedOff" : "personalInbox.exactOff");
         return;
@@ -86,7 +95,10 @@ export function installExactReview({ api, me, t, el, generated = false }) {
         p.textContent = text;
         terms.append(p);
       }
-      button(generated ? "personalInbox.generatedStop" : "personalInbox.exactStop", () => post("revoke"));
+      button(generated ? "personalInbox.generatedStop" : "personalInbox.exactStop", async () => {
+        const receipt = await post("revoke");
+        if (receipt.id !== g.id || receipt.revoked !== true) throw Error("revoke_unconfirmed");
+      });
       status.textContent = t(generated ? (g.enabled ? "personalInbox.generatedEnabled" : "personalInbox.generatedPending") : (g.enabled ? "personalInbox.exactEnabled" : "personalInbox.exactPending"));
       if (ongoing && g.enabled) status.textContent = t(result.manageOnly || me().generatedManageOnly ? "personalInbox.generatedManageOnly" : lapsed ? "personalInbox.generatedOngoingWaiting" : "personalInbox.generatedOngoingEnabled", {count:g.dailyLimit});
       if ((generated && (result.manageOnly || me().generatedManageOnly)) || g.enabled || !g.reviewer || selected.some((r) => !r)) return;

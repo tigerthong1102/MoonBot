@@ -382,8 +382,10 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
     handle("personal-inbox:twin-generated-offer", (_e, provider, rooms, dailyLimit) => pairing?.generated.offer(provider, rooms, dailyLimit) ?? false);
     handle("personal-inbox:twin-generated-stop", async (_e, target) => {
       pairing?.generated.reset();
-      const ctx = standalone(generatedJournal), me = await recoverGenerated(ctx);
-      if (!target) {
+      let revoked = false;
+      const ctx = standalone(generatedJournal);
+      const me = await recoverGenerated({...ctx, onRevoked: () => { revoked = true; }});
+      if (!target && !revoked) {
         const status = await generatedStatus(ctx.inbox, me);
         if (status.remote) target = {owner:me.id, id:status.remote.id};
       }
@@ -391,6 +393,12 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
         if (target.owner !== me.id || typeof target.id !== "string") throw Error("generated_reply_unavailable");
         const receipt = await ctx.inbox("twin-generated", { action: "revoke", owner: me.id, id: target.id });
         if (receipt.id !== target.id || receipt.revoked !== true) throw Error("generated_reply_unavailable");
+        revoked = true;
+      }
+      if (revoked) {
+        const refreshed = await ctx.inbox("me");
+        if (refreshed.id !== me.id) throw Error("generated_reply_unavailable");
+        if (!refreshed.generatedAnswer && !refreshed.generatedManageOnly) return {available:true,manageOnly:true,owner:me.id,remote:null};
       }
       return readGeneratedStatus();
     });

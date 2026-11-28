@@ -11,7 +11,7 @@ it("permits eight explicit rooms and lets the reviewer change the selection", as
   const provider = { key: "fixture", name: "Fixture", model: "Model", destination: "https://provider.example" };
   const generatedChoices = vi.fn(async () => ({ rooms, provider }));
   const offerGenerated = vi.fn(async () => false);
-  vi.stubGlobal("ogb", { personalInbox: { generatedChoices, offerGenerated, generatedStatus: vi.fn(), stopGenerated: vi.fn() } });
+  vi.stubGlobal("ogb", { personalInbox: { generatedChoices, offerGenerated, generatedStatus: vi.fn(async () => ({ available:true, remote:null })), stopGenerated: vi.fn() } });
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -45,7 +45,7 @@ it("requires a separate while-open choice and a valid rolling daily limit", asyn
   const rooms = [{ ref: "room-ref", id: "room", title: "Conversation", kind: "direct" }];
   const offerGenerated = vi.fn(async () => false);
   vi.stubGlobal("ogb", { personalInbox: {
-    generatedChoices: async () => ({ provider, rooms }), offerGenerated, generatedStatus: vi.fn(), stopGenerated: vi.fn(),
+    generatedChoices: async () => ({ provider, rooms }), offerGenerated, generatedStatus: vi.fn(async () => ({ available:true, remote:null })), stopGenerated: vi.fn(),
   } });
   const host = document.createElement("div");
   document.body.append(host);
@@ -80,6 +80,32 @@ it("requires a separate while-open choice and a valid rolling daily limit", asyn
     expect(host.textContent).toContain("12 per rolling 24 hours");
   } finally {
     await act(async () => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
+});
+
+
+it("shows Stop and withholds changes while an existing grant is active", async () => {
+  const choices = vi.fn();
+  const stop = vi.fn(async () => ({ available:true, owner:"owner", remote:null }));
+  vi.stubGlobal("ogb", {personalInbox:{generatedChoices:choices, offerGenerated:vi.fn(), stopGenerated:stop,
+    generatedStatus:async()=>({available:true,owner:"owner",remote:{id:"grant",enabled:true,count:1,expires:Date.now()+60000}})}});
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async()=>root.render(createElement(AiTwinGeneratedRelease,{paired:true})));
+    await act(async()=>host.querySelector("button")!.click());
+    expect(choices).not.toHaveBeenCalled();
+    expect(host.querySelector("select")).toBeNull();
+    expect(host.textContent).toContain("Stop this permission before changing");
+    const button = [...host.querySelectorAll("button")].find(node=>node.textContent?.includes("Stop"))!;
+    await act(async()=>button.click());
+    expect(stop).toHaveBeenCalledWith({id:"grant",owner:"owner"});
+    expect(host.textContent).toContain("no active or pending permission");
+  } finally {
+    await act(async()=>root.unmount());
     host.remove();
     vi.unstubAllGlobals();
   }

@@ -11558,6 +11558,7 @@
   "sidebar.newBotOn.needsUpdate": "Đám mây của tôi cần bản cập nhật tiếp theo cho việc này.",
   "personalInbox.exactTitle": "Tự trả lời bằng bài đã dạy",
   "personalInbox.generatedManageOnly": "Tính năng trả lời tự động đang tắt. Bạn vẫn có thể thu hồi quyền này.",
+  "personalInbox.generatedChange": "Hãy dừng quyền này trước khi đổi nhà cung cấp, phòng hoặc giới hạn ngày. Nếu lần ghép đôi 10 phút ban đầu đã hết hạn, hãy ghép đôi lại để xin quyền mới.",
   "personalInbox.generatedUsage": "Tài khoản đã dùng {recent}/5 lượt trong 10 phút qua và {today}/{count} lượt trong 24 giờ qua.",
   "personalInbox.generatedLeaseAt": "Quyền 10 phút hiện tại hết hạn lúc {time}.",
   "personalInbox.generatedAuthorityUntil": "Quyền tự gia hạn kết thúc muộn nhất lúc {time}.",

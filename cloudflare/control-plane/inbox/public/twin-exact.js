@@ -23,7 +23,7 @@ export function installExactReview({ api, me, t, el, generated = false }) {
         g = result.grant;
       if (!live() || result.owner !== owner) return;
       if (!g) {
-        status.textContent = t("personalInbox.exactOff");
+        status.textContent = t(generated ? "personalInbox.generatedOff" : "personalInbox.exactOff");
         return;
       }
       if (!Number.isSafeInteger(result.now) || g.expires <= result.now) throw Error("expired");

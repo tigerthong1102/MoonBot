@@ -23,7 +23,7 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
       const state = action === "stop" ? await bridge!.stopGenerated!(target) : await bridge!.generatedStatus!();
       setTarget(state.owner && state.remote ? {owner:state.owner,id:state.remote.id} : undefined);
       setNote(t(state.pendingRecovery ? "personalInbox.exactStopping" : !state.available ? "personalInbox.exactUnavailable" :
-        !state.remote ? "personalInbox.exactOff" : state.remote.enabled ? "personalInbox.generatedEnabled" : "personalInbox.generatedPending"));
+        !state.remote ? "personalInbox.generatedOff" : state.remote.enabled ? "personalInbox.generatedEnabled" : "personalInbox.generatedPending"));
     } catch {
       setChoices(undefined);
       setNote(t(action === "stop" ? "personalInbox.exactStopping" : "personalInbox.exactUnavailable"));

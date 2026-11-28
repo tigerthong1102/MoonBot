@@ -28,6 +28,13 @@ it("filters automated messages, provider text, attachments and recognized secret
   expect(twinLearningText({ ...message, role: "bot" })).toBeUndefined();
   expect(twinLearningText({ ...message, automated: true })).toBeUndefined();
   expect(twinLearningText({ ...message, relayed: true })).toBeUndefined();
+  expect(twinLearningText({ ...message, workBotReviewHold: true })).toBeUndefined();
+  const parent = { ...message, id: "question", text: "Who reviews the inventory?" };
+  const reply = { ...message, replyToId: parent.id };
+  expect(twinLearningText(reply, parent)).toBe(message.text);
+  expect(twinLearningText(reply)).toBeUndefined();
+  expect(twinLearningText(reply, { ...parent, workBotReviewHold: true })).toBeUndefined();
+  expect(twinLearningText({ ...message, workBotRouting: { state: "held_for_review" } })).toBeUndefined();
   expect(twinLearningText({ ...message, text: "Contact fixture@example.test to see the memo." })).toBeUndefined();
   expect(twinLearningText({ ...message, text: "Please call 090 000 0000 to continue." })).toBeUndefined();
 });

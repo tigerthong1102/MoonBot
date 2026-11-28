@@ -5,10 +5,11 @@ import { holdsCredential, redactSecretsInText } from "../../shared/redact.ts";
 import {
   AI_TWIN_DELEGATION_PATH, AI_TWIN_LEARNING_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH,
   AI_TWIN_PATH, AI_TWIN_PHONE_PATH, AI_TWIN_PREVIEW_PATH, AI_TWIN_QUESTION_MAX,
+  AI_TWIN_FORGET_MANY_PATH,
   type AiTwinLearningView, type AiTwinView,
 } from "../../shared/ai-twin.ts";
 import {
-  createTwinInput, deleteTwinLessonInput, lookupTwinLessonInput, saveTwinLessonInput, twinDelegationInput,
+  createTwinInput, deleteTwinLessonInput, forgetTwinLessonsInput, lookupTwinLessonInput, saveTwinLessonInput, twinDelegationInput,
   twinLearningInput, twinPhoneInput, twinVersionInput, updateTwinInput, createAiTwinStore, TwinConflict, TwinLessonConflict,
 } from "../ai-twin.ts";
 import { createAiTwinPreview, TwinPreviewError } from "../ai-twin-preview.ts";
@@ -33,6 +34,7 @@ const paths = new Map([
   [AI_TWIN_LOOKUP_PATH, ["POST"]],
   [AI_TWIN_PREVIEW_PATH, ["POST"]],
   [AI_TWIN_LESSONS_PATH, ["POST", "DELETE"]],
+  [AI_TWIN_FORGET_MANY_PATH, ["DELETE"]],
   [AI_TWIN_LEARNING_PATH, ["GET", "PATCH"]],
   [AI_TWIN_DELEGATION_PATH, ["PATCH"]],
   [AI_TWIN_PHONE_PATH, ["PATCH"]],
@@ -107,6 +109,13 @@ export function createAiTwinRoutes(deps: {
       const body = await readBody(req, 8_192);
       if (!authorized()) return json(res, 404, { error: "not_found" });
       if (deps.blocked()) return json(res, 409, { error: "twin_workspace_busy" });
+      if (path === AI_TWIN_FORGET_MANY_PATH) {
+        const input = forgetTwinLessonsInput.safeParse(body);
+        if (!input.success) return json(res, 400, { error: "invalid_twin" });
+        const view = store.forgetLessons(input.data);
+        drafts.cancel();
+        return replyProfile(200, view);
+      }
       if (path === AI_TWIN_LESSONS_PATH) {
         const next = method === "POST" ? saveTwinLessonInput.safeParse(body) : deleteTwinLessonInput.safeParse(body);
         if (!next.success) return json(res, 400, { error: "invalid_twin" });

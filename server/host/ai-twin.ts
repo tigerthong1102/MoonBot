@@ -53,11 +53,12 @@ export function createAiTwinHost(deps: {
       const task = bot && store.taskByThread(bot.id, thread);
       if (!bot || !task || !eligible(visible, bot, task) || !deps.ownerThread(thread)) return [];
       const lines = sinceFreshStart(store.activePath(thread));
+      const byId = new Map(lines.map(line => [line.id, line]));
       const rows: TwinLearningRow[] = [];
       for (let index = lines.length - 1; index >= 0; index--) {
         const line = lines[index]!;
         if (!deps.ownerLine(line.sender?.id)) continue;
-        const text = twinLearningText(line);
+        const text = twinLearningText(line, line.replyToId ? byId.get(line.replyToId) : undefined);
         if (!text) continue;
         rows.push({ thread, message: line.id, text, ts: line.at, replyToId: line.replyToId });
         if (recent && rows.length === TWIN_STYLE_SAMPLE_LIMIT) break;

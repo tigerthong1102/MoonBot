@@ -36,7 +36,7 @@ Không mặc định quyền sở hữu tài khoản Zalo cho phép lưu trữ, 
 
 | Data or action | Product behavior and qualification |
 | --- | --- |
-| Retention | The local desktop owner chooses 1–365 days when approving the Official private chat. Reads and ingress purge expired content. The webhook pilot exposes an expiry sweep for the host. On this branch physical cleanup of an idle, closed store waits until its next open and access. |
+| Retention | The local desktop owner chooses 1–365 days when approving the Official private chat. Reads and ingress purge expired content. The opted-in desktop host sweeps its existing private inbox and pairing challenges immediately on startup and every five minutes while idle. Closing the server cancels the timer. When the whole app is stopped, cleanup resumes on the next enabled start. |
 | Account and conversation | Removing the Official endpoint deletes its grant and cascades to its inbox rows. The private inbox exposes account and conversation revocation, including Personal group scope. The group case is an internal qualification fixture. |
 | Interval | The paired desktop panel accepts local calendar dates. Preview binds the displayed grant revision, timestamp bounds and exact matching row IDs. Confirmation and committed aggregate readback use one SQLite write transaction. A later delivery in a deleted interval is rejected for the lifetime of those messages. |
 | Cache, search, embeddings, summaries | The private inbox queried by this panel stores normalized event rows and grant metadata. It has no search index, embedding store, derived summary or cloud sync. The erasure preview transfers only counts and opaque digests. |

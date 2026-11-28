@@ -36,3 +36,21 @@ Trước khi gọi OpenRouter, ví giữ trước chi phí tối đa của reque
 - Trước khi quyết định bán, đối soát một hóa đơn sandbox, một top-up, một lần hủy/hoàn và một generation thực với nhà cung cấp. Pilot không tự nạp thẻ. Sai khác invoice, checkout không rõ trạng thái quá thời hạn idempotency và chi phí chưa xác định cần quản trị đối soát.
 
 Kiểm thử không ra mạng nhà cung cấp bằng `pnpm exec vitest run scripts/testing/ai-pilot.test.mjs`.
+
+## Chat Mobile trong môi trường thử
+
+Gateway phục vụ giao diện tài khoản tại `/mobile` khi quản trị cấu hình một HTTPS origin riêng qua `STARTUPBOT_MOBILE_ORIGIN` và issuer qua `STARTUPBOT_PILOT_ACCOUNT_ORIGIN`. Gateway vẫn bind loopback. Chỉ reverse proxy `/mobile` và `/mobile/*` trên origin chuyên dụng, tắt buffering cho stream; giữ riêng ví, engine và webhook. Cookie phiên Mobile chỉ chứa giá trị ngẫu nhiên, khác bearer của issuer. DB lưu hash và bearer mã hóa bằng secret phiên ở trình duyệt. Cookie là Secure, HttpOnly, host-only, SameSite=Strict. Các request ghi cần JSON và đúng Origin. Gateway xác minh bearer qua issuer mỗi request. Issuer được cố định vào DB sau lần bật đầu tiên. Chỉ gắn vào ledger đã thuộc cùng issuer. Kiểm tra bản sao lưu trước khi bật.
+
+Catalog ví cần thêm đối tượng ví dụ bên dưới. Đây là số cho fixture, không phải ngân sách đã duyệt. Chi phí tính bằng phần triệu USD. Thiếu chính sách thì Mobile từ chối inference. Khi gateway bật Mobile, cả đường engine cũ cũng phải có cùng ngân sách. Credit từ payment sandbox/lời mời thử và entitlement của người dùng vẫn độc lập với trần chung. Mặc định đăng ký email mới không tự cấp credit. Có thể chủ động cấp hạn mức thử một lần cho cohort nhỏ bằng cách thêm `"mobileTrial":{"creditMicros":30000,"days":2,"maxAccounts":10}` vào catalog đã bật giới hạn. Ví dụ này cấp tối đa $0,30 danh nghĩa cho toàn cohort. Cấp ở lần gửi đầu tiên của tài khoản đã xác minh, cùng một giao dịch kiểm số chỗ còn lại. Bỏ trường này sẽ dừng cấp mới. Các khoản đã cấp vẫn hết hạn theo ngày ghi trên sổ. Dùng một gateway/ledger với volume bảo vệ và bản sao lưu mã hóa, giới hạn dung lượng, quota email và prepaid workspace có giới hạn nạp riêng. Không dùng nhiều bản sao ledger cho cùng ngân sách.
+
+```json
+{"managedLimits":{"enabled":false,"dailyMicros":1000000,"monthlyMicros":2000000,"requestsPerMinute":10,"concurrent":2}}
+```
+
+Chuyển `enabled` khi đã cấp ngân sách thử. Thay catalog nguyên tử sẽ ngừng nhận lượt mới ngay. Request đã gửi có thể vẫn tính phí. Sổ cái giữ chi phí chưa rõ qua restart và qua ranh giới ngày/tháng UTC; timeout giải phóng slot chạy riêng. Đối soát qua CLI như phần trên. Lệnh `revoke-token ACCOUNT` cũng đình chỉ admission managed AI. `resume-managed ACCOUNT` mở lại admission cho tài khoản đủ entitlement; các token ví/engine đã thu hồi không được phục hồi. Phiên tài khoản trên điện thoại do control plane quản lý; đăng xuất hủy ngay phiên Mobile và yêu cầu issuer thu hồi bearer. Ngừng inference riêng không xóa lịch sử.
+
+Mỗi lần gửi chỉ dùng một lần inference text, tối đa tám cặp lịch sử gần nhất trong ngân sách byte; không import dữ liệu từ máy tính. Hội thoại được lưu trên gateway khi người dùng xác nhận. Giới hạn 50 hội thoại, mỗi hội thoại 80 lượt. Người dùng có thể xóa từng hội thoại; backup cần thời hạn lưu riêng trước beta. Lịch sử không tự xóa sổ kế toán các lượt dùng. Đường này chưa có quy trình xóa toàn bộ tài khoản/control-plane identity hay payment production.
+
+Dùng `pnpm exec vitest run scripts/testing/mobile-standalone.test.mjs scripts/testing/ai-pilot.test.mjs` và `node scripts/testing/mobile-chat-load.mjs` với DB tạm, OTP/provider giả. Số đo local không bao gồm độ trễ mail, D1 từ xa hoặc upstream thật. Reverse proxy OTP hiện dùng chung IP egress nên giới hạn đăng ký tập thể thấp. Trước beta cần chứng minh lưu lượng đăng nhập qua issuer đáp ứng nhu cầu; không tin header IP do client gửi.
+
+Rollback bằng cách tắt admission, gỡ route thử khỏi proxy và điểm vào native, đợi request đang chạy, sao lưu ledger kèm WAL nhất quán bằng SQLite Backup API. Khi rollback binary, giữ schema bổ sung và đối soát các hold. Bản gateway cũ chưa hiểu global cap/suspension nên phải khóa inference tại ingress đến khi kiểm soát chi phí tương đương được phục hồi.

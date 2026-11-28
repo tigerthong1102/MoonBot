@@ -335,9 +335,10 @@ export function createControlPlaneClient({
       return { accountToken, user };
     },
 
-    async me(accountToken) {
+    async me(accountToken, { requireVerifiedEmail = false } = {}) {
       if (!boundedSecret(accountToken)) throw new ControlPlaneError("signed_out", 401);
       const { payload } = await request("/v1/me", { token: accountToken });
+      if (requireVerifiedEmail && payload.user?.emailVerified !== true) throw new ControlPlaneError("signed_out", 401);
       const user = validatedUser(payload.user);
       if (!user) throw new ControlPlaneError("invalid_response");
       return user;
@@ -499,6 +500,7 @@ export function createControlPlaneClient({
       if (!boundedSecret(accountToken)) return;
       await request("/api/auth/sign-out", {
         method: "POST",
+        body: {},
         token: accountToken,
       });
     },

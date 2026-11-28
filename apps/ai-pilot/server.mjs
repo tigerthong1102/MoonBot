@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { accountSignIn, invite } from "./accounts.mjs";
 import { Ledger, Fault, catalog, digest } from "./ledger.mjs";
+import { mobileService } from "./mobile.mjs";
 import { payments } from "./payments.mjs";
 import { asEventStream, router } from "./router.mjs";
 
@@ -38,6 +39,7 @@ function identifier(value) {
 export function pilotServer(ledger, settings, http = fetch) {
   const gateway = router(ledger, settings, http),
     pay = payments(ledger, settings, http);
+  const mobile = mobileService(ledger, settings, gateway, http, readObject);
   return createServer(async (req, res) => {
     const json = (status, value) => {
       res.writeHead(status, { "content-type": "application/json" });
@@ -48,11 +50,15 @@ export function pilotServer(ledger, settings, http = fetch) {
     res.setHeader("referrer-policy", "no-referrer");
     res.setHeader(
       "content-security-policy",
-      "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+      "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     );
     try {
       const path = req.url?.split("?")[0],
         method = req.method;
+      if (path === "/mobile" || path?.startsWith("/mobile/")) {
+        if (!mobile) throw new Fault(404, "not_found");
+        return await mobile(req, res, path, json);
+      }
       if (req.headers.origin && req.headers.origin !== settings.origin) throw new Fault(403, "origin_denied");
       if (method === "GET" && (path === "/" || path === "/wallet.js")) {
         const html = path === "/";
@@ -163,6 +169,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   const settings = {
     origin: "http://127.0.0.1:" + port,
     catalog: process.env.STARTUPBOT_PILOT_CATALOG || new URL("./catalog.example.json", import.meta.url),
+    mobileOrigin: process.env.STARTUPBOT_MOBILE_ORIGIN,
     accountOrigin: process.env.STARTUPBOT_PILOT_ACCOUNT_ORIGIN,
     stripeKey: process.env.STRIPE_TEST_KEY,
     webhookSecret: process.env.STRIPE_TEST_WEBHOOK_SECRET,
@@ -174,10 +181,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   else if (command === "invite") invite(ledger, owner, id);
   else if (command === "revoke-token")
     ledger.tx(() => {
+      ledger.db.prepare("INSERT OR IGNORE INTO managed_suspensions SELECT id FROM users WHERE id=?").run(owner);
       ledger.db.prepare("DELETE FROM invites WHERE owner=?").run(owner);
       ledger.db.prepare("DELETE FROM wallet_sessions WHERE owner=?").run(owner);
       ledger.db.prepare("UPDATE users SET token=?,engineToken=NULL WHERE id=?").run(randomUUID(), owner);
     });
+  else if (command === "resume-managed") ledger.db.prepare("DELETE FROM managed_suspensions WHERE owner=?").run(owner);
   else if (command === "reconcile") {
     await router(ledger, settings).reconcile(owner, id, generation);
   } else if (command === "serve") {

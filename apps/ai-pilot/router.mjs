@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from "node:crypto";
+import { consumeMobileStream } from "./mobile-stream.mjs";
 import { digest, Fault } from "./ledger.mjs";
 
 function seal(value, master) {
@@ -69,13 +70,13 @@ export function router(ledger, settings, http = fetch) {
     if (bytes.length !== 32 || !settings.managementKey) throw new Fault(503, "pilot_router_not_configured");
     return bytes;
   }
-  async function api(path, key, body) {
+  async function api(path, key, body, signal) {
     return http("https://openrouter.ai/api/v1/" + path, {
       method: body ? "POST" : "GET",
       headers: { authorization: "Bearer " + key, "content-type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
       redirect: "error",
-      signal: AbortSignal.timeout(90000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(90000)]) : AbortSignal.timeout(90000),
     });
   }
   async function keyFor(owner, config) {
@@ -105,24 +106,34 @@ export function router(ledger, settings, http = fetch) {
     );
     return json.key;
   }
-  async function run(owner, id, body, config) {
+  async function run(owner, id, body, config, stream) {
     const request = boundedRequest(body, config, owner);
     // A byte bound plus per-message framing covers text and tool schemas without relying on a model-specific tokenizer.
     const upperInput = Buffer.byteLength(JSON.stringify(request)) + 32 * request.messages.length + 256;
     const reserve = Math.ceil(
       upperInput * config.maxPromptUsdPerMillion + request.max_tokens * config.maxOutputUsdPerMillion,
     );
-    ledger.reserve(owner, id, digest(JSON.stringify(request)), reserve, request.model);
+    if (settings.mobileOrigin && !config.managedLimits) throw new Fault(503, "managed_ai_paused");
+    ledger.reserve(owner, id, digest(JSON.stringify(request)), reserve, request.model, config.managedLimits);
+    try {
+      return await dispatch(owner, id, request, config, stream);
+    } finally {
+      db.prepare("DELETE FROM active_requests WHERE owner=? AND id=?").run(owner, id);
+    }
+  }
+  async function dispatch(owner, id, request, config, stream) {
     let key;
     try {
+      stream?.signal.throwIfAborted();
       key = await keyFor(owner, config);
+      stream?.signal.throwIfAborted();
     } catch (e) {
       ledger.settle(owner, id, "unsent-" + randomUUID(), 0, {}, true);
       throw e;
     }
     let result;
     try {
-      const response = await api("chat/completions", key, request);
+      const response = await api("chat/completions", key, stream ? { ...request, stream: true } : request, stream?.signal);
       if ([400, 401, 402, 403, 404, 413, 422, 429].includes(response.status)) {
         ledger.settle(owner, id, "rejected-" + randomUUID(), 0, {}, [402,429].includes(response.status));
         throw new Fault(
@@ -131,7 +142,9 @@ export function router(ledger, settings, http = fetch) {
         );
       }
       if (!response.ok) throw new Error();
-      result = await response.json();
+      result = stream ? await consumeMobileStream(response, stream, (generation) => {
+        db.prepare("UPDATE requests SET generation=? WHERE owner=? AND id=?").run(generation, owner, id);
+      }) : await response.json();
       if (!result.id || !result.choices?.length) throw new Error();
       db.prepare("UPDATE requests SET generation=? WHERE owner=? AND id=?").run(result.id, owner, id);
       if (!Number.isFinite(result.usage?.cost) || result.usage.cost < 0) await reconcile(owner, id);

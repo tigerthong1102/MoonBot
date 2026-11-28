@@ -24,7 +24,7 @@ function fixture() {
   clean.push(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, "fixture.sqlite");
   const db = new DatabaseSync(path);
-  clean.push(() => db.close());
+  clean.push(() => { if (db.isOpen) db.close(); });
   let now = Date.now(), active = true;
   const accountId = "fixture-bot";
   const scope = { accountId, senderId: "fixture-person", conversationId: "fixture-chat", conversationType: "direct" as const, adapter: "official" as const };
@@ -143,4 +143,18 @@ it("returns no participant or receipt after revocation while the provider handle
   const t = transport(undefined, () => { f.pilot.remove(f.endpoint.endpoint); return ok({ message_id: "fixture-receipt" }); });
   expect(await f.store.send(from(p), token, signal(), t.request)).toEqual({ status: "changed" });
   expect(t.sent).toHaveLength(1);
+});
+
+
+it("reads a provider acknowledgement after closing and reopening the private inbox and rejects replay", async () => {
+  const f = fixture(), p = f.draft(), t = transport();
+  expect((await f.store.send(from(p), token, signal(), t.request)).status).toBe("acknowledged");
+  f.db.close();
+  const reopened = new DatabaseSync(f.path);
+  try {
+    const fresh = createZaloReplyStore(reopened, "fixture-bot", () => true, f.now);
+    expect(fresh.source()).toMatchObject({ sourceId: p.source.sourceId, delivery: "acknowledged", receiptId: "fixture-receipt", accountHeld: false });
+    expect(await fresh.send(from(p), token, signal(), t.request)).toEqual({ status: "changed" });
+    expect(t.calls).toEqual(["getMe", "sendMessage"]);
+  } finally { reopened.close(); }
 });

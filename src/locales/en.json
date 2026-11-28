@@ -2131,6 +2131,7 @@
   "settings.aiTwin.learningDisclosure": "Select up to 12 private chats. AI Twin learns from recent writing and suggests question and answer pairs from your messages. Review a suggestion to save it as a separate lesson you can forget.",
   "settings.aiTwin.learning": "Learn from your messages",
   "settings.aiTwin.controls": "Sources and access",
+  "knowledge.accessVerificationUnavailable": "Couldn’t verify access to this conversation. Check your access or update the server, then try again.",
   "settings.aiTwin.memoryDisclosure": "AI actions use {provider} ({model}). Looking up by meaning shares the query and questions from lessons you enabled. Drafting with memory may also share a matched answer and writing habits. Source chats stay where they are stored.",
   "settings.aiTwin.semanticSource": "Possible match in your approved lessons",
   "settings.aiTwin.groundedDraft": "Draft with memory",

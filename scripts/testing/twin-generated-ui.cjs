@@ -31,6 +31,11 @@ module.exports = async function verifyGenerated({ d, b, mobile, cfg, until, dela
     await send();
     await until(peer, '('+read+').then(rows=>rows.length===1)');
     assert.deepEqual(await js(peer,read),[cfg.answer]);
+    await js(peer, 'document.querySelector('+selector+').click()');
+    const visibleReply = 'Array.from(document.querySelectorAll("#posts [data-seq]")).find(post => post.textContent.includes('+
+      JSON.stringify(cfg.answer)+'))';
+    const attribution = await js(peer, 'import("/inbox-i18n.js").then(({t})=>t("personalInbox.generatedAttribution",{owner:"owner@example.test"}))');
+    await until(peer, '('+visibleReply+')?.querySelector("small")?.textContent.includes('+JSON.stringify(attribution)+')');
     await js(mobile,'document.querySelector("#twin-generated summary").click()');
     await until(mobile,'document.querySelectorAll("#generated-terms button").length===1');
     await js(mobile,'document.querySelector("#generated-terms button").click()');

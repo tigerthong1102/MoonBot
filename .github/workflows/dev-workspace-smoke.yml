@@ -1,12 +1,17 @@
 name: Developer workspace hosts
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'server/dev-workspace/**'
+      - 'scripts/smoke-task-hosts.sh'
+      - '.github/workflows/dev-workspace-smoke.yml'
 permissions:
   contents: read
 jobs:
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 20
+  task-hosts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
@@ -15,9 +20,65 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: node --input-type=commonjs -e "require('electron')"
-      - run: pnpm exec vitest run --shard=11/16 --reporter=default --reporter=github-actions
-        env:
-          OMB_VITEST_E2E: host
-          OMB_VITEST_SUBSET: ""
-          OMB_VITEST_WORKERS: "1"
+      - name: Prepare isolated test image and OpenSSH runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y busybox-static openssh-server
+          sudo mkdir -p /run/sshd
+          mkdir -p "$RUNNER_TEMP/task-image/bin"
+          cp /bin/busybox "$RUNNER_TEMP/task-image/bin/"
+          ln -s busybox "$RUNNER_TEMP/task-image/bin/sleep"
+          ln -s busybox "$RUNNER_TEMP/task-image/bin/cat"
+          ln -s busybox "$RUNNER_TEMP/task-image/bin/tar"
+          tar -C "$RUNNER_TEMP/task-image" -cf - bin | docker import - startupbot-task-qa:local
+      - name: Read a Git fixture via SSH, forward a loopback port and inspect the Docker task
+        run: STARTUPBOT_QA_IMAGE=startupbot-task-qa:local bash scripts/smoke-task-hosts.sh
+  windows-wsl:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run server/dev-workspace/hosts.test.ts server/dev-workspace/worktrees.test.ts
+      - name: Inspect installed WSL distributions when available
+        shell: pwsh
+        run: |
+          if (!(Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+            'WSL runtime unavailable on this runner.' >> $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          $distros = wsl.exe --list --quiet
+          if ($LASTEXITCODE -ne 0 -or !$distros) {
+            'No runnable WSL distribution on this runner.' >> $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          $inventory = node --experimental-strip-types server/openmausbot.ts dev host wsl-list --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (!$inventory.distros) { 'No user distribution after filtering.' >> $env:GITHUB_STEP_SUMMARY; exit 0 }
+          $distro = @($inventory.distros)[0]
+          wsl.exe --distribution $distro --exec git --version
+          if ($LASTEXITCODE -ne 0) { 'No Git in selected distribution.' >> $env:GITHUB_STEP_SUMMARY; exit 0 }
+          $root = (wsl.exe --distribution $distro --exec mktemp -d /tmp/startupbot-qa-XXXXXXXX).Trim()
+          if ($LASTEXITCODE -ne 0 -or $root -notmatch '^/tmp/startupbot-qa-[a-zA-Z0-9]+$') { throw 'Invalid isolated WSL fixture.' }
+          try {
+            $repo = Join-Path $env:RUNNER_TEMP ('wsl-source-' + [guid]::NewGuid().ToString())
+            git init --quiet $repo
+            'fixture' | Set-Content (Join-Path $repo 'proof.txt')
+            git -C $repo add proof.txt
+            git -C $repo -c user.name=Fixture -c user.email=f@example.invalid commit -qm seed
+            $dest = "$root/staged"
+            $receipt = node --experimental-strip-types server/openmausbot.ts dev host wsl-stage --repo $repo --distro $distro --folder $dest --json | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or !$receipt.receipt) { throw 'WSL transfer failed.' }
+            $proof = wsl.exe --distribution $distro --exec cat "$dest/proof.txt"
+            if ($LASTEXITCODE -ne 0 -or $proof.Trim() -ne 'fixture') { throw 'WSL readback failed.' }
+            node --experimental-strip-types server/openmausbot.ts dev host wsl-undo --distro $distro --folder $dest --receipt $receipt.receipt --json
+            if ($LASTEXITCODE -ne 0) { throw 'WSL undo failed.' }
+            'Native WSL transfer, content readback and undo passed.' >> $env:GITHUB_STEP_SUMMARY
+          } finally {
+            wsl.exe --distribution $distro --exec rm -rf -- $root
+          }

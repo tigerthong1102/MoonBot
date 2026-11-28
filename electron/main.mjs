@@ -739,6 +739,7 @@ function ensureCompanionAccountService() {
     companionIsOn: () => companionDesiredThisLaunch,
     autoRecover: true,
     onDemand: true,
+    deferTunnelOnSignIn: process.env.STARTUPBOT_MOBILE_DESKTOP_HANDOFF === "1",
     managedEndpointNeeded: async () =>
       companionRunning() ? managedEndpointNeed(await companionState().catch(() => null)) : null,
     relay: { capable: () => companionE2E?.enabled === true, legacyDevices: async () => (companionRunning() ? deviceCounts(await companionState().catch(() => null)).legacy : null) }, installationChanged: () => void companionE2E?.prime(),

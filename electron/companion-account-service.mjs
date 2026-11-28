@@ -125,6 +125,7 @@ export function createCompanionAccountService({
   endpointCheckIntervalMs = DEFAULT_ENDPOINT_CHECK_INTERVAL_MS,
   firstEndpointCheckMs = DEFAULT_FIRST_ENDPOINT_CHECK_MS,
   onDemand = false,
+  deferTunnelOnSignIn = false,
   managedEndpointNeeded = async () => null,
   /** MausBot Relay: `capable` makes a "no" need hold even right after sign-in; `legacyDevices` counts old phones. */
   relay = { capable: () => false, legacyDevices: async () => null },
@@ -401,7 +402,7 @@ export function createCompanionAccountService({
   };
 
   /** `addressGone`: the control plane said the stored address is gone, so it is forgotten even when no tunnel is asked for. */
-  const provision = async ({ accountToken, user, addressGone = false }) => {
+  const provision = async ({ accountToken, user, addressGone = false, registerOnly = false }) => {
     const clientInstanceId = await ensureClientIdentity();
     await finishPendingRelease();
     const before = credentials();
@@ -443,7 +444,7 @@ export function createCompanionAccountService({
       resetAutoRetry();
       return (phase = null), settledState();
     };
-    if (onDemand && (await currentNeed()) === false) return withoutTunnel();
+    if (onDemand && (registerOnly || (await currentNeed()) === false)) return withoutTunnel();
     let relayOnly = null;
     const endpoint = await client.ensureEndpoint(installation.credential, { appVersion: identity.appVersion, ...(identity.kind ? { kind: identity.kind } : {}), ...(await relay.legacyDevices().then((count) => (count === null ? {} : { legacyDevices: count }))) })
       .catch((error) => {
@@ -596,7 +597,7 @@ export function createCompanionAccountService({
         await cleanupCurrentAccount({ markPending: false });
         return settledState();
       }
-      return await provision(verified);
+      return await provision({ ...verified, registerOnly: deferTunnelOnSignIn && !companionIsOn() && !managedCompanionTunnelAccess(credentials()) });
     } catch (error) {
       if (!authenticatedPersisted) await client.signOut(verified.accountToken).catch(() => {});
       failAction(error, {

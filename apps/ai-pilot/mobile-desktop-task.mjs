@@ -1,4 +1,4 @@
-const polite = /^(?:(?:hãy|vui lòng|làm ơn|please|can you|could you)\s+)+/iu;
+const polite = /^(?:(?:hãy|vui lòng|làm ơn|nhờ(?: bạn)?|giúp tôi|please|can you|could you)\s+)+/iu;
 const startApp =
   /^(?:mở|chạy|khởi động|open|launch|start|run)\s+(?:(?:phần mềm|ứng dụng|ứng dụng kế toán|microsoft|the)\s+)*(?:misa|excel|quickbooks)(?=$|[\s.,!?:])/iu;
 const localAction =

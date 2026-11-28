@@ -5,12 +5,12 @@ import type { ZaloPeriodView, ZaloReportSchedule } from "../../shared/zalo-perio
 
 const route = "/api/zalo-official/reports";
 const changed = "omb:zalo-period-reports";
-const timezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+const defaultSchedule = (): ZaloReportSchedule => ({ cadence: "daily", hour: 17, minute: 0, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC" });
 const stamp = (value: number, timeZone: string) => new Intl.DateTimeFormat(undefined, { timeZone, dateStyle: "short", timeStyle: "short" }).format(value);
 
 export function ZaloPeriodReports({ manage = false }: { manage?: boolean }) {
   const [view, setView] = useState<ZaloPeriodView | null>(null);
-  const [form, setForm] = useState<ZaloReportSchedule>(() => ({ cadence: "daily", hour: 17, minute: 0, timeZone: timezone() }));
+  const [form, setForm] = useState<ZaloReportSchedule>(defaultSchedule);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -18,14 +18,19 @@ export function ZaloPeriodReports({ manage = false }: { manage?: boolean }) {
   useEffect(() => {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let revision: string | undefined;
     const invalidate = () => { controller.abort(); pending.current?.abort(); pending.current = null; setView(null); setBusy(false); setRefresh(value => value + 1); };
     const load = async (first: boolean) => {
       try {
         const result = await api<{ view: ZaloPeriodView | null }>(route, { signal: controller.signal });
         if (controller.signal.aborted) return;
+        if (manage && !first && result.view?.revision !== revision) {
+          setView(null); setError(true); return;
+        }
+        revision = result.view?.revision;
         setView(result.view);
         if (!result.view) return;
-        if (first && result.view.schedule) setForm(result.view.schedule);
+        if (first) setForm(result.view.schedule ?? defaultSchedule());
         timer = setTimeout(() => void load(false), 30_000);
       } catch { if (!controller.signal.aborted) setView(null); }
     };
@@ -47,7 +52,9 @@ export function ZaloPeriodReports({ manage = false }: { manage?: boolean }) {
       if (!controller.signal.aborted) { pending.current = null; setBusy(false); }
     }
   }
-  if (!view || (!manage && !view.schedule && !view.periods.length)) return null;
+  if (!view) return manage && error ? <p role="alert">{t("zalo.period.error")} <button className="ui-button" type="button"
+    onClick={() => { setError(false); setRefresh(value => value + 1); }}>{t("common.tryAgain")}</button></p> : null;
+  if (!manage && !view.schedule && !view.periods.length) return null;
   return <section className="grid gap-2 border-t border-hairline p-3 text-sm" aria-label={t("zalo.period.title")}>
     <h3 className="font-medium">{t("zalo.period.title")}</h3>
     <p>{t("zalo.period.source", view.source)}</p><p>{t("zalo.period.scope")}</p>

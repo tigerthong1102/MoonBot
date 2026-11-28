@@ -25,7 +25,9 @@ export function ZaloKnowledgeDraft({ item, excerpt, viewSignal }: {
     if (await brainOwner(signal, false) !== page.owner) throw new Error("owner_changed");
     const latest = latestPages(await pageHistory(page.owner)).find(entry => entry.id === page.id);
     if (latest?.version !== page.version || latest.approvedAt !== page.approvedAt) throw new Error("page_changed");
-    const fresh = await evidenceReader(page.owner, signal)(page.source);
+    signal.throwIfAborted();
+    // Watched folders tag their sync events with the dialog signal so the view recognizes its own read.
+    const fresh = await evidenceReader(page.owner, viewSignal)(page.source);
     if (!fresh || fresh.quote !== evidence.quote || fresh.label !== evidence.label || await brainOwner(signal, false) !== page.owner) {
       throw new Error("source_changed");
     }

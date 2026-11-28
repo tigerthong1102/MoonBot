@@ -20,12 +20,14 @@ it("discloses both sources before dispatch and rechecks the selected document be
   const reread = vi.fn().mockResolvedValue(item.evidence);
   vi.mocked(evidenceReader).mockReturnValue(reread);
   vi.mocked(api).mockResolvedValueOnce({ twin: { id: "test", revision: 1 }, preview: { name: "Local model", model: "fixture", key: "pin" } });
+  const viewSignal = new AbortController().signal;
   const press = () => act(async () => host.querySelector("button")!.click());
   try {
     await act(async () => root.render(createElement(ZaloKnowledgeDraft, {
-      excerpt: { source: "Chat mẫu", line: 4, text: "A synthetic question" }, item, viewSignal: new AbortController().signal,
+      excerpt: { source: "Chat mẫu", line: 4, text: "A synthetic question" }, item, viewSignal,
     })));
     await press();
+    expect(evidenceReader).toHaveBeenCalledWith(item.page.owner, viewSignal);
     expect(api).toHaveBeenCalledTimes(1);
     expect(host.textContent).toContain("Local model");
     expect(host.textContent).toContain("Chat mẫu");

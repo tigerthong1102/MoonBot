@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { mobileCatalog } from "../../apps/ai-pilot/mobile-catalog.mjs";
 import html from "../../apps/ai-pilot/mobile.html?raw";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -18,6 +19,7 @@ async function open(path, connected) {
   });
   const requests = [];
   vi.stubGlobal("fetch", async (url, init) => {
+    if (url.startsWith("/mobile/messages?")) return Response.json(mobileCatalog("en"));
     if (url === "/mobile/threads") return Response.json({ account:"fixture", threads:[], provider:{ enabled:true, connected } });
     if (url === "/mobile/provider/complete") return Response.json({ error:{ code:"provider_denied" } }, { status:400 });
     if (url === "/mobile/provider/disconnect") { connected = false; return Response.json({ ok:true }); }

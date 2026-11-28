@@ -109,7 +109,8 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       res.writeHead(200, { "content-type": type + "; charset=utf-8" });
       return res.end(source);
     }
-    let body = method === "POST" && (!companion || (path.endsWith("/messages") || path.endsWith("/tasks"))) ? await readObject(req) : {};
+    const hasBody = method === "PATCH" || (method === "POST" && (!companion || /\/(messages|tasks|respond)$/.test(path)));
+    let body = hasBody ? await readObject(req) : {};
     let owner, session;
     try {
       if (method === "POST" && path === "/mobile/code") {
@@ -174,7 +175,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     }
     recover(owner);
     if (companion) {
-      const input = native.route({ req, res, json, path, body, owner });
+      const input = native.route({ req, res, json, path, body, owner, session });
       if (!input || input.events) return input?.events;
       body = input;
       path = "/mobile/send";
@@ -234,6 +235,11 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       if (companion) {
         if (!native.allowsDrafts(session.hash)) throw new Fault(409, "desktop_required");
         let draft = await desktopDraft(session,input,"offer");
+        const messages = mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages;
+        if (draft.state === "choose") {
+          native.choose(session,body,draft.devices,messages.desktopChoose);
+          return json(200,{ok:true,threadId:body.thread});
+        }
         for (let attempt=0; draft.state === "waiting" && attempt<7 && !res.destroyed; attempt++) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           draft = await desktopDraft(session,{id:input.id},"status");
@@ -242,8 +248,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
           const message = ["waiting","expired"].includes(draft.state) ? "desktopUnconfirmed" : "desktop_unavailable";
           throw new Fault(409, message);
         }
-        const messages = mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages;
-        native.received(owner, body, messages);
+        native.received(owner, body, messages, session);
         return json(200, {ok:true,threadId:body.thread});
       }
       return json(200,{desktop:await desktopDraft(session,input,"offer")});

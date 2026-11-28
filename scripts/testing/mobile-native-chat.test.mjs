@@ -1,3 +1,4 @@
+import { draftKeys, unsealDraft } from "../../electron/mobile-desktop-envelope.mjs";
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { startMobileFixture } from "./mobile-chat-fixture.mjs";
@@ -6,10 +7,10 @@ let fixture;
 beforeEach(async () => { fixture = await startMobileFixture(); });
 afterEach(async () => { await fixture.close(); });
 
-async function signIn(name) {
+async function signIn(name, desktopDrafts = "deny") {
   const email = name + "@example.test";
   await fixture.call("/code", null, { email });
-  const response = await fixture.call("/login", null, { client:"companion", email, otp:"12345678" });
+  const response = await fixture.call("/login", null, { client:"companion", desktopDrafts, email, otp:"12345678" });
   expect(response.headers.get("set-cookie")).toBeNull();
   const { token, environment } = await response.json();
   expect(environment).toEqual(await (await fetch(fixture.url + "/.well-known/openmausbot/environment")).json());
@@ -90,4 +91,47 @@ it("finishes an accepted native turn after the phone disconnects without chargin
   expect((await request(token,path,body)).status).toBe(200);
   await expect.poll(async () => (await (await request(token,"/api/bots")).json()).bots[0].messages.at(-1)?.role).toBe("bot");
   expect(fixture.generations).toHaveLength(1);
+});
+
+it("deletes and renames tasks only in their owning native roster", async () => {
+  const token = await signIn("alice");
+  const { bots:[root] } = await (await request(token,"/api/bots")).json();
+  const url = "/api/bots/"+root.id+"/tasks";
+  const {bot:next} = await (await request(token,url,{title:"Second"})).json();
+  const mutate = (id,method,body) => fetch(fixture.url+url+"/"+id,{method,headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:body && JSON.stringify(body)});
+  expect((await mutate(next.threadId,"PATCH",{title:"Updated"})).status).toBe(200);
+  const {bot:remaining} = await (await mutate(root.threadId,"DELETE")).json();
+  expect(remaining.id).toBe(root.id);
+  expect(remaining.tasks.map(t=>t.title)).toEqual(["Updated"]);
+  expect((await mutate(next.threadId,"DELETE")).status).toBe(409);
+});
+
+it("uses the existing native answer card to hand a private draft to the selected desktop", async () => {
+  fixture.settings.mobileDesktopHandoff = true;
+  const token = await signIn("alice","allow");
+  const {bots:[bot]} = await (await request(token,"/api/bots")).json();
+  const devices = ["Office","Home"].map(name=>({id:randomUUID(),name,code:randomUUID().slice(0,8)}));
+  const listener = randomUUID(), keys = await draftKeys();
+  const input = {threadId:bot.threadId,sendId:randomUUID(),text:"Mở MISA trên máy tính"};
+  let delivered;
+  fixture.behavior.desktopDraft = async (path,body) => {
+    if(path.endsWith("/targets")) return body.target===devices[1].id ? {state:"ready",id:devices[1].id,listener,publicKey:keys.publicKey} : {state:"choose",devices};
+    expect(body.installation).toBe(devices[1].id);
+    delivered = await unsealDraft(body.envelope,keys.privateKey,body.id,listener);
+    return {state:"received"};
+  };
+  expect((await request(token,"/api/bots/"+bot.id+"/messages",input)).status).toBe(200);
+  const read = async bearer => (await (await request(bearer,"/api/threads/"+bot.threadId+"/messages")).json()).messages;
+  const card = (await read(token)).at(-1).card;
+  expect(card.options[1]).toContain("Home");
+  const response = "/api/threads/"+bot.threadId+"/respond";
+  const answer = {requestId:card.requestId,behavior:"answer",message:card.options[1]};
+  const other = await signIn("alice","allow");
+  expect(await read(other)).toHaveLength(0);
+  expect((await request(other,response,answer)).status).toBe(409);
+  expect(delivered).toBeUndefined();
+  expect((await request(token,response,answer)).status).toBe(200);
+  expect(delivered).toBe(input.text);
+  expect(JSON.stringify(await read(token))).not.toContain(input.text);
+  expect(fixture.generations).toHaveLength(0);
 });

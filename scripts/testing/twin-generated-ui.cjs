@@ -70,10 +70,16 @@ module.exports = async function verifyGenerated({ d, b, mobile, cfg, until, dela
     }
     await js(mobile,'document.querySelector("#twin-generated summary").click()');
     await until(mobile,'document.querySelectorAll("#generated-terms button").length===1');
-    await js(mobile,'document.querySelector("#generated-terms button").click()');
+    if (cfg.ongoing && !cfg.renewalCycle) {
+      d.once("close", event => event.preventDefault());
+      d.close();
+      assert(!d.isDestroyed());
+    } else {
+      await js(mobile,'document.querySelector("#generated-terms button").click()');
+    }
     await until(mobile,'(async()=>!(await(await fetch("/api/twin-generated")).json()).grant)()');
     await send(); await delay(2500);
     assert.deepEqual(await js(peer,read),expected);
-    console.log("PASS: "+(cfg.future ? "future DM created after both approvals" : "selected DM")+", visible sender notice, one provider answer posted, independent revocation read back.");
+    console.log("PASS: "+(cfg.future ? "future DM created after both approvals" : "selected DM")+", visible sender notice, "+expected.length+" provider answer(s), revocation read back from an independent session.");
   } finally { peer.destroy(); }
 };

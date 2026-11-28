@@ -1,5 +1,6 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import type { ZaloPairingStatus } from "../shared/zalo-pairing.ts";
 import { createZaloInbox } from "./zalo-inbox.ts";
 import { normalizedOfficialText, ZaloOfficialError } from "./zalo-official.ts";
 import { webhookClock, ZALO_WEBHOOK_SKEW_MS } from "./zalo-webhook-clock.ts";
@@ -106,7 +107,8 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
   };
 
   return {
-    door, purgeExpired,
+    door,
+    purgeExpired() { zaloWrite(db, () => { purgeExpired(); inbox.purgeExpired(); }); },
     register(accountId: string) {
       active();
       if (!/^[A-Za-z0-9_.:-]{1,128}$/.test(accountId)) throw new Error("Invalid bot identity");
@@ -116,6 +118,31 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
         const secret = randomBytes(32).toString("base64url"), endpoint = randomBytes(18).toString("base64url");
         db.prepare("INSERT INTO zalo_webhook_endpoints(endpoint,accountId,secretHash) VALUES(?,?,?)").run(endpoint, accountId, digest(secret));
         return { endpoint, path: "/hooks/zalo-official/" + endpoint, secret };
+      });
+    },
+    inspect(accountId: string): { endpoint: string; pairId?: string; status: ZaloPairingStatus } | undefined {
+      active();
+      return zaloWrite(db, () => {
+        purgeExpired();
+        const row = db.prepare("SELECT endpoint,grantId FROM zalo_webhook_endpoints WHERE accountId=?").get(accountId) as
+          { endpoint: string; grantId: string | null } | undefined;
+        if (!row) return;
+        const { endpoint, grantId } = row;
+        const pair = challenge(endpoint);
+        const revision = createHash("sha256").update(JSON.stringify([endpoint, grantId, pair?.id, pair?.sender, pair?.chat])).digest("hex");
+        const grant = grantId ? inbox.grant(grantId) : undefined;
+        if (grant) {
+          const coverage = inbox.coverage(grant.grantId)!;
+          return { endpoint, status: {
+            state: "paired", accountId, revision, retentionDays: grant.retentionDays,
+            participant: { senderId: grant.senderId, conversationId: grant.conversationId },
+            coverage: { count: coverage.count, first: coverage.first, last: coverage.last, pollGaps: coverage.recentGaps.length,
+              timingIssues: coverage.webhookTiming?.length ?? 0 },
+          } };
+        }
+        const participant = pair?.sender && pair.chat ? { senderId: pair.sender, conversationId: pair.chat } : undefined;
+        return { endpoint, pairId: pair?.id, status: { accountId, revision, participant, expires: pair?.expires,
+          state: participant ? "candidate" : !pair ? "ready" : pair.failures >= MAX_ATTEMPTS ? "locked" : "waiting" } };
       });
     },
     invite(endpointId: string) {

@@ -6,6 +6,9 @@ on:
       - 'scripts/qualification/zalo-personal/**'
       - 'scripts/qualification/zalo-official/**'
       - 'server/zalo-*'
+      - 'server/routes/zalo-*'
+      - 'src/components/Zalo*'
+      - 'shared/zalo-pairing.ts'
       - 'shared/zalo-event.ts'
       - 'electron/secure-credentials.mjs'
       - '.github/workflows/zalo-qualification.yml'
@@ -26,7 +29,7 @@ jobs:
         with:
           node-version: '26.4.0'
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - run: pnpm exec vitest run server/zalo-official-roundtrip.test.ts
+      - run: pnpm exec vitest run server/zalo-official-roundtrip.test.ts server/routes/zalo-pairing.test.ts src/components/ZaloPairingSetup.dom.test.ts
       - working-directory: scripts/qualification/zalo-personal
         run: npm ci --ignore-scripts
       - working-directory: scripts/qualification/zalo-personal

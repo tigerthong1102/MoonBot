@@ -1,6 +1,6 @@
 # Webhook Zalo Official và ghép cặp nội bộ
 
-Bộ thu thử nghiệm ghép một Zalo Bot với một chat cá nhân và một người gửi cho mục đích lưu văn bản. Lệnh quản lý chỉ dành cho tiến trình vận hành cục bộ. Đường dẫn HTTP nhận sự kiện dùng đúng hợp đồng `IngressDoor` của StartupBot. Bộ kiểm thử gắn nó vào `listenWebhookIngress` trên 127.0.0.1 với cổng do hệ điều hành cấp và cơ sở dữ liệu tạm riêng. Bản desktop và máy chủ gửi webhook hiện tại không tự gắn bộ thu.
+Bộ thu thử nghiệm ghép một Zalo Bot với một chat cá nhân và một người gửi cho mục đích lưu văn bản. Chủ sở hữu desktop quản lý ghép cặp từ Settings khi đã cấu hình pilot cục bộ. Đường dẫn HTTP nhận sự kiện dùng đúng hợp đồng `IngressDoor` của StartupBot. Bộ kiểm thử gắn nó vào `listenWebhookIngress` trên 127.0.0.1 với cổng do hệ điều hành cấp và cơ sở dữ liệu tạm riêng. Bản desktop và máy chủ gửi webhook hiện tại không tự gắn bộ thu.
 
 ## Quy trình
 
@@ -28,4 +28,17 @@ Secret gắn với endpoint xác thực bên nắm secret. Nền tảng công b�
 
 Chạy `pnpm exec vitest run server/zalo-webhook.test.ts server/zalo-inbox.test.ts server/zalo-official.test.ts`. Fixture dùng HTTP loopback thật, hai kết nối SQLite, restart receiver, giao dịch bị ép rollback, kiểm tra lại dữ liệu sau ACK, replay trước/sau ghép và lệnh thu hồi. Biên soạn mới dựa trên hợp đồng công khai của Zalo, dùng credential tạm và dữ liệu tổng hợp. Không có dependency bổ sung.
 
-**GO** cho fixture nội bộ và đánh giá thiết kế. **NO-GO** cho triển khai công khai. Chưa thử vendor → TLS → receiver, chưa có endpoint HTTPS thật, xác nhận quyền vận hành, consent thực tế, bài thử lưu lượng dài hạn hoặc kiểm chứng cấu hình proxy. Bộ thu chưa có giao diện người vận hành để trao mã/duyệt ghép trên bản bán cho khách. Các bài kiểm tra nội bộ không thay thế phép thử với bot Zalo có quyền.
+**GO** cho fixture nội bộ và đánh giá thiết kế. **NO-GO** cho triển khai công khai. Chưa thử vendor → TLS → receiver, chưa có endpoint HTTPS thật, xác nhận quyền vận hành, consent thực tế, bài thử lưu lượng dài hạn hoặc kiểm chứng cấu hình proxy. Giao diện pilot desktop đã kiểm thử với webhook mô phỏng. Chưa nghiệm thu một triển khai cho khách hàng. Các bài kiểm tra nội bộ không thay thế phép thử với bot Zalo có quyền.
+
+## Quản lý trên desktop
+
+1. Host đã được phép triển khai pilot cần dùng một SQLite riêng tại `~/.startupbot-qualification/zalo-official/inbox.sqlite`. Dùng cùng tệp cho `createZaloWebhookPilot(db)` của host và desktop. Sau khi xác minh ID bot thử riêng bằng probe, người vận hành cấp endpoint bằng `register(accountId)` ở host và giữ webhook secret trong kênh vận hành an toàn. Đây là bước chuẩn bị của host, bộ cài desktop không tự đăng ký webhook hay mở listener.
+2. Cấp `STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID` cho chính bot đó và bật hai flag sẵn có `STARTUPBOT_ZALO_OFFICIAL_PILOT=1` cùng `STARTUPBOT_ZALO_OFFICIAL_WEBHOOK_PILOT=1` cho desktop nội bộ. Trên POSIX, chủ hiện tại sở hữu hai thư mục pilot với mode 0700 và tệp cùng các SQLite sidecar với mode 0600. Trên Windows dùng ACL riêng của hồ sơ người dùng. Endpoint, tên tệp và tài khoản không thể bị đổi từ yêu cầu của giao diện. Khi chưa được cấp endpoint, Settings hiện trạng thái thiếu cấu hình.
+3. Mở Settings → Import → Zalo Bot chính thức → Ghép cặp chat riêng. Kiểm tra ID bot của webhook rồi chọn **Cấp mã riêng**. Trao lệnh riêng cho đúng người và yêu cầu họ gửi vào chat riêng của bot. Mã chỉ hiển thị trong phản hồi cấp mã, được xóa khỏi giao diện khi tải lại, đóng trang hoặc hết 5 phút. **Thay mã ghép cặp** sẽ hủy mã và ứng viên trước đó.
+4. Chọn **Tải lại trạng thái** để xem đúng hai ID của callback nhận mã. Đối chiếu độc lập với người tham gia, nhập lại cả hai ID và chọn thời hạn giữ văn bản 1–365 ngày (mặc định trên form là 7). Chỉ người sở hữu desktop mới có thể duyệt. Server kiểm tra revision theo trạng thái endpoint và danh tính ngay trong giao dịch SQLite cùng việc cấp quyền.
+5. Mục trạng thái hiển thị người gửi, chat, số tin còn lưu, thời gian tin sớm nhất/gần nhất, số khoảng trống polling gần đây (tối đa 50) và số loại lỗi thời gian webhook. Hộp thư dọn bản ghi hết hạn khi đọc coverage. Lịch sử có thể thiếu. Host cần gọi `pilot.purgeExpired()` định kỳ để dọn tin và mã hết hạn ngay cả khi nhàn rỗi. Giao diện chỉ hiện metadata.
+6. Chọn **Thu hồi endpoint**, đọc phạm vi xóa và xác nhận để xóa pairing, challenge, secret hash cùng tin đã lưu của endpoint. Endpoint khác giữ quyền riêng của nó. Việc thu hồi cấu hình trên Zalo do người vận hành thực hiện riêng.
+
+Route `/api/zalo-official/pairing` yêu cầu owner của desktop cục bộ và cả hai flag. Companion, session, tài khoản dịch vụ và loopback shell không đủ quyền. API trả `Cache-Control: no-store` và không trả webhook secret, URL callback hoặc nội dung tin nhắn. API xác minh token và API quản lý pairing dùng hai thao tác riêng. Lượt smoke HTTP loopback dùng endpoint và tài khoản giả trên DB tạm, đi từ tạo mã đến kiểm tra lại xóa từ kết nối SQLite thứ hai. Kiểm thử DOM bao phủ toàn bộ biểu mẫu Settings tiếng Việt, cả trường hợp pilot tắt.
+
+Chạy `pnpm exec vitest run server/routes/zalo-pairing.test.ts src/components/ZaloPairingSetup.dom.test.ts server/zalo-webhook.test.ts`. Các bài kiểm thử chỉ dùng dữ liệu tổng hợp. Sản phẩm chưa triển khai endpoint TLS công khai hoặc xác minh callback do Zalo gửi thật tới giao diện pilot này.

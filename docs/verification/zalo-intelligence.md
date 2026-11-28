@@ -70,6 +70,8 @@ Rollback bằng cách tắt Official pilot, thu hồi token tại Zalo khi cần
 
 ## F. GitHub và tái lập
 
+[Báo cáo nghiệm thu bổ sung](zalo-release-assessment.md) tổng hợp kết quả thử của 15 PR, các phép đo thực tế và quyết định theo từng môi trường.
+
 | PR | Branch | Nội dung |
 |---|---|---|
 | [#139](https://github.com/tigerthong1102/MoonBot/pull/139) | feat/zalo-transport-qualification | Bot probe, SQLite, SDK worker và benchmark |

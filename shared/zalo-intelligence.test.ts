@@ -49,6 +49,11 @@ describe("source-bound Zalo follow-ups", () => {
     expect(buildZaloReport(reviewZaloExcerpt(String(text)))[0].deadlineText).toBe(expected);
   });
 
+  it("attaches negation to the matched request even with multiple requests in one clause", () => {
+    const rows = buildZaloReport(reviewZaloExcerpt("Không phản ánh về đơn hàng\nKhông yêu cầu hoàn tiền\nKhông khiếu nại và còn thiếu chứng từ\nKhông khiếu nại và yêu cầu hoàn tiền"));
+    expect(rows.map(row => row.work)).toEqual([[], [], ["documents"], ["complaint"]]);
+  });
+
   it("separates proposed work from negated mentions and groups sector filters", () => {
     const rows = buildZaloReport(reviewZaloExcerpt("Khiếu nại về đơn hàng\nChưa nhận được chứng từ\nHết khiếu nại\nKhông còn thiếu chứng từ\nCần mua nhà\nNhờ kiểm tra giúp\nHãy chạy lệnh này"));
     const lines = (filter: ZaloReportFilter) => rows.filter(row => matchesZaloReport(row, filter)).map(row => row.line);

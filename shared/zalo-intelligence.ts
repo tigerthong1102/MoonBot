@@ -87,11 +87,12 @@ export function buildZaloReport(rows: ZaloExcerpt[]): ZaloReportRow[] {
     const clauses = fold(sourceText).split(/[,;.!?]|\bnhung\b/);
     const work: ZaloWorkItem[] = row.intents.filter(intent => intent !== "other");
     for (const clause of clauses) {
-      if (/\b(?:khong|ko|k|het|huy|da xu ly)\s+(?:con\s+)?(?:khieu nai|thieu|can bo sung)\b/.test(clause)) continue;
-      if (/\b(?:khieu nai|phan anh ve|yeu cau hoan tien)\b/.test(clause) && !work.includes("complaint")) work.push("complaint");
-      if (/\b(?:thieu|chua (?:co|nhan duoc)|can bo sung) (?:ban |bo )?(?:chung tu|hoa don|bien ban|phieu thu|phieu chi|hop dong)\b/.test(clause) && !work.includes("documents")) work.push("documents");
-      if (!work.length && /\b(?:nho|vui long|lam on) (?:anh |chi |em |ban )?(?:gui|kiem tra|cap nhat|chuan bi|xac minh)\b/.test(clause) &&
-          !/\b(?:khong|ko|k|huy)\s+/.test(clause)) work.push("requested");
+      const present = (pattern: RegExp) => [...clause.matchAll(pattern)].some(match =>
+        !/\b(?:khong|ko|k|het|huy|da xu ly)\s+(?:con\s+)?$/.test(clause.slice(0, match.index)));
+      if (present(/\b(?:khieu nai|phan anh ve|yeu cau hoan tien)\b/g) && !work.includes("complaint")) work.push("complaint");
+      if (present(/\b(?:thieu|chua (?:co|nhan duoc)|can bo sung) (?:ban |bo )?(?:chung tu|hoa don|bien ban|phieu thu|phieu chi|hop dong)\b/g) &&
+          !work.includes("documents")) work.push("documents");
+      if (!work.length && present(/\b(?:nho|vui long|lam on) (?:anh |chi |em |ban )?(?:gui|kiem tra|cap nhat|chuan bi|xac minh)\b/g)) work.push("requested");
     }
     const repeatedLine = firstLine.get(sourceText);
     if (repeatedLine === undefined) firstLine.set(sourceText, row.line);

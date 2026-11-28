@@ -219,7 +219,6 @@ async function showSessions() {
     item.append(new Date(session.createdAt).toLocaleString(locale) + " · " + t("expires") + " " + new Date(session.expiresAt).toLocaleString(locale) + " ");
     button.textContent = t("revoke");
     button.onclick = () => action(async () => {
-      if (!window.confirm(t("confirmRevoke"))) return;
       await api("sessions/revoke", { sessionId:session.id });
       await showSessions();
     });
@@ -232,7 +231,6 @@ el("sessions").ontoggle = () => {
   if (el("sessions").open) showSessions().catch(error => status(error.message));
 };
 el("logoutAll").onclick = () => action(async () => {
-  if (!window.confirm(t("confirmAll"))) return;
   await api("sessions/logout-all", {});
   signedOut();
   channel?.postMessage("changed");

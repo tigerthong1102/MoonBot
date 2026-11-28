@@ -27,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -72,6 +73,12 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
     val haptics = rememberHaptics()
+
+    var showingTwin by remember(connection?.id) { mutableStateOf(false) }
+    if (showingTwin && connection != null) {
+        key(connection?.id) { AiTwinScreen { showingTwin = false } }
+        return
+    }
 
     var showingInbox by rememberSaveable { mutableStateOf(false) }
     val inboxOrigin = personalInboxOrigin(resources.getString(R.string.startupbot_inbox_origin))
@@ -231,6 +238,9 @@ fun SettingsScreen(
 
             if (onOpenRoutines != null || onOpenConnectedApps != null || onOpenVoice != null) {
                 SettingsSection(stringResource(R.string.ui_workspace)) {
+                    if (connection != null) {
+                        SettingsButton(stringResource(R.string.ai_twin_title)) { showingTwin = true }
+                    }
                     onOpenRoutines?.let { openRoutines ->
                         SettingsButton(
                             text = stringResource(R.string.ui_threads_routines),

@@ -13,4 +13,18 @@
     <string name="always_on_notification_text">Notifications will reach you even with the app closed</string>
     <string name="ui_room_council">AI council</string>
     <string name="ui_room_council_critique">Include critique round</string>
+    <string name="ai_twin_title">AI Twin</string>
+    <string name="ai_twin_question">Ask AI Twin</string>
+    <string name="ai_twin_lookup">Look up a lesson</string>
+    <string name="ai_twin_semantic">Look up by meaning</string>
+    <string name="ai_twin_draft">Draft with memory</string>
+    <string name="ai_twin_disclosure">AI uses %1$s (%2$s). Lookup can share questions from lessons you enabled. Drafting may also share a matched answer and writing habits.</string>
+    <string name="ai_twin_unavailable">Connect over HTTPS or Tailscale. Allow phone access on the paired computer, or create a Twin in your personal Cloud.</string>
+    <string name="ai_twin_failed">AI Twin could not answer. Refresh and try again.</string>
+    <string name="ai_twin_refresh">Refresh</string>
+    <string name="ai_twin_match">Possible lesson match</string>
+    <string name="ai_twin_approved">Approved lesson</string>
+    <string name="ai_twin_missing">No matching lesson.</string>
+    <string name="ai_twin_private_draft">Private draft</string>
+    <string name="ai_twin_paused">AI Twin is paused.</string>
 </resources>

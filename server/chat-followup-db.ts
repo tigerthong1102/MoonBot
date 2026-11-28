@@ -23,6 +23,7 @@ export interface FollowupPayload {
   trigger?: UsageTrigger;
   origin?: WorkOrigin;
   queuedAt?: number;
+  twinReply?: import("./channel-queue.ts").QueuedTwinReply;
   rowId?: string; mentions?: string[]; workBotOfferOwner?: string; workBotOfferSource?: string; workBotFollowUp?: import("../shared/follow-up.ts").FollowUp;
 }
 export type FollowupStatus = "pending" | "dispatching" | "interrupted" | "cancelled" | "transferred";

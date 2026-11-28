@@ -609,7 +609,7 @@ import { createNoAiNotice } from "./host/no-ai-notice.ts"; import { PASS, ROUTES
 import { inboxBotTextRoutes } from "./routes/inbox-bot-text.ts"; import { createInboxBotIdentityHost } from "./host/inbox-bot-identity-host.ts";
 import { applyDesktopMutationTokenMessage } from "./host/desktop-owner.ts";
 import { createInstructionStudio } from "./routes/instruction-studio.ts";
-import { createAiTwinRoutes } from "./routes/ai-twin.ts";
+import { createAiTwinHost } from "./host/ai-twin.ts";
 import { slackReportLookup } from "./slack-report-reply.ts";
 import { createHostedSlackRoutes } from "./routes/hosted-slack.ts";
 import { createBotPresetRoutes } from "./routes/bot-presets.ts"; import { createWorkspaceBannerRoutes, workspaceBannerStore, workspaceBannerSummary } from "./routes/workspace-banner.ts";
@@ -780,7 +780,7 @@ const SESSION_COOKIE = sessionCookieName(PORT, ENVIRONMENT_ID);
 const HOSTED_WORKSPACE = hostedWorkspaceConfigured();
 let workspaceAccess: WorkspaceAccess | null = null;
 const DESKTOP_MANAGED = process.env.OMB_DESKTOP_PARENT === "1";
-const AI_TWIN_ENABLED = DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE && process.env.OMB_AI_TWIN !== "0";
+const AI_TWIN_ENABLED = ((DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE) || CLOUD_PERSONAL) && process.env.OMB_AI_TWIN !== "0";
 const SHARED_WORKSPACE_FULL_ACCESS = sharedWorkspaceFullAccessConfigured();
 const sharedWorkspaceFullAccessEnabled = () => SHARED_WORKSPACE_FULL_ACCESS && Boolean(workspaceAccess) && entitled("admin");
 const HOSTED_FULL_ACCESS_REFUSAL = "On a shared company workspace Full access comes only from the operator's dedicated policy";
@@ -10934,9 +10934,9 @@ function drainQueuedChannelSendsNow(): void {
       const ownsThread = group?.dm
         ? group.threadId === threadId
         : Boolean(group && store.groupTaskByThread(group.id, threadId));
-      if (!group || !ownsThread) return;
-      const head = items[0]!;
-      const last = items[items.length - 1]!;
+      const head = items[0]!, last = items[items.length - 1]!;
+      if (!group || !ownsThread) return head.twinReply ? "cancelled" : undefined;
+      if (head.twinReply) { queueMicrotask(drainQueuedChannelSends); return aiTwin.drain(group, threadId, head); }
       const joined = items.map((item) => item.text).join("\n\n");
       try {
         startGroupTurn(groupId, joined, resolveReplyTarget(threadId, last.replyToId), last.sendId, last.mode, last.id, {
@@ -12100,14 +12100,14 @@ store.onChange(change => {
   }
 });
 ROUTES.push(instructionStudio.routes);
-ROUTES.push(createAiTwinRoutes({
-  enabled: AI_TWIN_ENABLED,
-  dataDir: DATA_DIR,
-  workspace: ENVIRONMENT_ID,
-  preview: { selection: () => bootSelection, jobs: sideJobs },
-  ownerToken: () => desktopMutationToken,
-  blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
-}));
+const aiTwin = createAiTwinHost({
+  enabled: AI_TWIN_ENABLED, desktop: DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE, dataDir: DATA_DIR, workspace: ENVIRONMENT_ID, store,
+  preview: { selection: () => bootSelection, jobs: sideJobs }, blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
+  liveSession: liveSignedIn, sessionRecord: (id) => sessions.record(id), visible: (auth) => visibleTo(viewerFor(auth)), mayLearn: () => CLOUD_PERSONAL || !sharedMembership(),
+  ownerThread: (thread) => !CLOUD_PERSONAL || cloudOwnerOnlyThread(thread), ownerLine: (person) => CLOUD_PERSONAL ? cloudProvenOwnerPerson(person) : !person,
+  roomReady: (group) => !group.dm && !roomSetupPending(group), roomSendRefused: cloudGuestSendRefusal, sender: messageSender,
+});
+ROUTES.push(aiTwin.routes);
 ROUTES.push(createThreadRoutes({
   groupFor: personRooms.groupForAuth, ...(botOrders ? { botOrderFor: (auth: RequestAuth, bots: readonly BotRecord[]) => { const person = botOrders.personOf(auth); return person ? botOrders.ordered(person, bots) : bots; } } : {}),
   store, userName: userNameFor, sessions, groupUsageReader, lendingEnabled,
@@ -12242,7 +12242,7 @@ ROUTES.push(createChannelRoutes({
   messagePage,
   resolveReplyTarget,
   runningTurnInstance,
-  startGroupTurn, engineSteersImages,
+  startGroupTurn, engineSteersImages, twinReply: aiTwin.reply,
   applyRoomHoldsFromMessage,
   cancelGroupTurnOperations,
   drainQueuedChannelSends,
@@ -12518,7 +12518,7 @@ ROUTES.push(createDataRoutes({
   exportRoots: dataExportRoots,
 }));
 ROUTES.push(createLiveRoutes({
-  calls: liveCalls, deviceRevoked: (device) => { phonePush.forget(`companion:${device}`); phoneActivity.forget(`companion:${device}`); },
+  calls: liveCalls, deviceRevoked: (device) => { aiTwin.revokeDevice(device); phonePush.forget(`companion:${device}`); phoneActivity.forget(`companion:${device}`); },
   resolveTarget: (botId, threadId) => {
     const bot = store.bot(botId);
     if (!bot) return null;
@@ -15259,15 +15259,16 @@ const workspaceAccessTimer = workspaceAccess ? setInterval(() => {
 }, 10_000) : null;
 workspaceAccessTimer?.unref();
 console.log(describeBrand(loadBrand()));
-
 // Before any row below settles: an interrupted dispatch's words come back with a review notice, never to a model a second time.
 followupAtBoot("");
 for (const row of chatFollowups()) {
   if (row.kind === "aside") { settleChatFollowups([row.id], null); continue; }
   if (row.status !== "dispatching" && row.status !== "interrupted") continue;
-  const owned = row.kind === "channel"
-    ? Boolean(store.groupByThread(row.threadId)?.id === row.ownerId)
-    : Boolean(store.taskByThread(row.ownerId, row.threadId));
+  if (row.payload.twinReply) {
+    settleChatFollowups([row.id], store.messagesFor(row.threadId).some((message) => message.queueId === row.id && message.role === "user") ? null : "cancelled");
+    continue;
+  }
+  const owned = row.kind === "channel" ? Boolean(store.groupByThread(row.threadId)?.id === row.ownerId) : Boolean(store.taskByThread(row.ownerId, row.threadId));
   if (!owned) { settleChatFollowups([row.id], "cancelled"); continue; }
   settleChatFollowups([row.id], "interrupted");
   const messages = store.messagesFor(row.threadId);
@@ -15292,7 +15293,6 @@ for (const row of chatFollowups()) {
 }
 restoreSteeredMessages();
 restoreChannelMessages();
-
 {
   let movedAutoPins = 0;
   for (const bot of store.bots) {

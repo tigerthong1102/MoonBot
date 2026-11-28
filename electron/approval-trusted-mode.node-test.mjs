@@ -118,6 +118,19 @@ test("an uncertain scoped commit compensates only its own thread", async () => {
   await assert.rejects(pending, /not committed/);
 });
 
+test("a refused bot commit revokes the uncertain grant before rejecting", async () => {
+  const proc = fakeProcess();
+  const coordinator = createTrustedApprovalModeCoordinator({ randomId: idSequence(REQUEST_ID, REQUEST_ID_2) });
+  const pending = coordinator.request(proc, "bot-1", "full");
+  const bot = { id: "bot-1", approvalMode: "full" };
+  coordinator.receive(proc, { type: "approval-trusted-mode-result", requestId: REQUEST_ID, ok: true, bot });
+  for (const phase of ["confirm", "activate", "finalize"]) coordinator.receive(proc, { type: `approval-trusted-mode-${phase}-result`, requestId: REQUEST_ID, ok: true });
+  coordinator.receive(proc, { type: "approval-trusted-mode-commit-result", requestId: REQUEST_ID, ok: false });
+  assert.equal(proc.messages.at(-1).mode, "ask");
+  coordinator.receive(proc, { type: "approval-trusted-mode-result", requestId: REQUEST_ID_2, ok: true, bot: { ...bot, approvalMode: "ask" } });
+  await assert.rejects(pending, /not committed/);
+});
+
 test("thread-only options reject missing or mixed scopes", () => {
   for (const mode of ["ask", "edits", "auto", "full", "custom"]) assert.equal(trustedApprovalModeRequest(REQUEST_ID, "bot-1", mode, false, "thread-1", undefined, undefined, true).threadOnly, true);
   assert.throws(() => trustedApprovalModeRequest(REQUEST_ID, "bot-1", "full", false, undefined, undefined, undefined, true), /thread-only/);
@@ -266,7 +279,8 @@ test("carries the local Auto warning acknowledgement through the private channel
 test("sends through one utility process and returns the matching server bot", async () => {
   const proc = fakeProcess();
   const coordinator = createTrustedApprovalModeCoordinator({ randomId: () => REQUEST_ID, timeoutMs: 100 });
-  const pending = coordinator.request(proc, "bot-1", "custom");
+  let settled = false;
+  const pending = coordinator.request(proc, "bot-1", "custom").then(value => { settled = true; return value; });
   assert.deepEqual(proc.messages, [{
     type: "approval-trusted-mode-set",
     requestId: REQUEST_ID,
@@ -320,6 +334,9 @@ test("sends through one utility process and returns the matching server bot", as
     botId: "bot-1",
     mode: "custom",
   });
+  await Promise.resolve();
+  assert.equal(settled, false);
+  coordinator.receive(proc, { type: "approval-trusted-mode-commit-result", requestId: REQUEST_ID, ok: true, bot });
   assert.deepEqual(await pending, bot);
 });
 
@@ -417,6 +434,7 @@ test("another utility process cannot resolve a pending request", async () => {
     ok: true,
   }), true);
   assert.equal(proc.messages[4].type, "approval-trusted-mode-commit");
+  coordinator.receive(proc, { type: "approval-trusted-mode-commit-result", requestId: REQUEST_ID, ok: true, bot: result.bot });
   assert.equal((await pending).approvalMode, "full");
 });
 

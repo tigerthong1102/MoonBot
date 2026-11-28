@@ -1,6 +1,6 @@
 // The full server as a Cloud home over its real HTTP boundary, still sent the OMB_HOSTED_* settings an Admin from before
 // Cloud Pro dropped included AI. Disposable home; no network; a synthetic Claude CLI.
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -189,6 +189,24 @@ it("pairs the app on a signed request and tells it its first run is the engine s
   expect(instances.map((instance: any) => instance.instanceId)).toContain("claude");
   expect(instances.filter((instance: any) => instance.instanceId.startsWith("included.") || "included" in instance || instance.readOnly)).toEqual([]);
   expect(JSON.stringify(instances)).not.toContain("cloud.example.test");
+});
+
+it("keeps the Cloud Twin behind the personal owner's session", async () => {
+  const path = "/api/ai-twin";
+  expect((await api("GET", path, { remote: true })).status).toBeGreaterThanOrEqual(400);
+  expect((await api("GET", path, { headers: { authorization: "Bearer omb_revoked_fixture" } })).status).toBeGreaterThanOrEqual(400);
+
+  const current = await api("GET", path);
+  expect(current.status).toBe(200);
+  expect(current.body.twin).toBeNull();
+  const made = await api("POST", path, { body: {
+    name: "Cloud Twin fixture", creationId: randomUUID(), creationEpoch: current.body.creationEpoch, createConsent: true,
+  } });
+  expect(made.status).toBe(201);
+  const { id, revision } = made.body.twin;
+  expect((await api("GET", path)).body.twin).toMatchObject({ id, name: "Cloud Twin fixture" });
+  expect((await api("PATCH", path + "/phone", { body: { id, revision, enabled: true } })).status).toBe(400);
+  expect((await api("DELETE", path, { body: { id, revision } })).body.twin).toBeNull();
 });
 
 async function mintBrowserSignIn(owner = "ada@example.test"): Promise<string> {

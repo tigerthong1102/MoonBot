@@ -12,6 +12,7 @@ import {
   resolveHeldReplyTarget,
   restoreHeldChannelQueue,
   settleHeldChannelQueueHead,
+  type QueuedTwinReply,
 } from "../channel-queue.ts";
 import { DATA_DIR, type AppConfig } from "../config.ts";
 import type { ProviderInstance, SteerOutcome } from "../contracts.ts";
@@ -97,6 +98,10 @@ export interface ChannelRouteDeps {
     queueId: undefined,
     options: { via?: "api"; sender?: ResolvedSender; trigger?: UsageTrigger; threadId?: string; mentions?: string[]; pointed?: RoomPick },
   ): Message;
+  twinReply?(
+    input: { auth: RequestAuth; group: GroupRecord; threadId: string; text: string; replyTo?: Message; sendId?: string },
+    working: boolean,
+  ): { message: Message } | { pending: QueuedTwinReply } | undefined;
   applyRoomHoldsFromMessage(groupId: string, text: string, mentions?: readonly string[]): void;
   cancelGroupTurnOperations(groupId: string, threadId: string): void;
   drainQueuedChannelSends(): void;
@@ -438,6 +443,16 @@ export function createChannelRoutes(deps: ChannelRouteDeps): RouteHandler {
               status: 404,
             });
           }
+          if (channelMode === "chat" && !via && !pointing) {
+            const twin = deps.twinReply?.({ auth, group: current, threadId, text, replyTo, sendId }, groupThreadIsWorking(current.id, threadId));
+            if (twin && "message" in twin) return { ok: true as const, threadId, message: twin.message };
+            if (twin) {
+              const queued = queueChannelMessage(current.id, threadId, text, {
+                replyToId: replyTo?.id, sendId, mode: channelMode, sender: messageSender(auth), twinReply: twin.pending,
+              });
+              return { ok: true as const, queued: true as const, queueId: queued.id, threadId };
+            }
+          }
           const members = current.memberIds.map((id) => store.bot(id)).filter((bot): bot is BotRecord => Boolean(bot));
           // A new pick only (a retry above keeps its receipt): every page bot must still be here and free to answer.
           const pageBotIds = roomPickBots(pick);
@@ -536,7 +551,7 @@ export function createChannelRoutes(deps: ChannelRouteDeps): RouteHandler {
         restoreHeldChannelQueue(held);
         return json(res, 409, { error: "only the first queued message can steer" });
       }
-      if (decision.action === "queue" || !steerInput || headGroup.some((item) => item.pointed)) {
+      if (decision.action === "queue" || !steerInput || headGroup.some((item) => item.pointed || item.twinReply)) {
         restoreHeldChannelQueue(held);
         return json(res, 200, {
           ok: true,

@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   cleanupCompanionOriginEndpoint,
   companionOriginHealth,
+  companionOriginRequestTimeout,
   createCompanionOriginEndpoint,
   createCompanionOriginGateway,
   validCompanionOriginTarget,
@@ -99,6 +100,13 @@ describe("managed Companion origin endpoint", () => {
 });
 
 describe("managed Companion loopback gateway", () => {
+  it("leaves enough time for Twin rank, confirmation and drafting", () => {
+    expect(companionOriginRequestTimeout("POST", "/api/ai-twin/lookup", 30_000)).toBe(48_000);
+    expect(companionOriginRequestTimeout("POST", "/api/ai-twin/preview?test=1", 30_000)).toBe(68_000);
+    expect(companionOriginRequestTimeout("GET", "/api/ai-twin", 30_000)).toBe(30_000);
+    expect(companionOriginRequestTimeout("POST", "/api/ai-twin/preview/unrelated", 30_000)).toBe(30_000);
+  });
+
   it("forwards only to the closed-over private socket and strips hop-by-hop headers", async () => {
     const allocated = endpoint();
     const target = createHttpServer((request, response) => {

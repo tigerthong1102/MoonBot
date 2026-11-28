@@ -843,6 +843,36 @@ public struct CompanionClient: Sendable {
         })
     }
 
+    private func protectedTwinClient() throws -> CompanionClient {
+        if connection.baseURL != nil, connection.activeEndpoint?.protectsCredentials == true { return self }
+        guard let endpoint = connection.orderedEndpoints.first(where: \.protectsCredentials) else {
+            throw APIError.transport("Use HTTPS or Tailscale to open AI Twin.")
+        }
+        return CompanionClient(connection: connection.dialing(endpoint), token: token, session: session, requestTimeout: requestTimeout)
+    }
+
+    public func aiTwin() async throws -> AiTwinStatus {
+        let client = try protectedTwinClient()
+        return try await client.send(client.makeRequest("GET", "/api/ai-twin"), as: AiTwinStatus.self)
+    }
+
+    public func askAiTwin(_ profile: AiTwinProfile, question: String,
+                          action: AiTwinAction, provider: AiTwinProvider?) async throws -> AiTwinAnswer {
+        let client = try protectedTwinClient()
+        var body: [String: Any] = ["id": profile.id, "revision": profile.revision, "question": question]
+        if action != .exact {
+            guard let provider else { throw APIError.transport("AI Twin has no enabled provider.") }
+            body["key"] = provider.key
+            body["useProvider"] = true
+        }
+        if action == .draft { body["useMemory"] = true }
+        let method = action == .draft ? "preview" : "lookup"
+        var request = try client.makeRequest("POST", "/api/ai-twin/\(method)", body: body)
+        if action == .semantic { request.timeoutInterval = 45 }
+        if action == .draft { request.timeoutInterval = 65 }
+        return try await client.send(request, as: AiTwinAnswer.self)
+    }
+
     public func config() async throws -> ConfigStatus {
         try await send(try makeRequest("GET", "/api/config"), as: ConfigStatus.self)
     }

@@ -130,6 +130,12 @@ struct SettingsView: View {
             if session.connection != nil {
                 Section("Workspace") {
                     NavigationLink {
+                        AiTwinView().id(session.connection?.id)
+                    } label: {
+                        Label("AI Twin", systemImage: "sparkles")
+                    }
+
+                    NavigationLink {
                         TasksRoutinesView(connectionID: session.connection?.id)
                             .id(session.connection?.id)
                     } label: {

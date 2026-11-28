@@ -2,6 +2,9 @@ export const AI_TWIN_PATH = "/api/ai-twin";
 export const AI_TWIN_PREVIEW_PATH = AI_TWIN_PATH + "/preview";
 export const AI_TWIN_LESSONS_PATH = AI_TWIN_PATH + "/lessons";
 export const AI_TWIN_LOOKUP_PATH = AI_TWIN_PATH + "/lookup";
+export const AI_TWIN_LEARNING_PATH = AI_TWIN_PATH + "/learning";
+export const AI_TWIN_DELEGATION_PATH = AI_TWIN_PATH + "/delegation";
+export const AI_TWIN_PHONE_PATH = AI_TWIN_PATH + "/phone";
 export const AI_TWIN_NAME_MAX = 80;
 export const AI_TWIN_STYLE_MAX = 1_200;
 export const AI_TWIN_QUESTION_MAX = 1_000;
@@ -13,6 +16,7 @@ export interface AiTwinLesson {
   question: string;
   answer: string;
   source: "owner";
+  allowProvider?: true;
   updatedAt: number;
 }
 
@@ -37,4 +41,43 @@ export interface AiTwinView {
   creationEpoch: string;
   preview?: AiTwinPreviewProvider;
   lessons?: AiTwinLesson[];
+  controls?: AiTwinControls;
+  canEnablePhone?: boolean;
+}
+
+export interface AiTwinScope {
+  id: string;
+  label: string;
+}
+
+export interface AiTwinDelegation {
+  room: string;
+  lesson: string;
+}
+
+export interface AiTwinControls {
+  sourceIds: string[];
+  delegations: AiTwinDelegation[];
+  phone: boolean;
+}
+
+export interface AiTwinLearningExample {
+  thread: string;
+  message: string;
+  question?: string;
+  text: string;
+}
+
+export interface AiTwinLearningView {
+  conversations: AiTwinScope[];
+  rooms: AiTwinScope[];
+  style?: AiTwinLearnedStyle;
+  examples: AiTwinLearningExample[];
+}
+
+export interface AiTwinLearnedStyle {
+  samples: number;
+  typicalWords: number;
+  frequentlyUsesLists: boolean;
+  frequentlyAsksQuestions: boolean;
 }

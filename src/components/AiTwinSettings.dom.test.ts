@@ -149,3 +149,30 @@ it("links the private lessons disclosure to its hidden panel", async () => {
   await act(async () => toggle.click());
   expect(panel?.hidden).toBe(true);
 });
+
+it("keeps one lesson editor when saving changes the revision and remounts the preview", async () => {
+  const twin = { id: "fixture", name: "Twin", style: "", paused: false, revision: 1, createdAt: 1, updatedAt: 1 };
+  const controls = { sourceIds: [], delegations: [], phone: false };
+  const initial = { twin, creationEpoch: "initial", controls, lessons: [] };
+  apiMock.mockResolvedValueOnce(initial);
+  const profile = await mount();
+  await act(async () => button(profile, "Private lessons").click());
+  await act(async () => button(profile, "Teach a lesson").click());
+  function fill(input: HTMLInputElement | HTMLTextAreaElement, value: string) {
+    const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+  await act(async () => {
+    fill(profile.querySelector("input")!, "What is the policy?");
+    fill(profile.querySelector("textarea")!, "The approved answer.");
+  });
+  apiMock.mockResolvedValueOnce({
+    ...initial, twin: { ...twin, revision: 2 },
+    lessons: [{ id: "lesson", question: "What is the policy?", answer: "The approved answer.", source: "owner", updatedAt: 2 }],
+  });
+  await act(async () => button(profile, "Save lesson").click());
+  expect([...profile.querySelectorAll("button")].filter((node) => node.textContent?.trim() === "Private lessons")).toHaveLength(1);
+  expect(profile.textContent).toContain("The approved answer.");
+  expect(profile.textContent).not.toContain("Saving…");
+});

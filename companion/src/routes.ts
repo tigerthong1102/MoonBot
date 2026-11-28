@@ -54,6 +54,10 @@ export const LOCAL_VM_SCREENSHOT_ROUTE = {
   path: /^\/api\/bots\/[\w-]+\/local-computer\/screenshot$/,
 } as const;
 
+export function isAiTwinPhonePath(path: string): boolean {
+  return /^\/api\/ai-twin(?:\/(?:lookup|preview))?$/.test(path);
+}
+
 export function isCloudDesktopJoin(method: string, path: string): boolean {
   return method === CLOUD_DESKTOP_JOIN_ROUTE.method && CLOUD_DESKTOP_JOIN_ROUTE.path.test(path);
 }
@@ -82,6 +86,8 @@ export function isBrowserControlAccess(method: string, path: string): boolean {
 const ALLOWED: ReadonlyArray<{ method: string; path: RegExp }> = [
   // Configured-or-not booleans, never keys; the write side is refused below.
   { method: "GET", path: /^\/api\/config$/ },
+  { method: "GET", path: /^\/api\/ai-twin$/ },
+  { method: "POST", path: /^\/api\/ai-twin\/(?:lookup|preview)$/ },
   { method: "GET", path: /^\/api\/events$/ },
   { method: "GET", path: /^\/api\/instances$/ },
   // The harness refuses it while any Claude turn runs. Instance ids may carry

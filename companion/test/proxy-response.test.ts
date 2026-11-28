@@ -18,6 +18,9 @@ const deeplyNested = (() => {
 
 let harness: Server;
 let sidecar: Server;
+let managedOrigin: Server;
+let managedPort = 0;
+let proxy: ReturnType<typeof createProxyHandler>;
 let sidecarPort = 0;
 let cloudDesktopAccess = true;
 let companionMarker = "";
@@ -57,28 +60,66 @@ beforeAll(async () => {
   });
   const harnessPort = await listen(harness);
 
-  sidecar = createServer(
-    createProxyHandler({
-      harnessPort,
-      authenticate: (t) => (t === TOKEN ? { id: "phone-1", cloudDesktopAccess, browserControlAccess: false } : null),
-      redeem: () => ({ error: "not used here", code: "pairing_code_wrong" }),
-      serverName: () => "Test computer",
-      endpoints: () => endpointCandidates,
-    }),
-  );
+  proxy = createProxyHandler({
+    harnessPort,
+    authenticate: (t) => (t === TOKEN ? { id: "phone-1", cloudDesktopAccess, browserControlAccess: false } : null),
+    redeem: () => ({ error: "not used here", code: "pairing_code_wrong" }),
+    serverName: () => "Test computer",
+    endpoints: () => endpointCandidates,
+  });
+  sidecar = createServer(proxy);
   sidecarPort = await listen(sidecar);
+  managedOrigin = createServer((req, res) => proxy(req, res, "origin"));
+  managedPort = await listen(managedOrigin);
 });
 
 afterAll(async () => {
   await close(sidecar);
+  await close(managedOrigin);
   await close(harness);
 });
 
 describe("preparing a harness response for a device", () => {
-  it("gives only transactional phone credential saves the longer deadline", () => {
+  it("extends the deadline only for authorized long-running phone actions", () => {
     expect(proxyHeadersTimeoutMs("/api/bots/b1/secret-cards/m1/provide")).toBe(105_000);
+    expect(proxyHeadersTimeoutMs("/api/ai-twin/lookup?test=1")).toBe(45_000);
+    expect(proxyHeadersTimeoutMs("/api/ai-twin/preview")).toBe(65_000);
+    expect(proxyHeadersTimeoutMs("/api/ai-twin/preview/unrelated")).toBe(30_000);
     expect(proxyHeadersTimeoutMs("/api/bots/b1/messages")).toBe(30_000);
     expect(proxyHeadersTimeoutMs("/api/bots/b1/secret-cards/m1/provide", 17)).toBe(17);
+  });
+
+  it("serves Twin only to a paired device on the managed origin and refuses spoofed TLS metadata on LAN", async () => {
+    respond = (res) => res.writeHead(200, { "content-type": "application/json" }).end("{}");
+    const path = "/api/ai-twin";
+    const authorization = `Bearer ${TOKEN}`;
+    const plain = await fetch(`http://127.0.0.1:${sidecarPort}${path}`, {
+      headers: { authorization, "x-forwarded-proto": "https", forwarded: "proto=https" },
+    });
+    expect(plain.status).toBe(404);
+    await plain.text();
+    const unpaired = await fetch(`http://127.0.0.1:${managedPort}${path}`);
+    expect(unpaired.status).toBe(404);
+    await unpaired.text();
+    const paired = await fetch(`http://127.0.0.1:${managedPort}${path}`, { headers: { authorization } });
+    expect(paired.status).toBe(200);
+    expect(await paired.json()).toEqual({});
+    expect(companionDevice).toBe("phone-1");
+  });
+
+  it("cuts an in-flight Twin answer off when the phone loses access", async () => {
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => { started = resolve; });
+    respond = () => { started(); };
+    const reply = fetch(`http://127.0.0.1:${managedPort}/api/ai-twin/lookup`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" },
+      body: "{}",
+    });
+    const disconnected = expect(reply).rejects.toThrow();
+    await pending;
+    proxy.disconnectDevice("phone-1");
+    await disconnected;
   });
 
   it("drops an endpoint whose runtime URL is not a string", async () => {

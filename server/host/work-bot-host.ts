@@ -323,7 +323,7 @@ const workBotRouter = new WorkBotRouter({
           if (!deps.data) throw new Error("Data handoff unavailable");
           dataCopies = await deps.data.copy(link, dataIds, () => { validateHandoff(); validateContext(); validateQueue(); validateFiles(); });
         }
-        const staged: Parameters<typeof store.appendWorkBotContext>[1] = [];
+        const staged: Parameters<typeof store.appendLinkedMessages>[1] = [];
         for (let index = 0; index < sourceIndex; index += 1) {
           if (index > 0 && index % 100 === 0) {
             await new Promise<void>(resolve => setImmediate(resolve));
@@ -351,11 +351,11 @@ const workBotRouter = new WorkBotRouter({
           const first = followups[0];
           validateQueue();
           const queueIds = followups.map(item => item.messageId);
-          const rows: Parameters<typeof store.appendWorkBotContext>[1] = [...staged.map(row => held ? { ...row, message: { ...row.message, workBotReviewHold: true as const } } : row), { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
+          const rows: Parameters<typeof store.appendLinkedMessages>[1] = [...staged.map(row => held ? { ...row, message: { ...row.message, workBotReviewHold: true as const } } : row), { sourceId: messageId, ...(source.replyToId ? { replySourceId: source.replyToId } : {}), message: {
             role: "user", kind: "text", text: source.text, at: Date.now(), sendId: `workbot-${messageId}`, workBotHandoffSource: { threadId, messageId, botId: route.sourceBotId }, ...(held ? { requestPending: false, workBotReviewHold: true as const } : { workBotRecoveryPending: true as const }),
             ...(source.sender ? { sender: source.sender } : {}), ...(source.dataContext ? { dataContext: dataCopies!.context(source.dataContext) } : {}),
           } }, ...followups.map(item => ({ sourceId: item.messageId, message: { role: "user" as const, kind: "text" as const, text: item.text, ...(item.dataContext ? { dataContext: dataCopies!.context(item.dataContext) } : {}), at: item.queuedAt, queueId: item.messageId, workBotHandoffSource: { threadId, messageId, botId: route.sourceBotId }, ...(held ? { requestPending: false, workBotReviewHold: true as const } : { workBotRecoveryPending: true as const }), ...(item.sendId ? { sendId: item.sendId } : {}), ...(item.sender ? { sender: item.sender } : {}) } }))];
-          const copied = store.appendWorkBotContext(target.threadId, rows, first ? { claim: { botId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, queueIds, trigger: first.trigger, offerOwner: first.workBotOfferOwner, ...(dataCopies ? { dataCardIds: Object.fromEntries(dataIds.map(id => [id, dataCopies!.context({ cardId: id }).cardId])) } : {}) }, afterCommit: () => forgetTransferredWorkBotFollowups(route.sourceBotId!, threadId, messageId, queueIds) } : undefined, link, held ? { expectedSourceLeaf: sourceLeaf } : undefined);
+          const copied = store.appendLinkedMessages(target.threadId, rows, first ? { claim: { botId: route.sourceBotId!, sourceThreadId: threadId, sourceMessageId: messageId, queueIds, trigger: first.trigger, offerOwner: first.workBotOfferOwner, ...(dataCopies ? { dataCardIds: Object.fromEntries(dataIds.map(id => [id, dataCopies!.context({ cardId: id }).cardId])) } : {}) }, afterCommit: () => forgetTransferredWorkBotFollowups(route.sourceBotId!, threadId, messageId, queueIds) } : undefined, link, held ? { expectedSourceLeaf: sourceLeaf } : undefined);
           dataCopies?.publish();
           return { userMessage: copied.get(messageId)!, ...(source.replyToId ? { replyTo: copied.get(source.replyToId) } : {}), ...(followups.length ? { transferredMessageIds: queueIds.map(id => copied.get(id)!.id) } : {}) };
         };

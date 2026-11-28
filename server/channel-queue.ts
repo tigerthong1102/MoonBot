@@ -9,6 +9,14 @@ import type { ResolvedSender } from "../shared/wire.ts";
 import type { UsageTrigger } from "./usage-ledger.ts";
 import type { RoomPick } from "./room-pointed.ts";
 
+export type QueuedTwinReply = {
+  twinId: string;
+  revision: number;
+  actor: { kind: "desktop" }
+    | { kind: "session"; id: string }
+    | { kind: "companion"; device: string; boot: string };
+};
+
 export interface ChannelQueueItem {
   id: string;
   text: string;
@@ -24,6 +32,7 @@ export interface ChannelQueueItem {
   /** What the person pointed at in a member's page; only that page's bot reads it. */
   pointed?: RoomPick;
   queuedAt: number;
+  twinReply?: QueuedTwinReply;
 }
 
 interface ChannelQueueEntry {
@@ -70,6 +79,7 @@ export function queueChannelMessage(
     reaction?: string;
     mentions?: string[];
     pointed?: RoomPick;
+    twinReply?: QueuedTwinReply;
   } = {},
 ): QueuedChannelMessage {
   const entry = queues.get(threadId) ?? { groupId, items: [] };
@@ -86,6 +96,7 @@ export function queueChannelMessage(
     ...(options.reaction ? { reaction: options.reaction } : {}),
     ...(options.mentions?.length ? { mentions: options.mentions } : {}),
     ...(options.pointed ? { pointed: options.pointed } : {}),
+    ...(options.twinReply ? { twinReply: options.twinReply } : {}),
     queuedAt: Date.now(),
   };
   saveChatFollowup({ id: item.id, kind: "channel", ownerId: groupId, threadId, payload: item });
@@ -183,7 +194,7 @@ export function settleHeldChannelQueueHead(held: HeldChannelQueue): void {
 /** Removing first makes repeated settle notifications harmless. */
 export function drainChannelMessages(
   isWorking: (groupId: string, threadId: string) => boolean,
-  run: (input: { groupId: string; threadId: string; items: ChannelQueueItem[] }) => void | Promise<void>,
+  run: (input: { groupId: string; threadId: string; items: ChannelQueueItem[] }) => "cancelled" | void | Promise<"cancelled" | void>,
 ): void {
   for (const [threadId, entry] of queues) {
     if (isWorking(entry.groupId, threadId)) continue;
@@ -198,11 +209,11 @@ export function drainChannelMessages(
     settleChatFollowups(ids, "dispatching");
     entry.items.splice(0, group.length);
     if (entry.items.length === 0) queues.delete(threadId);
-    let running: void | Promise<void>;
+    let running: "cancelled" | void | Promise<"cancelled" | void>;
     try { running = run({ groupId: entry.groupId, threadId, items: group }); }
     catch (error) { console.warn("channel-queue: queued dispatch threw", error); running = Promise.reject(error); }
     void Promise.resolve(running).then(
-      () => settleChatFollowups(ids, null),
+      (status) => settleChatFollowups(ids, status ?? null),
       () => settleChatFollowups(ids, "interrupted"),
     ).catch((error) => console.warn("channel-queue: could not settle durable follow-up", error));
   }
@@ -213,6 +224,7 @@ export function headChannelGroup(items: readonly ChannelQueueItem[]): ChannelQue
 }
 
 function coalesceIdentity(item: ChannelQueueItem): string {
+  if (item.twinReply) return `twin:${item.id}`;
   if (item.via === "api") return `api:${item.id}`;
   if (item.mode !== "chat") return `mode:${item.mode}:${item.id}`;
   if (councilRequest(item.text)) return `council:${item.id}`;

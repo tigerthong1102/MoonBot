@@ -89,6 +89,15 @@ foreach ($file in $paths.Split([char]0)) {
 }
 `;
 
+export function assertWindowsRestoreProbe(probe: { status: number | null; error?: NodeJS.ErrnoException; signal?: string | null }) {
+  if (probe.status === 2 && !probe.error) throw new Error("Another process has a workspace SQLite file open. Close it before restoring.");
+  if (probe.status !== 0 || probe.error) {
+    const code = probe.error?.code;
+    const detail = code && /^E[A-Z0-9]+$/.test(code) ? code : probe.signal ? "signal" : `exit ${probe.status ?? "unknown"}`;
+    throw new Error(`Cannot access SQLite files for the restore preflight (${detail}).`);
+  }
+}
+
 export function assertRestoreDatabasesIdle(root: string, names: readonly string[]) {
   const files = filesAt(root, names);
   if (!files.length) return;
@@ -97,8 +106,7 @@ export function assertRestoreDatabasesIdle(root: string, names: readonly string[
     const probe = spawnSync(powershell, ["-NoProfile", "-NonInteractive", "-Command", windowsProbe], {
       windowsHide: true, timeout: 10_000, input: Buffer.from(files.join("\0"), "utf8").toString("base64"),
     });
-    if (probe.status === 2) throw new Error("Another process has a workspace SQLite file open. Close it before restoring.");
-    if (probe.status !== 0) throw new Error("Cannot access SQLite files for the restore preflight.");
+    assertWindowsRestoreProbe(probe);
     return;
   }
   let holders: number[];

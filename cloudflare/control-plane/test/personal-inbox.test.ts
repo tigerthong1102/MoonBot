@@ -1197,7 +1197,7 @@ async function pairedExactFixture() {
   const owner = desktop.id,
     room = uuid(),
     twin = { id: uuid(), revision: 1, paused: false };
-  const lesson = { id: uuid(), source: "owner", question: "Lunchtime?", answer: "At noon." };
+  const lesson = { id: uuid(), source: "owner", origin: "manual", question: "Lunchtime?", answer: "At noon." };
   const refs = new Map<string, { owner: string; origin: string; id: string }>();
   const journal = {
     add: (value: { owner: string; origin: string; id: string }) => {

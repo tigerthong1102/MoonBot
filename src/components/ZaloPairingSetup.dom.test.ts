@@ -76,7 +76,8 @@ it("confirms the provider sender/chat and retention explicitly, then requires a 
     await vi.waitFor(() => expect(view.host.textContent).toContain("Đang lưu 2 tin nhắn"));
     expect(view.host.textContent).toContain("Lịch sử có thể thiếu");
     view.button("Thu hồi endpoint").click();
-    await vi.waitFor(() => view.button("Hủy")).then(b => b.click());
+    await vi.waitFor(() => expect(document.activeElement).toBe(view.button("Hủy")));
+    view.button("Hủy").click();
     expect(writes).toHaveLength(2);
     await vi.waitFor(() => view.button("Thu hồi endpoint")).then(b => b.click());
     await vi.waitFor(() => view.button("Thu hồi và xóa tin còn lưu")).then(b => b.click());

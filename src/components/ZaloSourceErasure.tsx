@@ -44,6 +44,7 @@ export function ZaloSourceErasure({ revision, onErased }: { revision: string; on
       if (erase) {
         const result = await api<{ erased: number; coverage: Coverage }>(path, { ...request,
           body: JSON.stringify({ action: "erase", revision, start, end, confirmation: preview!.confirmation }) });
+        window.dispatchEvent(new Event("startupbot-zalo-scope-changed"));
         if (!controller.signal.aborted) { onErased(result.coverage); setDeleted(result.erased); }
       } else {
         const result = await api<{ count: number; confirmation: string }>(path, { ...request,

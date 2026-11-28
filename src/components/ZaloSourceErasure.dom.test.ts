@@ -18,10 +18,14 @@ it("validates actual local dates and clips today's end to the current instant", 
 it("requires an explicit fresh preview for edited dates and displays committed readback", async () => {
   setLocale("en");
   const calls: Record<string, unknown>[] = [];
+  const committed = Promise.withResolvers<Response>();
+  let eraseAttempts = 0;
   vi.stubGlobal("fetch", async (_path: string, init: RequestInit) => {
     const body = JSON.parse(init.body as string);
     calls.push(body);
-    return Response.json(body.action === "preview" ? { count: 2, confirmation: "token" } : { erased: 2, coverage: { count: 0 } });
+    if (body.action === "preview") return Response.json({ count: 2, confirmation: "token" });
+    if (++eraseAttempts === 1) return new Response(null, { status: 500 });
+    return committed.promise;
   });
   const host = document.createElement("div"); document.body.append(host);
   const root = createRoot(host), done = vi.fn();
@@ -31,6 +35,8 @@ it("requires an explicit fresh preview for edited dates and displays committed r
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }
+  const scopeChanged = vi.fn();
+  window.addEventListener("startupbot-zalo-scope-changed", scopeChanged);
   try {
     const preview = find("Count matching messages")!;
     expect(preview.disabled).toBe(true);
@@ -44,9 +50,23 @@ it("requires an explicit fresh preview for edited dates and displays committed r
     expect(calls).toHaveLength(1);
     preview.click();
     await vi.waitFor(() => expect(find(confirm)).toBeDefined());
+    expect(scopeChanged).not.toHaveBeenCalled();
     find(confirm)!.click();
+    await vi.waitFor(() => expect(host.querySelector('[role="alert"]')).not.toBeNull());
+    expect(scopeChanged).not.toHaveBeenCalled();
+    expect(calls[2]).toEqual({ ...calls[1], action: "erase", confirmation: "token" });
+    preview.click();
+    await vi.waitFor(() => expect(find(confirm)).toBeDefined());
+    find(confirm)!.click();
+    await vi.waitFor(() => expect(eraseAttempts).toBe(2));
+    expect(scopeChanged).not.toHaveBeenCalled();
+    committed.resolve(Response.json({ erased: 2, coverage: { count: 0 } }));
     await vi.waitFor(() => expect(host.textContent).toContain("Messages erased: 2."));
     expect(done).toHaveBeenCalledWith({ count: 0 });
-    expect(calls[2]).toEqual({ ...calls[1], action: "erase", confirmation: "token" });
-  } finally { flushSync(() => root.unmount()); host.remove(); }
+    expect(scopeChanged).toHaveBeenCalledTimes(1);
+  } finally {
+    window.removeEventListener("startupbot-zalo-scope-changed", scopeChanged);
+    flushSync(() => root.unmount());
+    host.remove();
+  }
 });

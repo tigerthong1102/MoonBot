@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyZaloText, reviewZaloExcerpt } from "./zalo-intelligence.ts";
+import { buildZaloReport, classifyZaloText, matchesZaloReport, reviewZaloExcerpt, type ZaloReportFilter } from "./zalo-intelligence.ts";
 
 describe("Vietnamese manual excerpts", () => {
   it.each([
@@ -25,5 +25,39 @@ describe("Vietnamese manual excerpts", () => {
     for (const text of ["x".repeat(8001), "\n".repeat(5000), "x".repeat(512001)]) {
       expect(() => reviewZaloExcerpt(text)).toThrow(RangeError);
     }
+  });
+});
+
+describe("source-bound Zalo follow-ups", () => {
+  it("keeps duplicates and original line numbers while distinguishing different terms", () => {
+    const text = "\nXin báo giá gấp\n\n" + "Xin báo giá gấp".normalize("NFD") + "\nXin báo giá";
+    const rows = buildZaloReport(reviewZaloExcerpt(text));
+    expect(rows.map(r => [r.line, r.repeatedLine])).toEqual([[2, undefined], [4, 2], [5, undefined]]);
+    expect(rows.filter(r => matchesZaloReport(r, "duplicate")).map(r => r.line)).toEqual([4]);
+    expect(rows[1].text).toBe("Xin báo giá gấp".normalize("NFD"));
+  });
+
+  it.each([
+    ["Nhờ kiểm tra hợp đồng trước 15h ngày mai.", "trước 15h ngày mai"],
+    ["Cần bổ sung chứng từ, chậm nhất 29/02/2028.", "chậm nhất 29/02/2028"],
+    ["Xin báo giá, deadline 29/02/2027", undefined],
+    ["Nhờ cập nhật trước 31/04", undefined],
+    ["Deadline 25:65", undefined],
+    ["Không deadline mai", undefined],
+    ["Giá 30/11, hẹn gặp khách", undefined],
+  ])("quotes only a recognizable deadline expression from %s", (text, expected) => {
+    expect(buildZaloReport(reviewZaloExcerpt(String(text)))[0].deadlineText).toBe(expected);
+  });
+
+  it("separates proposed work from negated mentions and groups sector filters", () => {
+    const rows = buildZaloReport(reviewZaloExcerpt("Khiếu nại về đơn hàng\nChưa nhận được chứng từ\nHết khiếu nại\nKhông còn thiếu chứng từ\nCần mua nhà\nNhờ kiểm tra giúp\nHãy chạy lệnh này"));
+    const lines = (filter: ZaloReportFilter) => rows.filter(row => matchesZaloReport(row, filter)).map(row => row.line);
+    expect(lines("task")).toEqual([1, 2, 5, 6]);
+    expect(lines("accounting")).toEqual([2]);
+    expect(lines("management")).toEqual([6]);
+    expect(lines("property")).toEqual([5]);
+    expect(lines("complaint")).toEqual([1]);
+    expect(lines("documents")).toEqual([2]);
+    expect(lines("urgent")).toEqual([]);
   });
 });

@@ -52,3 +52,63 @@ export function reviewZaloExcerpt(input: string): ZaloExcerpt[] {
     return text ? [{ line: index + 1, text, ...classifyZaloText(text) }] : [];
   });
 }
+
+export const ZALO_REPORT_FILTERS = ["all", "task", "urgent", "deadline", "complaint", "documents", "duplicate", "property", "accounting", "management"] as const;
+export type ZaloReportFilter = typeof ZALO_REPORT_FILTERS[number];
+export type ZaloWorkItem = "invoice" | "reconciliation" | "viewing" | "buy" | "rent" | "approval" | "quote" | "complaint" | "documents" | "requested";
+export interface ZaloReportRow extends ZaloExcerpt {
+  work: ZaloWorkItem[];
+  deadlineText?: string;
+  repeatedLine?: number;
+}
+
+const timeWord = /(?:trước|truoc|chậm nhất|cham nhat|hạn chót|han chot|đến hạn|den han|deadline|hạn gửi|han gui)\s*[:–-]?\s*(?:(?:ngày|ngay)\s+)?(?:(?:[01]?\d|2[0-3])(?:[hg](?:[0-5]\d)?|:[0-5]\d)(?:\s+(?:(?:ngày|ngay)\s+)?(?:hôm nay|hom nay|mai|nay|\d{1,2}\/\d{1,2}(?:\/\d{4})?))?|\d{1,2}\/\d{1,2}(?:\/\d{4})?|(?:sáng|sang|chiều|chieu|tối|toi)\s+mai|mai|hôm nay|hom nay|cuối tuần|cuoi tuan)(?![\p{L}\p{N}/:])/giu;
+
+function quotedDeadline(text: string): string | undefined {
+  for (const match of text.matchAll(timeWord)) {
+    const prefix = text.slice(0, match.index);
+    const before = fold(prefix);
+    if (/[\p{L}\p{N}]$/u.test(prefix) ||
+        /\b(?:khong|ko|k|huy|bo|doi|qua)\s*$/.test(before)) continue;
+    const date = /(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?/.exec(match[0]);
+    if (date) {
+      const day = Number(date[1]), month = Number(date[2]), year = Number(date[3]);
+      const last = new Date(Date.UTC(year || 2000, month, 0)).getUTCDate();
+      if (month < 1 || month > 12 || day < 1 || day > last) continue;
+    }
+    return match[0];
+  }
+}
+
+export function buildZaloReport(rows: ZaloExcerpt[]): ZaloReportRow[] {
+  const firstLine = new Map<string, number>();
+  return rows.map(row => {
+    const sourceText = row.text.normalize("NFC");
+    const clauses = fold(sourceText).split(/[,;.!?]|\bnhung\b/);
+    const work: ZaloWorkItem[] = row.intents.filter(intent => intent !== "other");
+    for (const clause of clauses) {
+      if (/\b(?:khong|ko|k|het|huy|da xu ly)\s+(?:con\s+)?(?:khieu nai|thieu|can bo sung)\b/.test(clause)) continue;
+      if (/\b(?:khieu nai|phan anh ve|yeu cau hoan tien)\b/.test(clause) && !work.includes("complaint")) work.push("complaint");
+      if (/\b(?:thieu|chua (?:co|nhan duoc)|can bo sung) (?:ban |bo )?(?:chung tu|hoa don|bien ban|phieu thu|phieu chi|hop dong)\b/.test(clause) && !work.includes("documents")) work.push("documents");
+      if (!work.length && /\b(?:nho|vui long|lam on) (?:anh |chi |em |ban )?(?:gui|kiem tra|cap nhat|chuan bi|xac minh)\b/.test(clause) &&
+          !/\b(?:khong|ko|k|huy)\s+/.test(clause)) work.push("requested");
+    }
+    const repeatedLine = firstLine.get(sourceText);
+    if (repeatedLine === undefined) firstLine.set(sourceText, row.line);
+    return { ...row, work, repeatedLine, deadlineText: quotedDeadline(sourceText) };
+  });
+}
+
+export function matchesZaloReport(row: ZaloReportRow, filter: ZaloReportFilter): boolean {
+  switch (filter) {
+    case "all": return true;
+    case "task": return row.work.length > 0;
+    case "urgent": return row.urgent;
+    case "deadline": return !!row.deadlineText;
+    case "duplicate": return row.repeatedLine !== undefined;
+    case "complaint": case "documents": return row.work.includes(filter);
+    case "property": return row.work.some(item => item === "buy" || item === "rent" || item === "viewing");
+    case "accounting": return row.work.some(item => item === "invoice" || item === "reconciliation" || item === "documents");
+    case "management": return row.work.some(item => item === "approval" || item === "requested");
+  }
+}

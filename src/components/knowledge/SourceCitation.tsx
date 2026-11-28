@@ -11,9 +11,23 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
   const [doc, setDoc] = useState<SourceDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const [issue, setIssue] = useState<SourceAnswerIssue | null>(null);
+  const [resume, setResume] = useState(0);
   const generation = useRef(0);
   useEffect(() => {
     if (!open) return;
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        generation.current++;
+        setDoc(null);
+        setBusy(false);
+        setIssue("knowledge.answerAccess");
+      } else setResume(value => value + 1);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [open]);
+  useEffect(() => {
+    if (!open || document.hidden) return;
     let active = true;
     let invalidated = false;
     const visit = ++generation.current;
@@ -21,6 +35,7 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
     let stop: (() => void) | undefined;
     setDoc(null);
     setBusy(true);
+    setIssue(null);
     void import("./source-sync").then(async module => {
       if (!active) return;
       stop = module.observeLibraryOwner(() => scope, (cause) => {
@@ -43,7 +58,7 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
       if (active && !invalidated && generation.current === visit) setDoc([...index?.docs.values() ?? []].find(d => d.digest === digest && (!path || d.path === path) && d.passages.some(p => p.start === start)) ?? null);
     }).catch((cause: unknown) => { if (active && generation.current === visit) { setDoc(null); setIssue(sourceAnswerIssue(cause)); } }).finally(() => { if (active && generation.current === visit) setBusy(false); });
     return () => { active = false; generation.current++; stop?.(); };
-  }, [open, threadId, digest, start, path, signal]);
+  }, [open, threadId, digest, start, path, signal, resume]);
   async function pick(file: File) {
     const visit = generation.current;
     setBusy(true);

@@ -62,6 +62,73 @@ it.each([new TypeError("offline"), new Error("server unavailable")])("withdraws 
   await act(async () => root.unmount());
 });
 
+it("rechecks access before restoring a citation after the tab becomes visible", async () => {
+  const key = JSON.stringify(["viewer", "thread"]), digest = "a".repeat(64);
+  const doc = { path: "secret.txt", digest, file: new File(["Sensitive policy"], "secret.txt"), passages: [{ page: 1, paragraph: 1, start: 0, text: "Sensitive policy" }] };
+  let revoke: (cause?: unknown) => void = () => {};
+  vi.mocked(libraryKey).mockResolvedValue(key);
+  vi.mocked(observeLibraryOwner).mockImplementation((_scope, unavailable) => { revoke = unavailable; return () => {}; });
+  vi.mocked(currentLibrary).mockResolvedValue({ docs: new Map([[doc.path, doc]]), changes: [] });
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(createElement(SourceCitation, { threadId: "thread", digest, start: 0 }, "[1]")));
+  await act(async () => host.querySelector("button")!.click());
+  expect(document.body.textContent).toContain("Sensitive policy");
+  await act(async () => revoke(new TypeError("suspended")));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  const proof = Promise.withResolvers<string | null>();
+  vi.mocked(libraryKey).mockReturnValueOnce(proof.promise);
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  await act(async () => proof.resolve(key));
+  expect(document.body.textContent).toContain("Sensitive policy");
+  expect(document.body.querySelector('[role="alert"]')).toBeNull();
+  await act(async () => root.unmount());
+});
+
+it("hides a citation immediately on tab suspension and keeps it hidden when access was revoked", async () => {
+  const key = JSON.stringify(["viewer", "thread"]), digest = "a".repeat(64);
+  const doc = { path: "secret.txt", digest, file: new File(["Sensitive policy"], "secret.txt"), passages: [{ page: 1, paragraph: 1, start: 0, text: "Sensitive policy" }] };
+  vi.mocked(libraryKey).mockResolvedValue(key);
+  vi.mocked(observeLibraryOwner).mockReturnValue(() => {});
+  vi.mocked(currentLibrary).mockResolvedValue({ docs: new Map([[doc.path, doc]]), changes: [] });
+  const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(createElement(SourceCitation, { threadId: "thread", digest, start: 0 }, "[1]")));
+  await act(async () => host.querySelector("button")!.click());
+  expect(document.body.textContent).toContain("Sensitive policy");
+  hidden.mockReturnValue(true);
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  const proof = Promise.withResolvers<string | null>();
+  vi.mocked(libraryKey).mockReturnValueOnce(proof.promise);
+  hidden.mockReturnValue(false);
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  await act(async () => proof.resolve(null));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  await act(async () => root.unmount());
+  hidden.mockRestore();
+});
+
+it("ignores an earlier pending citation load after the tab is hidden", async () => {
+  const key = JSON.stringify(["viewer", "thread"]), digest = "a".repeat(64);
+  const doc = { path: "secret.txt", digest, file: new File(["Sensitive policy"], "secret.txt"), passages: [{ page: 1, paragraph: 1, start: 0, text: "Sensitive policy" }] };
+  const pending = Promise.withResolvers<Awaited<ReturnType<typeof currentLibrary>>>();
+  vi.mocked(libraryKey).mockResolvedValue(key);
+  vi.mocked(observeLibraryOwner).mockReturnValue(() => {});
+  vi.mocked(currentLibrary).mockReturnValue(pending.promise);
+  const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(createElement(SourceCitation, { threadId: "thread", digest, start: 0 }, "[1]")));
+  await act(async () => host.querySelector("button")!.click());
+  hidden.mockReturnValue(true);
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  await act(async () => pending.resolve({ docs: new Map([[doc.path, doc]]), changes: [] }));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  await act(async () => root.unmount());
+  hidden.mockRestore();
+});
+
 it("does not restore a manually selected source after access is suspended during indexing", async () => {
   const key = JSON.stringify(["viewer", "thread"]), digest = createHash("sha256").update("Sensitive policy").digest("hex");
   let revoke: (cause?: unknown) => void = () => {};

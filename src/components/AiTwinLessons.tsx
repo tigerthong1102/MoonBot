@@ -32,6 +32,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
   const [selected, setSelected] = useState<string[]>([]);
   const [confirmation, setConfirmation] = useState<{ twinId: string; revision: number; lessons: AiTwinLesson[] } | null>(null);
   const active = useRef(false);
+  const addLessonButton = useRef<HTMLButtonElement>(null);
   const questionInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -161,7 +162,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
           </form>
         ) : (
           <div>
-            <button type="button" className="ui-button" disabled={pending || selecting}
+            <button ref={addLessonButton} type="button" className="ui-button" disabled={pending || selecting}
               onClick={() => { setError(null); setForm({ question: "", answer: "", allowProvider: false }); }}>
               {t("settings.aiTwin.addLesson")}
             </button>
@@ -179,7 +180,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
             {confirmation?.lessons.map((lesson) => <li key={lesson.id} dir="auto" className="break-words">{lesson.question}</li>)}
           </ul>
           {error && <p role="alert" className="mt-2 text-danger">{t("settings.aiTwin.saveError")}</p>}
-        </>} confirmLabel={t("settings.aiTwin.forgetSelected")} pending={pending}
+        </>} confirmLabel={t("settings.aiTwin.forgetSelected")} pending={pending} returnFocusRef={addLessonButton}
           onCancel={() => { if (!pending) { setConfirmation(null); setError(null); } }}
           onConfirm={() => { if (confirmation) void write("DELETE", { lessonIds: confirmation.lessons.map((lesson) => lesson.id), confirmForget: true }, AI_TWIN_FORGET_MANY_PATH, confirmation.revision, confirmation.twinId); }} />
       </div>

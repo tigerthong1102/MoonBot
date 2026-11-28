@@ -131,9 +131,9 @@ export function ConfirmDialogCard({
           <h2 id="confirm-dialog-title" className="text-[15px] font-semibold text-ink">
             {title}
           </h2>
-          <p id="confirm-dialog-body" className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">
+          <div id="confirm-dialog-body" className="mt-1.5 text-[13px] leading-relaxed text-ink-secondary">
             {body}
-          </p>
+          </div>
         </div>
       </div>
       <div className="mt-5 flex justify-end gap-2">

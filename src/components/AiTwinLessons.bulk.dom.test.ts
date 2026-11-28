@@ -26,15 +26,18 @@ async function mount() {
   await act(async () => button(host, "Select lessons to forget").click());
   const checkboxes = [...host.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
   await act(async () => { checkboxes[0]!.click(); checkboxes[1]!.click(); });
-  await act(async () => button(host, "Forget selected lessons").click());
+  const opener = button(host, "Forget selected lessons");
+  opener.focus();
+  await act(async () => opener.click());
   return { host, root, changed, refresh, render };
 }
 
 it("shows exactly what will be forgotten and only sends after confirmation", async () => {
-  const { changed } = await mount();
+  const { host, changed } = await mount();
   const dialog = document.querySelector('[role="alertdialog"]')!;
   expect(dialog.textContent).toContain("First"); expect(dialog.textContent).toContain("Second"); expect(dialog.textContent).not.toContain("Keep");
   expect(dialog.textContent).toContain("previous replies");
+  expect(dialog.querySelector("p p, p ul")).toBeNull();
   expect(vi.mocked(api)).not.toHaveBeenCalled();
   const view = { twin: { ...twin, revision: 3 }, creationEpoch: "initial", lessons: [lessons[2]] };
   vi.mocked(api).mockResolvedValueOnce(view);
@@ -43,14 +46,16 @@ it("shows exactly what will be forgotten and only sends after confirmation", asy
   expect(JSON.parse(String(vi.mocked(api).mock.calls[0]![1]?.body))).toEqual({ id: twin.id, revision: 2, lessonIds: ["First", "Second"], confirmForget: true });
   expect(changed).toHaveBeenCalledWith(view);
   expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  expect(document.activeElement).toBe(button(host, "Teach a lesson"));
 });
 
 it("uses the reviewed revision and asks for refresh if the Twin changed", async () => {
-  const { refresh, render } = await mount();
+  const { host, refresh, render } = await mount();
   await act(async () => render({ ...twin, revision: 3 }));
   vi.mocked(api).mockRejectedValueOnce(new ApiError("twin_changed", 409, { error: "twin_changed" }));
   await act(async () => button(document.querySelector('[role="alertdialog"]')!, "Forget selected lessons").click());
   expect(JSON.parse(String(vi.mocked(api).mock.calls[0]![1]?.body)).revision).toBe(2);
   expect(refresh).toHaveBeenCalledOnce();
   expect(document.querySelector('[role="alertdialog"]')).toBeNull();
+  expect(document.activeElement).toBe(button(host, "Teach a lesson"));
 });

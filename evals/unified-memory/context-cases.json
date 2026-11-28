@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "cases": [
     {
       "id": "ctx-dev-01",
@@ -2827,6 +2827,39 @@
       "query": "Làm thế nào để xuất bản trang?",
       "expected": "none",
       "rationale": "Xem trước trang không xác định thao tác xuất bản."
+    },
+    {
+      "id": "ctx-dev-131",
+      "split": "development",
+      "category": "answer-dependent",
+      "context": "Một cửa hàng giả lập cho phép hủy từng đơn theo cùng một cách, bất kể có bao nhiêu đơn cần hủy.",
+      "saved": "Làm sao hủy một đơn?",
+      "answer": "Vào mục Đơn hàng rồi chọn Hủy từng đơn.",
+      "query": "Làm sao hủy hai đơn?",
+      "expected": "match",
+      "rationale": "Câu trả lời chỉ cách hủy từng đơn và dùng được cho cả hai; chỉ dựa vào số lượng khác nhau trong câu hỏi không đủ để quyết định."
+    },
+    {
+      "id": "ctx-dev-132",
+      "split": "development",
+      "category": "answer-dependent",
+      "context": "Một cửa hàng giả lập cho phép hủy từng đơn theo cùng một cách, bất kể có bao nhiêu đơn cần hủy.",
+      "saved": "Làm sao hủy 1 đơn hàng?",
+      "answer": "Vào mục Đơn hàng rồi chọn Hủy từng đơn.",
+      "query": "Làm sao hủy 2 đơn hàng?",
+      "expected": "match",
+      "rationale": "Câu trả lời áp dụng riêng cho từng đơn, nên số lượng khác nhau không ngăn việc dùng lại câu trả lời trong tình huống này."
+    },
+    {
+      "id": "ctx-dev-133",
+      "split": "development",
+      "category": "numeral-normalization",
+      "context": "Một dịch vụ giả lập có cước giao hai thùng là 50.000 đồng.",
+      "saved": "Cước giao 2 thùng là bao nhiêu?",
+      "answer": "Cước giao hai thùng là 50.000 đồng.",
+      "query": "Cước giao hai thùng là bao nhiêu?",
+      "expected": "match",
+      "rationale": "Chữ số 2 và từ hai chỉ cùng một số lượng trong hai câu hỏi; cả hai hỏi cùng một mức cước."
     }
   ]
 }

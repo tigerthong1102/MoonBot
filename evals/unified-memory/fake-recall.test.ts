@@ -35,7 +35,7 @@ it("runs the CLI with a declared fake and labels the score provenance", async ()
   expect(run.status).toBe(0);
   const result = JSON.parse(run.stdout);
   expect(result.metadata).toMatchObject({ kind: "deterministic-fake", model: "none", network: "not-sandboxed", cost: 0 });
-  expect(result.predictions).toHaveLength(257);
+  expect(result.predictions).toHaveLength(260);
   const dir = mkdtempSync(join(tmpdir(), "twin-fake-eval-"));
   try {
     const file = join(dir, "fake.json");

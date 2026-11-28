@@ -4,6 +4,8 @@
 
 **Ưu tiên trải nghiệm trên điện thoại.** Bản pilot giữ ba điểm vào trên màn hình hiện có của mỗi nền tảng. Luồng độc lập dùng màn hình chat gốc SwiftUI và Compose sau khi xác minh email. Bản web dùng cùng gateway. [Báo cáo founder](startupbot-mobile-standalone-final-report.md)
 
+Khi đồng bộ MausBot, màn hình hội thoại, ô soạn tin và thẻ chọn thiết bị tiếp tục dùng các component SwiftUI và Compose hiện có của StartupBot. Luồng OTP bổ sung một điểm đăng nhập. Gateway trả về đúng cấu trúc hội thoại mà hai app đang đọc. Bản xem trước Safari chỉ phục vụ pilot trước khi có bản ký iOS.
+
 Kiểm thử bàn phím hệ thống và trình đọc màn hình trên thiết bị vật lý vẫn còn mở.
 
 ## 36 mục của nhiệm vụ

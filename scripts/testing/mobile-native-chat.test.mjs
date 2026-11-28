@@ -146,3 +146,33 @@ it("uses the existing native answer card to hand a private draft to the selected
   expect(JSON.stringify(await read(token))).not.toContain(input.text);
   expect(fixture.generations).toHaveLength(0);
 });
+
+it("shows the newest desktop receipt and pages through every earlier message in order", async () => {
+  const token = await signIn("alice");
+  const {bots:[bot]} = await (await request(token,"/api/bots")).json();
+  const insert = fixture.ledger.db.prepare("INSERT INTO mobile_turns(owner,thread,id,prompt,answer,state,created) VALUES (?,?,?,?,?,?,?)");
+  const ids = [];
+  fixture.ledger.tx(() => {
+    for (let index = 0; index < 85; index++) {
+      const id = String(index).padStart(3,"0");
+      insert.run("alice",bot.threadId,id,"Desktop","Received","desktop",Math.floor(index/5));
+      ids.push(id,id+"-answer");
+    }
+  });
+  const {bots:[restored]} = await (await request(token,"/api/bots?messages=3")).json();
+  expect(restored.messages.map(m => m.id)).toEqual(ids.slice(-3));
+  const path = "/api/threads/"+bot.threadId+"/messages?limit=9";
+  let before = "";
+  let remaining = ids.length;
+  while (remaining) {
+    const page = await (await request(token,path+before)).json();
+    const first = Math.max(0,remaining-9);
+    expect(page.messages.map(m => m.id)).toEqual(ids.slice(first,remaining));
+    expect(page.messages[0].parentId).toBe(ids[first-1]);
+    expect(page.activeLeafId).toBe(ids.at(-1));
+    expect(page.hasMore).toBe(first > 0);
+    before = "&before="+page.messages[0].id;
+    remaining = first;
+  }
+  expect((await request(token,path+"&before=missing")).status).toBe(404);
+});

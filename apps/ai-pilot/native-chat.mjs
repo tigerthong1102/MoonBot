@@ -39,11 +39,24 @@ export function nativeChat(ledger, lists, origin) {
     return groups;
   }
   const select = db.prepare("INSERT INTO mobile_native_selection VALUES (?,?,?) ON CONFLICT(owner,bot) DO UPDATE SET thread=excluded.thread");
-  const turns = db.prepare("SELECT id,prompt,answer,state,created FROM mobile_turns WHERE owner=? AND thread=? ORDER BY created,id LIMIT 80");
-  function transcript(owner, thread, session) {
+  const latestTurn = db.prepare("SELECT id,created,answer<>'' AS answered FROM mobile_turns WHERE owner=? AND thread=? ORDER BY created DESC,id DESC LIMIT 1");
+  const cursorTurn = db.prepare("SELECT id,created,answer<>'' AS answered FROM mobile_turns WHERE owner=? AND thread=? AND id=?");
+  const precedingTurns = db.prepare(`SELECT id,prompt,answer,created FROM mobile_turns WHERE owner=? AND thread=? AND (created,id)<=(?,?)
+    ORDER BY created DESC,id DESC LIMIT ?`);
+  function threadPage(owner, thread, session, limit, before) {
+    const latest = latestTurn.get(owner,thread);
+    const choice = db.prepare("SELECT id,devices,title,expires FROM mobile_native_choices WHERE session=? AND thread=? AND expires>?").get(session.hash,thread,Date.now());
+    const choiceId = choice && choice.id+"-choice";
+    const activeLeafId = choiceId ?? (latest?.answered ? latest.id+"-answer" : latest?.id);
+    let cursor = latest;
+    if (before && before !== choiceId) {
+      cursor = cursorTurn.get(owner,thread,before.replace(/-answer$/, ""));
+      if (!cursor || (before.endsWith("-answer") && !cursor.answered)) throw new Fault(404, "message_not_found");
+    }
+    const turns = cursor ? precedingTurns.all(owner,thread,cursor.created,cursor.id,limit+2).reverse() : [];
     let parentId;
     const messages = [];
-    for (const turn of turns.all(owner, thread)) {
+    for (const turn of turns) {
       const user = { id:turn.id, role:"user", kind:"text", at:turn.created, text:turn.prompt, parentId };
       messages.push(user);
       parentId = user.id;
@@ -52,16 +65,12 @@ export function nativeChat(ledger, lists, origin) {
         messages.push({ id:parentId, parentId:user.id, role:"bot", kind:"text", text:turn.answer, at:turn.created });
       }
     }
-    const choice = db.prepare("SELECT id,devices,title,expires FROM mobile_native_choices WHERE session=? AND thread=? AND expires>?").get(session.hash,thread,Date.now());
-    if (choice) messages.push({ id:choice.id+"-choice", parentId, role:"bot",kind:"options",at:choice.expires-120000,
+    if (choice && (!before || before === choiceId)) messages.push({ id:choiceId, parentId, role:"bot",kind:"options",at:choice.expires-120000,
       card:{title:choice.title,subtitle:"",requestId:choice.id,options:JSON.parse(choice.devices).map(d => d.label)} });
-    return messages;
-  }
-  function page(messages, limit, before) {
     const end = before ? messages.findIndex(message => message.id === before) : messages.length;
     if (end < 0) throw new Fault(404, "message_not_found");
     const start = Math.max(0, end - limit);
-    return { messages:messages.slice(start,end), activeLeafId:messages.at(-1)?.id, hasMore:start > 0 };
+    return { messages:messages.slice(start,end), activeLeafId, hasMore:start > 0 };
   }
   function create(owner, title = "StartupBot") {
     if (lists.all(owner).length >= 50) throw new Fault(409, "history_full");
@@ -77,7 +86,7 @@ export function nativeChat(ledger, lists, origin) {
       notifications:false, unread:false, color:"cyan", createdAt:root.updated,
       tasks:threads.map(t => ({threadId:t.id,title:t.title,createdAt:t.updated,...t.preferences})),
       modelSelection:{instanceId:thread.provider, model:thread.provider},
-      ...page(transcript(owner,thread.id,session),limit) };
+      ...threadPage(owner,thread.id,session,limit) };
   }
   function patchTask(owner,task,body) {
     const keys = Object.keys(body);
@@ -132,7 +141,7 @@ export function nativeChat(ledger, lists, origin) {
   }
   function route({ req,res,json,path,body,owner,session }) {
     const query = new URL(req.url,origin).searchParams;
-    const limit = Math.min(100, Math.max(1, Number(query.get("limit") || query.get("messages")) || 50));
+    const limit = Math.min(100, Math.max(1, Math.trunc(Number(query.get("limit") || query.get("messages"))) || 50));
     const get = req.method === "GET", post = req.method === "POST";
     if (get && path === "/api/events") return { events:events(owner,res) };
     if (get && path === "/api/instances") { json(200,{instances:[]}); return; }
@@ -151,7 +160,7 @@ export function nativeChat(ledger, lists, origin) {
     const [,kind,id,action,taskId] = match;
     if (kind === "threads" && get && action === "messages" && !taskId) {
       if (!lists.all(owner).some(t => t.id === id)) throw new Fault(404,"not_found");
-      json(200,page(transcript(owner,id,session),limit,query.get("before")));
+      json(200,threadPage(owner,id,session,limit,query.get("before")));
       return;
     }
     if (kind === "threads" && post && action === "respond" && !taskId) {

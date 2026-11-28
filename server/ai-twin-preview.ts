@@ -71,7 +71,7 @@ export function createAiTwinPreview(deps: {
       active?.abort();
     },
     async recall(twin: AiTwinProfile, question: string, lessons: readonly AiTwinLesson[], key: string, disconnected: AbortSignal, beforeVerify?: () => void) {
-      const variants = lessons.filter((lesson) => numbers(lesson.question) === numbers(question)
+      const variants = lessons.filter((lesson) => lesson.allowProvider === true && numbers(lesson.question) === numbers(question)
         && explicitNegation(lesson.question) === explicitNegation(question)
         && redactSecretsInText(lesson.question) === lesson.question);
       if (!variants.length || redactSecretsInText(question) !== question) return null;

@@ -1,8 +1,10 @@
 import { generatedRoomLimit } from "../../electron/twin-generated-message.mjs";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { t } from "@/lib/i18n";
+import { Select } from "./Select";
 
 export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
+  const scopeId = useId();
   const bridge = window.ogb?.personalInbox;
   const [choices, setChoices] = useState<Awaited<ReturnType<NonNullable<NonNullable<typeof bridge>["generatedChoices"]>>>>();
   const [scope, setScope] = useState("selected");
@@ -39,14 +41,15 @@ export function AiTwinGeneratedRelease({ paired }: { paired: boolean }) {
       {paired && <button type="button" className="ui-button" onClick={() => void run("choose")}>{t("personalInbox.generatedChoose")}</button>}
       {paired && choices && <>
         <p dir="auto">{choices.provider.name} · {choices.provider.model} · {choices.provider.destination}</p>
-        <label>{t("personalInbox.generatedScope")}
-          <select value={scope} onChange={e => setScope(e.target.value)}>
+        <div className="grid gap-1">
+          <label htmlFor={scopeId}>{t("personalInbox.generatedScope")}</label>
+          <Select id={scopeId} value={scope} onChange={e => setScope(e.target.value)}>
             <option value="selected">{t("personalInbox.generatedSelected")}</option>
             <option value="all-direct">{t("personalInbox.generatedAllDirect")}</option>
             <option value="all-managed-groups">{t("personalInbox.generatedAllGroups")}</option>
             <option value="all">{t("personalInbox.generatedAllRooms")}</option>
-          </select>
-        </label>
+          </Select>
+        </div>
         {scope === "selected" && choices.rooms.map(room => <label className="block" key={room.ref}>
           <input type="checkbox" disabled={rooms.length >= generatedRoomLimit && !rooms.includes(room.ref)} checked={rooms.includes(room.ref)} onChange={e => {
             const checked = e.target.checked;

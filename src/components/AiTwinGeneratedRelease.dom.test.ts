@@ -18,6 +18,10 @@ it("permits eight explicit rooms and lets the reviewer change the selection", as
   try {
     await act(async () => root.render(createElement(AiTwinGeneratedRelease, { paired: true })));
     await act(async () => host.querySelector("button")!.click());
+    const scope = host.querySelector<HTMLSelectElement>("select")!;
+    expect([...scope.labels].map(label => label.textContent)).toEqual(["Room scope"]);
+    scope.focus();
+    expect(document.activeElement).toBe(scope);
     const choices = Array.from(host.querySelectorAll<HTMLInputElement>("input"));
     expect(choices).toHaveLength(9);
     for (const box of choices.slice(0, 8)) await act(async () => box.click());

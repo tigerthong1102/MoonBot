@@ -18,7 +18,8 @@ if (catalog) {
   for (const node of document.querySelectorAll("[data-t]")) node.textContent = t(node.dataset.t);
   for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
 }
-let account, thread, busy = false, active, pending;
+let account, thread, busy = false, active, pending, connection;
+let conversations = [];
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("startupbot-account") : null;
 channel?.addEventListener("message", () => location.reload());
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });

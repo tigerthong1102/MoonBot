@@ -19,6 +19,8 @@ Chạy lại bằng Node ≥26.4 sau khi cài dependencies từ hai lockfile c�
 
 Chạy `node scripts/qualification/zalo-personal/soak.mjs --smoke` cho ba vòng, hoặc `--eight-hours` cho 481 vòng cách nhau một phút. Hai tài khoản tổng hợp dùng trùng ID tin tại 20 nhóm mỗi tài khoản. Mỗi vòng ghi 40 dòng mới và phát lại đủ 40 dòng, kiểm đếm độc lập qua SQLite. Bộ thử mở lại kết nối DB sau mỗi 10 vòng dài. Nó ghi số lần mở lại, dữ liệu trùng, chênh số đếm, khoảng trễ do máy tạm dừng, CPU, RSS, độ trễ ghi và dung lượng DB. Thư mục tạm được xóa khi hoàn tất bình thường.
 
+Chế độ smoke ghi nhận độ trễ của runner và chỉ dùng số sự kiện, bản phát lại và lần mở lại để xác nhận tính toàn vẹn. Chế độ tám giờ báo lỗi nếu có khoảng ngắt.
+
 Lượt smoke trên macOS đã ghi và đọc lại 120 tin riêng biệt, nhận diện 120 bản phát lại và mở lại DB hai lần. Chỉ bản ghi cuối có `phase=complete`, đủ 481 vòng và không có khoảng ngắt mới xác nhận đo đủ tám giờ liên tục. Lượt chạy dài không giữ hệ thống khỏi chế độ ngủ. Kết quả không thay thế kiểm thử listener, mất mạng hay giao tin của tài khoản Zalo thật.
 
 ## Phạm vi duy trì

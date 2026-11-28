@@ -4,7 +4,8 @@ import {
 } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
-import { SETTINGS_INPUT, SettingsField, SettingsFoldRow } from "./SettingsPrimitives";
+import { Select } from "./Select";
+import { SettingsField, SettingsFoldRow } from "./SettingsPrimitives";
 
 export function AiTwinControls({ view, changed, refresh, reviewExample }: {
   view: AiTwinView;
@@ -66,11 +67,11 @@ export function AiTwinControls({ view, changed, refresh, reviewExample }: {
         <h3 className="text-[13px] font-medium">{t("settings.aiTwin.learning")}</h3>
         <p className="text-[12px] text-ink-secondary">{t("settings.aiTwin.learningDisclosure")}</p>
         <SettingsField label={t("settings.aiTwin.conversation")}>
-          <select className={SETTINGS_INPUT} value={source} onChange={(event) => setSource(event.target.value)} disabled={!scopes || pending}>
+          <Select value={source} onChange={(event) => setSource(event.target.value)} disabled={!scopes || pending}>
             <option value="">{t("settings.aiTwin.chooseConversation")}</option>
             {scopes?.conversations.filter(({ id }) => !controls.sourceIds.includes(id)).map((entry) =>
               <option key={entry.id} value={entry.id}>{entry.label}</option>)}
-          </select>
+          </Select>
         </SettingsField>
         <div><button type="button" className="ui-button" disabled={!readySource || pending}
           onClick={() => { void patch(AI_TWIN_LEARNING_PATH, { thread: source, enabled: true }); setSource(""); }}>
@@ -95,16 +96,16 @@ export function AiTwinControls({ view, changed, refresh, reviewExample }: {
         <h3 className="text-[13px] font-medium">{t("settings.aiTwin.delegation")}</h3>
         <p className="text-[12px] text-ink-secondary">{t("settings.aiTwin.delegationDisclosure")}</p>
         <SettingsField label={t("settings.aiTwin.room")}>
-          <select className={SETTINGS_INPUT} value={room} onChange={(event) => setRoom(event.target.value)} disabled={!scopes || pending}>
+          <Select value={room} onChange={(event) => setRoom(event.target.value)} disabled={!scopes || pending}>
             <option value="">{t("settings.aiTwin.chooseRoom")}</option>
             {scopes?.rooms.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}
-          </select>
+          </Select>
         </SettingsField>
         <SettingsField label={t("settings.aiTwin.lessonQuestion")}>
-          <select className={SETTINGS_INPUT} value={lesson} onChange={(event) => setLesson(event.target.value)} disabled={pending}>
+          <Select value={lesson} onChange={(event) => setLesson(event.target.value)} disabled={pending}>
             <option value="">{t("settings.aiTwin.chooseLesson")}</option>
             {lessons?.map((entry) => <option key={entry.id} value={entry.id}>{entry.question}</option>)}
-          </select>
+          </Select>
         </SettingsField>
         {grantedLesson && <p dir="auto" className="whitespace-pre-wrap break-words text-[13px]">{grantedLesson.answer}</p>}
         <div><button type="button" className="ui-button" disabled={!readyRoom || pending}

@@ -13,7 +13,7 @@ export class TwinPreviewError extends Error {
 }
 
 function numbers(text: string): string {
-  return (text.match(/[+-]?\d+(?:[.,]\d+)*/g) ?? []).sort().join(" ");
+  return (text.normalize("NFKC").replaceAll("−", "-").match(/[+-]?\d+(?:[.,]\d+)*/g) ?? []).sort().join(" ");
 }
 
 function explicitNegation(text: string): boolean {

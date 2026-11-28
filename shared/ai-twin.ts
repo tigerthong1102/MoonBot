@@ -61,11 +61,18 @@ export interface AiTwinControls {
   phone: boolean;
 }
 
+export interface AiTwinLearningExample {
+  thread: string;
+  message: string;
+  question?: string;
+  text: string;
+}
+
 export interface AiTwinLearningView {
   conversations: AiTwinScope[];
   rooms: AiTwinScope[];
   style?: AiTwinLearnedStyle;
-  examples: Array<{ thread: string; message: string; text: string }>;
+  examples: AiTwinLearningExample[];
 }
 
 export interface AiTwinLearnedStyle {

@@ -83,6 +83,14 @@ export function createAiTwinRoutes(deps: {
       if (path === AI_TWIN_LESSONS_PATH) {
         const next = method === "POST" ? saveTwinLessonInput.safeParse(body) : deleteTwinLessonInput.safeParse(body);
         if (!next.success) return json(res, 400, { error: "invalid_twin" });
+        if ("saveAsLesson" in next.data && next.data.example) {
+          const { thread, message } = next.data.example;
+          const current = store.get();
+          if (!current.twin || current.twin.paused || !current.controls?.sourceIds.includes(thread) ||
+              !deps.learning(auth, [thread]).examples.some((example) => example.message === message)) {
+            throw new TwinConflict();
+          }
+        }
         const view = "saveAsLesson" in next.data ? store.saveLesson(next.data) : store.forgetLesson(next.data);
         drafts.cancel();
         return replyProfile(200, view);

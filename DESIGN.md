@@ -57,7 +57,8 @@ where they belong instead of adding new places.
   sources and access controls. The person creates the Twin, chooses each
   learning source, and approves each answer before it can appear in a group.
   Paired phone access from a desktop is off until enabled. Provider-backed
-  actions show the destination. Each lesson needs separate permission to go to a provider. The internal
+  actions show the destination. Each lesson needs permission before Twin shares it with its provider.
+  Group participants and bots can read answers the Twin posts in their group. The internal
   release gate can disable availability.
 - **No new asks.** No new permission asks, approval cards, confirm dialogs,
   nags or waits that interrupt the person, and no default below Full access.

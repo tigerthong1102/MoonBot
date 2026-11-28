@@ -295,6 +295,8 @@ it("learns writing habits only from selected private chat rows and revokes by re
     await send(selected, "Mình thường gửi báo giá sau cuộc họp.");
     await send(selected, "Tôi có thể nhờ bạn ghi chú cuộc họp?");
     await send(selected, "Báo cáo nội bộ được gửi vào thứ Sáu.");
+    const faq = { question: "Khi nào chốt sổ?", answer: "Chốt sổ vào trưa thứ Sáu." };
+    await send(selected, `Hỏi: ${faq.question}\nĐáp: ${faq.answer}`);
     await send(selected, "Liên hệ fixture@example.test để nhận dữ liệu.");
     await send(excluded, "Nội dung riêng từ cuộc trò chuyện khác.");
     const learning = () => request(AI_TWIN_LEARNING_PATH).then(r => r.json() as Promise<AiTwinLearningView>);
@@ -303,17 +305,41 @@ it("learns writing habits only from selected private chat rows and revokes by re
     const enabled = await request(AI_TWIN_LEARNING_PATH, "PATCH", { ...version, thread: selected.threadId, enabled: true });
     expect(enabled.status).toBe(200);
     const learned = await enabled.json() as AiTwinView;
-    await expect.poll(async () => (await learning()).style?.samples, { timeout: 20_000 }).toBe(3);
+    await expect.poll(async () => (await learning()).style?.samples, { timeout: 20_000 }).toBe(4);
     const learnedStyles = await learning();
     expect(learnedStyles.examples.map(entry => entry.text)).toEqual([
-      "Báo cáo nội bộ được gửi vào thứ Sáu.", "Mình thường gửi báo giá sau cuộc họp.",
+      faq.answer, "Báo cáo nội bộ được gửi vào thứ Sáu.", "Mình thường gửi báo giá sau cuộc họp.",
     ]);
+    const candidate = learnedStyles.examples[0]!;
+    expect(candidate).toMatchObject({ thread: selected.threadId, question: faq.question });
     expect(JSON.stringify(learnedStyles.examples)).not.toContain("fixture@example.test");
     expect(JSON.stringify(learnedStyles.examples)).not.toContain("Nội dung riêng");
     const stored = readFileSync(join(fixture.info.dataDir, AI_TWIN_PRIVATE_DIR, "profile.json"), "utf8");
     expect(stored).not.toContain("Báo cáo nội bộ");
+    expect(stored).not.toContain(faq.answer);
+    const lessonFromExample = {
+      ...faq,
+      example: { thread: candidate.thread, message: candidate.message },
+      saveAsLesson: true,
+    };
+    const approved = await request(AI_TWIN_LESSONS_PATH, "POST", {
+      ...version, revision: learned.twin!.revision, ...lessonFromExample,
+    });
+    expect(approved.status).toBe(200);
+    const approvedView = await approved.json() as AiTwinView;
+    expect(approvedView.lessons).toEqual([expect.objectContaining({ ...faq, source: "owner" })]);
+    expect(approvedView.lessons?.[0]).not.toHaveProperty("allowProvider");
     expect((await request(AI_TWIN_LEARNING_PATH, "PATCH", { ...version, thread: selected.threadId, enabled: false })).status).toBe(409);
-    expect((await request(AI_TWIN_LEARNING_PATH, "PATCH", { ...version, revision: learned.twin!.revision, thread: selected.threadId, enabled: false })).status).toBe(200);
+    const revoked = await request(AI_TWIN_LEARNING_PATH, "PATCH", {
+      ...version, revision: approvedView.twin!.revision, thread: selected.threadId, enabled: false,
+    });
+    expect(revoked.status).toBe(200);
+    const revokedView = await revoked.json() as AiTwinView;
+    const blockedSave = await request(AI_TWIN_LESSONS_PATH, "POST", {
+      ...version, revision: revokedView.twin!.revision, ...lessonFromExample, question: "Một bài học sao chép từ nguồn đã thu hồi?",
+    });
+    expect(blockedSave.status).toBe(409);
+    expect(revokedView.lessons).toEqual(approvedView.lessons);
     expect(await learning()).toMatchObject({ examples: [] });
     expect((await learning()).style).toBeUndefined();
   } finally {
@@ -353,12 +379,13 @@ it("publishes only explicitly released answers in the approved room and revokes 
     const granted = await grant.json() as AiTwinView;
     const send = (room: typeof approved, text: string, sendId = randomUUID()) =>
       request(`/api/groups/${room.id}/messages`, "POST", { text, sendId, threadId: room.threadId });
-    const replies = async (group: typeof approved) => {
+    const messages = async (group: typeof approved) => {
       const body = await (await request(`/api/threads/${group.threadId}/messages`)).json() as {
-        messages: Array<{ id: string; text?: string; from?: { botId: string; name: string }; replyToId?: string }>;
+        messages: Array<{ id: string; text?: string; from?: { botId: string; name: string }; replyToId?: string; sendId?: string }>;
       };
-      return body.messages.filter(line => line.from?.botId === "ai-twin");
+      return body.messages;
     };
+    const replies = async (group: typeof approved) => (await messages(group)).filter(line => line.from?.botId === "ai-twin");
     expect((await send(other, "@AI Twin " + question)).status).toBe(202);
     expect(await replies(other)).toEqual([]);
     expect((await send(approved, question)).status).toBe(202);
@@ -366,8 +393,12 @@ it("publishes only explicitly released answers in the approved room and revokes 
     const sendId = randomUUID();
     const sent = await send(approved, "@AI Twin " + question, sendId);
     expect(sent.status).toBe(202);
-    const { message } = await sent.json() as { message: { id: string } };
-    expect((await send(approved, "@AI Twin " + question, sendId)).status).toBe(202);
+    await expect.poll(async () => (await replies(approved)).length, { timeout: 15_000 }).toBe(1);
+    const message = (await messages(approved)).find((line) => line.sendId === sendId)!;
+    expect(message).toBeDefined();
+    const replayed = await send(approved, "@AI Twin " + question, sendId);
+    expect(replayed.status).toBe(202);
+    expect(await replayed.json()).toMatchObject({ message: { id: message.id } });
     expect(await replies(approved)).toEqual([expect.objectContaining({ text: answer, replyToId: message.id, from: expect.objectContaining({ name: "AI Twin" }) })]);
 
     const edit = await request(AI_TWIN_LESSONS_PATH, "POST", {

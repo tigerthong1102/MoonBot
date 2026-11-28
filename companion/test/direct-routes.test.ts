@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { tailnetName } from "../src/listener.ts";
-import { acceptsConnection, directRoutesFromEnv, isPrivateLanAddress, isTailnetAddress, routedAddresses, setDirectRoutes, tailnetInterfaceAddresses } from "../src/direct-routes.ts";
+import { acceptsConnection, acceptsTailnetConnection, directRoutesFromEnv, isPrivateLanAddress, isTailnetAddress, routedAddresses, setDirectRoutes, tailnetInterfaceAddresses } from "../src/direct-routes.ts";
 
 const iface = (address: string, family: "IPv4" | "IPv6" = "IPv4") => ({ address, family, internal: false, netmask: "", mac: "", cidr: null }) as never;
 const macTailnet = tailnetInterfaceAddresses({ en0: [iface("192.168.1.4")], utun4: [iface("100.101.2.3"), iface("fd7a:115c:a1e0::5", "IPv6")] });
@@ -54,6 +54,15 @@ describe("direct ways in", () => {
     expect(acceptsConnection("127.0.0.1", "127.0.0.1", undefined, macTailnet)).toBe(true);
     expect(acceptsConnection("127.0.0.1", "203.0.113.9", undefined, macTailnet)).toBe(false);
     expect(acceptsConnection(undefined, "192.168.1.20", undefined, macTailnet)).toBe(false);
+  });
+
+  it("identifies a protected tailnet socket independently of an ordinary private LAN connection", () => {
+    const routes = { wifi: true, tailscale: true, tailnetName: null };
+    expect(acceptsTailnetConnection("::ffff:100.101.2.3", "100.64.0.8", routes, macTailnet)).toBe(true);
+    expect(acceptsTailnetConnection("fd7a:115c:a1e0::5", "fd7a:115c:a1e0::8", routes, macTailnet)).toBe(true);
+    expect(acceptsTailnetConnection("192.168.1.4", "100.64.0.8", routes, macTailnet)).toBe(false);
+    expect(acceptsTailnetConnection("100.101.2.3", "192.168.1.4", routes, macTailnet)).toBe(false);
+    expect(acceptsTailnetConnection("100.101.2.3", "100.64.0.8", { ...routes, tailscale: false }, macTailnet)).toBe(false);
   });
 
   it("offers the tailnet address only with Tailscale on, and private LAN addresses only with Same Wi-Fi on", () => {

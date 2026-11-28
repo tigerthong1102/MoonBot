@@ -1,20 +1,26 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import {
   AI_TWIN_LESSONS_PATH, AI_TWIN_LESSON_ANSWER_MAX, AI_TWIN_LESSON_QUESTION_MAX,
-  type AiTwinLesson, type AiTwinProfile, type AiTwinView,
+  type AiTwinLearningExample, type AiTwinLesson, type AiTwinProfile, type AiTwinView,
 } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
 import { SETTINGS_INPUT, SettingsField, SettingsFoldRow } from "./SettingsPrimitives";
 
-type LessonForm = { lessonId?: string; question: string; answer: string; allowProvider: boolean };
+type LessonForm = {
+  lessonId?: string;
+  question: string;
+  answer: string;
+  allowProvider: boolean;
+  example?: Pick<AiTwinLearningExample, "thread" | "message">;
+};
 
 export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
   twin: AiTwinProfile;
   lessons: readonly AiTwinLesson[];
   changed: (view: AiTwinView) => void;
   refresh: () => void;
-  example?: { text: string } | null;
+  example?: AiTwinLearningExample | null;
 }) {
   const panelId = useId();
   const [open, setOpen] = useState(false);
@@ -25,18 +31,22 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
   const questionInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!example || active.current) return;
+    if (!example) {
+      setForm((current) => current?.example ? null : current);
+      return;
+    }
+    if (active.current) return;
     setOpen(true);
     setError(null);
-    const pair = /^(?:Q|Hỏi):\s*(.+)\n(?:A|Đáp):\s*([\s\S]+)$/iu.exec(example.text);
     setForm({
-      question: pair ? pair[1]!.slice(0, AI_TWIN_LESSON_QUESTION_MAX) : "",
-      answer: pair ? pair[2]!.trim() : example.text,
+      question: example.question ?? "",
+      answer: example.text,
       allowProvider: false,
+      example: { thread: example.thread, message: example.message },
     });
   }, [example]);
 
-  const reviewingExample = Boolean(form && example && !form.lessonId);
+  const reviewingExample = Boolean(form?.example);
   useEffect(() => { if (reviewingExample) questionInput.current?.focus(); }, [reviewingExample]);
 
   async function write(method: "POST" | "DELETE", data: object) {

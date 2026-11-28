@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinView } from "../../shared/ai-twin";
+import { AI_TWIN_NAME_MAX, AI_TWIN_PATH, AI_TWIN_STYLE_MAX, type AiTwinLearningExample, type AiTwinView } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { randomUuid } from "@/lib/random-uuid";
 import { api, ApiError } from "@/state/api";
@@ -12,7 +12,7 @@ import { Card, SETTINGS_INPUT, SettingsField } from "./SettingsPrimitives";
 export function AiTwinSettings() {
   const [view, setView] = useState<AiTwinView | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [example, setExample] = useState<{ text: string } | null>(null);
+  const [example, setExample] = useState<AiTwinLearningExample | null>(null);
   const [retrying, setRetrying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -25,6 +25,9 @@ export function AiTwinSettings() {
   const nameInput = useRef<HTMLInputElement>(null);
   const alive = useRef(false);
   const twin = view?.twin;
+  const reviewableExample = example && twin && !twin.paused && view?.controls?.sourceIds.includes(example.thread) ? example : null;
+
+  useEffect(() => { if (!reviewableExample) setExample(null); }, [reviewableExample]);
 
   useEffect(() => {
     alive.current = true;
@@ -146,9 +149,9 @@ export function AiTwinSettings() {
             </button>
           </div>
           <AiTwinLessons key={twin.id} twin={twin} lessons={view?.lessons ?? []}
-            changed={setView} refresh={() => void reload()} example={example} />
+            changed={setView} refresh={() => void reload()} example={reviewableExample} />
           {view && <AiTwinControls key={twin.id} view={view} changed={setView}
-            refresh={() => void reload()} reviewExample={(text) => { setExample({ text }); }} />}
+            refresh={() => void reload()} reviewExample={(entry) => setExample({ ...entry })} />}
           {!twin.paused && <AiTwinPreview key={twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
             twin={twin} provider={view?.preview} allowSemantic={view?.lessons?.some((lesson) => lesson.allowProvider) === true} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>

@@ -237,7 +237,9 @@ fun SettingsScreen(
 
             if (onOpenRoutines != null || onOpenConnectedApps != null || onOpenVoice != null) {
                 SettingsSection(stringResource(R.string.ui_workspace)) {
-                    SettingsButton(stringResource(R.string.ai_twin_title)) { showingTwin = true }
+                    if (connection != null) {
+                        SettingsButton(stringResource(R.string.ai_twin_title)) { showingTwin = true }
+                    }
                     onOpenRoutines?.let { openRoutines ->
                         SettingsButton(
                             text = stringResource(R.string.ui_threads_routines),

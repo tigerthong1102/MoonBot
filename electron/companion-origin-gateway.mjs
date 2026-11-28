@@ -11,6 +11,13 @@ export const MANAGED_COMPANION_ORIGIN_PORT = 8812;
 const RUNTIME_PREFIX = "omb-companion-origin-";
 const SOCKET_NAME = "origin.sock";
 
+export function companionOriginRequestTimeout(method, url, defaultTimeout) {
+  const path = url?.split("?")[0];
+  if (method === "POST" && path === "/api/ai-twin/lookup") return Math.max(defaultTimeout, 48_000);
+  if (method === "POST" && path === "/api/ai-twin/preview") return Math.max(defaultTimeout, 68_000);
+  return defaultTimeout;
+}
+
 const currentUserId = () => {
   if (process.getuid) return process.getuid();
   const uid = os.userInfo().uid;
@@ -261,7 +268,7 @@ export function createCompanionOriginGateway({
         method: incoming.method,
         path: incoming.url,
         socketPath: target.socketPath,
-        timeout: upstreamTimeoutMs,
+        timeout: companionOriginRequestTimeout(incoming.method, incoming.url, upstreamTimeoutMs),
       },
       (response) => {
         upstream.setTimeout(0);

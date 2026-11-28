@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "react";
 import {
-  AI_TWIN_DELEGATION_PATH, AI_TWIN_LEARNING_PATH, AI_TWIN_PHONE_PATH, type AiTwinLearningView, type AiTwinView,
+  AI_TWIN_DELEGATION_PATH, AI_TWIN_LEARNING_PATH, AI_TWIN_PHONE_PATH, type AiTwinLearningExample, type AiTwinLearningView, type AiTwinView,
 } from "../../shared/ai-twin";
 import { t } from "@/lib/i18n";
 import { api, ApiError } from "@/state/api";
@@ -11,7 +11,7 @@ export function AiTwinControls({ view, changed, refresh, reviewExample }: {
   view: AiTwinView;
   changed: (view: AiTwinView) => void;
   refresh: () => void;
-  reviewExample: (text: string) => void;
+  reviewExample: (example: AiTwinLearningExample) => void;
 }) {
   const panelId = useId();
   const { twin, controls, lessons, canEnablePhone } = view;
@@ -87,9 +87,10 @@ export function AiTwinControls({ view, changed, refresh, reviewExample }: {
         })}</p>}
         {scopes?.examples.map((example) => <div key={example.thread + ":" + example.message} className="text-[13px]">
           <div className="text-ink-secondary">{sourceLabels.get(example.thread)}</div>
+          {example.question && <p dir="auto" className="break-words font-medium text-ink">{example.question}</p>}
           <p dir="auto" className="whitespace-pre-wrap break-words">{example.text}</p>
           <button type="button" className="ui-button" disabled={pending}
-            onClick={() => reviewExample(example.text)}>{t("settings.aiTwin.reviewExample")}</button>
+            onClick={() => reviewExample(example)}>{t("settings.aiTwin.reviewExample")}</button>
         </div>)}
       </section>
       <section className="flex flex-col gap-2">

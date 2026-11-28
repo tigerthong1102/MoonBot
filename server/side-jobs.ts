@@ -95,6 +95,11 @@ export interface SideJobs {
 
 type TextCall = (prompt: string, options?: TextGenerationOptions) => Promise<string>;
 
+function isolatedTextCall(instance: SideJobInstance): TextCall | undefined {
+  if (instance.driverKind === "codex") return instance.generateMemoryText;
+  if (instance.driverKind === "claudeAgent" || instance.driverKind === "openai-compat") return instance.generateText;
+}
+
 /** Jobs someone is waiting on, and the representative, which must never get tools, run only on a one-off text call:
  * generateMemoryText starts a whole agent process. */
 const ONE_OFF_ONLY: ReadonlySet<SideJob> = new Set(["compaction", "setup-suggestions", "representative", "status-reply"]);
@@ -272,8 +277,7 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     if (!instance?.enabled || deps.refusal(instance)) return null;
     const model = selection.model;
     if (deps.modelAllowed && !deps.modelAllowed({ instanceId: instance.instanceId, model })) return null;
-    const call = instance.driverKind === "codex" ? instance.generateMemoryText
-      : instance.driverKind === "claudeAgent" || instance.driverKind === "openai-compat" ? instance.generateText : undefined;
+    const call = isolatedTextCall(instance);
     if (!call) return null;
     return { via: "engine", generateText: booked(source ? "source-answer" : "instruction-test", bot, instance, call.bind(instance),
       source?.trigger ?? { kind: "bot", botId }, () => ({ model, requireIsolatedText: true, beforeRequest: () => deps.assertWithinBudget(bot.id), comparison: { effort: selection.effort, variant: selection.variant } }), source?.threadId) };
@@ -289,14 +293,16 @@ export function createSideJobs(deps: SideJobsDeps): SideJobs {
     },
     twinPreview(selection, twinId) {
       const instance = deps.instance(selection.instanceId);
-      if (!instance?.enabled || !instance.generateText || !selection.model || deps.refusal(instance)) return null;
-      if (instance.driverKind !== "claudeAgent" && instance.driverKind !== "openai-compat") return null;
+      if (!instance?.enabled || !selection.model || deps.refusal(instance)) return null;
       if (deps.modelAllowed && !deps.modelAllowed(selection)) return null;
+      const call = isolatedTextCall(instance);
+      if (!call) return null;
+      const label = instance.driverKind === "codex" ? "Codex" : instance.driverKind === "claudeAgent" ? "Claude Code" : "OpenAI-compatible AI";
       const twin = { id: twinId, name: "AI Twin", threadId: "", modelSelection: selection };
       return {
         instance,
-        name: instance.displayName ?? (instance.driverKind === "claudeAgent" ? "Claude Code" : "OpenAI-compatible AI"),
-        generateText: booked("ai-twin-preview", twin, instance, instance.generateText.bind(instance),
+        name: instance.displayName ?? label,
+        generateText: booked("ai-twin-preview", twin, instance, call.bind(instance),
           { kind: "bot", botId: twinId }, () => ({ model: selection.model, requireIsolatedText: true })),
       };
     },

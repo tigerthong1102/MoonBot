@@ -31,14 +31,14 @@
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI Twin chưa trả lời được. Hãy tải lại và thử lại." } }
       }
     },
-    "Open AI Twin on the paired computer to allow phone access, or create a Twin in your personal Cloud." : {
+    "Connect over HTTPS or Tailscale. Allow phone access on the paired computer, or create a Twin in your personal Cloud." : {
       "localizations" : {
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mở AI Twin trên máy đã ghép nối để cho phép điện thoại truy cập hoặc tạo AI Twin trên Cloud cá nhân." } }
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Kết nối qua HTTPS hoặc Tailscale. Cho phép điện thoại truy cập trên máy đã ghép nối hoặc tạo AI Twin trên Cloud cá nhân." } }
       }
     },
-    "AI uses %@ (%@). Lookup can share lesson questions. Drafting may also share a matched answer and writing habits." : {
+    "AI uses %@ (%@). Lookup can share questions from lessons you enabled. Drafting may also share a matched answer and writing habits." : {
       "localizations" : {
-        "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI dùng %@ (%@). Tra theo ý nghĩa có thể gửi câu hỏi đã lưu. Soạn nháp có thể gửi thêm đáp án phù hợp và thói quen viết." } }
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "AI dùng %@ (%@). Tra theo ý nghĩa có thể gửi câu hỏi từ những bài học bạn đã cho phép. Soạn nháp có thể gửi thêm đáp án phù hợp và thói quen viết." } }
       }
     },
     "Draft with memory" : {

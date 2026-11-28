@@ -28,7 +28,7 @@ struct AiTwinView: View {
                             .disabled(!canAsk)
                         Button("Draft with memory") { action = .draft }
                             .disabled(!canAsk)
-                        Text("AI uses \(provider.name) (\(provider.model)). Lookup can share lesson questions. Drafting may also share a matched answer and writing habits.")
+                        Text("AI uses \(provider.name) (\(provider.model)). Lookup can share questions from lessons you enabled. Drafting may also share a matched answer and writing habits.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
@@ -59,13 +59,14 @@ struct AiTwinView: View {
                 if status?.twin?.paused == true {
                     Text("AI Twin is paused.")
                 } else {
-                    Text("Open AI Twin on the paired computer to allow phone access, or create a Twin in your personal Cloud.")
+                    Text("Connect over HTTPS or Tailscale. Allow phone access on the paired computer, or create a Twin in your personal Cloud.")
                 }
                 Button("Refresh") { retry += 1 }
             }
         }
         .navigationTitle("AI Twin")
-        .task(id: retry) {
+        .task(id: scenePhase == .background ? nil : retry) {
+            guard scenePhase != .background else { return }
             loading = true
             answer = nil
             let refreshed = await session.aiTwin()
@@ -91,8 +92,6 @@ struct AiTwinView: View {
                 answer = nil
                 question = ""
                 status = nil
-            } else if phase == .active, status == nil {
-                retry += 1
             }
         }
     }

@@ -18,8 +18,8 @@
     <string name="ai_twin_lookup">Tra bài học</string>
     <string name="ai_twin_semantic">Tra theo ý nghĩa</string>
     <string name="ai_twin_draft">Soạn nháp kèm bài học</string>
-    <string name="ai_twin_disclosure">AI dùng %1$s (%2$s). Tra theo ý nghĩa có thể gửi câu hỏi đã lưu. Soạn nháp có thể gửi thêm đáp án phù hợp và thói quen viết.</string>
-    <string name="ai_twin_unavailable">Mở AI Twin trên máy đã ghép nối để cho phép điện thoại truy cập hoặc tạo AI Twin trên Cloud cá nhân.</string>
+    <string name="ai_twin_disclosure">AI dùng %1$s (%2$s). Tra theo ý nghĩa có thể gửi câu hỏi từ những bài học bạn đã cho phép. Soạn nháp có thể gửi thêm đáp án phù hợp và thói quen viết.</string>
+    <string name="ai_twin_unavailable">Kết nối qua HTTPS hoặc Tailscale. Cho phép điện thoại truy cập trên máy đã ghép nối hoặc tạo AI Twin trên Cloud cá nhân.</string>
     <string name="ai_twin_failed">AI Twin chưa trả lời được. Hãy tải lại và thử lại.</string>
     <string name="ai_twin_refresh">Tải lại</string>
     <string name="ai_twin_match">Bài học có thể phù hợp</string>

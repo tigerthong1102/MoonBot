@@ -35,6 +35,7 @@ import com.openmausbot.companion.core.AiTwinStatus
 internal fun AiTwinScreen(onBack: () -> Unit) {
     val session = LocalCompanion.current.session
     var status by remember { mutableStateOf<AiTwinStatus?>(null) }
+    var resumed by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var retry by remember { mutableStateOf(0) }
     var question by remember { mutableStateOf("") }
@@ -44,14 +45,17 @@ internal fun AiTwinScreen(onBack: () -> Unit) {
 
     BackHandler(onBack = onBack)
     LifecycleResumeEffect(Unit) {
-        retry += 1
+        resumed = true
         onPauseOrDispose {
+            resumed = false
+            status = null
             question = ""
             action = null
             answer = null
         }
     }
-    LaunchedEffect(retry) {
+    LaunchedEffect(resumed, retry) {
+        if (!resumed) return@LaunchedEffect
         loading = true
         answer = null
         status = session.aiTwin()

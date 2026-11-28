@@ -17,16 +17,17 @@ const epoch = z.union([z.literal("initial"), id]);
 export const createTwinInput = z.strictObject({ name, creationEpoch: epoch, creationId: id, createConsent: z.literal(true) });
 export const twinVersionInput = z.strictObject({ id, revision });
 export const updateTwinInput = twinVersionInput.extend({ name, style, paused: z.boolean() });
+const scopeId = z.string().min(1).max(128).regex(/^[\w-]+$/);
 export const saveTwinLessonInput = twinVersionInput.extend({
   ...twinLessonFields,
   lessonId: id.optional(),
   saveAsLesson: z.literal(true),
   allowProvider: z.boolean().optional(),
+  example: z.strictObject({ thread: scopeId, message: scopeId }).optional(),
 });
 export const deleteTwinLessonInput = twinVersionInput.extend({ lessonId: id });
 export const lookupTwinLessonInput = twinVersionInput.extend(twinLessonLookupFields);
 
-const scopeId = z.string().min(1).max(128).regex(/^[\w-]+$/);
 export const twinLearningInput = twinVersionInput.extend({ thread: scopeId, enabled: z.boolean() });
 export const twinDelegationInput = twinVersionInput.extend({ room: scopeId, lesson: id, enabled: z.boolean() });
 export const twinPhoneInput = twinVersionInput.extend({ enabled: z.boolean() });
@@ -164,8 +165,9 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
       const twin = read().twin;
       if (!twin || twin.paused) return undefined;
       const grants = twin.controls?.delegations;
-      return twin.lessons?.find((lesson) => grants?.some((grant) => grant.room === room && grant.lesson === lesson.id)
-        && twinLessonKey(lesson.question) === twinLessonKey(question));
+      const lesson = twin.lessons?.find((entry) => grants?.some((grant) => grant.room === room && grant.lesson === entry.id)
+        && twinLessonKey(entry.question) === twinLessonKey(question));
+      return lesson && { answer: lesson.answer, twinId: twin.id, revision: twin.revision };
     },
     get(): AiTwinView {
       return view(read());

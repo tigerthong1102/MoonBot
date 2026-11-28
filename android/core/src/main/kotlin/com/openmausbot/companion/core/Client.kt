@@ -250,10 +250,28 @@ class CompanionClient(
         .filter { it.capabilities?.images == true }
         .mapTo(mutableSetOf(), Instance::instanceId)
 
-    suspend fun aiTwin(): AiTwinStatus = send(makeRequest("GET", "/api/ai-twin"))
+    private fun protectedTwinClient(): CompanionClient {
+        if (endpoint != null && connection.activeEndpoint?.protectsCredentials == true) return this
+        val route = connection.orderedEndpoints.firstOrNull { it.protectsCredentials }
+            ?: throw APIError.Transport("Use HTTPS or Tailscale to open AI Twin.")
+        return CompanionClient(connection.dialing(route), token, actionClient)
+    }
+
+    private fun twinRequestClient(timeout: Long = ACTION_TIMEOUT_SECONDS): OkHttpClient = actionClient.newBuilder()
+        .followRedirects(false)
+        .followSslRedirects(false)
+        .callTimeout(timeout, TimeUnit.SECONDS)
+        .readTimeout(timeout, TimeUnit.SECONDS)
+        .build()
+
+    suspend fun aiTwin(): AiTwinStatus {
+        val client = protectedTwinClient()
+        return client.send(client.makeRequest("GET", "/api/ai-twin"), client.twinRequestClient())
+    }
 
     suspend fun askAiTwin(profile: AiTwinProfile, question: String, action: AiTwinAction, provider: AiTwinProvider?): AiTwinAnswer {
         require(action == AiTwinAction.Exact || provider != null)
+        val client = protectedTwinClient()
         val body = buildJsonObject {
             put("id", profile.id)
             put("revision", profile.revision)
@@ -265,7 +283,12 @@ class CompanionClient(
             if (action == AiTwinAction.Draft) put("useMemory", true)
         }
         val path = if (action == AiTwinAction.Draft) "preview" else "lookup"
-        return send(makeRequest("POST", "/api/ai-twin/$path", body = body))
+        val timeout = when (action) {
+            AiTwinAction.Exact -> ACTION_TIMEOUT_SECONDS
+            AiTwinAction.Semantic -> 45L
+            AiTwinAction.Draft -> 65L
+        }
+        return client.send(client.makeRequest("POST", "/api/ai-twin/$path", body = body), client.twinRequestClient(timeout))
     }
 
     suspend fun config(): ConfigStatus = send(makeRequest("GET", "/api/config"))

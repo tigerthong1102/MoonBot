@@ -25,12 +25,6 @@ public struct AiTwinAnswer: Decodable, Sendable {
         public let question: String
         public let answer: String
     }
-
-    init() {
-        lesson = nil
-        draft = nil
-        match = nil
-    }
 }
 
 public enum AiTwinAction: Equatable, Sendable {

@@ -10934,9 +10934,9 @@ function drainQueuedChannelSendsNow(): void {
       const ownsThread = group?.dm
         ? group.threadId === threadId
         : Boolean(group && store.groupTaskByThread(group.id, threadId));
-      if (!group || !ownsThread) return;
-      const head = items[0]!;
-      const last = items[items.length - 1]!;
+      const head = items[0]!, last = items[items.length - 1]!;
+      if (!group || !ownsThread) return head.twinReply ? "cancelled" : undefined;
+      if (head.twinReply) { queueMicrotask(drainQueuedChannelSends); return aiTwin.drain(group, threadId, head); }
       const joined = items.map((item) => item.text).join("\n\n");
       try {
         startGroupTurn(groupId, joined, resolveReplyTarget(threadId, last.replyToId), last.sendId, last.mode, last.id, {
@@ -12103,7 +12103,7 @@ ROUTES.push(instructionStudio.routes);
 const aiTwin = createAiTwinHost({
   enabled: AI_TWIN_ENABLED, desktop: DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE, dataDir: DATA_DIR, workspace: ENVIRONMENT_ID, store,
   preview: { selection: () => bootSelection, jobs: sideJobs }, blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
-  liveSession: liveSignedIn, visible: (auth) => visibleTo(viewerFor(auth)), mayLearn: () => CLOUD_PERSONAL || !sharedMembership(),
+  liveSession: liveSignedIn, sessionRecord: (id) => sessions.record(id), visible: (auth) => visibleTo(viewerFor(auth)), mayLearn: () => CLOUD_PERSONAL || !sharedMembership(),
   ownerThread: (thread) => !CLOUD_PERSONAL || cloudOwnerOnlyThread(thread), ownerLine: (person) => CLOUD_PERSONAL ? cloudProvenOwnerPerson(person) : !person,
   roomReady: (group) => !group.dm && !roomSetupPending(group), roomSendRefused: cloudGuestSendRefusal, sender: messageSender,
 });
@@ -12518,7 +12518,7 @@ ROUTES.push(createDataRoutes({
   exportRoots: dataExportRoots,
 }));
 ROUTES.push(createLiveRoutes({
-  calls: liveCalls, deviceRevoked: (device) => { phonePush.forget(`companion:${device}`); phoneActivity.forget(`companion:${device}`); },
+  calls: liveCalls, deviceRevoked: (device) => { aiTwin.revokeDevice(device); phonePush.forget(`companion:${device}`); phoneActivity.forget(`companion:${device}`); },
   resolveTarget: (botId, threadId) => {
     const bot = store.bot(botId);
     if (!bot) return null;
@@ -15259,15 +15259,16 @@ const workspaceAccessTimer = workspaceAccess ? setInterval(() => {
 }, 10_000) : null;
 workspaceAccessTimer?.unref();
 console.log(describeBrand(loadBrand()));
-
 // Before any row below settles: an interrupted dispatch's words come back with a review notice, never to a model a second time.
 followupAtBoot("");
 for (const row of chatFollowups()) {
   if (row.kind === "aside") { settleChatFollowups([row.id], null); continue; }
   if (row.status !== "dispatching" && row.status !== "interrupted") continue;
-  const owned = row.kind === "channel"
-    ? Boolean(store.groupByThread(row.threadId)?.id === row.ownerId)
-    : Boolean(store.taskByThread(row.ownerId, row.threadId));
+  if (row.payload.twinReply) {
+    settleChatFollowups([row.id], store.messagesFor(row.threadId).some((message) => message.queueId === row.id && message.role === "user") ? null : "cancelled");
+    continue;
+  }
+  const owned = row.kind === "channel" ? Boolean(store.groupByThread(row.threadId)?.id === row.ownerId) : Boolean(store.taskByThread(row.ownerId, row.threadId));
   if (!owned) { settleChatFollowups([row.id], "cancelled"); continue; }
   settleChatFollowups([row.id], "interrupted");
   const messages = store.messagesFor(row.threadId);
@@ -15292,7 +15293,6 @@ for (const row of chatFollowups()) {
 }
 restoreSteeredMessages();
 restoreChannelMessages();
-
 {
   let movedAutoPins = 0;
   for (const bot of store.bots) {

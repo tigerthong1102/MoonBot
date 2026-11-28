@@ -8,6 +8,7 @@ import { createGzip, type Gzip } from "node:zlib";
 
 import { bearerToken, type PairingRefusal } from "./devices.ts";
 import type { E2EDescriptor } from "./e2e/descriptor.ts";
+import { acceptsTailnetConnection } from "./direct-routes.ts";
 import { e2eContextOf } from "./e2e/origin.ts";
 import type { E2EContext } from "./e2e/registry.ts";
 import {
@@ -86,14 +87,19 @@ export interface CompanionEndpointSnapshot {
 /** Headers only: an SSE stream deliberately never ends, so the body has no
  * deadline. */
 const HEADERS_TIMEOUT_MS = 30_000;
+const TWIN_LOOKUP_HEADERS_TIMEOUT_MS = 45_000;
+const TWIN_PREVIEW_HEADERS_TIMEOUT_MS = 65_000;
 // Must outlast the server's 90-second private-save deadline and stay inside
 // the hosted proxy's.
 const PHONE_SECRET_HEADERS_TIMEOUT_MS = 105_000;
 const PHONE_SECRET_PROVIDE_PATH = /^\/api\/bots\/[\w-]+\/secret-cards\/[\w-]+\/provide(?:\?|$)/;
 
 export function proxyHeadersTimeoutMs(url: string, override?: number): number {
-  return override
-    ?? (PHONE_SECRET_PROVIDE_PATH.test(url) ? PHONE_SECRET_HEADERS_TIMEOUT_MS : HEADERS_TIMEOUT_MS);
+  if (override !== undefined) return override;
+  const path = url.split("?")[0];
+  if (path === "/api/ai-twin/lookup") return TWIN_LOOKUP_HEADERS_TIMEOUT_MS;
+  if (path === "/api/ai-twin/preview") return TWIN_PREVIEW_HEADERS_TIMEOUT_MS;
+  return PHONE_SECRET_PROVIDE_PATH.test(url) ? PHONE_SECRET_HEADERS_TIMEOUT_MS : HEADERS_TIMEOUT_MS;
 }
 
 /** A JSON reply up to this size is scrubbed whole; past it, it is scrubbed as it streams, so a long history reaches a
@@ -411,7 +417,9 @@ export function createProxyHandler(options: ProxyOptions) {
     if (!e2e && listener === "lan" && device?.e2eAt && path !== "/api/health") return sendJson(res, 426, UPDATE_APP);
     const e2eDenial = e2e ? e2eRefusal(e2e, method, path, device?.id) : null;
     if (e2eDenial) return sendJson(res, 401, { error: e2eDenial });
-    if (isAiTwinPhonePath(path) && (!e2e || !device)) {
+    const twinRequest = isAiTwinPhonePath(path);
+    if (twinRequest && (!device?.id || (!e2e && listener !== "origin" &&
+        !acceptsTailnetConnection(req.socket.localAddress, req.socket.remoteAddress)))) {
       return sendJson(res, 404, { error: "not_found" });
     }
     const browserRequest = isBrowserControlAccess(method, path);
@@ -764,7 +772,19 @@ export function createProxyHandler(options: ProxyOptions) {
 
     // Tear down the upstream whenever the phone goes away; guarded on
     // `writableEnded` so a finished response keeps its keep-alive socket.
+    const twinDevice = twinRequest ? device?.id : undefined;
+    const cancelTwin = () => { res.destroy(); };
+    if (twinDevice) {
+      const pending = capabilityStreams.get(twinDevice) ?? new Set<() => void>();
+      pending.add(cancelTwin);
+      capabilityStreams.set(twinDevice, pending);
+    }
     res.on("close", () => {
+      if (twinDevice) {
+        const pending = capabilityStreams.get(twinDevice);
+        pending?.delete(cancelTwin);
+        if (pending?.size === 0) capabilityStreams.delete(twinDevice);
+      }
       if (!res.writableEnded) upstream.destroy();
     });
     req.on("error", () => upstream.destroy());

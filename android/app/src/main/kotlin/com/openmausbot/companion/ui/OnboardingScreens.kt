@@ -67,6 +67,7 @@ object OnboardingCopy {
 fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
     OnboardingLayout(
         actions = {
+            MobileChatButton()
             Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_onboardingcopy_welcome_connect))
             }
@@ -87,7 +88,7 @@ fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Text(
-            text = stringResource(R.string.ui_onboardingcopy_welcome_subtitle),
+            text = stringResource(if (mobileChatOrigin() == null) R.string.ui_onboardingcopy_welcome_subtitle else R.string.mobile_chat_subtitle),
             style = MaterialTheme.typography.bodyLarge,
             color = secondaryTint,
             textAlign = TextAlign.Center,
@@ -135,6 +136,7 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
         HorizontalDivider()
         OnboardingLayout(
             actions = {
+                MobileChatButton()
                 Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.ui_onboardingcopy_unpaired_home_connect))
                 }
@@ -148,7 +150,7 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = stringResource(R.string.ui_onboardingcopy_unpaired_home_body),
+                text = stringResource(if (mobileChatOrigin() == null) R.string.ui_onboardingcopy_unpaired_home_body else R.string.mobile_chat_subtitle),
                 style = MaterialTheme.typography.bodyLarge,
                 color = secondaryTint,
                 textAlign = TextAlign.Center,

@@ -22,7 +22,7 @@ struct CompanionWelcomeView: View {
                     Text("Welcome to StartupBot")
                         .font(.largeTitle.bold())
                         .multilineTextAlignment(.center)
-                    Text("Open chats, approve actions, and send new work from this device.")
+                    Text(MobileChatButton.origin == nil ? LocalizedStringKey("Open chats, approve actions, and send new work from this device.") : LocalizedStringKey("Write, translate, or ask a question. A computer is optional."))
                         .font(.title3)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -63,6 +63,7 @@ struct CompanionWelcomeView: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
+                MobileChatButton()
                 Button(action: onConnect) {
                     Text("Connect my computer")
                         .frame(maxWidth: .infinity)
@@ -129,11 +130,13 @@ struct UnpairedHomeView: View {
                     VStack(spacing: 8) {
                         Text("Connect when you're ready")
                             .font(.title2.bold())
-                        Text("Pair this device with StartupBot to see your chats and respond to your bots.")
+                        Text(MobileChatButton.origin == nil ? LocalizedStringKey("Pair this device with StartupBot to see your chats and respond to your bots.") : LocalizedStringKey("Write, translate, or ask a question. A computer is optional."))
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+
+                    MobileChatButton()
 
                     Text("On your computer, open StartupBot → Settings → Phone.")
                         .font(.footnote)

@@ -1,6 +1,18 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Write, translate, or ask a question. A computer is optional." : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Soạn nội dung, dịch hoặc đặt câu hỏi ngay trên điện thoại." } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Escreva, traduza ou faça uma pergunta direto no celular." } }
+      }
+    },
+    "Chat without a computer" : {
+      "localizations" : {
+        "vi" : { "stringUnit" : { "state" : "translated", "value" : "Chat không cần máy tính" } },
+        "pt-BR" : { "stringUnit" : { "state" : "translated", "value" : "Conversar sem computador" } }
+      }
+    },
     "Open on another computer?" : {
       "localizations" : {
         "vi" : { "stringUnit" : { "state" : "translated", "value" : "Mở trên máy tính khác?" } },

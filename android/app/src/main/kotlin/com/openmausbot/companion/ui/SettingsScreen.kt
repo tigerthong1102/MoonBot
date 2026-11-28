@@ -221,6 +221,7 @@ fun SettingsScreen(
             }
 
             SettingsSection(stringResource(R.string.ui_chat)) {
+                MobileChatButton()
                 if (inboxOrigin != null) SettingsButton(stringResource(R.string.ui_messages)) { showingInbox = true }
                 SettingsRow(stringResource(R.string.ui_activity), activityDetail.label)
                 SettingsButton(stringResource(R.string.ui_change_activity_detail)) { choosingActivity = true }

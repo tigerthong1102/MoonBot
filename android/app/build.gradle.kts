@@ -64,6 +64,8 @@ android {
         targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersionName
+        resValue("string", "startupbot_mobile_origin", providers.gradleProperty("startupbotMobileOrigin")
+            .orElse(providers.environmentVariable("STARTUPBOT_MOBILE_ORIGIN")).orElse("").get())
         resValue("string", "startupbot_inbox_origin", providers.gradleProperty("startupbotInboxOrigin")
             .orElse(providers.environmentVariable("STARTUPBOT_INBOX_ORIGIN")).orElse("").get())
     }

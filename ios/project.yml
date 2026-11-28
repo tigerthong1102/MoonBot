@@ -59,6 +59,7 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: StartupBot
+        StartupBotMobileOrigin: $(STARTUPBOT_MOBILE_ORIGIN)
         StartupBotInboxOrigin: $(STARTUPBOT_INBOX_ORIGIN)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)

@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="mobile_chat_subtitle">Write, translate, or ask a question. A computer is optional.</string>
-    <string name="mobile_standalone_chat">Chat without a computer</string>
-    <string name="mobile_browser_unavailable">Install a browser to open chat.</string>
     <string name="ui_1_open_startupbot_settings_phone">1.  Open StartupBot → Settings → Phone</string>
     <string name="ui_1_row">1 row</string>
     <string name="ui_1_step">1 step</string>

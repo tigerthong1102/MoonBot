@@ -1,3 +1,4 @@
+import { generatedTwinPath, generatedTwinRoute } from "./ai-twin-generated.ts";
 import { ZALO_OWNER_STYLE_PATH } from "../../shared/zalo-owner-style.ts";
 import { ZALO_RECIPES, type ZaloRecipe } from "../../shared/zalo-intelligence.ts";
 import type { TwinExampleSource } from "../ai-twin-lesson-sources.ts";
@@ -54,6 +55,7 @@ function uniqueLessons(lessons: NonNullable<AiTwinView["lessons"]>) {
 
 export function createAiTwinRoutes(deps: {
   store: ReturnType<typeof createAiTwinStore>;
+  assertUnattended?: (id: string) => void;
   storeFor: (auth: RequestAuth) => ReturnType<typeof createAiTwinStore>;
   source: (auth: RequestAuth, thread: string, message: string) => TwinExampleSource | undefined;
   preview: Parameters<typeof createAiTwinPreview>[0];
@@ -66,9 +68,11 @@ export function createAiTwinRoutes(deps: {
   learnedStyle: (auth: RequestAuth, sources: readonly string[]) => AiTwinLearningView["style"];
   blocked: () => boolean;
 }): RouteHandler {
+  const generated = deps.desktop && deps.assertUnattended ? generatedTwinRoute({ ...deps.preview, getTwin: () => deps.store.get().twin, blocked: deps.blocked, assertUnattended: deps.assertUnattended }) : null;
   const drafts = createAiTwinPreview(deps.preview);
   const ownerStyle = createOwnerStyleRoutes({ store: deps.store, owner: auth => deps.desktop === true && deps.owner(auth), blocked: deps.blocked, cancelDrafts: () => drafts.cancel() });
   return async ctx => {
+    if (ctx.path === generatedTwinPath) return generated && deps.owner(ctx.auth) ? generated(ctx) : ctx.json(ctx.res,404,{error:"not_found"});
     if (ctx.path === ZALO_OWNER_STYLE_PATH) return ownerStyle(ctx);
     const { req, res, path, method, auth, json, readBody } = ctx;
     const allowed = paths.get(path);

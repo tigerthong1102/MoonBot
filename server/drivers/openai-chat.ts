@@ -269,6 +269,7 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         });
       const hasImages = messages.some(message => Array.isArray(message.content) && message.content.some(part => part.type === "image_url"));
       const send = options.timeoutMs > FETCH_LIMIT_MS ? fetchPastLimit : fetch;
+      request.beforeRequest?.();
       const response = await send(`${options.apiUrl}/${route === "responses" ? "responses" : "chat/completions"}`, {
         method: "POST",
         redirect: request.requireIsolatedText || hasImages ? "error" : "follow",
@@ -450,7 +451,6 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     for (;;) {
       let replied = false;
       try {
-        request.beforeRequest?.();
         return await completeOn(routes.routeFor(model, tools.length > 0), messages, model, stream, signal, onDelta && ((text, kind) => {
           replied = true;
           onDelta(text, kind);
@@ -918,7 +918,11 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
     return { turnId };
   };
 
+  const endpoint = URL.canParse(options.apiUrl) ? new URL(options.apiUrl) : undefined;
+  const disclosedOrigin = endpoint && !endpoint.username && !endpoint.password && !endpoint.search && !endpoint.hash
+    && (endpoint.protocol === "https:" || (endpoint.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)));
   return {
+    ...(options.driverKind === "openai-compat" && disclosedOrigin ? { isolatedTextOrigin: endpoint.origin } : {}),
     instanceId: input.instanceId,
     driverKind: options.driverKind,
     displayName: input.displayName,
@@ -972,11 +976,12 @@ export function createOpenAIChatRuntime<Config>(options: RuntimeOptions<Config>)
         return () => listeners.delete(listener);
       },
     },
-    generateText: async (prompt, { signal, onUsage, model: named, comparison, beforeRequest, requireIsolatedText } = {}) => {
+    generateText: async (prompt, { signal, onUsage, model: named, comparison, beforeRequest, requireIsolatedText, visibleTextOnly } = {}) => {
       const model = named ?? options.generateModel?.() ?? options.models().default;
       const { text, reasoning, toolCalls } = await complete([{ role: "user", content: prompt }], model, false, signal, undefined, [], onUsage, comparison?.variant, undefined, { beforeRequest, requireIsolatedText });
       if (toolCalls.length) throw new ChatProtocolError("provider returned tool calls to a text-only helper");
-      return text.trim() ? text : reasoning;
+      if (text.trim() || visibleTextOnly) return text;
+      return reasoning;
     },
     dispose: async () => {
       const turns = [...active.values()];

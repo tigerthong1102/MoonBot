@@ -12103,7 +12103,7 @@ ROUTES.push(instructionStudio.routes);
 const aiTwin = createAiTwinHost({
   enabled: AI_TWIN_ENABLED, desktop: DESKTOP_MANAGED && !CLOUD_HOME && !HOSTED_WORKSPACE, dataDir: DATA_DIR, workspace: ENVIRONMENT_ID, store,
   zaloRecipe: id => bundledSkills.find(skill => skill.manifest.id === id)?.instructions,
-  preview: { selection: () => bootSelection, jobs: sideJobs }, blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
+  preview: { selection: () => bootSelection, jobs: sideJobs }, assertUnattended: id => { assertWithinBudget(cfg, DATA_DIR); usageCapGate.assertTurn(id, false); }, blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
   liveSession: liveSignedIn, sessionRecord: (id) => sessions.record(id), visible: (auth) => visibleTo(viewerFor(auth)), mayLearn: () => CLOUD_PERSONAL || !sharedMembership(),
   ownerThread: (thread) => !CLOUD_PERSONAL || cloudOwnerOnlyThread(thread, true), ownerLine: (person) => CLOUD_PERSONAL ? cloudProvenOwnerPerson(person) : !person,
   roomReady: (group) => !group.dm && !roomSetupPending(group), roomSendRefused: cloudGuestSendRefusal, sender: messageSender,

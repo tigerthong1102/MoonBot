@@ -1393,3 +1393,259 @@ it.each(["selected", "all", "membership-race", "revoke-race", "expired-lease"] a
   },
   15000,
 );
+
+async function generatedFixture(group = false, admin = false) {
+  const { generatedGrantMessage, generatedPostMessage } = await import("../../../electron/twin-generated-message.mjs");
+  const enabled = { INBOX_GENERATED_ANSWER: "1" };
+  const db = env.INBOX_DB,
+    desktop = await login("owner@example.test"),
+    owner = desktop.id;
+  const desktopId = (await db.prepare("SELECT id FROM session WHERE userId=?").bind(owner).first<{ id: string }>())!.id;
+  const reviewer = await login(desktop.email),
+    peer = await login("peer@example.test");
+  const reviewId = (await db
+    .prepare("SELECT id FROM session WHERE userId=? AND id!=?")
+    .bind(owner, desktopId)
+    .first<{ id: string }>())!.id;
+  const key = (await crypto.subtle.generateKey("Ed25519", true, ["sign", "verify"])) as CryptoKeyPair;
+  const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const sign = async (text: string) =>
+    hex(await crypto.subtle.sign("Ed25519", key.privateKey, new TextEncoder().encode(text)));
+  const room = uuid(),
+    id = uuid(),
+    twin = uuid(),
+    pairing = uuid();
+  const create = group
+    ? { id: room, kind: "group", title: "Fixture group" }
+    : { id: room, kind: "direct", email: peer.email };
+  const manager = admin ? peer : desktop,
+    invited = admin ? desktop : peer;
+  expect((await call("rooms", manager.cookie, create)).ok).toBe(true);
+  if (group) expect((await call("rooms/" + room + "/invite", manager.cookie, { email: invited.email })).ok).toBe(true);
+  expect((await call("rooms/" + room + "/accept", invited.cookie, {})).ok).toBe(true);
+  if (admin) await db.prepare("UPDATE inbox_members SET admin=1 WHERE person=? AND room=?").bind(owner, room).run();
+  await db
+    .prepare(
+      "INSERT INTO inbox_twin_pairings(id,origin,owner,desktop_session,review_session,inbox_session,public_key,fingerprint,twin,revision,expires,signed) VALUES(?,?,?,?,?,?,?,?,?,?,?,1)",
+    )
+    .bind(
+      pairing,
+      origin,
+      owner,
+      desktopId,
+      reviewId,
+      reviewId,
+      hex(await crypto.subtle.exportKey("raw", key.publicKey)),
+      "test-fingerprint",
+      twin,
+      1,
+      Date.now() + 580000,
+    )
+    .run();
+  const api = (cookie: string, data?: object, query = "") =>
+    call("twin-generated" + query, cookie, data && { owner, id, ...data }, enabled);
+  const choices = await (
+    await api(desktop.cookie, undefined, "?rooms=1")
+  ).json<{ rooms: { ref: string; id: string }[] }>();
+  const roomRef = choices.rooms.find((r) => r.id === room)!.ref;
+  const provider = { key: uuid(), name: "Fixture", model: "fixture-model", destination: "https://model.example.test" };
+  const expires = Date.now() + 540000,
+    fields = { origin, owner, id, twin, revision: 1, pairing, provider, expires, rooms: [roomRef] };
+  const grant = await api(desktop.cookie, {
+    action: "offer",
+    pairing,
+    provider,
+    expires,
+    rooms: [roomRef],
+    signature: await sign(generatedGrantMessage(fields)),
+  });
+  expect(grant.status, await grant.clone().text()).toBe(201);
+  const approve = async () => {
+    const inspected = await api(reviewer.cookie, { action: "inspect" });
+    const { review } = await inspected.json<{ review: string }>();
+    return api(reviewer.cookie, { action: "approve", review, purpose: "generated-inbox-answer-v1" });
+  };
+  const post = (body: string, notice: string | undefined = id) =>
+    call(
+      "rooms/" + room + "/posts",
+      peer.cookie,
+      { kind: "text", body, nonce: uuid(), ...(notice && { generatedNotice: notice }) },
+      enabled,
+    );
+  const claim = async () =>
+    (
+      await (
+        await api(desktop.cookie, { action: "claim" })
+      ).json<{ challenge: { source: number; room: string; nonce: string; expires: number } | null }>()
+    ).challenge;
+  const dispatch = (job: { source: number; nonce: string }, action = "dispatch") =>
+    api(desktop.cookie, { action, source: job.source, nonce: job.nonce });
+  const finish = async (
+    job: { source: number; room: string; nonce: string; expires: number },
+    inputHash: string,
+    answer: string,
+  ) => {
+    const signature = await sign(generatedPostMessage({ ...fields, ...job, inputHash, answer }));
+    return { action: "finish", source: job.source, nonce: job.nonce, answer, signature };
+  };
+  return {
+    room,
+    roomRef,
+    pairing,
+    desktop,
+    reviewer,
+    peer,
+    id,
+    db,
+    provider,
+    api,
+    approve,
+    post,
+    claim,
+    dispatch,
+    finish,
+    enabled,
+  };
+}
+
+it.each([false, true])(
+  "requires a noticed ordinary text, a single paid attempt and a signed generated answer (group %s)",
+  async (group) => {
+    const f = await generatedFixture(group);
+    expect((await call("twin-generated", f.desktop.cookie)).status).toBe(404);
+    expect(await (await f.api(f.peer.cookie, undefined, "?notice=" + f.room)).json()).toEqual({ notice: null });
+    expect((await f.api(f.desktop.cookie, { action: "inspect" })).status).toBe(409);
+    expect((await f.approve()).status).toBe(200);
+    const notice = await (
+      await f.api(f.peer.cookie, undefined, "?notice=" + f.room)
+    ).json<{ notice: { id: string; provider: { destination: string } } }>();
+    expect(notice.notice).toMatchObject({ id: f.id, provider: { destination: f.provider.destination } });
+    expect(notice.notice.provider).not.toHaveProperty("key");
+    expect((await f.post("Ordinary legacy text with no notice.", "")).ok).toBe(true);
+    expect(await f.claim()).toBeNull();
+    expect((await f.post("Any new question with no taught match?")).ok).toBe(true);
+    const jobs = await Promise.all([f.claim(), f.claim()]);
+    expect(jobs.filter(Boolean)).toHaveLength(1);
+    const job = jobs.find((j) => j !== null)!;
+    expect(job).not.toHaveProperty("question");
+    const results = await Promise.all([f.dispatch(job), f.dispatch(job)]);
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    const input = await results.find((r) => r.ok)!.json<{ question: string; inputHash: string }>();
+    expect(input.question).toBe("Any new question with no taught match?");
+    const signed = await f.finish(job, input.inputHash, "Generated fixture reply.");
+    expect((await f.api(f.desktop.cookie, { ...signed, answer: "Different answer." })).status).toBe(409);
+    expect((await f.api(f.desktop.cookie, signed)).status).toBe(200);
+    expect((await f.api(f.desktop.cookie, signed)).status).toBe(200);
+    expect((await f.api(f.desktop.cookie, { ...signed, answer: "Changed after commit." })).status).toBe(409);
+    const rows = await f.db
+      .prepare("SELECT body,bot_name FROM inbox_posts WHERE room=? AND generated_reply=1")
+      .bind(f.room)
+      .all();
+    expect(rows.results).toEqual([{ body: "Generated fixture reply.", bot_name: "AI Twin" }]);
+    expect(await f.claim()).toBeNull();
+  },
+  20000,
+);
+
+it.each(["revoke", "leave", "delete", "replace", "late join"])(
+  "rejects a signed generated reply when its source changes by %s",
+  async (mode) => {
+    const f = await generatedFixture(mode === "late join");
+    expect((await f.approve()).ok).toBe(true);
+    expect((await f.post("A bounded current question in the fixture?")).ok).toBe(true);
+    const job = (await f.claim())!;
+    const result = await (await f.dispatch(job)).json<{ inputHash: string }>();
+    const signed = await f.finish(job, result.inputHash, "Generated fixture reply.");
+    if (mode === "late join") {
+      const late = await login("third@example.test");
+      expect((await call("rooms/" + f.room + "/invite", f.desktop.cookie, { email: late.email })).ok).toBe(true);
+      expect((await call("rooms/" + f.room + "/accept", late.cookie, {})).ok).toBe(true);
+    }
+    if (mode === "revoke") expect((await f.api(f.reviewer.cookie, { action: "revoke" })).status).toBe(200);
+    if (mode === "leave")
+      await f.db
+        .prepare("UPDATE inbox_members SET state='pending' WHERE person=? AND room=?")
+        .bind(f.desktop.id, f.room)
+        .run();
+    if (mode === "delete") await f.db.prepare("DELETE FROM inbox_posts WHERE seq=?").bind(job.source).run();
+    if (mode === "replace")
+      await f.db.prepare("UPDATE inbox_posts SET body='Revised source' WHERE seq=?").bind(job.source).run();
+    expect((await f.api(f.desktop.cookie, signed)).status).toBe(409);
+    expect(
+      await f.db.prepare("SELECT seq FROM inbox_posts WHERE generated_reply=1 AND room=?").bind(f.room).first(),
+    ).toBeNull();
+  },
+  20000,
+);
+
+it("discards consent on group manager removal, including messages written from a stale notice", async () => {
+  const f = await generatedFixture(true, true);
+  expect((await f.approve()).ok).toBe(true);
+  await f.db.prepare("UPDATE inbox_members SET admin=0 WHERE person=? AND room=?").bind(f.desktop.id, f.room).run();
+  expect((await f.post("Typed from an obsolete group notice?")).ok).toBe(true);
+  const stored = await f.db
+    .prepare("SELECT generated_notice FROM inbox_posts WHERE author=? AND room=?")
+    .bind(f.peer.id, f.room)
+    .first();
+  expect(stored).toMatchObject({ generated_notice: null });
+  await f.db.prepare("UPDATE inbox_members SET admin=1 WHERE person=? AND room=?").bind(f.desktop.id, f.room).run();
+  expect(await (await f.api(f.desktop.cookie)).json()).toMatchObject({ grant: null });
+  expect(await f.claim()).toBeNull();
+});
+
+it("reserves at most five independent source attempts, including uncertain provider failures", async () => {
+  const f = await generatedFixture();
+  expect((await f.approve()).ok).toBe(true);
+  for (let i = 0; i < 5; i++) {
+    expect((await f.post("A new distinct fixture question " + i)).ok).toBe(true);
+    const job = (await f.claim())!;
+    expect((await f.dispatch(job)).status).toBe(200);
+    expect(await f.claim()).toBeNull();
+    await f.db.prepare("UPDATE inbox_generated_jobs SET expires=0 WHERE nonce=?").bind(job.nonce).run();
+    expect((await f.dispatch(job)).status).toBe(409);
+  }
+  expect((await f.post("One beyond the permitted attempts")).ok).toBe(true);
+  expect(await f.claim()).toBeNull();
+  expect(await (await f.api(f.desktop.cookie)).json()).toMatchObject({ grant: { count: 5 } });
+  expect(await (await f.api(f.peer.cookie, undefined, "?notice=" + f.room)).json()).toMatchObject({ notice: null });
+}, 20000);
+
+it("keeps the exact-answer priority within the rooms the owner released", async () => {
+  const f = await generatedFixture();
+  expect((await f.approve()).ok).toBe(true);
+  const question = "Which release covers this room?";
+  const exactRoom = uuid() + "." + "a".repeat(32);
+  await f.db
+    .prepare(
+      `INSERT INTO inbox_exact_grants
+    (id,pairing,owner,lesson,question,answer,rooms,expires,after_seq) VALUES(?,?,?,?,?,?,?,?,0)`,
+    )
+    .bind(
+      uuid(),
+      f.pairing,
+      f.desktop.id,
+      uuid(),
+      question,
+      "Reviewed reply.",
+      JSON.stringify([f.roomRef]),
+      Date.now() + 60000,
+    )
+    .run();
+  expect((await f.post(question)).ok).toBe(true);
+  expect(await f.claim()).toBeNull();
+  await f.db
+    .prepare("UPDATE inbox_exact_grants SET rooms=? WHERE owner=?")
+    .bind(JSON.stringify([exactRoom]), f.desktop.id)
+    .run();
+  expect(await f.claim()).toMatchObject({ room: f.room });
+});
+
+it("requires new consent after group management is transferred away and back", async () => {
+  const f = await generatedFixture(true);
+  expect((await f.approve()).ok).toBe(true);
+  expect((await f.post("Before the group owner changes?")).ok).toBe(true);
+  await f.db.prepare("UPDATE inbox_rooms SET owner=? WHERE id=?").bind(f.peer.id, f.room).run();
+  await f.db.prepare("UPDATE inbox_rooms SET owner=? WHERE id=?").bind(f.desktop.id, f.room).run();
+  expect(await (await f.api(f.desktop.cookie)).json()).toMatchObject({ grant: null });
+  expect(await f.claim()).toBeNull();
+});

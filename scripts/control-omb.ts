@@ -294,7 +294,11 @@ export async function launchVerificationServer(
   boatFixtureApi?: string,
   /** Programmatic web UI qualification against the fixture's static server. */
   staticDir?: string,
+  generatedFixtureApi?: string,
 ): Promise<VerificationServer> {
+  if (generatedFixtureApi && (!/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/.test(generatedFixtureApi) || new URL(generatedFixtureApi).origin !== generatedFixtureApi)) {
+    throw new ControlOmbError("Twin verification requires a loopback provider origin");
+  }
   if (boatFixtureApi) {
     if (!/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/.test(boatFixtureApi)) {
       throw new ControlOmbError("Boat verification requires an explicit loopback HTTP provider");
@@ -356,7 +360,10 @@ export async function launchVerificationServer(
         config: { cli: fileURLToPath(new URL("../server/testing/fake-acp-cli.ts", import.meta.url)) },
         environment: { FAKE_ACP_MODELS: "fixture-fast,fixture-deep", FAKE_ACP_DUMP: join(dataDir, "custom-acp-launch.json") },
       } } : {}),
+      ...(generatedFixtureApi ? { fixtureText: { driver: "openai-compat", displayName: "Fixture text provider",
+        config: { url: generatedFixtureApi + "/v1", model: "fixture-model", key: "fixture-only", tools: false } } } : {}),
       claude: {
+        ...(generatedFixtureApi ? { enabled: false } : {}),
         driver: "claudeAgent",
         displayName: "Verification fixture",
         config: { cli: FAKE_CLI },

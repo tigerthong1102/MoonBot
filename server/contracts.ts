@@ -555,6 +555,8 @@ export interface TextGenerationOptions {
   timeoutMs?: number;
   /** Private previews require disabled tools and session persistence. OpenAI-compatible requests must reject redirects. */
   requireIsolatedText?: true;
+  /** A shared answer may contain only the provider’s visible assistant text. */
+  visibleTextOnly?: true;
   /** In a comparison run, honor the bot's normal reasoning selection, including driver defaults. */
   comparison?: { effort?: EffortLevel; variant?: string };
   /** Recheck the spend cap before a text-only provider request, including a protocol retry. */
@@ -572,6 +574,8 @@ export interface SmallModelFallback {
 }
 
 export interface ProviderInstance {
+  /** Destination of an isolated HTTP text call that rejects redirects. */
+  readonly isolatedTextOrigin?: string;
   readonly instanceId: InstanceId;
   readonly driverKind: DriverKind;
   readonly displayName: string | undefined;

@@ -222,18 +222,18 @@ export function nativeChat(ledger, lists, origin) {
     return Boolean(db.prepare("SELECT 1 FROM mobile_native_draft_grants WHERE session=?").get(session));
   }
   function choose(session, body, devices, title) {
-    writeChoice(session,body,devices.map(d => ({id:d.id,label:d.name+" · "+d.code})),title);
+    writeChoice(session,body,devices.map(d => ({id:d.id,label:d.name+" · "+d.code})),title,"desktopChoose");
   }
   function offerWallet(session,body,messages) {
-    writeChoice(session,body,[{id:"use-wallet",label:messages.useWallet},{id:"cancel-wallet",label:messages.cancel}],messages.provider_disconnected);
+    writeChoice(session,body,[{id:"use-wallet",label:messages.useWallet},{id:"cancel-wallet",label:messages.cancel}],messages.provider_disconnected,"provider_disconnected");
   }
   function clearChoice(session,thread,id) {
     db.prepare("DELETE FROM mobile_native_choices WHERE session=? AND thread=? AND id=?").run(session.hash,thread,id);
   }
-  function writeChoice(session,body,choices,title) {
+  function writeChoice(session,body,choices,title,pendingError) {
     db.prepare("DELETE FROM mobile_native_choices WHERE expires<=?").run(Date.now());
     const previous = db.prepare("SELECT id,prompt FROM mobile_native_choices WHERE session=? AND thread=?").get(session.hash,body.thread);
-    if (previous && (previous.id !== body.id || session.open("native-choice:"+previous.id,previous.prompt) !== body.prompt)) throw new Fault(409,"desktopChoose");
+    if (previous && (previous.id !== body.id || session.open("native-choice:"+previous.id,previous.prompt) !== body.prompt)) throw new Fault(409,pendingError);
     db.prepare("INSERT OR REPLACE INTO mobile_native_choices VALUES (?,?,?,?,?,?,?,?)")
       .run(session.hash,session.owner,body.thread,body.id,session.seal("native-choice:"+body.id,body.prompt),JSON.stringify(choices),title,Date.now()+120000);
     changed(session.owner);

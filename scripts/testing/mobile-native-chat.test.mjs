@@ -36,13 +36,13 @@ it("continues a web OpenRouter conversation natively only after its owner select
   const send = {threadId:thread,sendId:crypto.randomUUID(),text:"And in French?"};
   const route = "/api/bots/"+bot.id+"/messages", respond="/api/threads/"+thread+"/respond";
   const currentCard = async () => (await (await request(token,"/api/threads/"+thread+"/messages")).json()).messages.at(-1).card;
-  expect((await request(token,route,send)).status).toBe(200);
+  expect((await request(token,route,send)).status).toBe(409);
   let card=await currentCard();
   const choice=label=>({requestId:card.requestId,behavior:"answer",message:label});
   expect((await request(other,respond,choice(card.options[0]))).status).toBe(409);
   expect((await request(token,respond,choice(card.options[1]))).status).toBe(200);
   expect((await (await fixture.call("/threads",web)).json()).threads[0].provider).toBe("openrouter");
-  expect((await request(token,route,send)).status).toBe(200);
+  expect((await request(token,route,send)).status).toBe(409);
   card=await currentCard();
   expect((await request(token,respond,choice(card.options[0]))).status).toBe(200);
   expect((await request(token,route,send)).status).toBe(200);

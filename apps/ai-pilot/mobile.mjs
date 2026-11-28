@@ -323,7 +323,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       const current = ownKey && personalAI.keyHash(session);
       if (companion && pinned && ownKey && current !== pinned.keyHash) {
         native.offerWallet(session,body,mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages);
-        return json(200,{ok:true,threadId:thread});
+        throw new Fault(409,"provider_disconnected");
       }
       if (!(companion && body.switchWallet) && (Boolean(pinned) !== ownKey || (pinned && current && pinned.keyHash !== current))) throw new Fault(409, "provider_conflict");
     }

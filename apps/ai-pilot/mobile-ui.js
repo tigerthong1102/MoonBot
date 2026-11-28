@@ -24,11 +24,17 @@ const drafts = new Map();
 const channel = typeof BroadcastChannel === "function" ? new BroadcastChannel("startupbot-account") : null;
 channel?.addEventListener("message", () => location.reload());
 window.addEventListener("pageshow", e => { if (e.persisted) location.reload(); });
-window.addEventListener("pagehide", () => { active?.abort(); el("chat").hidden = true; el("transcript").replaceChildren(); });
-function status(message = "") { el("status").textContent = message; }
+window.addEventListener("pagehide", () => { active?.abort(); status(); el("chat").hidden = true; el("transcript").replaceChildren(); });
+function status(message = "", announcement = message) {
+  el("status").textContent = message;
+  const live = el("announcement");
+  if (live.textContent !== announcement) live.textContent = announcement;
+}
 function signedOut() {
   pending = newThread = undefined;
   drafts.clear();
+  active?.abort();
+  status();
   account = undefined;
   thread = undefined;
   conversations = [];
@@ -313,6 +319,7 @@ el("stop").onclick = () => active?.abort();
 el("compose").onsubmit = event => {
   event.preventDefault();
   if (!navigator.onLine) { status(t("offline")); return; }
+  const fromSendButton = document.activeElement === el("send");
   action(async () => {
     const submitted = el("prompt").value;
     const prompt = submitted.trim();
@@ -323,6 +330,7 @@ el("compose").onsubmit = event => {
     const id = pending.id;
     active = new AbortController();
     el("stop").hidden = false;
+    if (fromSendButton) el("stop").focus();
     status(t("waiting"));
     try {
       const response = await api("send", { thread, id, prompt, provider, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
@@ -337,6 +345,7 @@ el("compose").onsubmit = event => {
       let buffer = "", state;
       while (true) {
         const chunk = await reader.read();
+        active.signal.throwIfAborted();
         if (chunk.done) break;
         buffer += chunk.value;
         let end;
@@ -354,7 +363,9 @@ el("compose").onsubmit = event => {
       }
       if (answer.textContent) formatAnswer(answer, answer.textContent);
       pending = undefined;
-      status(state === "complete" ? "" : t(state) || t("interrupted"));
+      const notice = state === "complete" ? "" : t(state) || t("interrupted");
+      const reply = state === "complete" || state === "limited" ? answer.textContent.trim() : "";
+      status(notice, [reply, notice].filter(Boolean).join("\n"));
     } catch (error) {
       if (error.code !== "request_exists") throw error;
       await loadHistory(true);
@@ -362,6 +373,7 @@ el("compose").onsubmit = event => {
       pending = undefined;
       status(t("interrupted"));
     } finally {
+      if (document.activeElement === el("stop") && !el("chat").hidden) el("prompt").focus();
       el("stop").hidden = true;
       active = undefined;
       if (account) await list().catch(() => { el("retry").hidden = false; });

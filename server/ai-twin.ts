@@ -27,6 +27,10 @@ export const saveTwinLessonInput = twinVersionInput.extend({
   example: z.strictObject({ thread: scopeId, message: scopeId }).optional(),
 });
 export const deleteTwinLessonInput = twinVersionInput.extend({ lessonId: id });
+export const forgetTwinLessonsInput = twinVersionInput.extend({
+  lessonIds: z.array(id).min(1).max(MAX_TWIN_LESSONS).refine((items) => new Set(items).size === items.length),
+  confirmForget: z.literal(true),
+});
 export const lookupTwinLessonInput = twinVersionInput.extend(twinLessonLookupFields);
 
 export const twinLearningInput = twinVersionInput.extend({ thread: scopeId, enabled: z.boolean() });
@@ -233,6 +237,14 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
       const remaining = lessons.filter((entry) => entry.id !== input.lessonId);
       if (remaining.length === lessons.length) throw new TwinConflict("Lesson changed");
       return save({ ...state, twin: { ...twin, lessons: remaining, controls: removeGrants(twin, input.lessonId), revision: twin.revision + 1, updatedAt: Date.now() } });
+    },
+    forgetLessons(input: z.infer<typeof forgetTwinLessonsInput>): AiTwinView {
+      const state = read(), twin = matching(state, input), lessons = twin.lessons ?? [], selected = new Set(input.lessonIds);
+      if (!input.confirmForget || !selected.size || selected.size !== input.lessonIds.length || selected.size > MAX_TWIN_LESSONS ||
+          input.lessonIds.some((id) => !lessons.some((lesson) => lesson.id === id))) throw new TwinConflict("Lesson changed");
+      return save({ ...state, twin: { ...twin, lessons: lessons.filter((lesson) => !selected.has(lesson.id)),
+        controls: twin.controls && { ...twin.controls, delegations: twin.controls.delegations.filter((grant) => !selected.has(grant.lesson)) },
+        revision: twin.revision + 1, updatedAt: Date.now() } });
     },
     lookupLesson(input: z.infer<typeof lookupTwinLessonInput>) {
       const twin = matching(read(), input);

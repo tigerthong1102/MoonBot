@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
-import { AI_TWIN_DELEGATION_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_PATH, type AiTwinView } from "../shared/ai-twin.ts";
+import { AI_TWIN_DELEGATION_PATH, AI_TWIN_FORGET_MANY_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_PATH, type AiTwinView } from "../shared/ai-twin.ts";
 
-it("queues an approved Twin reply behind the room's turn, rejects steering, and cancels a revoked reply", async () => {
+it.each(["grant", "lessons"])("queues an approved Twin reply and cancels it when %s is revoked", async (revocation) => {
   const work = mkdtempSync(join(tmpdir(), "startupbot-twin-room-"));
   const gate = join(work, "finish");
   const prompts = join(work, "prompts");
@@ -99,8 +99,12 @@ it("queues an approved Twin reply behind the room's turn, rejects steering, and 
     const pending = await send(`@AI Twin ${otherQuestion}`, revokedSendId);
     expect(pending.status).toBe(202);
     expect(await pending.json()).toMatchObject({ queued: true, queueId: expect.any(String) });
-    await view(AI_TWIN_DELEGATION_PATH, "PATCH", {
-      ...revisions(), room: group.id, lesson: current.lessons!.find((lesson) => lesson.question === otherQuestion)!.id, enabled: false,
+    const revokedLesson = current.lessons!.find((lesson) => lesson.question === otherQuestion)!.id;
+    if (revocation === "grant") await view(AI_TWIN_DELEGATION_PATH, "PATCH", {
+      ...revisions(), room: group.id, lesson: revokedLesson, enabled: false,
+    });
+    else await view(AI_TWIN_FORGET_MANY_PATH, "DELETE", {
+      ...revisions(), lessonIds: [revokedLesson], confirmForget: true,
     });
     writeFileSync(gate, "finish");
     await expect.poll(async () => (await send(`@AI Twin ${otherQuestion}`, revokedSendId)).status, { timeout: 15_000 }).toBe(409);

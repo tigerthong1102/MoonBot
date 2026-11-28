@@ -1,6 +1,7 @@
 export const AI_TWIN_PATH = "/api/ai-twin";
 export const AI_TWIN_PREVIEW_PATH = AI_TWIN_PATH + "/preview";
 export const AI_TWIN_LESSONS_PATH = AI_TWIN_PATH + "/lessons";
+export const AI_TWIN_FORGET_MANY_PATH = AI_TWIN_PATH + "/lessons/forget-many";
 export const AI_TWIN_LOOKUP_PATH = AI_TWIN_PATH + "/lookup";
 export const AI_TWIN_LEARNING_PATH = AI_TWIN_PATH + "/learning";
 export const AI_TWIN_DELEGATION_PATH = AI_TWIN_PATH + "/delegation";

@@ -233,6 +233,7 @@ fun SettingsScreen(
                 SettingsButton(stringResource(R.string.ui_change_activity_detail)) { choosingActivity = true }
                 SettingsButton(stringResource(R.string.ui_quick_replies)) { editingQuickReplies = true }
                 Footnote(activityDetail.caption)
+                MobileChatButton()
             }
 
             if (onOpenRoutines != null || onOpenConnectedApps != null || onOpenVoice != null) {

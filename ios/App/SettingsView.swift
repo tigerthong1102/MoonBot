@@ -49,6 +49,7 @@ struct SettingsView: View {
                 }
             }
 
+            MobileChatButton()
             Section {
                 if notificationsAreEnabled {
                     notificationRow

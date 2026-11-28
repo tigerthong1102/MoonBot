@@ -13,9 +13,15 @@ final class VietnameseOnboardingTests: XCTestCase {
         app.launchArguments.append(freshWelcome)
         app.launch()
         XCTAssertTrue(app.staticTexts["Chào mừng bạn đến với StartupBot"].waitForExistence(timeout: 15))
+        #if MOBILE_CHAT_FIXTURE
+        XCTAssertTrue(app.buttons["Chat không cần máy tính"].exists)
+        #endif
         XCTAssertTrue(app.buttons["Kết nối với máy tính của tôi"].exists)
         app.buttons["Để sau"].tap()
         XCTAssertTrue(app.buttons["Kết nối máy tính"].waitForExistence(timeout: 8))
+        #if MOBILE_CHAT_FIXTURE
+        XCTAssertTrue(app.buttons["Chat không cần máy tính"].exists)
+        #endif
         app.terminate()
         app.launchArguments.removeAll { $0 == freshWelcome }
         app.launch()

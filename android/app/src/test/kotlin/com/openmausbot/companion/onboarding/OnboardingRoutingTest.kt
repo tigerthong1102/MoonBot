@@ -54,6 +54,16 @@ class OnboardingRoutingTest {
     fun `Vietnamese welcome and unpaired home follow the device locale`() {
         mount(OnboardingScene())
         compose.onNodeWithText("Chào mừng bạn đến với StartupBot").assertIsDisplayed()
+        val mobileEntry = compose.onNodeWithText("Chat không cần máy tính")
+        if (compose.activity.getString(com.openmausbot.companion.R.string.startupbot_mobile_origin).isEmpty()) {
+            mobileEntry.assertDoesNotExist()
+        } else {
+            mobileEntry.assertIsDisplayed()
+            mobileEntry.performClick()
+            val target = org.robolectric.Shadows.shadowOf(compose.activity).nextStartedActivity.data
+            assertEquals("/mobile", target?.path)
+            assertEquals("https", target?.scheme)
+        }
         compose.onNodeWithText("Kết nối với máy tính của tôi").assertIsDisplayed()
         compose.onNodeWithText("Để sau").performClick()
         compose.onNodeWithText("Kết nối máy tính").assertIsDisplayed()

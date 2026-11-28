@@ -67,6 +67,7 @@ object OnboardingCopy {
 fun WelcomeScreen(onConnect: () -> Unit, onSkip: () -> Unit) {
     OnboardingLayout(
         actions = {
+            MobileChatButton()
             Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.ui_onboardingcopy_welcome_connect))
             }
@@ -135,6 +136,7 @@ fun UnpairedHomeScreen(onConnect: () -> Unit, onOpenSettings: () -> Unit) {
         HorizontalDivider()
         OnboardingLayout(
             actions = {
+                MobileChatButton()
                 Button(onClick = onConnect, modifier = Modifier.fillMaxWidth()) {
                     Text(stringResource(R.string.ui_onboardingcopy_unpaired_home_connect))
                 }

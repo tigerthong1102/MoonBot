@@ -63,6 +63,7 @@ struct CompanionWelcomeView: View {
         }
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 10) {
+                MobileChatButton()
                 Button(action: onConnect) {
                     Text("Connect my computer")
                         .frame(maxWidth: .infinity)
@@ -140,6 +141,7 @@ struct UnpairedHomeView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
 
+                    MobileChatButton()
                     Spacer(minLength: 30)
                 }
                 .padding(28)

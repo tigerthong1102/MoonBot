@@ -1,3 +1,4 @@
+import { ZALO_OWNER_STYLE_PATH } from "../../shared/zalo-owner-style.ts";
 import { ZALO_RECIPES, type ZaloRecipe } from "../../shared/zalo-intelligence.ts";
 import { z } from "zod";
 import {
@@ -11,6 +12,7 @@ import {
 } from "../ai-twin.ts";
 import { createAiTwinPreview, TwinPreviewError } from "../ai-twin-preview.ts";
 import type { RequestAuth } from "../request-auth.ts";
+import { createOwnerStyleRoutes, ownerStyleAllowed } from "./ai-twin-owner-style.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 const providerFields = { key: z.uuid(), useProvider: z.literal(true) };
@@ -39,13 +41,17 @@ export function createAiTwinRoutes(deps: {
   owner: (auth: RequestAuth) => boolean;
   phone: (auth: RequestAuth) => boolean;
   canEnablePhone: boolean;
+  desktop?: boolean;
   learning: (auth: RequestAuth, sources: readonly string[]) => AiTwinLearningView;
   learnedStyle: (auth: RequestAuth, sources: readonly string[]) => AiTwinLearningView["style"];
   blocked: () => boolean;
 }): RouteHandler {
   const { store } = deps;
   const drafts = createAiTwinPreview(deps.preview);
-  return async ({ req, res, path, method, auth, json, readBody }) => {
+  const ownerStyle = createOwnerStyleRoutes({ store, owner: auth => deps.desktop === true && deps.owner(auth), blocked: deps.blocked, cancelDrafts: () => drafts.cancel() });
+  return async ctx => {
+    if (ctx.path === ZALO_OWNER_STYLE_PATH) return ownerStyle(ctx);
+    const { req, res, path, method, auth, json, readBody } = ctx;
     const allowed = paths.get(path);
     if (!allowed) return PASS;
     res.setHeader("cache-control", "private, no-store");
@@ -64,6 +70,7 @@ export function createAiTwinRoutes(deps: {
       return json(res, status, {
         ...view, ...(provider ? { preview: provider } : {}),
         ...(deps.canEnablePhone ? { canEnablePhone: true } : {}),
+        ...(deps.desktop && ownerStyleAllowed(auth) ? { canReviewOwnerStyle: true } : {}),
       });
     }
 

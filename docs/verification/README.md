@@ -81,6 +81,7 @@ Use only mapped, tested commands:
 - [Channels](channels.md)
 - [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
 - [Offline Zalo Personal SDK qualification](zalo-personal.md)
+- [AI Twin local owner-written Zalo style sample](zalo-owner-style.md)
 - [Zalo excerpt review, intelligence and release evidence](zalo-intelligence.md)
 - [In-chat team coordination](room-coordination.md)
 - [Question cards: a teammate's question, in its chat and the person's inbox](question-cards.md)

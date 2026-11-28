@@ -478,3 +478,29 @@ it("drops semantic recall when the lesson is forgotten while the provider is run
     rmSync(scratch, { recursive: true, force: true });
   }
 }, 90_000);
+
+it("smokes owner-authored Zalo style on the isolated desktop and excludes it from general Twin state and workspace backup", async () => {
+  const { fixture, url, owner, call } = await launchTwin();
+  const path = url + "/api/ai-twin/zalo-owner-style";
+  try {
+    expect((await fetch(path)).status).toBe(404);
+    const setup = await (await call()).json() as AiTwinView;
+    expect(setup.canReviewOwnerStyle).toBe(true);
+    const created = await (await call("POST", { name: "Style fixture", creationEpoch: setup.creationEpoch,
+      creationId: randomUUID(), createConsent: true })).json() as AiTwinView;
+    const twin = created.twin!;
+    const post = (body: object) => fetch(path, { method: "POST", headers: { ...owner, "content-type": "application/json" },
+      body: JSON.stringify({ id: twin.id, revision: twin.revision, ...body }) });
+    const sample = "Dạ, em đang chuẩn bị gói tranh cho buổi trưng bày.";
+    const proposal = await (await post({ action: "propose", provenance: "owner-desktop-editor", authorConsent: true, sample })).json() as { proposalId: string };
+    expect((await post({ action: "approve", proposalId: proposal.proposalId, approveConsent: true, traits: ["polite", "em"] })).status).toBe(200);
+    expect(await (await fetch(path, { headers: owner })).json()).toMatchObject({ approved: { traits: ["polite", "em"], provenance: "owner-desktop-editor" } });
+    expect(JSON.stringify(await (await call()).json())).not.toContain("owner-desktop-editor");
+    const dataDir = fixture.info.dataDir;
+    expect(readFileSync(join(dataDir, AI_TWIN_PRIVATE_DIR, "profile.json"), "utf8")).not.toContain(sample);
+    const password = "synthetic workspace archive fixture";
+    const backup = await createWorkspaceBackupSnapshot(dataDir, { password, appVersion: "test" });
+    const stage = await stageWorkspaceBackup(dataDir, backup.path, { password, currentAppVersion: "test" });
+    expect(existsSync(join(stagedWorkspaceData(dataDir, stage.id).data, AI_TWIN_PRIVATE_DIR))).toBe(false);
+  } finally { await fixture.close(); }
+}, 90_000);

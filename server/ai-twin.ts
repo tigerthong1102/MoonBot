@@ -3,6 +3,7 @@ import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readFi
 import { join } from "node:path";
 import { z } from "zod";
 import { AI_TWIN_NAME_MAX, AI_TWIN_STYLE_MAX, type AiTwinControls, type AiTwinProfile, type AiTwinView } from "../shared/ai-twin.ts";
+import { OWNER_STYLE_TRAITS, type ApprovedOwnerStyle } from "../shared/zalo-owner-style.ts";
 import { writeFileAtomic } from "./atomic.ts";
 import { MAX_TWIN_LESSONS, storedTwinLesson, twinLessonFields, twinLessonKey, twinLessonLookupFields } from "./ai-twin-lessons.ts";
 
@@ -39,6 +40,8 @@ const storedControls = z.strictObject({
 const emptyControls: AiTwinControls = { sourceIds: [], delegations: [], phone: false };
 
 const storedTwin = updateTwinInput.extend({
+  ownerEditorStyle: z.strictObject({ provenance: z.literal("owner-desktop-editor"), traits: z.array(z.enum(OWNER_STYLE_TRAITS)).min(1).max(7),
+    approvedAt: z.number().int().nonnegative() }).optional(),
   lessons: z.array(storedTwinLesson).max(MAX_TWIN_LESSONS).optional(),
   controls: storedControls.optional(),
   creationId: id,
@@ -193,6 +196,15 @@ export function createAiTwinStore(dataDir: string, workspace: string) {
         ...state,
         twin: { ...twin, name: input.name, style: input.style, paused: input.paused, revision: twin.revision + 1, updatedAt: Date.now() },
       });
+    },
+    ownerEditorStyle(input: z.infer<typeof twinVersionInput>) {
+      return matching(read(), input).ownerEditorStyle;
+    },
+    setOwnerEditorStyle(input: z.infer<typeof twinVersionInput>, approved?: ApprovedOwnerStyle) {
+      const state = read();
+      const twin = matching(state, input);
+      if (approved && twin.paused) throw new TwinConflict("Twin paused");
+      return save({ ...state, twin: { ...twin, ownerEditorStyle: approved, revision: twin.revision + 1, updatedAt: Date.now() } });
     },
     saveLesson(input: z.infer<typeof saveTwinLessonInput>): AiTwinView {
       const state = read();

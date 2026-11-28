@@ -76,17 +76,17 @@ Rollback bằng cách tắt Official pilot, thu hồi token tại Zalo khi cần
 | [#140](https://github.com/tigerthong1102/MoonBot/pull/140) | feat/zalo-intelligence | Giao diện, quy trình nghiệp vụ, đánh giá tiếng Việt |
 | [#141](https://github.com/tigerthong1102/MoonBot/pull/141) | feat/zalo-official-webhook-pairing | Webhook nội bộ, mã ghép và phê duyệt sender/chat |
 
-Bản app macOS arm64 đóng gói nội bộ đã xử lý ba dòng tổng hợp qua giao diện tiếng Việt. Đã tạo Routine từ dòng đầu và đọc lại qua API. Form xác minh Bot thật, hiển thị trạng thái webhook chưa xác định và xóa ô token. Không nhận hoặc gửi tin trên dịch vụ thật. Kiểm tra gói Linux thành công trên revision sản phẩm `ec103d183`. [Run Linux](https://github.com/tigerthong1102/MoonBot/actions/runs/46122266615) · [Run Windows](https://github.com/tigerthong1102/MoonBot/actions/runs/46122268629)
+Bản app macOS arm64 đóng gói nội bộ đã xử lý ba dòng tổng hợp qua giao diện tiếng Việt. Đã tạo Routine từ dòng đầu và đọc lại qua API. Form xác minh Bot thật, hiển thị trạng thái webhook chưa xác định và xóa ô token. Trong một lượt thử riêng, chủ tài khoản cho phép gửi và nhận trực tiếp trong chat với bot. Zalo trả 408 khi poll rỗng, dù truy vấn thông tin webhook báo 404. Khi long poll đã mở, một mã ngẫu nhiên kèm câu đối soát tổng hợp đến đúng bot, hàm phân loại của sản phẩm nhận diện đối soát và khẩn. Một lần gọi sendMessage trả message_id và đã đọc lại phản hồi trong Zalo Desktop. Công cụ thử chỉ trả lời đúng tin có mã trong chat riêng. Quyết định dừng polling không giám sát khi thiếu trạng thái webhook vẫn áp dụng trong sản phẩm. Chưa kiểm chứng gửi từ bot tới một liên hệ chỉ biết tên hoặc chạy bot thường trực. Kiểm tra gói Windows và Linux thành công trên revision sản phẩm `ec103d183`. [Run Linux](https://github.com/tigerthong1102/MoonBot/actions/runs/46122266615) · [Run Windows](https://github.com/tigerthong1102/MoonBot/actions/runs/46122268629)
 
 ## G. So sánh và quyết định
 
-OpenClaw có luồng QR, listener, nhóm, media và gửi tin rộng hơn. StartupBot hiện kiểm chứng được phân tích tiếng Việt trên đoạn nhập tay, còn khả năng cài đặt/kết nối nhanh hơn chưa có phép đo với người dùng mới. Tính hữu ích của AI Twin và Second Brain cần kiểm chứng bằng bản nháp có và không có ngữ cảnh trên một tập đã gán nhãn. Việc model Qwen 9B chạy tốt hơn Llama 3B trên dữ liệu tổng hợp chưa đủ để chọn provider cho production.
+OpenClaw có luồng QR, listener, nhóm, media và gửi tin rộng hơn. StartupBot hiện kiểm chứng được phân tích tiếng Việt trên đoạn nhập tay, còn khả năng cài đặt/kết nối nhanh hơn chưa có phép đo với người dùng mới. Thí nghiệm tám câu chính sách giả lập dùng hàm tìm kiếm Second Brain thật và hàm soạn AI Twin với Qwen 9B. Tìm đúng trang đầu 8/8. Khi harness chuyển trích dẫn thành bài học đã duyệt, bản nháp chứa dữ kiện đúng 8/8, so với 0/8 khi thiếu dữ kiện. Với yêu cầu phong cách rõ ràng, 8/8 dùng lời chào yêu cầu. Phép thử phối hợp hai thành phần bằng harness. Giao diện vẫn yêu cầu chủ sở hữu xem xét nguồn riêng. Chưa đo giá trị trên khách hàng thật. Việc model Qwen 9B chạy tốt hơn Llama 3B trên dữ liệu tổng hợp chưa đủ để chọn provider cho production.
 
 | Thành phần | Trạng thái | Quyết định |
 |---|---|---|
 | Manual import, báo cáo từ khóa và bản xem trước | Internal Experimental | GO cho kiểm thử nội bộ với dữ liệu có quyền |
 | AI Twin, Second Brain và Routine từ dòng đã chọn | Internal Experimental | GO cho luồng xem xét; đo độ chính xác, chi phí, động tác lưu và quyền trước pilot |
-| Bot chính thức | Xác minh được danh tính trên dịch vụ thật | GO cho probe nội bộ; chưa đủ để nhận tin của người dùng hoặc chạy việc từ xa |
+| Bot chính thức | Xác minh được danh tính trên dịch vụ thật | GO cho kiểm thử hai chiều có người vận hành trong chat riêng đã xác minh. Chưa nghiệm thu chatbot chạy thường trực hoặc thực thi việc từ xa |
 | zca-js | Bản phù hợp để nghiên cứu tương thích OpenClaw | GO cho fixture; NO-GO cho khách hàng và tài khoản cá nhân thật |
 | Browser | Research | GO cho DOM fixture; NO-GO cho fallback trên Zalo thật |
 | Gửi tin, auto-reply, tự học, background sync toàn bộ | Chưa nghiệm thu | NO-GO |

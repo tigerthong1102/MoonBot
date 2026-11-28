@@ -11,7 +11,7 @@ export type ZaloIntent = typeof ZALO_INTENTS[number];
 
 const signals: ReadonlyArray<[Exclude<ZaloIntent, "other">, RegExp]> = [
   ["invoice", /\b(?:xuat|gui|can|xin|lay) (?:giup (?:anh|chi|em|minh) )?(?:hoa don|hd vat)\b/],
-  ["reconciliation", /\b(?:doi chieu|xac nhan) (?:cong no|so du)\b/],
+  ["reconciliation", /\b(?:doi chieu|doi soat|xac nhan) (?:cong no|so du)\b/],
   ["viewing", /\b(?:hen|lich|muon|can|dang ky|di) (?:di )?xem (?:nha|can ho|dat)\b/],
   ["buy", /\b(?:can|muon|tim) mua (?:nha|can ho|dat|chung cu)\b/],
   ["rent", /\b(?:can|muon|tim) thue (?:nha|can ho|mat bang|van phong|phong)\b/],

@@ -110,7 +110,6 @@ export type TaskPatch = Partial<Pick<TaskRecord, typeof TASK_PATCH_FIELDS[number
 
 export type GroupTaskPatch = Partial<Pick<GroupTaskRecord, "title" | "pinned">> & { turnTimeoutMinutes?: number | null; archivedAt?: number | null; activity?: "waiting-on-you" | null };
 
-
 export const ACTIVITY_BUSY: ReadonlySet<BotActivity> = new Set(["working", "waiting-on-you", "no-signal"]);
 
 export type StoreChange =
@@ -118,7 +117,7 @@ export type StoreChange =
   | { type: "message"; threadId: string; message: Message }
   | { type: "message.patch"; threadId: string; message: Message }
   | { type: "thread"; threadId: string; activeLeafId: string }
-  | { type: "thread.deleted"; threadId: string }
+  | { type: "thread.reset"; threadId: string } | { type: "thread.deleted"; threadId: string }
   | { type: "bot"; botId: string; /** Only this thread of the bot changed, besides the bot's own fields. */ threadId?: string }
   | { type: "bot.deleted"; botId: string }
   /** The fleet or the rooms were reordered as a whole; the broadcast carries every id in its new place. */
@@ -1080,6 +1079,7 @@ export class Store {
     if (!relinked && this.messagesFor(threadId).length) throw new Error("Cannot import over an existing conversation");
     mdb.importThread(threadId, messages, activeLeafId, relinked);
     this.threads.delete(threadId);
+    this.emit({ type: "thread.reset", threadId });
     const newest = messages.reduce((max, message) => Math.max(max, message.at), Number.NEGATIVE_INFINITY);
     const newestOrder = messages.reduce((max, message) => movesThreadToTop(message) ? Math.max(max, message.turnCompletedAt ?? message.at) : max, Number.NEGATIVE_INFINITY);
     if (Number.isFinite(newest)) this.noteThreadActivity(threadId, newest, Number.isFinite(newestOrder), newestOrder);
@@ -2246,6 +2246,7 @@ export class Store {
       bot.unread = bot.tasks!.some(taskCountsAsBotUnread);
     }));
     this.discardTranscript(threadId);
+    this.emit({ type: "thread.reset", threadId });
     this.emit({ type: "bot", botId });
     return true;
   }

@@ -40,7 +40,7 @@ function fixture() {
     }).then(() => status);
     return { done, body: () => body, disconnect: () => res.emit("close") };
   }
-  return { send, accessible, generate, writer, contextChanged, unavailable, store, threadId: threads[0]! };
+  return { send, accessible, generate, writer, contextChanged, unavailable, store, botId: bot.id, threadId: threads[0]! };
 }
 
 it("uses the provider-facing history for held work without hiding ordinary conversation", async () => {
@@ -75,6 +75,25 @@ it.each(["waiting", "preparing", "answering"] as const)("rejects a source answer
   });
   expect(await send(member("reader", "reader@example.test"), 0).done).toBe(409);
   expect(dispatched).toHaveBeenCalledTimes(phase === "answering" ? 1 : 0);
+  expect(contextChanged).not.toHaveBeenCalled();
+});
+
+it.each(["clear", "import"] as const)("aborts provider preparation on a transcript %s", async change => {
+  const { store, botId, threadId, send, generate, contextChanged } = fixture();
+  store.appendMessage(threadId, { role: "user", kind: "text", text: "First fixture note" });
+  const leaf = store.appendMessage(threadId, { role: "user", kind: "text", text: "Second fixture note" });
+  const provider = vi.fn();
+  generate.mockImplementationOnce(async (_prompt, options) => {
+    options?.started?.();
+    await Promise.resolve();
+    if (change === "clear") expect(store.clearTaskMessages(botId, threadId)).toBe(true);
+    else store.importTranscript(threadId, [], leaf.id, [{ id: leaf.id, parentId: null }]);
+    options?.signal?.throwIfAborted();
+    provider();
+    return response;
+  });
+  expect(await send(member("reader", "reader@example.test"), 0).done).toBe(409);
+  expect(provider).not.toHaveBeenCalled();
   expect(contextChanged).not.toHaveBeenCalled();
 });
 

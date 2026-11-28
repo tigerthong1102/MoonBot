@@ -143,7 +143,7 @@ export function createKnowledgeAnswers(deps: KnowledgeAnswerDeps): RouteHandler 
       const prepared = currentPrompt();
       stopWatching = deps.store.onChange(change => {
         if (!("threadId" in change) || change.threadId !== threadId || invalidated.signal.aborted) return;
-        if (change.type === "message" || change.type === "thread" || change.type === "thread.deleted" ||
+        if (change.type === "message" || change.type === "thread" || change.type === "thread.reset" || change.type === "thread.deleted" ||
             (change.type === "message.patch" && currentPrompt() !== prepared)) invalidated.abort();
       });
       const changed = () => invalidated.signal.aborted || deps.store.activeLeaf(threadId) !== leaf || deps.busy(botId, threadId);

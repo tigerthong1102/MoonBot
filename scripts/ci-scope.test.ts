@@ -73,12 +73,15 @@ const MAIN_JOBS = ["build", "vitest", "behavior-evals", "packaged-server", "elec
 const mainLane = () => ({ jobs: MAIN_JOBS, vitest_os: MAIN, packaged_server_os: MAIN, vitest_matrix: vitestMatrix(MAIN) });
 
 describe("vitest matrix", () => {
-  it("gives Linux and Windows eight shards each and macOS four, and only Linux every e2e file", () => {
+  it("gives Windows sixteen shards, Linux eight and macOS four, and only Linux every e2e file", () => {
     const { include } = vitestMatrix(["macos-latest", "ubuntu-latest", "windows-latest"]);
     const count = (os: string) => include.filter((entry) => entry.os === os).length;
-    expect([count("ubuntu-latest"), count("windows-latest"), count("macos-latest")]).toEqual([8, 8, 4]);
-    expect(include.find((entry) => entry.os === "windows-latest" && entry.shard === 8))
-      .toEqual({ os: "windows-latest", part: "shard 8/8", shard: 8, shards: 8, files: "", e2e: "host", node_tests: false, workers: 2 });
+    expect([count("ubuntu-latest"), count("windows-latest"), count("macos-latest")]).toEqual([8, 16, 4]);
+    const windows = include.filter((entry) => entry.os === "windows-latest");
+    expect(windows.map((entry) => entry.shard)).toEqual(Array.from({ length: 16 }, (_, index) => index + 1));
+    expect(windows.every((entry) => entry.workers === 1 && entry.shards === 16)).toBe(true);
+    expect(include.find((entry) => entry.os === "windows-latest" && entry.shard === 16))
+      .toEqual({ os: "windows-latest", part: "shard 16/16", shard: 16, shards: 16, files: "", e2e: "host", node_tests: false, workers: 1 });
     expect(include.filter((entry) => entry.node_tests).map((entry) => [entry.os, entry.shard]))
       .toEqual([["macos-latest", 1], ["ubuntu-latest", 1], ["windows-latest", 1]]);
     expect(include.filter((entry) => entry.e2e === "all").every((entry) => entry.os === "ubuntu-latest")).toBe(true);
@@ -366,7 +369,7 @@ describe("CI outputs", () => {
   it("runs Linux's and Windows' every shard, the macOS smokes and the short Linux checks for main", () => {
     const out = ciOutputs(MAIN_SCOPE, MAIN);
     expect(out).toEqual(mainLane());
-    expect(out.vitest_matrix.include.map((entry: { os: string }) => entry.os)).toEqual([...Array(8).fill("ubuntu-latest"), ...Array(8).fill("windows-latest")]);
+    expect(out.vitest_matrix.include.map((entry: { os: string }) => entry.os)).toEqual([...Array(8).fill("ubuntu-latest"), ...Array(16).fill("windows-latest")]);
     expect(out.packaged_server_os).toEqual(MAIN);
     for (const job of ["windows-cua", "package-linux", "browser-driver", "cloudflared-linux-arm64"]) expect(out.jobs, job).not.toContain(job);
     expect(MAIN_SCOPE.checks.every((check) => FULL_SCOPE.checks.includes(check))).toBe(true);

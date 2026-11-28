@@ -52,7 +52,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
 
   const [reminder, setReminder] = useState<{ line: number; at: number } | null>(null);
   const [workflowLine, setWorkflowLine] = useState<number | null>(null);
-  const [brain, setBrain] = useState<string | null>(null);
+  const [brain, setBrain] = useState<ZaloReportRow | null>(null);
   const closeBrain = useCallback(() => setBrain(null), []);
 
   function submit(event: FormEvent) {
@@ -94,7 +94,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
         {row.repeatedLine !== undefined && <p>{t("zalo.report.repeated", { line: row.repeatedLine })}</p>}
         {twinEnabled && row.text.length <= AI_TWIN_QUESTION_MAX && <button type="button" className="ui-button self-start" aria-expanded={selected === row.line}
           onClick={() => setSelected(selected === row.line ? null : row.line)}>{t("settings.aiTwin.preview")}</button>}
-        {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row.text)}>{t("zalo.brain")}</button>}
+        {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row)}>{t("zalo.brain")}</button>}
         {bot && (row.work.length > 0 || row.deadlineText) && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
         {bot && row.work.length > 0 && <button type="button" className="ui-button self-start" aria-expanded={workflowLine === row.line}
           onClick={() => setWorkflowLine(workflowLine === row.line ? null : row.line)}>{t("zalo.workflow.review")}</button>}
@@ -104,7 +104,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
     {bot && reminder && <Layer modal><Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}
       seed={{ kind: "routine", at: reminder.at, durationMinutes: 15, botIds: [bot.id], name: t("zalo.reminderTitle"), description: t("zalo.reminderPrompt", { line: reminder.line }) }}
       onSavedCall={() => {}} onClose={() => setReminder(null)} /></Suspense></Layer>}
-    {bot && brain && <Layer modal><Suspense><BrainDialog threadId={bot.threadId} initialQuery={brain} close={closeBrain} /></Suspense></Layer>}
+    {bot && brain && <Layer modal><Suspense><BrainDialog threadId={bot.threadId} initialQuery={brain.text} zaloExcerpt={twinEnabled ? { source, line: brain.line, text: brain.text } : undefined} close={closeBrain} /></Suspense></Layer>}
     <div className="flex flex-wrap gap-2">
       {page > 0 && <button type="button" className="ui-button" onClick={() => move(page - 1)}>{t("zalo.previous")}</button>}
       {(page + 1) * pageSize < visible.length && <button type="button" className="ui-button" onClick={() => move(page + 1)}>{t("zalo.next")}</button>}

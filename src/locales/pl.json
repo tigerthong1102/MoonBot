@@ -7780,5 +7780,13 @@
   "mobileChat.unavailable": "Usługa kont jest chwilowo niedostępna.",
   "mobileChat.account_changed": "Konto się zmieniło. Otwórz rozmowę ponownie.",
   "mobileChat.invalid_message": "Skróć wiadomość i potwierdź zapis.",
-  "email.address": "Adres e-mail"
+  "email.address": "Adres e-mail",
+  "mobileChat.desktopListen": "Odbieraj zadania z telefonu",
+  "mobileChat.desktopListening": "Oczekiwanie na telefon · Zatrzymaj",
+  "mobileChat.desktopChoose": "Wybierz komputer.",
+  "mobileChat.desktopWaiting": "Oczekiwanie na komputer…",
+  "mobileChat.desktopReceived": "Szkic otwarto na komputerze. Sprawdź go i wyślij.",
+  "mobileChat.desktopUnconfirmed": "Odbiór niepotwierdzony. Sprawdź komputer przed ponowną próbą.",
+  "mobileChat.desktop_unavailable": "Brak gotowego komputera. Włącz odbiór w pustym czacie osobistym na komputerze.",
+  "mobileChat.desktopConsent": "Zadania wymagające komputera przesyłaj do mojego komputera jako prywatny szkic."
 }

@@ -165,6 +165,15 @@ it("only makes a consented, tool-free text preview through the selected provider
       expect(recorded()).toContain("Nhóm mẫu");
       expect(recorded()).toContain("42");
       expect(recorded().match(/PROBE_ZALO/g)).toHaveLength(1);
+      const citedInput = { ...input, question: "PROBE_ZALO: Quy trình đối soát thế nào?",
+        zaloSource: { source: "Nhóm tổng hợp", line: 4 },
+        zaloEvidence: { citation: "Quy trình mẫu · trang 2", quote: "Đối soát theo chu kỳ 17 ngày." } };
+      expect((await preview({ ...citedInput, zaloSource: undefined })).status).toBe(400);
+      expect((await preview({ ...citedInput, useMemory: true })).status).toBe(400);
+      expect((await preview({ ...citedInput, zaloRecipe: "zalo-ke-toan" })).status).toBe(400);
+      expect((await preview(citedInput)).status).toBe(200);
+      expect(recorded()).toContain("Đối soát theo chu kỳ 17 ngày.");
+      expect(recorded()).toContain("Quy trình mẫu · trang 2");
 
       const response = await preview(input);
       expect(response.status).toBe(200);

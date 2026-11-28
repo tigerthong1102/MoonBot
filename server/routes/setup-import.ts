@@ -6,6 +6,8 @@ import { createGrokMove, type GrokMove } from "../grok-move-tunnel.ts";
 import { applySetupImport, detectSetup, thisMachine, type SetupHost, type SetupMachine } from "../setup-import.ts";
 import type { BusyFlag } from "./config.ts";
 import { createZaloPairingRoutes } from "./zalo-pairing.ts";
+import { zaloPeriodService } from "./zalo-period-report.ts";
+export { zaloPeriodService };
 import { createZaloOfficialRoutes } from "./zalo-official.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -84,5 +86,5 @@ export function createSetupImportRoutes(deps: SetupImportRouteDeps): RouteHandle
 }
 
 export function createDesktopImportRoutes(deps: SetupImportRouteDeps): RouteHandler[] {
-  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloPairingRoutes(deps.local)];
+  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloPairingRoutes(deps.local), zaloPeriodService(deps.local).route];
 }

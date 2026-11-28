@@ -181,6 +181,7 @@ export interface RoutineChecks {
 }
 
 export interface RoutineManagerOptions {
+  localReportSchedule?: { next(): number | null; tick(): void };
   beforeHandoffRoutineCommit?: (request: Pick<RoutineRequestCommit, "botId" | "threadId" | "messageId">, routines: readonly Routine[], runs: readonly RoutineRun[]) => void;
   file?: string;
   now?: () => number;
@@ -913,7 +914,7 @@ export class RoutineManager {
     if (this.closing || this.timer) return;
     if (!this.startupRunsQueued) this.startupRunsQueued = this.queueStartupRuns();
     this.timer = startDueTimer({ run: () => this.tick(), now: this.now, onError: (error) => console.error("routines: a scheduler pass failed", error),
-      next: () => this.unreadable ? this.now() + UNREADABLE_RETRY_MS : earliest(schedulerDueOf(this.routines, this.runs, this.now(), this.bootedAt + CHECK_BOOT_HOLD_MS, (routine) => this.targetState(routine) === "missing"), this.ledger.beatDueAt(), this.watch.dueAt(this.runs, this.now())) });
+      next: () => this.unreadable ? this.now() + UNREADABLE_RETRY_MS : earliest(schedulerDueOf(this.routines, this.runs, this.now(), this.bootedAt + CHECK_BOOT_HOLD_MS, (routine) => this.targetState(routine) === "missing"), this.ledger.beatDueAt(), this.watch.dueAt(this.runs, this.now()), this.options.localReportSchedule?.next() ?? null) });
   }
 
   stop() {
@@ -965,6 +966,7 @@ export class RoutineManager {
     if (this.closing || this.ticking) return;
     this.ticking = true;
     try {
+      this.options.localReportSchedule?.tick();
       const now = this.now(); this.gate.sweep((id) => this.runs.some((run) => run.id === id && run.status === "queued"));
       if (this.unreadable) {
         const read = readRoutineFile(this.file, now);

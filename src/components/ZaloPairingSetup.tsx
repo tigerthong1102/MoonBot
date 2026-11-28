@@ -1,3 +1,4 @@
+import { ZaloPeriodReports } from "./ZaloPeriodReports";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { ZaloPairingStatus } from "../../shared/zalo-pairing";
 import { t } from "@/lib/i18n";
@@ -90,6 +91,7 @@ export function ZaloPairingSetup() {
         <p>{t("zaloPair.gaps", { polls: status.coverage.pollGaps, issues: status.coverage.timingIssues })}</p>
       </>}
     </div>}
+    {status?.state === "paired" && <ZaloPeriodReports key={status.revision} manage />}
     <div className="flex flex-wrap gap-2">
       <button className="ui-button" type="button" disabled={busy} onClick={() => void update()}>{t("zaloPair.refresh")}</button>
       {status?.revision && status.state !== "paired" && <button className="ui-button" type="button"

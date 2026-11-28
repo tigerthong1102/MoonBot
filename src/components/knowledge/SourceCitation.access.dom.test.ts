@@ -209,3 +209,31 @@ it("ignores an old observer notification after the citation is reopened", async 
   expect(document.body.textContent).toContain("Sensitive policy");
   await act(async () => root.unmount());
 });
+
+it("does not accept a selected file while the tab is hidden", async () => {
+  const key = JSON.stringify(["viewer", "thread"]), digest = createHash("sha256").update("Sensitive policy").digest("hex");
+  vi.mocked(libraryKey).mockResolvedValue(key);
+  vi.mocked(observeLibraryOwner).mockReturnValue(() => {});
+  vi.mocked(currentLibrary).mockResolvedValue(undefined);
+  const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(createElement(SourceCitation, { threadId: "thread", digest, start: 0 }, "[1]")));
+  await act(async () => host.querySelector("button")!.click());
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+  Object.defineProperty(input, "files", { value: [new File(["Sensitive policy"], "secret.txt")] });
+  hidden.mockReturnValue(true);
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  const callsBeforePick = vi.mocked(libraryKey).mock.calls.length;
+  await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(libraryKey).toHaveBeenCalledTimes(callsBeforePick);
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  hidden.mockReturnValue(false);
+  const proof = Promise.withResolvers<string | null>();
+  vi.mocked(libraryKey).mockReturnValueOnce(proof.promise);
+  await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  await act(async () => proof.resolve(null));
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  await act(async () => root.unmount());
+  hidden.mockRestore();
+});

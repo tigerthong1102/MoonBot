@@ -65,6 +65,7 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
     return () => { active = false; generation.current++; watching.current = false; watchedScope.current = null; stop?.(); };
   }, [open, threadId, digest, start, path, signal, resume]);
   async function pick(file: File) {
+    if (document.hidden) return;
     const visit = generation.current;
     setBusy(true);
     try {
@@ -74,7 +75,7 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
       if (generation.current !== visit) return;
       const found = index.docs.get(file.name);
       const allowed = await libraryKey(threadId, { signal }) === key;
-      if (generation.current === visit) {
+      if (!document.hidden && generation.current === visit) {
         const verified = allowed && found?.digest === digest && found.passages.some(p => p.start === start) ? found : null;
         if (verified && watching.current) watchedScope.current = key;
         else if (verified) return;

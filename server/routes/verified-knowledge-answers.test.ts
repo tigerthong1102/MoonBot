@@ -11,7 +11,7 @@ import { createKnowledgeAnswers, type KnowledgeAnswerDeps } from "./knowledge-an
 const auth: RequestAuth = { kind: "loopback", scopes: ["admin", "client"], desktopOwner: true };
 const result = JSON.stringify({ paragraphs: [{ text: "The approved period is 30 days.", sources: [1] }] });
 
-function fixture() {
+function fixture(withIdentity = true) {
   const store = new Store(() => ({ instanceId: "fixture", model: "fixture-model" }));
   const bot = store.createBot({ name: "Fixture" }), other = store.createBot({ name: "Other" });
   const source = store.appendMessage(bot.threadId, { role: "user", kind: "text", text: "Approved period: 30 days." });
@@ -19,7 +19,7 @@ function fixture() {
   let allowed = true, writerEnabled = true, providerIdentity = {};
   const generate = vi.fn<SideJobText["generateText"]>(async (_prompt, options) => { options?.started?.(); return result; });
   const route = createKnowledgeAnswers({ store, accessible: () => allowed, unavailable: () => null, busy: () => false,
-    refusal: () => null, sender: () => undefined, contextChanged: () => {}, providerIdentity: () => providerIdentity,
+    refusal: () => null, sender: () => undefined, contextChanged: () => {}, ...(withIdentity ? { providerIdentity: () => providerIdentity } : {}),
     writer: () => writerEnabled ? ({ via: "engine", selection: { instanceId: "fixture", model: "fixture-model" }, generateText: generate }) : null,
   } satisfies KnowledgeAnswerDeps);
   const path = `/api/bots/${bot.id}/knowledge-answers/verified`;
@@ -35,6 +35,13 @@ function fixture() {
   }
   return { store, bot, source, outsider, generate, send, setAllowed: (next: boolean) => { allowed = next; }, setWriter: (next: boolean) => { writerEnabled = next; }, replaceProvider: () => { providerIdentity = {}; } };
 }
+
+it("does not start the writer without a server-owned provider identity", async () => {
+  const f = fixture(false);
+  f.replaceProvider();
+  expect(await f.send().done).toEqual({ status: 409, answer: { error: "provider_changed_or_unavailable" } });
+  expect(f.generate).not.toHaveBeenCalled();
+});
 
 it("answers from selected server messages and rejects client-supplied text, cross-thread IDs and missing consent", async () => {
   const f = fixture();

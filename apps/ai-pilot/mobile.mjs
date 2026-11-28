@@ -8,7 +8,14 @@ import { catalog, Fault } from "./ledger.mjs";
 import { inboxSkinCSS } from "../../cloudflare/control-plane/inbox/skin-css.mjs";
 
 const uuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
-const assets = new Map([["/mobile", ["./mobile.html", "text/html"]], ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]]]);
+const inboxPublic = "../../cloudflare/control-plane/inbox/public/";
+const assets = new Map([
+  ["/mobile", ["./mobile.html", "text/html"]],
+  ["/mobile/app.js", ["./mobile-ui.js", "application/javascript"]],
+  ["/mobile/inbox-select.js", [inboxPublic + "inbox-select.js", "application/javascript"]],
+  ["/mobile/inbox-select-template.js", [inboxPublic + "inbox-select-template.js", "application/javascript"]],
+  ["/mobile/inbox-select.css", [inboxPublic + "inbox-select.css", "text/css"]],
+]);
 const instructions = "You are StartupBot on a phone. Answer in the user's language. You can write, translate and explain text. You have no access to a computer, local files, apps, cloud agent or tools. If a request needs them, explain that it needs a connected computer. Never state that an external action was performed.";
 
 const textSkills = new Map([

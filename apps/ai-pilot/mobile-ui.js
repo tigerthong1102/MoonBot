@@ -1,3 +1,4 @@
+import { installInboxSelects } from "./inbox-select.js";
 import { copyText } from "./clipboard-write.js";
 
 const el = id => document.getElementById(id);
@@ -11,6 +12,7 @@ function readCatalog() {
 const catalog = readCatalog();
 const t = key => catalog && Object.hasOwn(catalog.messages, key) ? catalog.messages[key] : undefined;
 if (catalog) {
+  installInboxSelects(document.querySelectorAll("inbox-select, select"));
   for (const node of document.querySelectorAll("[data-t]")) node.textContent = t(node.dataset.t);
   for (const node of document.querySelectorAll("[data-t-label]")) node.setAttribute("aria-label", t(node.dataset.tLabel));
 }
@@ -91,6 +93,7 @@ function formatAnswer(element, text) {
   }
   element.replaceChildren(fragment);
   const copy = document.createElement("button");
+  copy.className = "ui-button";
   copy.type = "button";
   copy.textContent = t("copy");
   copy.onclick = async () => {

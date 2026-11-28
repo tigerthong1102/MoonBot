@@ -194,7 +194,7 @@ it("admits a verified new account once within an explicitly funded trial cohort"
 
 it("serves a browser-ready shared clipboard module and uses neutral reference-skin primary colors", async () => {
   const page = await (await fetch(f.url + "/mobile")).text();
-  expect(page).toMatch(/\.primary\{[^}]*background:var\(--color-ink\);color:var\(--color-app\)/);
+  expect(page).toMatch(/\.ui-button-primary\{[^}]*background:var\(--color-ink\);color:var\(--color-app\)/);
   const entry = await (await fetch(f.url + "/mobile/app.js")).text();
   expect(entry).toContain('import { copyText } from "./clipboard-write.js"');
   const response = await fetch(f.url + "/mobile/clipboard-write.js");
@@ -234,5 +234,21 @@ it("delivers localized catalog data inside the first HTML response", async () =>
     expect(shell).toContain('<html lang="' + expected + '">');
     const json = shell.match(/<script id="mobileCatalog" type="application\/json">([^<]+)<\/script>/);
     expect(JSON.parse(json[1])).toMatchObject({ locale:expected, messages:{ code:expect.any(String) } });
+  }
+});
+
+it("serves the shared Inbox Select module, rendered template and skin stylesheet", async () => {
+  const page = await (await fetch(f.url + "/mobile")).text();
+  expect(page).toContain('href="/mobile/inbox-select.css"');
+  const assets = [
+    ["inbox-select.js", "application/javascript", 'from "./inbox-select-template.js"'],
+    ["inbox-select-template.js", "application/javascript", 'export const selectMarkup'],
+    ["inbox-select.css", "text/css", "[data-inbox-select] > svg"],
+  ];
+  for (const [path, mime, content] of assets) {
+    const response = await fetch(f.url + "/mobile/" + path);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain(mime);
+    expect(await response.text()).toContain(content);
   }
 });

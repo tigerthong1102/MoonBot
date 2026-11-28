@@ -60,7 +60,7 @@ app
         assert.ok(opts.detail.includes(expectedFingerprint));
         assert.ok(opts.message.includes("fingerprint"));
       } else if (cfg.generated) {
-        for (const field of [cfg.endpoint, "fixture-model", ...(cfg.future ? ["All current and future accepted direct messages","All current and future groups I own or manage"] : [cfg.room]), cfg.origin, "5", "charges"]) assert.ok(opts.detail.includes(field), field);
+        for (const field of [cfg.endpoint, "fixture-model", ...(cfg.future ? ["All current and future accepted direct messages","All current and future groups I own or manage"] : [cfg.room]), cfg.origin, "5", "charges", ...(cfg.ongoing ? ["automatically renews", "5 per rolling 24 hours", "in-flight"] : [])]) assert.ok(opts.detail.includes(field), field);
       } else {
         assert.ok(cfg.exact);
         for (const field of [cfg.question, cfg.answer, cfg.room, cfg.origin])
@@ -230,15 +230,23 @@ app
       );
     }
     await mobile.webContents.executeJavaScript('document.querySelector("#twin-pairing summary").click()');
-    await until(mobile, 'document.querySelector("#twin-pair-active button")?.textContent');
-    await mobile.webContents.executeJavaScript('document.querySelector("#twin-pair-active button").click()');
-    await delay(500);
-    console.log(
-      "Revoke receipt",
-      await mobile.webContents.executeJavaScript(
-        'JSON.stringify({lang:document.documentElement.lang,status:document.getElementById("twin-pair-status").textContent,remaining:document.querySelectorAll("#twin-pair-active li").length})',
-      ),
-    );
+    if (cfg.renewalCycle) {
+      const permissions = await mobile.webContents.executeJavaScript(`(async () => ({
+        pairings:(await (await fetch("/api/twin-pairing")).json()).pairings,
+        grant:(await (await fetch("/api/twin-generated")).json()).grant
+      }))()`);
+      assert.deepEqual(permissions, {pairings:[], grant:null});
+    } else {
+      await until(mobile, 'document.querySelector("#twin-pair-active button")?.textContent');
+      await mobile.webContents.executeJavaScript('document.querySelector("#twin-pair-active button").click()');
+      await delay(500);
+      console.log(
+        "Revoke receipt",
+        await mobile.webContents.executeJavaScript(
+          'JSON.stringify({lang:document.documentElement.lang,status:document.getElementById("twin-pair-status").textContent,remaining:document.querySelectorAll("#twin-pair-active li").length})',
+        ),
+      );
+    }
     await until(mobile, 'document.querySelector("#twin-pair-active li") === null');
     await b.webContents.executeJavaScript('window.dispatchEvent(new Event("focus"))');
     await until(b, 'document.querySelector("#twin-pair-active li") === null');

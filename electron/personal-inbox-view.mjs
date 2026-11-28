@@ -211,8 +211,13 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
             headers: { Origin: base, "Content-Type": "application/json" },
             body: JSON.stringify(data),
           }),
+        }).catch(() => {
+          if (!current()) throw Error("pairing_unavailable");
+          throw Object.assign(Error("Inbox temporarily unavailable"), { code: "INBOX_NETWORK_UNAVAILABLE" });
         });
-        if (!response.ok || !current()) throw Error("pairing_unavailable");
+        if (!current()) throw Error("pairing_unavailable");
+        if (response.status >= 500) throw Object.assign(Error("Inbox temporarily unavailable"), { code: "INBOX_NETWORK_UNAVAILABLE" });
+        if (!response.ok) throw Error("pairing_unavailable");
         return response.json();
       };
     }
@@ -260,7 +265,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
           const consent = await dialog.showMessageBox(win, {
             type: "question", message: translate("personalInbox.generatedTitle"),
             detail: [translate("personalInbox.generatedTerms"), p.name, p.model, p.destination,
-              grant.origin, grant.owner, ...kinds.map(kind => translate(kind === "direct" ? "personalInbox.generatedAllDirect" : "personalInbox.generatedAllGroups")), ...chosen.map(r => r.title + " (" + r.id + ")"), new Date(grant.expires).toLocaleString()].join("\n\n"),
+              grant.origin, grant.owner, ...kinds.map(kind => translate(kind === "direct" ? "personalInbox.generatedAllDirect" : "personalInbox.generatedAllGroups")), ...chosen.map(r => r.title + " (" + r.id + ")"), ...(grant.dailyLimit !== undefined ? [translate("personalInbox.generatedOngoingTerms", {count: grant.dailyLimit})] : []), new Date(grant.expires).toLocaleString()].join("\n\n"),
             buttons: [translate("native.common.cancel"), translate("personalInbox.generatedOffer")], defaultId: 0, cancelId: 0,
           });
           return consent.response === 1;
@@ -323,6 +328,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
         clearTimeout(timer);
         clearInterval(poll);
         win.removeListener("closed", dispose);
+        win.removeListener("close", closeOnline);
         if (!contents.isDestroyed()) {
           contents.removeListener("did-start-navigation", leaving);
           contents.removeListener("render-process-gone", dispose);
@@ -332,16 +338,29 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
           disposePairing = undefined;
         }
       };
+      const closeOnline = () => {
+        if (instance.generated.whileOpen()) dispose();
+      };
       const leaving = (_event, _url, isInPlace, isMainFrame) => {
         if (isMainFrame && !isInPlace) dispose();
       };
-      const poll = setInterval(() => { void instance.exact.tick(); void instance.generated.tick(); }, 1500);
+      let bootstrapExpired = false;
+      const poll = setInterval(() => {
+        if (bootstrapExpired && !instance.generated.whileOpen()) return dispose();
+        void instance.exact.tick();
+        void instance.generated.tick();
+      }, 1500);
       poll.unref();
-      const timer = setTimeout(dispose, 600_000);
+      const timer = setTimeout(() => {
+        bootstrapExpired = true;
+        if (!instance.generated.whileOpen()) dispose();
+        else instance.exact.reset();
+      }, 600_000);
       timer.unref();
       disposePairing = dispose;
       contents.on("did-start-navigation", leaving);
       contents.once("render-process-gone", dispose);
+      win.on("close", closeOnline);
       win.once("closed", dispose);
       try {
         return await instance.start();
@@ -360,14 +379,26 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       catch (error) { if (generatedJournal.hasPending()) return { available: false, pendingRecovery: true }; throw error; }
     });
     handle("personal-inbox:twin-generated-choices", () => pairing?.generated.choices() ?? Promise.reject(Error("generated_reply_unavailable")));
-    handle("personal-inbox:twin-generated-offer", (_e, provider, rooms) => pairing?.generated.offer(provider, rooms) ?? false);
+    handle("personal-inbox:twin-generated-offer", (_e, provider, rooms, dailyLimit) => pairing?.generated.offer(provider, rooms, dailyLimit) ?? false);
     handle("personal-inbox:twin-generated-stop", async (_e, target) => {
       pairing?.generated.reset();
-      const ctx = standalone(generatedJournal), me = await recoverGenerated(ctx);
+      let revoked = false;
+      const ctx = standalone(generatedJournal);
+      const me = await recoverGenerated({...ctx, onRevoked: () => { revoked = true; }});
+      if (!target && !revoked) {
+        const status = await generatedStatus(ctx.inbox, me);
+        if (status.remote) target = {owner:me.id, id:status.remote.id};
+      }
       if (target) {
         if (target.owner !== me.id || typeof target.id !== "string") throw Error("generated_reply_unavailable");
         const receipt = await ctx.inbox("twin-generated", { action: "revoke", owner: me.id, id: target.id });
         if (receipt.id !== target.id || receipt.revoked !== true) throw Error("generated_reply_unavailable");
+        revoked = true;
+      }
+      if (revoked) {
+        const refreshed = await ctx.inbox("me");
+        if (refreshed.id !== me.id) throw Error("generated_reply_unavailable");
+        if (!refreshed.generatedAnswer && !refreshed.generatedManageOnly) return {available:true,manageOnly:true,owner:me.id,remote:null};
       }
       return readGeneratedStatus();
     });

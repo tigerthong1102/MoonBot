@@ -1,8 +1,8 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { createHash, generateKeyPairSync, randomUUID, verify } from "node:crypto";
-import { createOnlineGenerated } from "./twin-online-generated.mjs";
-import { generatedGrantMessage, generatedPostMessage } from "./twin-generated-message.mjs";
+import { createOnlineGenerated, generatedStatus } from "./twin-online-generated.mjs";
+import { generatedGrantMessage, generatedPostMessage, generatedRenewalMessage } from "./twin-generated-message.mjs";
 import { generatedComposerNotice, prepareInboxPost } from "../cloudflare/control-plane/inbox/public/twin-generated-notice.js";
 
 function fixture(t, overrides = {}) {
@@ -13,18 +13,32 @@ function fixture(t, overrides = {}) {
   const room = { id: randomUUID(), ref: randomUUID(), title:"Fixture", kind:"group" };
   const job = { source:4, room:room.id, nonce:randomUUID(), expires:now + 45000 };
   const question = "Is the fixture open?", inputHash = createHash("sha256").update(question).digest("hex");
-  let grant, generations = 0, elapsed = 0, central = true;
+  let grant, generations = 0, elapsed = 0, central = true, proposal;
+  const authorizedUntil = now + 7 * 86400000;
   const records = new Map(), calls = [];
   const inbox = async (path, data) => {
     if (path === "me") return { id:key.owner, generatedAnswer:true };
     if (path.endsWith("?rooms=1")) return { owner:key.owner, rooms:overrides.rooms ?? [room] };
+    if (path === "twin-generated" && !data) return { owner:key.owner, grant:central && grant ? {id:grant.id,enabled:true} : null };
     calls.push(data);
     switch (data.action) {
       case "offer":
         grant = {...data, twin:key.twin, revision:key.revision, origin};
         assert(verify(null, Buffer.from(generatedGrantMessage(grant)), pair.publicKey, Buffer.from(data.signature, "hex")));
         return {id:data.id,offered:true};
-      case "claim": return {now,challenge:job};
+      case "lease": {
+        await overrides.beforeLease?.();
+        proposal = { id: grant.id, nonce: randomUUID(), now:now+elapsed, expires:now+elapsed+600000, authorizedUntil, enabled:true };
+        return proposal;
+      }
+      case "renew":
+        assert(verify(null,Buffer.from(generatedRenewalMessage({...grant,nonce:data.nonce,expires:data.expires})),pair.publicKey,Buffer.from(data.signature,"hex")));
+        assert.equal(data.nonce,proposal.nonce);
+        return {id:grant.id,now:now+elapsed,expires:data.expires,authorizedUntil,...overrides.renewReceipt};
+      case "claim":
+        if (grant.dailyLimit === undefined) return {now,challenge:job};
+        Object.assign(job,{ nonce:randomUUID(), kind:room.kind, expires:now+elapsed+45000 });
+        return {now:now+elapsed,challenge:central ? job : null,enabled:central,revoked:!central};
       case "dispatch": return {question,inputHash,...overrides.dispatch};
       case "check": return {active:central};
       case "finish":
@@ -35,12 +49,12 @@ function fixture(t, overrides = {}) {
       default: throw Error("unexpected action");
     }
   };
-  const service = createOnlineGenerated({state:()=>key,check:async()=>{},profile:async()=>({twin:{id:key.twin,revision:key.revision,paused:false},provider}),
+  const service = createOnlineGenerated({state:()=>key,check:async()=>{ if(elapsed>=key.deadline) throw Error("expired original pairing"); },checkOnline:async()=>{},profile:async()=>({twin:{id:key.twin,revision:key.revision,paused:false},provider}),
     generate:async (data, signal) => { generations++; assert.deepEqual(data,{id:key.twin,revision:key.revision,key:provider.key,question,job:job.nonce,useProvider:true});
       return overrides.generate ? overrides.generate(signal) : {answer:"Fixture open."}; }, inbox, origin, approve:overrides.approve ?? (async()=>true),
     journal:{add:r=>records.set(r.id,r),remove:r=>records.delete(r.id),list:()=>[...records.values()]},monotonic:()=>elapsed});
   t.after(()=>service.reset());
-  return {service,provider,room,job,calls,records,generations:()=>generations,elapsed:n=>{elapsed=n;},revoke:()=>{central=false;}, offer:()=>service.offer({...provider},[room.ref])};
+  return {service,provider,room,job,calls,records,generations:()=>generations,elapsed:n=>{elapsed=n;},revoke:()=>{central=false;}, offer:(limit)=>service.offer({...provider},[room.ref],limit)};
 }
 
 test("signs an explicitly authorized short-lived generated reply and never generates twice for its source", async t => {
@@ -111,4 +125,110 @@ test("a future-room signature requires explicit kind consent and rejects a diffe
     await f.service.tick();
     assert.equal(f.generations(), kind === "direct" ? 1 : 0);
   }
+});
+
+
+test("renewable permission requires an explicit valid daily limit and survives expiry of only its original pairing", async t => {
+  const f = fixture(t);
+  for (const invalid of [0, 721, 3.5, "5"]) await assert.rejects(f.offer(invalid));
+  assert.equal(f.calls.length, 0);
+  await f.offer(5);
+  await f.service.tick();
+  f.elapsed(91000);
+  f.job.source++;
+  await f.service.tick();
+  assert.equal(f.generations(), 2);
+  assert.equal(f.calls.filter(c => c.action === "offer").length, 1);
+  assert.equal(f.calls.filter(c => c.action === "renew").length, 1);
+  assert.equal(f.service.whileOpen(), true);
+  f.service.reset();
+  await f.service.tick();
+  assert.equal(f.service.whileOpen(), false);
+  assert.equal(f.generations(), 2);
+});
+
+test("renewal after a network outage requires a verified same-session receipt", async t => {
+  let offline = true;
+  const f = fixture(t, { beforeLease: async () => {
+    if (offline) throw Object.assign(Error("offline"), { code:"INBOX_NETWORK_UNAVAILABLE" });
+  } });
+  await f.offer(5);
+  f.elapsed(91000);
+  await f.service.tick();
+  assert.equal(f.service.whileOpen(), true);
+  assert.equal(f.generations(), 0);
+  offline = false;
+  await f.service.tick();
+  assert.equal(f.generations(), 1);
+
+  const denied = fixture(t, { renewReceipt:{id:randomUUID()} });
+  await denied.offer(5);
+  denied.elapsed(91000);
+  await denied.service.tick();
+  assert.equal(denied.generations(), 0);
+  assert.equal(denied.service.whileOpen(), false);
+});
+
+test("one online signer enforces five attempts per rolling ten minutes and the daily cap", async t => {
+  const f = fixture(t);
+  await f.offer(6);
+  for (let i=0;i<7;i++) { f.job.source++; await f.service.tick(); }
+  assert.equal(f.generations(),5);
+  f.elapsed(601000);
+  f.job.source++;
+  await f.service.tick();
+  assert.equal(f.generations(),6);
+  f.job.source++;
+  await f.service.tick();
+  assert.equal(f.generations(),6);
+  f.elapsed(86401000);
+  await f.service.tick();
+  assert.equal(f.generations(),7);
+});
+
+test("central Stop is observed while the local daily cap blocks new claims", async t => {
+  const f = fixture(t);
+  await f.offer(1);
+  await f.service.tick();
+  f.revoke();
+  await f.service.tick();
+  assert.equal(f.generations(), 1);
+  assert.equal(f.service.whileOpen(), false);
+});
+
+test("closing the approving desktop during a renewal prevents signing or dispatch", async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers();
+  const f = fixture(t, {beforeLease:async()=>{entered.resolve();await release.promise;}});
+  await f.offer(5);
+  f.elapsed(91000);
+  const running = f.service.tick();
+  await entered.promise;
+  f.service.reset();
+  release.resolve();
+  await running;
+  assert(!f.calls.some(c=>c.action==="renew" || c.action==="dispatch"));
+  assert.equal(f.generations(),0);
+});
+
+test("an idle renewable signer stops on provider change or central revocation", async t => {
+  for (const reason of ["provider","revoke"]) {
+    const f=fixture(t);
+    await f.offer(5);
+    if (reason==="provider") f.provider.key=randomUUID();
+    else f.revoke();
+    await f.service.tick();
+    assert.equal(f.service.whileOpen(),false);
+    assert.equal(f.generations(),0);
+  }
+});
+
+test("management-only status exposes independent revocation and usage while generation is switched off", async () => {
+  const now=10000;
+  const grant={id:"grant", enabled:true, count:2, usedToday:4, dailyLimit:7, expires:now+1000, authorizedUntil:now+86400000};
+  const state=await generatedStatus(async () => ({owner:"owner",manageOnly:true,grant,now}), { id:"owner",generatedManageOnly:true });
+  assert.equal(state.manageOnly,true);
+  assert.equal(state.remote.id,grant.id);
+  assert.equal(state.remote.usedToday,4);
+  assert.equal(state.remote.dailyLimit,7);
+  assert.deepEqual(await generatedStatus(()=>{throw Error("unexpected read");},{id:"other"}),{available:false});
 });

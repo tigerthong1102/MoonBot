@@ -20,7 +20,10 @@ const scratch = mkdtempSync(join(tmpdir(), "sb-pair-ux-")),
   ownerToken = randomBytes(32).toString("base64url");
 const exact = process.argv.includes("--exact");
 const future = process.argv.includes("--generated-future");
-const generated = future || process.argv.includes("--generated");
+const renewalCycle = process.argv.includes("--generated-renewal-cycle");
+const rollback = process.argv.includes("--generated-rollback");
+const ongoing = renewalCycle || rollback || process.argv.includes("--generated-ongoing");
+const generated = future || ongoing || process.argv.includes("--generated");
 const all = (path) => readFileSync(path, "utf8");
 const executable = process.env.PAIR_FIXTURE_ELECTRON ?? require("electron");
 assert.match(basename(executable), /^electron(?:\.exe)?$/i, "Expected an Electron runtime");
@@ -53,7 +56,7 @@ try {
   const { outputFiles } = await build({
     stdin: {
       contents: `import worker from "./cloudflare/control-plane/src/personal-inbox-worker.ts";
- export default {fetch(req,env,ctx){return worker.fetch(req,{...env,EMAIL:{send:msg=>env.MAILBOX.fetch("https://fixture.test/",{method:"POST",body:JSON.stringify(msg)})}},ctx)}}`,
+ export default {async fetch(req,env,ctx){const flag = env.FIXTURE_FLAG ? await (await env.FIXTURE_FLAG.fetch("https://fixture.test/")).text() : env.INBOX_GENERATED_ANSWER; return worker.fetch(req,{...env,INBOX_GENERATED_ANSWER:flag,EMAIL:{send:msg=>env.MAILBOX.fetch("https://fixture.test/",{method:"POST",body:JSON.stringify(msg)})}},ctx)}}`,
       resolveDir: root,
     },
     platform: "node",
@@ -141,6 +144,7 @@ try {
         EMAIL_FROM: "service@example.test",
       },
       serviceBindings: {
+        ...(rollback && {FIXTURE_FLAG: () => new Response(existsSync(join(scratch, "generated.disabled")) ? "0" : "1")}),
         MAILBOX: async (request) => {
           mails.push(await request.json());
           return new Response("ok");
@@ -281,7 +285,7 @@ try {
       cookies,
       ownerToken,
       exact,
-      generated, future, endpoint,
+      generated, future, ongoing, rollback, renewalCycle, endpoint,
       room,
       question,
       answer,
@@ -318,7 +322,7 @@ try {
       stdio: "inherit",
     },
   );
-  const timer = setTimeout(() => electron.kill(), 60_000);
+  const timer = setTimeout(() => electron.kill(), renewalCycle ? 720_000 : 60_000);
   try {
     const code = await new Promise((resolve, reject) => {
       electron.once("exit", resolve);
@@ -328,7 +332,7 @@ try {
   } finally {
     clearTimeout(timer);
   }
-  if (generated) assert.equal(generations, 1, "One provider call for the disclosed question");
+  if (generated) assert.equal(generations, renewalCycle ? 2 : 1, "One provider call per eligible disclosed message");
   console.log(
     "PASS: three fixture windows, separate OTP sessions, isolated workspace, Worker and D1. Native dialog arguments checked with a scripted response.",
   );

@@ -5,7 +5,7 @@ export function installExactReview({ api, me, t, el, generated = false }) {
     terms = el(mode + "-terms"),
     status = el(mode + "-status");
   let generation = 0,
-    timer;
+    timer, recoveryOwner;
   function reset() {
     generation++;
     clearTimeout(timer);
@@ -19,15 +19,27 @@ export function installExactReview({ api, me, t, el, generated = false }) {
     const live = () => run === generation && me()?.id === owner && panel.open;
     if (!owner || !live()) return;
     try {
+      if (generated && (me().generatedManageOnly || recoveryOwner === owner)) {
+        const fresh = await api("me");
+        if (!live() || fresh.id !== owner) return;
+        if (!fresh.generatedManageOnly && !fresh.generatedAnswer) {
+          status.textContent = t("personalInbox.generatedOff");
+          return;
+        }
+      }
       const result = await api(route),
         g = result.grant;
       if (!live() || result.owner !== owner) return;
+      if (generated) recoveryOwner = result.manageOnly ? owner : undefined;
       if (!g) {
         status.textContent = t(generated ? "personalInbox.generatedOff" : "personalInbox.exactOff");
         return;
       }
-      if (!Number.isSafeInteger(result.now) || g.expires <= result.now) throw Error("expired");
-      timer = setTimeout(() => void refresh(), Math.max(250, g.expires - result.now));
+      const ongoing = generated && g.dailyLimit !== undefined;
+      if (ongoing && (!Number.isInteger(g.dailyLimit) || g.dailyLimit < 1 || g.dailyLimit > 720)) throw Error("limit");
+      const lapsed = g.expires <= result.now;
+      if (!Number.isSafeInteger(result.now) || (lapsed && !(ongoing && g.enabled && g.authorizedUntil > result.now))) throw Error("expired");
+      timer = setTimeout(() => void refresh(), lapsed ? 60000 : Math.max(250, g.expires - result.now));
       const post = (action, extra = {}) => api(route, { owner, id: g.id, action, ...extra });
       function button(key, apply) {
         const b = document.createElement("button");
@@ -73,21 +85,27 @@ export function installExactReview({ api, me, t, el, generated = false }) {
         me().email,
         ...(generated ? [g.provider.name, g.provider.model, g.provider.destination] : g.reviewer ? [g.question, g.answer] : []),
         names,
-        new Date(g.expires).toLocaleString(),
-        g.count + (generated ? " / 5" : " / 20"),
+        ongoing ? t("personalInbox.generatedLeaseAt", {time:new Date(g.expires).toLocaleString()}) : new Date(g.expires).toLocaleString(),
+        ...(ongoing && Number.isSafeInteger(g.authorizedUntil) ? [t("personalInbox.generatedAuthorityUntil", {time:new Date(g.authorizedUntil).toLocaleString()})] : []),
+        ...(ongoing && Number.isSafeInteger(g.usedToday) ? [t("personalInbox.generatedUsage", {recent:g.count,today:g.usedToday,count:g.dailyLimit})] : []),
+        ...(ongoing ? [t("personalInbox.generatedOngoingTerms", { count:g.dailyLimit })] : [g.count + (generated ? " / 5" : " / 20")]),
       ]) {
         const p = document.createElement("p");
         p.dir = "auto";
         p.textContent = text;
         terms.append(p);
       }
-      button(generated ? "personalInbox.generatedStop" : "personalInbox.exactStop", () => post("revoke"));
+      button(generated ? "personalInbox.generatedStop" : "personalInbox.exactStop", async () => {
+        const receipt = await post("revoke");
+        if (receipt.id !== g.id || receipt.revoked !== true) throw Error("revoke_unconfirmed");
+      });
       status.textContent = t(generated ? (g.enabled ? "personalInbox.generatedEnabled" : "personalInbox.generatedPending") : (g.enabled ? "personalInbox.exactEnabled" : "personalInbox.exactPending"));
-      if (g.enabled || !g.reviewer || selected.some((r) => !r)) return;
+      if (ongoing && g.enabled) status.textContent = t(result.manageOnly || me().generatedManageOnly ? "personalInbox.generatedManageOnly" : lapsed ? "personalInbox.generatedOngoingWaiting" : "personalInbox.generatedOngoingEnabled", {count:g.dailyLimit});
+      if ((generated && (result.manageOnly || me().generatedManageOnly)) || g.enabled || !g.reviewer || selected.some((r) => !r)) return;
       const inspected = await post("inspect");
       if (!live() || inspected.id !== g.id) return;
       button(generated ? "personalInbox.generatedAllow" : "personalInbox.exactAllow", () =>
-        post("approve", { review: inspected.review, purpose: future ? "generated-current-and-future-inbox-v2" : generated ? "generated-inbox-answer-v1" : "one-exact-owner-lesson-v1" }),
+        post("approve", { review: inspected.review, purpose: ongoing ? "generated-while-online-v3" : future ? "generated-current-and-future-inbox-v2" : generated ? "generated-inbox-answer-v1" : "one-exact-owner-lesson-v1" }),
       );
     } catch {
       if (live()) status.textContent = t("personalInbox.exactUnavailable");

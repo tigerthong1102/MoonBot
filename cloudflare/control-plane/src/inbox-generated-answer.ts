@@ -1,13 +1,16 @@
 import {
   dbNow as now,
   pairing,
+  budget,
   live,
-  session,
-  manages,
-  scope,
-  matchesRoom,
-  noticeForViewer,
-} from "./inbox-generated-scope";
+  visibleAuthority,
+  cleanupGrants,
+  currentLease,
+  tenMinuteCount,
+  dailyCount,
+} from "./inbox-generated-authority";
+import { renewOnlineLease } from "./inbox-generated-renewal";
+import { session, manages, scope, matchesRoom, noticeForViewer } from "./inbox-generated-scope";
 import { z } from "zod";
 import {
   generatedGrantMessage,
@@ -66,16 +69,23 @@ const body = z.discriminatedUnion("action", [
     rooms,
     expires: z.int(),
     provider: providerShape,
+    dailyLimit: z.int().min(1).max(720).optional(),
     signature,
   }),
   ref.extend({ action: z.literal("inspect") }),
   ref.extend({
     action: z.literal("approve"),
     review: uuid,
-    purpose: z.enum(["generated-inbox-answer-v1", "generated-current-and-future-inbox-v2"]),
+    purpose: z.enum([
+      "generated-inbox-answer-v1",
+      "generated-current-and-future-inbox-v2",
+      "generated-while-online-v3",
+    ]),
   }),
   ref.extend({ action: z.literal("revoke") }),
   ref.extend({ action: z.literal("claim") }),
+  ref.extend({ action: z.literal("lease") }),
+  ref.extend({ action: z.literal("renew"), nonce: uuid, expires: z.int(), signature }),
   ref.extend({ action: z.literal("dispatch"), ...job }),
   ref.extend({ action: z.literal("check"), ...job }),
   ref.extend({ action: z.literal("finish"), ...job, answer: postedText, signature }),
@@ -93,7 +103,7 @@ const eligible = `FROM inbox_generated_grants g ${pairing}
  JOIN inbox_exact_seats seat ON seat.room=r.id AND seat.person=m.person
  JOIN inbox_members sender ON sender.room=r.id AND sender.person=p.author AND sender.state='active' AND sender.muted=0
  JOIN "user" author ON author.id=p.author AND author.emailVerified=1
- WHERE ${session} AND ${manages} AND p.author!=g.owner AND p.seq>g.after_seq AND p.seq>m.after_seq AND p.seq>sender.after_seq
+ WHERE ${session} AND ${manages} AND p.author!=g.owner AND p.seq>g.after_seq AND p.seq>COALESCE(a.after_gap_seq,0) AND p.seq>m.after_seq AND p.seq>sender.after_seq
  AND NOT EXISTS(SELECT 1 FROM inbox_members audience WHERE audience.room=p.room AND audience.state='active' AND audience.after_seq>=p.seq)
  AND p.kind='text' AND p.bot_name IS NULL AND length(p.body) BETWEEN 1 AND 1000
  AND ${matchesRoom}
@@ -123,13 +133,19 @@ type Grant = {
   after_seq: number | null;
   reviewer: number;
   attempts: number;
+  daily_limit: number | null;
+  authority_until: number | null;
+  lease_end: number;
+  usage_day: number;
+  usage_window: number;
 };
 
 export async function inboxGeneratedAnswer(
   req: Request,
   db: D1Database,
-  actor: { id: string; owner: string },
+  actor: { id: string; owner: string; expires: number },
   published: (room: string) => void,
+  manageOnly = false,
 ) {
   const url = new URL(req.url),
     origin = url.origin,
@@ -147,6 +163,7 @@ export async function inboxGeneratedAnswer(
     return json({ owner, rooms: visible.results });
   }
   if (req.method === "GET" && url.searchParams.has("notice")) {
+    if (manageOnly) throw new HTTPError(404, "not_found");
     const room = url.searchParams.get("notice");
     if (!uuid.safeParse(room).success || !room) return json({ notice: null });
     const row = await noticeForViewer(db, room, owner, origin);
@@ -157,13 +174,14 @@ export async function inboxGeneratedAnswer(
   if (req.method === "GET") {
     const row = await db
       .prepare(
-        `SELECT g.*,k.inbox_session=? AS reviewer FROM inbox_generated_grants g ${pairing}
-      WHERE g.owner=? AND k.origin=? AND ${live}`,
+        `SELECT g.*,k.inbox_session=? AS reviewer,${currentLease} AS lease_end,CASE WHEN g.daily_limit IS NOT NULL THEN ${dailyCount} ELSE 0 END AS usage_day,CASE WHEN g.daily_limit IS NOT NULL THEN ${tenMinuteCount} ELSE 0 END AS usage_window FROM inbox_generated_grants g ${pairing}
+      WHERE g.owner=? AND k.origin=? AND ${visibleAuthority}`,
       )
       .bind(actor.id, owner, origin)
       .first<Grant>();
     return json({
       owner,
+      ...(manageOnly && { manageOnly: true }),
       now: Date.now(),
       grant: row && {
         id: row.id,
@@ -171,8 +189,13 @@ export async function inboxGeneratedAnswer(
         enabled: row.after_seq !== null,
         provider: JSON.parse(row.provider),
         rooms: JSON.parse(row.rooms),
-        count: row.attempts,
-        expires: row.expires,
+        count: row.daily_limit === null ? row.attempts : row.usage_window,
+        ...(row.daily_limit !== null && {
+          dailyLimit: row.daily_limit,
+          usedToday: row.usage_day,
+          authorizedUntil: row.authority_until,
+        }),
+        expires: row.lease_end,
       },
     });
   }
@@ -180,6 +203,7 @@ export async function inboxGeneratedAnswer(
   const parsed = body.safeParse(await readBoundedJSON(req, 8192));
   if (!parsed.success) throw new HTTPError(400, "invalid_request");
   const a = parsed.data;
+  if (manageOnly && a.action !== "revoke") throw new HTTPError(404, "not_found");
   if (a.owner !== owner) throw unavailable();
   const args = [owner, a.id, origin, actor.id];
   if (a.action === "revoke") {
@@ -210,16 +234,24 @@ export async function inboxGeneratedAnswer(
     if (!k || !(await verified(k.public_key, generatedGrantMessage({ ...a, ...k, origin }), a.signature)))
       throw unavailable();
     const [, added] = await db.batch([
-      db.prepare(`DELETE FROM inbox_generated_grants WHERE expires<=${now}`),
+      db.prepare(cleanupGrants),
       db
         .prepare(
-          `INSERT INTO inbox_generated_grants(id,owner,pairing,provider,rooms,expires)
-       SELECT ?2,?1,k.id,?6,?7,?8 FROM inbox_twin_pairings k WHERE k.owner=?1 AND k.origin=?3 AND k.desktop_session=?4 AND k.id=?5
+          `INSERT INTO inbox_generated_grants(id,owner,pairing,provider,rooms,expires,daily_limit,authority_until)
+       SELECT ?2,?1,k.id,?6,?7,?8,?9,?10 FROM inbox_twin_pairings k WHERE k.owner=?1 AND k.origin=?3 AND k.desktop_session=?4 AND k.id=?5
        AND k.inbox_session IS NOT NULL AND ?8>${now} AND ?8<=MIN(k.expires,${now}+600000)
        AND NOT EXISTS(SELECT 1 FROM inbox_generated_revoked WHERE owner=?1 AND id=?2)
        AND NOT ${missingRoom("?7", "?1")} ON CONFLICT DO NOTHING`,
         )
-        .bind(...args, a.pairing, JSON.stringify(a.provider), JSON.stringify(a.rooms), a.expires),
+        .bind(
+          ...args,
+          a.pairing,
+          JSON.stringify(a.provider),
+          JSON.stringify(a.rooms),
+          a.expires,
+          a.dailyLimit ?? null,
+          a.dailyLimit ? actor.expires : null,
+        ),
     ]);
     if (!added.meta.changes) throw unavailable();
     return json({ id: a.id, offered: true }, 201);
@@ -236,29 +268,46 @@ export async function inboxGeneratedAnswer(
     return json({ id: a.id, review });
   }
   if (a.action === "approve") {
-    const [, ok] = await db.batch([
-      db.prepare(`DELETE FROM inbox_generated_grants WHERE expires<=${now}`),
+    const [, , ok] = await db.batch([
+      db.prepare(cleanupGrants),
       db
         .prepare(
-          `UPDATE inbox_generated_grants SET review=NULL,after_seq=(SELECT COALESCE(max(seq),0) FROM inbox_posts)
-        WHERE ${reviewable} AND review=?5 AND ?6=CASE WHEN EXISTS(SELECT 1 FROM json_each(rooms) WHERE value IN ('all-direct','all-managed-groups'))
+          `DELETE FROM inbox_generated_rooms WHERE room IN(
+        SELECT substr(p.value,1,36) FROM json_each((SELECT rooms FROM inbox_generated_grants WHERE ${reviewable} AND review=?5)) p)
+        AND NOT EXISTS(SELECT 1 FROM inbox_generated_grants g ${pairing} WHERE g.id=inbox_generated_rooms.grant_id AND ${live})`,
+        )
+        .bind(...args, a.review),
+      db
+        .prepare(
+          `UPDATE inbox_generated_grants SET review=NULL,after_seq=(SELECT COALESCE(max(seq),0) FROM inbox_posts),
+         expires=CASE WHEN daily_limit IS NOT NULL THEN 0 ELSE expires END,
+         authority_until=CASE WHEN daily_limit IS NOT NULL THEN MIN(authority_until,?7) END
+        WHERE ${reviewable} AND review=?5 AND ?6=CASE WHEN daily_limit IS NOT NULL THEN 'generated-while-online-v3' WHEN EXISTS(SELECT 1 FROM json_each(rooms) WHERE value IN ('all-direct','all-managed-groups'))
           THEN 'generated-current-and-future-inbox-v2' ELSE 'generated-inbox-answer-v1' END AND NOT ${missingRoom("rooms", "?1")}
         AND NOT EXISTS(SELECT 1 FROM inbox_generated_rooms old JOIN json_each(inbox_generated_grants.rooms) pick ON old.room=substr(pick.value,1,36))`,
         )
-        .bind(...args, a.review, a.purpose),
+        .bind(...args, a.review, a.purpose, actor.expires),
     ]);
     if (!ok.meta.changes) throw unavailable();
     return json({ id: a.id, enabled: true });
   }
+  if (a.action === "lease" || a.action === "renew") return renewOnlineLease(db, actor, origin, a);
   if (a.action === "claim") {
     await limitInboxAction(db, owner, "generated_poll", 90, 60000);
     const nonce = crypto.randomUUID();
-    const [, result] = await db.batch<{ source: number; room: string; nonce: string; expires: number }>([
+    const [, result, status] = await db.batch<{
+      source: number;
+      room: string;
+      nonce: string;
+      expires: number;
+      enabled: number;
+    }>([
       db
         .prepare(
           `INSERT INTO inbox_generated_jobs(owner,source,grant_id,nonce,expires)
-        SELECT g.owner,p.seq,g.id,?5,MIN(g.expires,k.expires,${now}+60000) ${eligible}
-        AND g.attempts<5 AND NOT EXISTS(SELECT 1 FROM inbox_generated_jobs used WHERE used.owner=g.owner AND used.source=p.seq)
+        SELECT g.owner,p.seq,g.id,?5,MIN(${currentLease},COALESCE(g.authority_until,k.expires),${now}+60000) ${eligible}
+        AND (${budget}) AND NOT EXISTS(SELECT 1 FROM inbox_generated_attempts t WHERE t.owner=g.owner AND t.occupied_until>${now})
+        AND NOT EXISTS(SELECT 1 FROM inbox_generated_jobs used WHERE used.owner=g.owner AND used.source=p.seq)
         AND NOT EXISTS(SELECT 1 FROM inbox_generated_jobs busy WHERE busy.owner=g.owner AND busy.expires>${now}
           AND NOT EXISTS(SELECT 1 FROM inbox_generated_receipts receipt WHERE receipt.nonce=busy.nonce))
         ORDER BY p.seq LIMIT 1 ON CONFLICT DO NOTHING`,
@@ -269,8 +318,18 @@ export async function inboxGeneratedAnswer(
           "SELECT j.nonce,j.source,p.room,r.kind,j.expires FROM inbox_generated_jobs j JOIN inbox_posts p ON p.seq=j.source JOIN inbox_rooms r ON r.id=p.room WHERE j.owner=? AND j.nonce=?",
         )
         .bind(owner, nonce),
+      db
+        .prepare(
+          `SELECT g.after_seq IS NOT NULL AS enabled FROM inbox_generated_grants g ${pairing} WHERE g.owner=?1 AND g.id=?2 AND k.origin=?3 AND k.desktop_session=?4 AND ${visibleAuthority}`,
+        )
+        .bind(...args),
     ]);
-    return json({ now: Date.now(), challenge: result.results[0] ?? null });
+    return json({
+      now: Date.now(),
+      challenge: result.results[0] ?? null,
+      enabled: Boolean(status.results[0]?.enabled),
+      revoked: !status.results.length,
+    });
   }
   const jobArgs = [...args, a.source, a.nonce];
   const activeJob = ` AND p.seq=?5 AND EXISTS(SELECT 1 FROM inbox_generated_jobs j WHERE j.owner=g.owner AND j.source=p.seq AND j.grant_id=g.id AND j.nonce=?6 AND j.expires>${now})`;
@@ -286,7 +345,7 @@ export async function inboxGeneratedAnswer(
   }
   const row = await db
     .prepare(
-      `SELECT p.body,p.room,p.room_kind,g.rooms,g.pairing,k.public_key,j.expires,j.input_hash FROM
+      `SELECT p.body,p.room,p.room_kind,g.rooms,g.daily_limit,g.pairing,k.public_key,j.expires,j.input_hash FROM
     (SELECT p.body,p.room,r.kind AS room_kind,g.pairing,k.public_key,p.seq,g.id ${eligible}${activeJob}) AS p
     JOIN inbox_generated_jobs j ON j.source=p.seq AND j.grant_id=p.id
     JOIN inbox_generated_grants g ON g.id=p.id JOIN inbox_twin_pairings k ON k.id=g.pairing`,
@@ -296,6 +355,7 @@ export async function inboxGeneratedAnswer(
       body: string;
       room: string;
       room_kind: string;
+      daily_limit: number | null;
       rooms: string;
       pairing: string;
       public_key: string;
@@ -321,7 +381,15 @@ export async function inboxGeneratedAnswer(
   if (
     !(await verified(
       row.public_key,
-      generatedPostMessage({ ...a, ...row, rooms: JSON.parse(row.rooms), kind: row.room_kind, origin, inputHash }),
+      generatedPostMessage({
+        ...a,
+        ...row,
+        rooms: JSON.parse(row.rooms),
+        kind: row.room_kind,
+        dailyLimit: row.daily_limit ?? undefined,
+        origin,
+        inputHash,
+      }),
       a.signature,
     ))
   )

@@ -114,7 +114,7 @@ it("withdraws an open library when conversation access is revoked in the same se
   const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }))); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
     calls.length = 0;
     await act(async () => {
       stop = watchDocumentSources();
@@ -136,7 +136,7 @@ it.each(["auth-network", "access-network", "access-503"] as const)("withdraws th
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }))); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
     calls.length = 0;
     await act(async () => {
       stop = watchDocumentSources();
@@ -157,7 +157,7 @@ it.each(["hidden", "sleep"] as const)("withdraws the open library when the page 
   const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "bot", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }))); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
     await act(async () => { stop = watchDocumentSources(); });
     await act(async () => {
       if (mode === "sleep") markCloudAsleep();
@@ -260,7 +260,7 @@ it("keeps the open dialog's timer-driven ownership recheck in the background whi
   const root = createRoot(host), bot = { id: "bot", threadId: "thread" } as Bot;
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }))); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
     expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }));
     const manual = calls.filter(c => c.path === auth || c.path === list || c.path === file);
     expect(manual.length).toBeGreaterThan(0);
@@ -458,7 +458,7 @@ it.each(["timer", "focus"])("resumes the same reader's watched library on the fi
   const root = createRoot(host);
   try {
     await act(async () => root.render(createElement(SourceLibrary, { bot: { id: "b", threadId: "thread" } as Bot, open: true, close: () => {} })));
-    await act(async () => { await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 }))); });
+    await vi.waitFor(async () => { await act(async () => {}); expect(host.textContent).toContain(t("knowledge.indexed", { count: 1 })); });
     const search = host.querySelector<HTMLInputElement>("input[type=search]")!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "policy");

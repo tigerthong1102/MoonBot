@@ -3,6 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { classifyZaloText } from "../shared/zalo-intelligence.ts";
 import type { ZaloPeriodView, ZaloReportSchedule } from "../shared/zalo-period-report.ts";
 import { nextOccurrence } from "./routine-schedules.ts";
+import { zaloPairingEnabled } from "./zalo-official.ts";
 import { zaloWrite } from "./zalo-write.ts";
 
 const DAY = 86_400_000;
@@ -18,9 +19,13 @@ function after(schedule: ZaloReportSchedule, time: number) {
   return next;
 }
 
+export const zaloLocalReportsEnabled = () => zaloPairingEnabled() && process.env.STARTUPBOT_ZALO_LOCAL_REPORTS === "1";
+
 export function recordZaloReportTiming(db: DatabaseSync, grantId: string, reason: string, observed: number, expires: number) {
-  if (process.env.STARTUPBOT_ZALO_LOCAL_REPORTS !== "1" || !db.prepare("SELECT 1 FROM sqlite_schema WHERE name='zalo_period_timing'").get()) return;
-  const schedule = db.prepare("SELECT cadence,hour,minute,timeZone,start FROM zalo_period_schedule WHERE grantId=?").get(grantId) as unknown as Timing | undefined;
+  const accountId = process.env.STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID;
+  if (!zaloLocalReportsEnabled() || !accountId || !db.prepare("SELECT 1 FROM sqlite_schema WHERE name='zalo_period_timing'").get()) return;
+  const schedule = db.prepare(`SELECT s.cadence,s.hour,s.minute,s.timeZone,s.start FROM zalo_period_schedule s
+    JOIN zalo_webhook_endpoints e ON e.grantId=s.grantId WHERE s.grantId=? AND e.accountId=?`).get(grantId, accountId) as unknown as Timing | undefined;
   if (!schedule || observed < schedule.start) return;
   db.prepare(`INSERT INTO zalo_period_timing VALUES(?,?,?,?,?) ON CONFLICT(grantId,end,reason)
     DO UPDATE SET observed=MAX(observed,excluded.observed),expires=MAX(expires,excluded.expires)`)

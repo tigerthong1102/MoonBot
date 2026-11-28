@@ -70,7 +70,10 @@ it("keeps hourly output local to the selected bot and labels bounded urgency sam
 
 it("retains each completed period's timing warning when the same source warning recurs next period", () => {
   const db = new DatabaseSync(":memory:");
+  vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_WEBHOOK_PILOT", "1");
   vi.stubEnv("STARTUPBOT_ZALO_LOCAL_REPORTS", "1");
+  vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_PILOT", "0");
+  vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID", scope.accountId);
   try {
     let time = Date.parse("2026-11-28T08:05:00Z");
     const inbox = createZaloInbox(db, () => time), id = inbox.enroll(scope);
@@ -79,7 +82,13 @@ it("retains each completed period's timing warning when the same source warning 
     store.configure(store.view()!.revision, { ...daily, cadence: "hourly" });
     const warn = () => clock.assess("e", "fixture-secret", { ...scope, direction: "incoming", messageId: String(time),
       text: "Fixture", timestamp: time + 10 * 60_000 }, inbox.grant(id), id, time);
-    time += 12_000; expect(warn()).toBe(503);
+    const retained = () => db.prepare("SELECT COUNT(*) n FROM zalo_period_timing").get()!.n;
+    time += 1; expect(warn()).toBe(503); expect(retained()).toBe(0);
+    vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_PILOT", "1");
+    vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID", "different-bot");
+    time += 1; expect(warn()).toBe(503); expect(retained()).toBe(0);
+    vi.stubEnv("STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID", scope.accountId);
+    time += 12_000; expect(warn()).toBe(503); expect(retained()).toBe(1);
     time = Date.parse("2026-11-28T09:00:00Z"); store.tick();
     expect(store.view()!.periods[0]!.gaps).toBe(1);
     time += 60_000; expect(warn()).toBe(503);

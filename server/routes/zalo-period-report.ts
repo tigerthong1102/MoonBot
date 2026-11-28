@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { z } from "zod";
 import type { DatabaseSync } from "node:sqlite";
 import { openZaloPrivateDatabase } from "../zalo-private-database.ts";
-import { zaloPeriodReports } from "../zalo-period-report.ts";
-import { isZaloDesktopOwner, zaloPairingEnabled } from "./zalo-official.ts";
+import { zaloLocalReportsEnabled, zaloPeriodReports } from "../zalo-period-report.ts";
+import { isZaloDesktopOwner } from "./zalo-official.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
 const bodySchema = z.object({
@@ -20,7 +20,7 @@ const bodySchema = z.object({
 }).strict();
 type PeriodOptions = { home?: () => string; now?: () => number; onChanged?: () => void };
 export function zaloPeriodService(local: boolean, { home = homedir, now = Date.now, onChanged }: PeriodOptions = {}) {
-  const enabled = () => local && zaloPairingEnabled() && process.env.STARTUPBOT_ZALO_LOCAL_REPORTS === "1";
+  const enabled = () => local && zaloLocalReportsEnabled();
   function withStore<T>(fn: (store: ReturnType<typeof zaloPeriodReports>) => T): T | null {
     const account = process.env.STARTUPBOT_ZALO_OFFICIAL_ACCOUNT_ID;
     if (!enabled() || !account || !/^[A-Za-z0-9_.:-]{1,128}$/.test(account)) return null;

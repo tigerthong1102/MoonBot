@@ -79,6 +79,8 @@ Use only mapped, tested commands:
 - [Phone web app installation and safe areas](phone-web-app.md)
 - [Welcome flow and guided tour](onboarding.md)
 - [Channels](channels.md)
+- [Official Zalo Bot, scoped receipts and revocation](zalo-official.md)
+- [Offline Zalo Personal SDK qualification](zalo-personal.md)
 - [In-chat team coordination](room-coordination.md)
 - [Question cards: a teammate's question, in its chat and the person's inbox](question-cards.md)
 - [Chief authority over additional departments](team-access.md)

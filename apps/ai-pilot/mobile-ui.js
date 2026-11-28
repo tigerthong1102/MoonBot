@@ -110,11 +110,16 @@ function payer() {
   el("billing").hidden = !connection?.connected && saved?.provider !== "openrouter";
   el("provider").disabled = Boolean(saved);
   if (saved) el("provider").value = saved.provider;
+  else if (!connection?.connected && el("provider").value === "openrouter") {
+    el("provider").value = "managed";
+    el("consent").checked = false;
+  }
   el("provider").options[1].disabled = !connection?.connected;
 }
 function bubble(speaker, text, container = el("transcript")) {
   const block = document.createElement("article"), label = document.createElement("strong"), paragraph = document.createElement("p");
   label.textContent = speaker;
+  paragraph.dir = "auto";
   paragraph.textContent = text;
   block.append(label, paragraph);
   container.append(block);
@@ -125,12 +130,14 @@ function formatAnswer(element, text) {
   for (const [index, part] of text.split(/^```[^\n]*$/gm).entries()) {
     if (index % 2) {
       const code = document.createElement("code"), pre = document.createElement("pre");
+      pre.dir = "ltr";
       code.textContent = part.replace(/^\n/, "");
       pre.append(code);
       fragment.append(pre);
     } else {
       for (const line of part.split("\n")) {
         const node = document.createElement(/^#{1,3} /.test(line) ? "strong" : "span");
+        node.dir = "auto";
         const content = line.replace(/^#{1,3} /, "").replace(/^[-*] /, "• ");
         for (const [n, word] of content.split("**").entries()) {
           if (n % 2) { const bold = document.createElement("strong"); bold.textContent = word; node.append(bold); }
@@ -252,18 +259,20 @@ el("stop").onclick = () => active?.abort();
 el("compose").onsubmit = event => {
   event.preventDefault();
   action(async () => {
-    const prompt = el("prompt").value.trim();
+    const submitted = el("prompt").value;
+    const prompt = submitted.trim();
     if (!prompt) return;
-    if (!pending || pending.thread !== thread || pending.prompt !== prompt) pending = { thread, prompt, id:crypto.randomUUID() };
-    const id = pending.id;
     const skill = el("skill").value;
+    const provider = el("provider").value;
+    if (!pending || pending.thread !== thread || pending.prompt !== prompt || pending.skill !== skill || pending.provider !== provider) pending = { thread, prompt, skill, provider, id:crypto.randomUUID() };
+    const id = pending.id;
     active = new AbortController();
     el("stop").hidden = false;
     status(t.waiting);
     try {
-      const response = await api("send", { thread, id, prompt, provider:el("provider").value, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
+      const response = await api("send", { thread, id, prompt, provider, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-      el("prompt").value = "";
+      if (el("prompt").value === submitted) el("prompt").value = "";
       bubble(t.you, prompt);
       const answer = bubble(t.bot, "");
       let buffer = "", state;

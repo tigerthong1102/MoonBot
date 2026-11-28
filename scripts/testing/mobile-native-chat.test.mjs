@@ -176,3 +176,41 @@ it("shows the newest desktop receipt and pages through every earlier message in 
   }
   expect((await request(token,path+"&before=missing")).status).toBe(404);
 });
+
+it("can reclaim space from a full account with 50 legacy standalone conversations in the native picker", async () => {
+  const token = await signIn("alice");
+  const insert = fixture.ledger.db.prepare("INSERT INTO mobile_threads VALUES ('alice',?,?,?)");
+  for (let i = 0; i < 50; i++) insert.run(randomUUID(),"Legacy "+i,i);
+  expect((await request(token,"/api/bots",{})).status).toBe(409);
+  const {bots} = await (await request(token,"/api/bots")).json();
+  expect(bots).toHaveLength(1);
+  expect(bots[0].tasks).toHaveLength(50);
+  const route = "/api/bots/"+bots[0].id+"/tasks/"+bots[0].tasks[0].threadId;
+  const deleted = await fetch(fixture.url+route,{method:"DELETE",headers:{authorization:"Bearer "+token}});
+  expect(deleted.status).toBe(200);
+  const {bot} = await (await request(token,"/api/bots",{})).json();
+  expect(bot.id).toBe(bots[0].id);
+  expect(bot.tasks).toHaveLength(50);
+  expect(bot.threadId).not.toBe(bots[0].tasks[0].threadId);
+});
+
+it("finds Vietnamese text and literal punctuation only in the owner's saved history and opens old results", async () => {
+  const token = await signIn("alice");
+  const {bots:[bot]} = await (await request(token,"/api/bots")).json();
+  const insert = fixture.ledger.db.prepare("INSERT INTO mobile_turns(owner,thread,id,prompt,answer,state,created) VALUES (?,?,?,?,?,'complete',?)");
+  const target = randomUUID();
+  insert.run("alice",bot.threadId,target,"Viết 📗 BÁO CÁO (*)","Đã viết báo cáo (*)",0);
+  for (let i=1; i<=60; i++) insert.run("alice",bot.threadId,randomUUID(),"Next","Done",i);
+  const search = "/api/search?q="+encodeURIComponent("báo cáo (*)");
+  const {hits} = await (await request(token,search)).json();
+  expect(hits.map(h=>h.messageId)).toEqual([target+"-answer",target]);
+  for (const hit of hits) {
+    expect(hit).toMatchObject({botId:bot.id,threadId:bot.threadId,onActivePath:true,kind:"text"});
+    expect(hit.snippet.slice(hit.matchStart,hit.matchStart+hit.matchLength).toLowerCase()).toBe("báo cáo (*)");
+    const page = await (await request(token,"/api/threads/"+bot.threadId+"/messages?around="+hit.messageId)).json();
+    expect(page.messages.at(-1).id).toBe(hit.messageId);
+    expect(page.activeLeafId).not.toBe(hit.messageId);
+  }
+  expect((await (await request(token,search+"&limit=1")).json()).hits).toHaveLength(1);
+  expect((await (await request(await signIn("bob"),search)).json()).hits).toEqual([]);
+});

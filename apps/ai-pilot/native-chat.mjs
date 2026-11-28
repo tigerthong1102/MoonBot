@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { nativeHistory } from "./native-history.mjs";
 import { Fault } from "./ledger.mjs";
 
 export function nativePath(path) {
@@ -24,58 +25,41 @@ export function nativeChat(ledger, lists, origin) {
     CREATE TABLE IF NOT EXISTS mobile_native_selection(owner TEXT NOT NULL,bot TEXT NOT NULL,thread TEXT NOT NULL,
       PRIMARY KEY(owner,bot), FOREIGN KEY(owner,thread) REFERENCES mobile_threads(owner,id) ON DELETE CASCADE);
   `);
+  const assign = db.prepare("INSERT INTO mobile_native_task_groups VALUES (?,?,?)");
   function roster(owner) {
     const groups = new Map();
     const parent = new Map(db.prepare("SELECT thread,bot FROM mobile_native_task_groups WHERE owner=?").all(owner).map(row => [row.thread,row.bot]));
     const preferences = new Map(db.prepare("SELECT thread,value FROM mobile_native_task_preferences WHERE owner=?").all(owner).map(row => [row.thread,JSON.parse(row.value)]));
-    for (const thread of lists.all(owner)) {
+    const threads = lists.all(owner);
+    const knownBots = new Set(parent.values());
+    const home = parent.values().next().value ?? threads.at(-1)?.id;
+    for (const thread of threads) {
       thread.preferences = preferences.get(thread.id) ?? {};
       const until = thread.preferences.snoozedUntil;
       if (until > 0 && until <= Date.now()) delete thread.preferences.snoozedUntil;
-      const id = parent.get(thread.id) ?? thread.id;
+      const id = parent.get(thread.id) ?? (knownBots.has(thread.id) ? thread.id : home);
+      if (!parent.has(thread.id)) assign.run(owner,thread.id,id);
       if (!groups.has(id)) groups.set(id,[]);
       groups.get(id).push(thread);
     }
     return groups;
   }
   const select = db.prepare("INSERT INTO mobile_native_selection VALUES (?,?,?) ON CONFLICT(owner,bot) DO UPDATE SET thread=excluded.thread");
-  const latestTurn = db.prepare("SELECT id,created,answer<>'' AS answered FROM mobile_turns WHERE owner=? AND thread=? ORDER BY created DESC,id DESC LIMIT 1");
-  const cursorTurn = db.prepare("SELECT id,created,answer<>'' AS answered FROM mobile_turns WHERE owner=? AND thread=? AND id=?");
-  const precedingTurns = db.prepare(`SELECT id,prompt,answer,created FROM mobile_turns WHERE owner=? AND thread=? AND (created,id)<=(?,?)
-    ORDER BY created DESC,id DESC LIMIT ?`);
-  function threadPage(owner, thread, session, limit, before) {
-    const latest = latestTurn.get(owner,thread);
-    const choice = db.prepare("SELECT id,devices,title,expires FROM mobile_native_choices WHERE session=? AND thread=? AND expires>?").get(session.hash,thread,Date.now());
-    const choiceId = choice && choice.id+"-choice";
-    const activeLeafId = choiceId ?? (latest?.answered ? latest.id+"-answer" : latest?.id);
-    let cursor = latest;
-    if (before && before !== choiceId) {
-      cursor = cursorTurn.get(owner,thread,before.replace(/-answer$/, ""));
-      if (!cursor || (before.endsWith("-answer") && !cursor.answered)) throw new Fault(404, "message_not_found");
-    }
-    const turns = cursor ? precedingTurns.all(owner,thread,cursor.created,cursor.id,limit+2).reverse() : [];
-    let parentId;
-    const messages = [];
-    for (const turn of turns) {
-      const user = { id:turn.id, role:"user", kind:"text", at:turn.created, text:turn.prompt, parentId };
-      messages.push(user);
-      parentId = user.id;
-      if (turn.answer) {
-        parentId = turn.id + "-answer";
-        messages.push({ id:parentId, parentId:user.id, role:"bot", kind:"text", text:turn.answer, at:turn.created });
-      }
-    }
-    if (choice && (!before || before === choiceId)) messages.push({ id:choiceId, parentId, role:"bot",kind:"options",at:choice.expires-120000,
-      card:{title:choice.title,subtitle:"",requestId:choice.id,options:JSON.parse(choice.devices).map(d => d.label)} });
-    const end = before ? messages.findIndex(message => message.id === before) : messages.length;
-    if (end < 0) throw new Fault(404, "message_not_found");
-    const start = Math.max(0, end - limit);
-    return { messages:messages.slice(start,end), activeLeafId, hasMore:start > 0 };
-  }
+  const { threadPage, search } = nativeHistory(db);
   function create(owner, title = "StartupBot") {
     if (lists.all(owner).length >= 50) throw new Fault(409, "history_full");
     const thread = { id:randomUUID(), title, updated:Date.now(), provider:"managed" };
     db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run(owner,thread.id,thread.title,thread.updated);
+    return thread;
+  }
+  function addTask(owner, id, threads, title) {
+    const thread = ledger.tx(() => {
+      const created = create(owner,title);
+      assign.run(owner,created.id,id ?? created.id);
+      select.run(owner,id ?? created.id,created.id);
+      return created;
+    });
+    threads.unshift(thread);
     return thread;
   }
   function bot(owner, id, threads, limit, session) {
@@ -145,12 +129,18 @@ export function nativeChat(ledger, lists, origin) {
     const get = req.method === "GET", post = req.method === "POST";
     if (get && path === "/api/events") return { events:events(owner,res) };
     if (get && path === "/api/instances") { json(200,{instances:[]}); return; }
+    if (get && path === "/api/search") {
+      json(200,{hits:search(owner,query.get("q"),limit,roster(owner))});
+      return;
+    }
     if (path === "/api/bots" && (post || get)) {
       const groups = roster(owner);
       if (post || !groups.size) {
-        const thread = create(owner);
-        groups.set(thread.id,[thread]);
-        if (post) { changed(owner); json(201,{bot:bot(owner,thread.id,[thread],limit,session)}); return; }
+        const [home,threads] = groups.entries().next().value ?? [null,[]];
+        const thread = addTask(owner,home,threads);
+        const id = home ?? thread.id;
+        groups.set(id,threads);
+        if (post) { changed(owner); json(201,{bot:bot(owner,id,threads,limit,session)}); return; }
       }
       json(200,{ bots:Array.from(groups, ([id,threads]) => bot(owner,id,threads,limit,session)), groups:[] });
       return;
@@ -160,7 +150,7 @@ export function nativeChat(ledger, lists, origin) {
     const [,kind,id,action,taskId] = match;
     if (kind === "threads" && get && action === "messages" && !taskId) {
       if (!lists.all(owner).some(t => t.id === id)) throw new Fault(404,"not_found");
-      json(200,threadPage(owner,id,session,limit,query.get("before")));
+      json(200,threadPage(owner,id,session,limit,query.get("before"),query.get("around")));
       return;
     }
     if (kind === "threads" && post && action === "respond" && !taskId) {
@@ -190,15 +180,13 @@ export function nativeChat(ledger, lists, origin) {
     }
     if (!post) throw new Fault(404,"not_found");
     if (action === "tasks") {
-      const selected = taskId ? threads.find(t => t.id === taskId) : ledger.tx(() => {
+      if (taskId) {
+        if (!threads.some(t => t.id === taskId)) throw new Fault(404,"not_found");
+        select.run(owner,id,taskId);
+      } else {
         const title = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0,100) : "StartupBot";
-        const thread = create(owner,title);
-        db.prepare("INSERT INTO mobile_native_task_groups VALUES (?,?,?)").run(owner,thread.id,id);
-        threads.unshift(thread);
-        return thread;
-      });
-      if (!selected) throw new Fault(404,"not_found");
-      select.run(owner,id,selected.id);
+        addTask(owner,id,threads,title);
+      }
       changed(owner);
       json(200,{bot:bot(owner,id,threads,limit,session)});
       return;

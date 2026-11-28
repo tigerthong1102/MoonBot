@@ -38,7 +38,6 @@ export function MobileDraftReceiver({ receive }: { receive: (prompt: string) => 
             blur();
             return;
           }
-          // Only fill an empty private composer. The existing Send action retains all tool approval checks.
           apply.current(draft.prompt);
           await bridge("ack", listener, draft.id);
           disarm();

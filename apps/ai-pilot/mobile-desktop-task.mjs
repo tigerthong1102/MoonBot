@@ -1,5 +1,3 @@
-// Route explicit operations on local applications or files before admission to the AI wallet.
-// Questions about those applications remain normal text chat.
 const polite = /^(?:(?:hãy|vui lòng|làm ơn|please|can you|could you)\s+)+/iu;
 const startApp =
   /^(?:mở|chạy|khởi động|open|launch|start|run)\s+(?:(?:phần mềm|ứng dụng|ứng dụng kế toán|microsoft|the)\s+)*(?:misa|excel|quickbooks)(?=$|[\s.,!?:])/iu;

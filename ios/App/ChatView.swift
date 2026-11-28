@@ -1305,10 +1305,12 @@ struct MessageRow: View {
             }
         }
         .contextMenu {
-            ForEach(Self.reactionChoices, id: \.self) { emoji in
-                Button(emoji) {
-                    Haptics.selection()
-                    Task { await session.react(to: message, in: chat.threadId, emoji: emoji) }
+            if !session.isMobileAccount {
+                ForEach(Self.reactionChoices, id: \.self) { emoji in
+                    Button(emoji) {
+                        Haptics.selection()
+                        Task { await session.react(to: message, in: chat.threadId, emoji: emoji) }
+                    }
                 }
             }
             let visibleText = attachedContent.text
@@ -1323,7 +1325,8 @@ struct MessageRow: View {
                     selecting = SelectableText(text: visibleText)
                 }
             }
-            if message.role == .user,
+            if !session.isMobileAccount,
+               message.role == .user,
                message.kind == .text,
                attachedContent.attachments.isEmpty,
                case let .bot(bot) = chat {

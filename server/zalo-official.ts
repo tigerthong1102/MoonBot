@@ -4,8 +4,8 @@ import type { ZaloEvent } from "../shared/zalo-event.ts";
 
 const id = z.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/);
 const envelope = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), result: z.unknown() }),
-  z.object({ ok: z.literal(false), error_code: z.number().int() }),
+  z.object({ ok: z.literal(true), result: z.unknown(), error_code: z.unknown().optional() }),
+  z.object({ ok: z.literal(false), error_code: z.number().int(), description: z.unknown().optional(), result: z.unknown().optional() }),
 ]);
 const update = z.object({
   event_name: z.literal("message.text.received"),
@@ -61,7 +61,7 @@ function requireEnabled() {
   if (process.env.STARTUPBOT_ZALO_OFFICIAL_PILOT !== "1") throw new ZaloOfficialError("disabled");
 }
 
-async function boundedPayload(response: Response, signal: AbortSignal) {
+export async function readZaloOfficialEnvelope(response: Response, signal: AbortSignal) {
   const reader = response.body?.getReader();
   if (!reader) throw new ZaloOfficialError("protocol");
   let bytes = 0;
@@ -116,7 +116,7 @@ function officialClient(token: string, request: typeof fetch) {
       await response.body?.cancel().catch(() => {});
       throw new ZaloOfficialError(failure(response.status, method));
     }
-    const payload = await boundedPayload(response, requestSignal);
+    const payload = await readZaloOfficialEnvelope(response, requestSignal);
     if (!payload.ok) {
       if (method === "getUpdates" && payload.error_code === 408 && (response.ok || response.status === 408)) return null;
       throw new ZaloOfficialError(failure(payload.error_code, method));

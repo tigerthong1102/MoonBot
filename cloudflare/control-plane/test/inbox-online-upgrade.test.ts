@@ -69,6 +69,17 @@ it("keeps existing generated usage and outstanding work when upgrading an active
       .prepare(`SELECT (${budget}) AS permitted FROM inbox_generated_grants g ${pairing} WHERE g.id='grant'`)
       .first("permitted"),
   ).toBe(0);
+  await db.prepare("INSERT INTO inbox_posts(room,author,nonce,kind,body,created) VALUES('room','owner','new-source','text','New question',?)").bind(now).run();
+  const oldClaim=() => db.prepare(`INSERT INTO inbox_generated_jobs(owner,source,grant_id,nonce,expires)
+    SELECT g.owner,p.seq,g.id,'old-writer',? FROM inbox_generated_grants g,inbox_posts p
+    WHERE g.id='grant' AND p.nonce='new-source' AND g.attempts<5 ON CONFLICT DO NOTHING`).bind(now+60000).run();
+  expect((await oldClaim()).meta.changes).toBe(0);
+  await db.prepare("UPDATE inbox_generated_cutover SET resumes=0 WHERE owner='owner'").run();
+  expect((await oldClaim()).meta.changes).toBe(0);
+  await db.prepare("UPDATE inbox_generated_attempts SET occupied_until=0 WHERE nonce='busy'").run();
+  await db.prepare("INSERT INTO inbox_generated_limits VALUES('owner',2,?)").bind(now+86400000).run();
+  expect((await oldClaim()).meta.changes).toBe(0);
+  await db.prepare("UPDATE inbox_generated_cutover SET resumes=? WHERE owner='owner'").bind(now+600000).run();
   await db.prepare("DELETE FROM inbox_posts WHERE nonce='source'").run();
   await db.prepare("DELETE FROM inbox_generated_grants WHERE id='grant'").run();
   expect(await db.prepare("SELECT count(*) AS n FROM inbox_generated_attempts WHERE owner='owner'").first("n")).toBe(2);

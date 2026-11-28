@@ -1864,7 +1864,10 @@ it("requires fresh consent and key possession for each renewable lease, leaving 
   const f = await generatedFixture(false, false, ["all-direct"], 4);
   expect((await f.approve("generated-current-and-future-inbox-v2")).status).toBe(409);
   expect(await (await f.api(f.desktop.cookie, { action: "lease" })).json()).toMatchObject({ enabled: false });
+  const oldApproval=await f.db.prepare("UPDATE inbox_generated_grants SET review=NULL,after_seq=0 WHERE id=? AND after_seq IS NULL").bind(f.id).run();
+  expect(oldApproval.meta.changes).toBe(0);
   expect((await f.approve()).ok).toBe(true);
+  expect(await f.db.prepare("SELECT expires FROM inbox_generated_grants WHERE id=?").bind(f.id).first("expires")).toBe(0);
   await f.db.prepare("UPDATE inbox_twin_pairings SET expires=0 WHERE id=?").bind(f.pairing).run();
   await f.db
     .prepare("UPDATE inbox_generated_leases SET lease_expires=? WHERE id=?")

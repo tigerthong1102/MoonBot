@@ -280,6 +280,7 @@ export async function inboxGeneratedAnswer(
       db
         .prepare(
           `UPDATE inbox_generated_grants SET review=NULL,after_seq=(SELECT COALESCE(max(seq),0) FROM inbox_posts),
+         expires=CASE WHEN daily_limit IS NOT NULL THEN 0 ELSE expires END,
          authority_until=CASE WHEN daily_limit IS NOT NULL THEN MIN(authority_until,?7) END
         WHERE ${reviewable} AND review=?5 AND ?6=CASE WHEN daily_limit IS NOT NULL THEN 'generated-while-online-v3' WHEN EXISTS(SELECT 1 FROM json_each(rooms) WHERE value IN ('all-direct','all-managed-groups'))
           THEN 'generated-current-and-future-inbox-v2' ELSE 'generated-inbox-answer-v1' END AND NOT ${missingRoom("rooms", "?1")}

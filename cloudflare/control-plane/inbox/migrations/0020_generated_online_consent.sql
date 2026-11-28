@@ -9,9 +9,13 @@ CREATE TABLE inbox_generated_leases (
 CREATE TABLE inbox_generated_limits (
   owner TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE, daily_limit INTEGER NOT NULL, enforce_until INTEGER NOT NULL
 );
+CREATE TRIGGER inbox_generated_require_online_approval BEFORE UPDATE OF after_seq ON inbox_generated_grants
+  WHEN OLD.after_seq IS NULL AND NEW.after_seq IS NOT NULL AND NEW.daily_limit IS NOT NULL AND NEW.expires!=0 BEGIN
+  SELECT RAISE(IGNORE);
+END;
 CREATE TRIGGER inbox_generated_start_online AFTER UPDATE OF after_seq ON inbox_generated_grants
   WHEN OLD.after_seq IS NULL AND NEW.after_seq IS NOT NULL AND NEW.daily_limit IS NOT NULL BEGIN
-  INSERT INTO inbox_generated_leases(id,lease_expires) VALUES(NEW.id,NEW.expires);
+  INSERT INTO inbox_generated_leases(id,lease_expires) VALUES(NEW.id,OLD.expires);
   INSERT INTO inbox_generated_limits(owner,daily_limit,enforce_until) VALUES(NEW.owner,NEW.daily_limit,
     CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)+86400000)
     ON CONFLICT(owner) DO UPDATE SET daily_limit=excluded.daily_limit,enforce_until=excluded.enforce_until;
@@ -51,4 +55,25 @@ END;
 CREATE TRIGGER inbox_generated_new_lease AFTER UPDATE OF lease_expires ON inbox_generated_leases
   WHEN OLD.lease_expires<=CAST((julianday('now')-2440587.5)*86400000 AS INTEGER) AND NEW.lease_expires>OLD.lease_expires BEGIN
   DELETE FROM inbox_generated_disclosures WHERE grant_id=NEW.id;
+END;
+
+DROP TRIGGER inbox_generated_forget;
+CREATE TRIGGER inbox_generated_forget AFTER DELETE ON inbox_generated_grants BEGIN
+  INSERT INTO inbox_generated_revoked(owner,id,expires)
+    SELECT OLD.owner,OLD.id,iif(OLD.daily_limit IS NULL, OLD.expires,
+      MAX(OLD.expires,CAST((julianday('now')-2440587.5)*86400000 AS INTEGER)+600000))
+    FROM "user" WHERE id=OLD.owner
+    ON CONFLICT(owner,id) DO UPDATE SET expires=max(expires,excluded.expires);
+END;
+CREATE TRIGGER inbox_generated_owner_budget BEFORE INSERT ON inbox_generated_jobs BEGIN
+  SELECT RAISE(IGNORE) WHERE EXISTS(
+    WITH window(now) AS (SELECT CAST((julianday('now')-2440587.5)*86400000 AS INTEGER))
+    SELECT 1 FROM window WHERE
+      EXISTS(SELECT 1 FROM inbox_generated_cutover c WHERE c.owner=NEW.owner AND c.resumes>window.now) OR
+      EXISTS(SELECT 1 FROM inbox_generated_attempts t WHERE t.owner=NEW.owner AND t.occupied_until>window.now) OR
+      (SELECT count(*) FROM inbox_generated_attempts t WHERE t.owner=NEW.owner AND t.reserved_at>window.now-600000)>=5 OR
+      (SELECT count(*) FROM inbox_generated_attempts t WHERE t.owner=NEW.owner AND t.reserved_at>window.now-86400000)>=COALESCE(
+        (SELECT daily_limit FROM inbox_generated_grants WHERE id=NEW.grant_id AND owner=NEW.owner),
+        (SELECT daily_limit FROM inbox_generated_limits l WHERE l.owner=NEW.owner AND l.enforce_until>window.now),720)
+  );
 END;

@@ -3,13 +3,10 @@ import { copyText } from "./clipboard-write.js";
 const el = id => document.getElementById(id);
 const locale = document.documentElement.lang;
 function readCatalog() {
-  try {
-    const data = JSON.parse(el("mobileCatalog").textContent);
-    const keys = [...document.querySelectorAll("[data-t], [data-t-label]")].map(node => node.dataset.t || node.dataset.tLabel);
-    if (data.locale === locale && keys.every(key => typeof data.messages?.[key] === "string" && data.messages[key]))
-      return data;
-  } catch { /* The server-rendered recovery link remains usable. */ }
-  return null;
+  let data;
+  try { data = JSON.parse(el("mobileCatalog").textContent); } catch { return null; }
+  const keys = [...document.querySelectorAll("[data-t], [data-t-label]")].map(node => node.dataset.t || node.dataset.tLabel);
+  return data?.locale === locale && keys.every(key => typeof data.messages?.[key] === "string" && data.messages[key]) ? data : null;
 }
 const catalog = readCatalog();
 const t = key => catalog && Object.hasOwn(catalog.messages, key) ? catalog.messages[key] : undefined;

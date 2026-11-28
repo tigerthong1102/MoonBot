@@ -42,7 +42,6 @@ export function mobileCatalog(tag) {
   return { locale, messages };
 }
 
-/** Browser requests can carry several language ranges, including unsupported ones ahead of a supported preference. */
 export function preferredMobileLanguage(header = "") {
   const preferences = header.split(",").map(part => {
     const [tag, weight] = part.trim().split(/\s*;\s*/);

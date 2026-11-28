@@ -163,7 +163,17 @@ el("login").onsubmit = event => {
     }
   });
 };
-el("retry").onclick = () => action(openChat);
+el("retry").onclick = () => action(async () => {
+  if (!account || !thread || el("chat").hidden) return openChat();
+  el("retry").hidden = true;
+  try {
+    const saved = await list();
+    if (saved?.some(item => item.id === thread)) await refreshTranscript();
+  } catch (error) {
+    el("retry").hidden = !account;
+    throw error;
+  }
+});
 el("changeEmail").onclick = signedOut;
 el("logout").onclick = () => action(async () => { await api("logout", {}); signedOut(); channel?.postMessage("changed"); });
 el("threads").onchange = () => action(() => show(el("threads").value));

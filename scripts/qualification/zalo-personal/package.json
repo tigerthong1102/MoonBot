@@ -1,0 +1,22 @@
+{
+  "name": "startupbot-zalo-personal-qualification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26.4.0"
+  },
+  "scripts": {
+    "test": "node qualify.mjs",
+    "benchmark": "node bench.mjs",
+    "test:integration": "node --test worker-integration.mjs delivery-cases.mjs"
+  },
+  "dependencies": {
+    "zca-js": "2.2.0"
+  },
+  "overrides": {
+    "zca-js": {
+      "tough-cookie": "6.0.2"
+    }
+  }
+}

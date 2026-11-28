@@ -168,3 +168,44 @@ it("clears the access error when a source is successfully reselected after acces
   expect(document.body.querySelector('[role="alert"]')).toBeNull();
   await act(async () => root.unmount());
 });
+
+it("watches the verified conversation after a manual retry from an initially unavailable scope", async () => {
+  const key = JSON.stringify(["viewer", "thread"]), digest = createHash("sha256").update("Sensitive policy").digest("hex");
+  let scope: () => string | null = () => null;
+  let revoke: (cause?: unknown) => void = () => {};
+  vi.mocked(libraryKey).mockResolvedValueOnce(null).mockResolvedValue(key);
+  vi.mocked(observeLibraryOwner).mockImplementation((getScope, unavailable) => { scope = getScope; revoke = unavailable; return () => {}; });
+  vi.mocked(currentLibrary).mockResolvedValue(undefined);
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(createElement(SourceCitation, { threadId: "thread", digest, start: 0 }, "[1]")));
+  await act(async () => host.querySelector("button")!.click());
+  expect(scope()).toBeNull();
+  const input = document.querySelector<HTMLInputElement>('input[type="file"]')!;
+  Object.defineProperty(input, "files", { value: [new File(["Sensitive policy"], "secret.txt")] });
+  await act(async () => { input.dispatchEvent(new Event("change", { bubbles: true })); });
+  await vi.waitFor(() => expect(document.body.textContent).toContain("Sensitive policy"));
+  expect(scope()).toBe(key);
+  await act(async () => revoke());
+  expect(document.body.textContent).not.toContain("Sensitive policy");
+  await act(async () => root.unmount());
+});
+
+it("ignores an old observer notification after the citation is reopened", async () => {
+  const key = JSON.stringify(["viewer", "thread"]), digest = "a".repeat(64);
+  const doc = { path: "secret.txt", digest, file: new File(["Sensitive policy"], "secret.txt"), passages: [{ page: 1, paragraph: 1, start: 0, text: "Sensitive policy" }] };
+  let oldRevoke: (cause?: unknown) => void = () => {};
+  vi.mocked(observeLibraryOwner).mockImplementationOnce((_scope, unavailable) => { oldRevoke = unavailable; return () => {}; }).mockReturnValue(() => {});
+  vi.mocked(libraryKey).mockResolvedValue(key);
+  vi.mocked(currentLibrary).mockResolvedValue({ docs: new Map([[doc.path, doc]]), changes: [] });
+  const host = document.createElement("div"); document.body.append(host); const root = createRoot(host);
+  await act(async () => root.render(createElement(SourceCitation, { threadId: "thread", digest, start: 0 }, "[1]")));
+  await act(async () => host.querySelector("button")!.click());
+  await act(async () => document.querySelector<HTMLButtonElement>("dialog button")!.click());
+  const proof = Promise.withResolvers<string | null>();
+  vi.mocked(libraryKey).mockReturnValueOnce(proof.promise);
+  await act(async () => host.querySelector("button")!.click());
+  await act(async () => oldRevoke());
+  await act(async () => proof.resolve(key));
+  expect(document.body.textContent).toContain("Sensitive policy");
+  await act(async () => root.unmount());
+});

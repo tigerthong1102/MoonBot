@@ -13,6 +13,8 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
   const [issue, setIssue] = useState<SourceAnswerIssue | null>(null);
   const [resume, setResume] = useState(0);
   const generation = useRef(0);
+  const watchedScope = useRef<string | null>(null);
+  const watching = useRef(false);
   useEffect(() => {
     if (!open) return;
     const onVisibilityChange = () => {
@@ -31,21 +33,24 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
     let active = true;
     let invalidated = false;
     const visit = ++generation.current;
-    let scope: string | null = null;
+    watchedScope.current = null;
+    watching.current = false;
     let stop: (() => void) | undefined;
     setDoc(null);
     setBusy(true);
     setIssue(null);
     void import("./source-sync").then(async module => {
       if (!active) return;
-      stop = module.observeLibraryOwner(() => scope, (cause) => {
+      stop = module.observeLibraryOwner(() => watchedScope.current, (cause) => {
+        if (!active) return;
         invalidated = true;
         generation.current++;
-        if (active) { setBusy(false); setDoc(null); setIssue(cause ? sourceAnswerIssue(cause) : "knowledge.answerAccess"); }
+        setBusy(false); setDoc(null); setIssue(cause ? sourceAnswerIssue(cause) : "knowledge.answerAccess");
       });
+      watching.current = true;
       const key = await libraryKey(threadId, { signal, reportOffline: true });
       if (!active || generation.current !== visit) return;
-      scope = key;
+      watchedScope.current = key;
       if (!key) { if (active) setIssue("knowledge.answerAccess"); return; }
       const index = await module.currentLibrary(key, { signal });
       if (!active || generation.current !== visit) return;
@@ -57,20 +62,22 @@ export function SourceCitation({ threadId, digest, start, path, signal, children
     }).then(index => {
       if (active && !invalidated && generation.current === visit) setDoc([...index?.docs.values() ?? []].find(d => d.digest === digest && (!path || d.path === path) && d.passages.some(p => p.start === start)) ?? null);
     }).catch((cause: unknown) => { if (active && generation.current === visit) { setDoc(null); setIssue(sourceAnswerIssue(cause)); } }).finally(() => { if (active && generation.current === visit) setBusy(false); });
-    return () => { active = false; generation.current++; stop?.(); };
+    return () => { active = false; generation.current++; watching.current = false; watchedScope.current = null; stop?.(); };
   }, [open, threadId, digest, start, path, signal, resume]);
   async function pick(file: File) {
     const visit = generation.current;
     setBusy(true);
     try {
       const key = await libraryKey(threadId, { signal });
-      if (!key || generation.current !== visit) return;
+      if (!key || !watching.current || generation.current !== visit) return;
       const index = await indexSources([{ path: file.name, file }], { docs: new Map(), changes: [] });
       if (generation.current !== visit) return;
       const found = index.docs.get(file.name);
       const allowed = await libraryKey(threadId, { signal }) === key;
       if (generation.current === visit) {
         const verified = allowed && found?.digest === digest && found.passages.some(p => p.start === start) ? found : null;
+        if (verified && watching.current) watchedScope.current = key;
+        else if (verified) return;
         setDoc(verified);
         if (verified) setIssue(null);
       }

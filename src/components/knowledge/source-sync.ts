@@ -173,7 +173,8 @@ export function watchDocumentSources() {
       if (read.signal.aborted) return;
       for (const [revoked, scope] of readers) {
         const key = scope();
-        if (openLibraries.has(revoked) && (!owner || (key && (!ownedBy(key, owner) || !await readableKey(key, read))))) revoked();
+        const unavailable = !owner || (key && (!ownedBy(key, owner) || !await readableKey(key, read)));
+        if (openLibraries.has(revoked) && scope() === key && unavailable) revoked();
       }
       if (!owner) return;
       for (const slot of slots ?? await watchedSlots()) {

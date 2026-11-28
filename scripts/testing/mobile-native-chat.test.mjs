@@ -98,7 +98,11 @@ it("deletes and renames tasks only in their owning native roster", async () => {
   const { bots:[root] } = await (await request(token,"/api/bots")).json();
   const url = "/api/bots/"+root.id+"/tasks";
   const {bot:next} = await (await request(token,url,{title:"Second"})).json();
-  const mutate = (id,method,body) => fetch(fixture.url+url+"/"+id,{method,headers:{authorization:"Bearer "+token,"content-type":"application/json"},body:body && JSON.stringify(body)});
+  const mutate = (id,method,body) => {
+    const headers = {authorization:"Bearer "+token,"content-type":"application/json"};
+    const options = body ? {method:"PATCH",headers,body:JSON.stringify(body)} : {method,headers};
+    return fetch(fixture.url+url+"/"+id,options);
+  };
   expect((await mutate(next.threadId,"PATCH",{title:"Updated"})).status).toBe(200);
   const {bot:remaining} = await (await mutate(root.threadId,"DELETE")).json();
   expect(remaining.id).toBe(root.id);

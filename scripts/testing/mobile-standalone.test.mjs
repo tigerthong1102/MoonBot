@@ -374,3 +374,21 @@ it("serves a browser-ready shared clipboard module and uses neutral reference-sk
   const { copyText } = await import(/* @vite-ignore */ "data:text/javascript;base64," + Buffer.from(source).toString("base64"));
   expect(await copyText(" ")).toBe("empty");
 });
+
+it("serves mobile copy from the registered catalogs with script, region and fallback handling", async () => {
+  for (const [tag, locale, signIn] of [
+    ["fr-CA", "fr", "Continuer par e-mail"], ["ja-JP", "ja", "メールで続行"],
+    ["zh_Hant_HK", "zh-tw", "使用電子郵件繼續"], ["zh-CN", "zh", "使用邮箱继续"],
+    ["pt-PT", "pt-br", "Continuar com e-mail"], ["vi-VN", "vi", "Tiếp tục bằng email"],
+    ["ar-EG", "en", "Continue with email"],
+  ]) {
+    const response = await f.call("/messages?lang=" + encodeURIComponent(tag));
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.locale).toBe(locale);
+    expect(data.messages.code).toBe(signIn);
+    expect(data.messages.consent).toContain("OpenRouter");
+    expect(data.messages.send).toBeTruthy();
+    expect(data.messages["personalInbox.title"]).toBeUndefined();
+  }
+});

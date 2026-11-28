@@ -345,6 +345,8 @@ desktop routing, cancellation, and computer authority cleanup.
 
 ## Evidence
 
+The [Zalo release assessment](zalo-release-assessment.md) records which messaging, privacy and Vietnamese workflow scenarios passed in each tested environment.
+
 The [Gemini speech fixture](gemini-speech.md) checks write-only credentials,
 voice selection and WAV synthesis against an offline provider in an isolated
 server, with manual steps for real Google access and playback.

@@ -5,6 +5,7 @@ import { lookForGrokBot, removeOldCursorSignIn } from "../grok-local.ts";
 import { createGrokMove, type GrokMove } from "../grok-move-tunnel.ts";
 import { applySetupImport, detectSetup, thisMachine, type SetupHost, type SetupMachine } from "../setup-import.ts";
 import type { BusyFlag } from "./config.ts";
+import { createZaloWorkflowReviewRoutes } from "./zalo-workflow-review.ts";
 import { createZaloOfficialRoutes } from "./zalo-official.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -83,5 +84,5 @@ export function createSetupImportRoutes(deps: SetupImportRouteDeps): RouteHandle
 }
 
 export function createDesktopImportRoutes(deps: SetupImportRouteDeps): RouteHandler[] {
-  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local)];
+  return [createSetupImportRoutes(deps), createZaloOfficialRoutes(deps.local), createZaloWorkflowReviewRoutes(deps.local)];
 }

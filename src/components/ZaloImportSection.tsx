@@ -35,6 +35,7 @@ function TwinForExcerpt({ text, source }: { text: string; source: ZaloSourceLine
     allowSemantic={Boolean(view.lessons?.some(lesson => lesson.allowProvider))} refresh={() => setAttempt(a => a + 1)} /></>;
 }
 
+const WorkflowReview = lazy(() => import("./ZaloWorkflowReview"));
 const RoutineEditor = lazy(() => import("./RoutineCalendarPage").then(module => ({ default: module.EventEditor })));
 const BrainDialog = lazy(() => import("./knowledge/BrainDialog"));
 
@@ -50,6 +51,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
   const [selected, setSelected] = useState<number | null>(null);
 
   const [reminder, setReminder] = useState<{ line: number; at: number } | null>(null);
+  const [workflowLine, setWorkflowLine] = useState<number | null>(null);
   const [brain, setBrain] = useState<string | null>(null);
   const closeBrain = useCallback(() => setBrain(null), []);
 
@@ -78,7 +80,7 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
 
   const visible = rows.filter(row => matchesZaloReport(row, filter));
   const pageSize = 20;
-  function move(next: number) { setSelected(null); setPage(next); }
+  function move(next: number) { setWorkflowLine(null); setSelected(null); setPage(next); }
   function clear() { setRows(null); setSource(""); setInput(""); closeBrain(); setReminder(null); setFilter("all"); move(0); }
   return <section className="flex flex-col gap-3">
     <ZaloReportControls rows={rows} source={source} filter={filter} onFilter={next => { setFilter(next); move(0); }} />
@@ -94,6 +96,9 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
           onClick={() => setSelected(selected === row.line ? null : row.line)}>{t("settings.aiTwin.preview")}</button>}
         {bot && row.text.length <= 1_000 && <button type="button" className="ui-button self-start" onClick={() => setBrain(row.text)}>{t("zalo.brain")}</button>}
         {bot && (row.work.length > 0 || row.deadlineText) && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
+        {bot && row.work.length > 0 && <button type="button" className="ui-button self-start" aria-expanded={workflowLine === row.line}
+          onClick={() => setWorkflowLine(workflowLine === row.line ? null : row.line)}>{t("zalo.workflow.review")}</button>}
+        {bot && workflowLine === row.line && <Suspense><WorkflowReview key={bot.threadId + ":" + row.line} bot={bot} source={source} line={row.line} /></Suspense>}
         {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
       </li>)}</ol>
     {bot && reminder && <Layer modal><Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}

@@ -314,6 +314,18 @@ export function restoreComposerDraft(id: string, draft: DraftRestore): void {
   for (const listener of restoreListeners.get(id) ?? []) listener(draft);
 }
 
+/** Prepare a new, unsent workflow command without combining it with a prior draft, reply or attachment. */
+export function prepareWorkflowDraft(botId: string, threadId: string, command: string): boolean {
+  const store = getStore();
+  const id = `bot:${botId}:${threadId}`;
+  if (replyDraft(threadId) || [id, `bot:${botId}`].some(key =>
+    getDraft(store, key) || getDraftAttachments(store, key).length || getDraftChannelMode(store, key) !== "chat"
+    || isDraftAttachmentPending(key) || restoredSendId(key) || failedComposerSends(key).length)) return false;
+  markDraftEdited(id);
+  restoreComposerDraft(id, { text: command, attachments: [], channelMode: "chat" });
+  return true;
+}
+
 export function appendComposerDraft(id: string, text: string): void {
   const store = getStore();
   const current = getDraft(store, id);

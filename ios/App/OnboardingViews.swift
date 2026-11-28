@@ -136,12 +136,12 @@ struct UnpairedHomeView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    MobileChatButton()
                     Text("On your computer, open StartupBot → Settings → Phone.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
 
+                    MobileChatButton()
                     Spacer(minLength: 30)
                 }
                 .padding(28)

@@ -68,9 +68,19 @@ module.exports = async function verifyGenerated({ d, b, mobile, cfg, until, dela
       await until(peer, '('+read+').then(rows=>rows.length===2)');
       assert.deepEqual(await js(peer,read),expected);
     }
+    if (cfg.rollback) {
+      const account = require("electron").session.fromPartition("persist:startupbot-personal-inbox");
+      account.webRequest.onBeforeRequest({urls:[cfg.origin+"/*"]}, (_details,reply)=>reply({cancel:true}));
+      require("node:fs").writeFileSync(require("node:path").join(cfg.scratch,"generated.disabled"),"off");
+      await mobile.loadURL(cfg.origin);
+      await until(mobile, '!document.querySelector("#twin-generated").hidden');
+      const me = await js(mobile,'(async()=>(await(await fetch("/api/me")).json()))()');
+      assert.equal(me.generatedManageOnly,true);
+      assert.equal(me.generatedAnswer,undefined);
+    }
     await js(mobile,'document.querySelector("#twin-generated summary").click()');
     await until(mobile,'document.querySelectorAll("#generated-terms button").length===1');
-    if (cfg.ongoing && !cfg.renewalCycle) {
+    if (cfg.ongoing && !cfg.rollback && !cfg.renewalCycle) {
       d.once("close", event => event.preventDefault());
       d.close();
       assert(!d.isDestroyed());
@@ -78,6 +88,13 @@ module.exports = async function verifyGenerated({ d, b, mobile, cfg, until, dela
       await js(mobile,'document.querySelector("#generated-terms button").click()');
     }
     await until(mobile,'(async()=>!(await(await fetch("/api/twin-generated")).json()).grant)()');
+    if (cfg.rollback) {
+      const off = await js(mobile,'import("/inbox-i18n.js").then(({t})=>t("personalInbox.generatedOff"))');
+      await until(mobile,'document.querySelector("#generated-status").textContent==='+JSON.stringify(off));
+      require("node:fs").unlinkSync(require("node:path").join(cfg.scratch,"generated.disabled"));
+      require("electron").session.fromPartition("persist:startupbot-personal-inbox").webRequest.onBeforeRequest(null);
+      assert.equal(await js(mobile,'(async()=>(await(await fetch("/api/twin-generated")).json()).grant)()'),null);
+    }
     await send(); await delay(2500);
     assert.deepEqual(await js(peer,read),expected);
     console.log("PASS: "+(cfg.future ? "future DM created after both approvals" : "selected DM")+", visible sender notice, "+expected.length+" provider answer(s), revocation read back from an independent session.");

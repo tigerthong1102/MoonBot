@@ -1,3 +1,4 @@
+import { mobileCatalog } from "./mobile-catalog.mjs";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { createControlPlaneClient, ControlPlaneError } from "../../electron/control-plane-client.mjs";
@@ -55,6 +56,9 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     if (method === "GET" && path === "/mobile/clipboard-write.js") {
       res.writeHead(200, { "content-type": "application/javascript; charset=utf-8" });
       return res.end(clipboard);
+    }
+    if (method === "GET" && path === "/mobile/messages") {
+      return json(200, mobileCatalog(new URL(req.url, origin).searchParams.get("lang")));
     }
     if (method === "GET" && path === "/mobile/skin.css") {
       res.writeHead(200, { "content-type":"text/css; charset=utf-8" });

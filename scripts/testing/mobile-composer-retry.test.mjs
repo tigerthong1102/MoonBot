@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const el = id => document.getElementById(id);
 
-let send, history, extraPicker;
+let send, history, threads, extraPicker;
 
 beforeEach(async () => {
   vi.resetModules();
@@ -19,11 +19,12 @@ beforeEach(async () => {
     option.value = value;
     return option;
   });
+  threads = vi.fn(() => Response.json({ account:"test", threads:[] }));
   send = vi.fn();
   history = vi.fn();
   vi.stubGlobal("BroadcastChannel", undefined);
   vi.stubGlobal("fetch", async (path, init) => {
-    if (path === "/mobile/threads") return Response.json({ account:"test", threads:[] });
+    if (path === "/mobile/threads") return threads();
     if (path === "/mobile/history") return history();
     if (path === "/mobile/logout") return Response.json({});
     if (path === "/mobile/send") return send(JSON.parse(init.body));
@@ -186,4 +187,27 @@ it("keeps a stopped reply out of the announcement even when its terminal frame i
   await idle();
   expect(el("announcement").textContent).toBe(mobileCatalog("en").messages.interrupted);
   expect(document.activeElement).toBe(el("skill"));
+});
+
+it("reconnects without replacing an unsaved conversation or its newer draft", async () => {
+  const first = Promise.withResolvers();
+  send.mockReturnValueOnce(first.promise).mockResolvedValueOnce(success());
+  threads.mockImplementationOnce(() => { throw Error("offline"); });
+  submit();
+  el("prompt").value = "newer draft";
+  first.reject(Error("offline"));
+  await idle();
+  expect(el("retry").hidden).toBe(false);
+  threads.mockImplementation(() => Response.json({ account:"test", threads:[{ id:"another", title:"Other conversation" }] }));
+  el("retry").click();
+  await idle();
+  expect(el("retry").hidden).toBe(true);
+  expect(el("threads").value).toBe("");
+  expect(el("prompt").value).toBe("newer draft");
+  expect(el("consent").checked).toBe(true);
+  el("prompt").value = "original";
+  submit();
+  await idle();
+  expect(send.mock.calls[1][0].thread).toBe(send.mock.calls[0][0].thread);
+  expect(send.mock.calls[1][0].id).toBe(send.mock.calls[0][0].id);
 });

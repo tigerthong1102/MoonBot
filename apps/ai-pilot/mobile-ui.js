@@ -240,7 +240,17 @@ el("login").onsubmit = event => {
     }
   });
 };
-el("retry").onclick = () => action(openChat);
+el("retry").onclick = () => action(async () => {
+  if (!account || !thread || el("chat").hidden) return openChat();
+  el("retry").hidden = true;
+  try {
+    const saved = await list();
+    if (saved?.some(item => item.id === thread)) await loadHistory(true);
+  } catch (error) {
+    el("retry").hidden = !account;
+    throw error;
+  }
+});
 el("usage").ontoggle = async () => {
   if (!el("usage").open) return;
   const initiatingAccount = account;

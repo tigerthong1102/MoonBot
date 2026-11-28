@@ -97,7 +97,7 @@ export function ZaloPairingSetup({ approvedSendPilot = false }: { approvedSendPi
         onClick={() => void update({ action: "invite", revision: status.revision })}>{t(status.state === "ready" ? "zaloPair.invite" : "zaloPair.replace")}</button>}
       {status?.revision && !confirmRevoke && <button className="ui-button" type="button" onClick={() => setConfirmRevoke(true)}>{t("zaloPair.revoke")}</button>}
     </div>
-    {approvedSendPilot && status?.state === "paired" && <ZaloApprovedReply key={status.revision} />}
+    {approvedSendPilot && status?.state === "paired" && <ZaloApprovedReply key={`reply-${status.revision}`} />}
     {confirmRevoke && status?.revision && <div className="grid gap-2 text-sm">
       <p>{t("zaloPair.deleteNotice")}</p>
       <div className="flex gap-2">

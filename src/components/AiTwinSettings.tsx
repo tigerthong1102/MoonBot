@@ -26,6 +26,12 @@ export function AiTwinSettings() {
   const createButton = useRef<HTMLButtonElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const alive = useRef(false);
+  const backgroundRead = useRef(false);
+  const authority = useRef(0);
+  const generation = authority.current;
+  const current = () => alive.current && authority.current === generation;
+  const accept = (next: AiTwinView) => { if (current()) setView(next); };
+  const visibleLessons = (view?.lessons ?? []).map(lesson => lesson.id).join(",");
   const twin = view?.twin;
   const reviewableExample = example && twin && !twin.paused && view?.controls?.sourceIds.includes(example.thread) ? example : null;
 
@@ -34,7 +40,18 @@ export function AiTwinSettings() {
   useEffect(() => {
     alive.current = true;
     const abort = new AbortController();
-    void api<AiTwinView>(AI_TWIN_PATH, { signal: abort.signal, timeoutMs: 8_000 })
+    const refreshAuthority = () => {
+      authority.current++;
+      abort.abort();
+      setView(null);
+      setExample(null);
+      if (document.visibilityState === "hidden") return;
+      backgroundRead.current = true;
+      setLoadAttempt(attempt => attempt + 1);
+    };
+    window.addEventListener("focus", refreshAuthority);
+    document.addEventListener("visibilitychange", refreshAuthority);
+    void api<AiTwinView>(AI_TWIN_PATH, { signal: abort.signal, timeoutMs: 8_000, background: backgroundRead.current })
       .then((result) => {
         if (abort.signal.aborted) return;
         setView(result);
@@ -46,7 +63,12 @@ export function AiTwinSettings() {
       .finally(() => {
         if (!abort.signal.aborted) setRetrying(false);
       });
-    return () => { alive.current = false; abort.abort(); };
+    return () => {
+      alive.current = false;
+      window.removeEventListener("focus", refreshAuthority);
+      document.removeEventListener("visibilitychange", refreshAuthority);
+      abort.abort();
+    };
   }, [loadAttempt]);
 
   useEffect(() => { if (editing) nameInput.current?.focus(); }, [editing]);
@@ -54,9 +76,9 @@ export function AiTwinSettings() {
   async function reload() {
     try {
       const result = await api<AiTwinView>(AI_TWIN_PATH, { timeoutMs: 8_000 });
-      if (alive.current) { setView(result); setError(null); }
+      if (current()) { setView(result); setError(null); }
     } catch {
-      if (alive.current) setError("load");
+      if (current()) setError("load");
     }
   }
 
@@ -73,18 +95,18 @@ export function AiTwinSettings() {
     setError(null);
     try {
       const result = await api<AiTwinView>(AI_TWIN_PATH, { method, body: JSON.stringify(body), timeoutMs: 8_000 });
-      if (!alive.current) return;
+      if (!current()) return;
       setView(result);
       if (!result.twin) setExample(null);
       setEditing(false);
       setConfirming(false);
       requestKey.current = null;
     } catch (reason) {
-      if (!alive.current) return;
+      if (!current()) return;
       if (reason instanceof ApiError && reason.body?.error === "twin_changed") {
         setError("conflict");
         const fresh = await api<AiTwinView>(AI_TWIN_PATH, { timeoutMs: 8_000 }).catch(() => null);
-        if (alive.current && fresh) {
+        if (current() && fresh) {
           setView(fresh);
           setEditing(false);
           setConfirming(false);
@@ -93,7 +115,7 @@ export function AiTwinSettings() {
         setError("save");
       }
     } finally {
-      if (alive.current) setPending(false);
+      if (current()) setPending(false);
     }
   }
 
@@ -151,12 +173,12 @@ export function AiTwinSettings() {
             </button>
           </div>
           {!twin.paused && <AiTwinPairing key={twin.id + ":" + twin.revision} />}
-          <AiTwinLessons key={"lessons:" + twin.id} twin={twin} lessons={view?.lessons ?? []}
-            changed={setView} refresh={() => void reload()} example={reviewableExample} />
-          {view && <AiTwinControls key={"controls:" + twin.id} view={view} changed={setView}
+          <AiTwinLessons key={"lessons:" + twin.id + ":" + visibleLessons} twin={twin} lessons={view?.lessons ?? []} unavailable={view?.unavailableLessonIds}
+            changed={accept} refresh={() => void reload()} example={reviewableExample} />
+          {view && <AiTwinControls key={"controls:" + twin.id + ":" + visibleLessons} view={view} changed={accept}
             refresh={() => void reload()} reviewExample={(entry) => setExample({ ...entry })} />}
           {view?.canReviewOwnerStyle && <AiTwinZaloOwnerStyle twin={twin} refresh={() => void reload()} />}
-          {!twin.paused && <AiTwinPreview key={"preview:" + twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "")}
+          {!twin.paused && <AiTwinPreview key={"preview:" + twin.id + ":" + twin.revision + ":" + (view?.preview?.key ?? "") + ":" + visibleLessons}
             twin={twin} provider={view?.preview} allowSemantic={view?.lessons?.some((lesson) => lesson.allowProvider) === true} refresh={() => void reload()} />}
           <ConfirmDialog open={confirming} title={t("settings.aiTwin.delete")} body={<>
             {t("settings.aiTwin.deleteBody")}
@@ -177,6 +199,7 @@ export function AiTwinSettings() {
           <p role="alert" className="text-[12px] text-danger">{t("settings.aiTwin.loadError")}</p>
           <button type="button" className="ui-button" disabled={retrying} onClick={() => {
             setRetrying(true);
+            backgroundRead.current = false;
             setLoadAttempt((attempt) => attempt + 1);
           }}>{t("common.tryAgain")}</button>
         </div>

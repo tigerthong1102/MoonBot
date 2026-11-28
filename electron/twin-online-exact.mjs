@@ -50,11 +50,11 @@ export function createOnlineExact({
       account.owner !== key.owner
     )
       throw unavailable();
-    return { key, lessons: (view.lessons ?? []).filter((l) => l.source === "owner"), rooms: account.rooms };
+    return { key, lessons: (view.lessons ?? []).filter((l) => l.origin === "manual"), rooms: account.rooms };
   }
   async function checkLesson(grant) {
     const view = await profile(),
-      lesson = view.lessons?.find((l) => l.id === grant.lesson && l.source === "owner");
+      lesson = view.lessons?.find((l) => l.id === grant.lesson && l.origin === "manual");
     if (
       view.twin?.id !== grant.twin ||
       view.twin.revision !== grant.revision ||

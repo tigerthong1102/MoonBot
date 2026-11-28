@@ -1,3 +1,4 @@
+import { twinExampleSource } from "./ai-twin-lesson-sources.ts";
 import { z } from "zod";
 import {
   AI_TWIN_LESSON_ANSWER_MAX, AI_TWIN_LESSON_QUESTION_MAX, AI_TWIN_QUESTION_MAX,
@@ -13,6 +14,7 @@ export const storedTwinLesson = z.strictObject({
   ...twinLessonFields,
   id: z.uuid(),
   source: z.literal("owner"),
+  origin: z.union([z.literal("manual"), twinExampleSource]).optional(),
   allowProvider: z.literal(true).optional(),
   updatedAt: z.number().int().nonnegative(),
 });

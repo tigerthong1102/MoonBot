@@ -36,6 +36,7 @@ export function AiTwinControls({ view, changed, refresh, reviewExample }: {
   if (!twin || !controls) return null;
   const roomLabels = new Map((scopes?.rooms ?? []).map((entry) => [entry.id, entry.label]));
   const sourceLabels = new Map((scopes?.conversations ?? []).map((entry) => [entry.id, entry.label]));
+  const manual = lessons?.filter(entry => entry.origin === "manual");
   const lessonLabels = new Map((lessons ?? []).map((entry) => [entry.id, entry.question]));
 
   async function patch(path: string, body: object) {
@@ -58,7 +59,7 @@ export function AiTwinControls({ view, changed, refresh, reviewExample }: {
   const readySource = sourceLabels.has(source) && !controls.sourceIds.includes(source);
   const readyRoom = roomLabels.has(room) && lessonLabels.has(lesson)
     && !controls.delegations.some((grant) => grant.room === room && grant.lesson === lesson);
-  const grantedLesson = lessons?.find((entry) => entry.id === lesson);
+  const grantedLesson = manual?.find((entry) => entry.id === lesson);
 
   return <SettingsFoldRow id="ai-twin-controls" panelId={panelId} title={t("settings.aiTwin.controls")}
     open={open} onToggle={() => { setOpen(!open); setScopes(null); setError(false); }}>
@@ -105,7 +106,7 @@ export function AiTwinControls({ view, changed, refresh, reviewExample }: {
         <SettingsField label={t("settings.aiTwin.lessonQuestion")}>
           <Select value={lesson} onChange={(event) => setLesson(event.target.value)} disabled={pending}>
             <option value="">{t("settings.aiTwin.chooseLesson")}</option>
-            {lessons?.map((entry) => <option key={entry.id} value={entry.id}>{entry.question}</option>)}
+            {manual?.map((entry) => <option key={entry.id} value={entry.id}>{entry.question}</option>)}
           </Select>
         </SettingsField>
         {grantedLesson && <p dir="auto" className="whitespace-pre-wrap break-words text-[13px]">{grantedLesson.answer}</p>}

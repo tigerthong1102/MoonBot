@@ -917,14 +917,14 @@ function sharedComputerPrincipal(capability: Pick<InternalCapability, "botId" | 
 
 /** The only conversations that may feed a bot's memory, daily log, recall or brief; dropped whenever a session is revoked. */
 const ownerOnlyCache = new Map<string, { length: number; last?: string; owner: boolean }>();
-function cloudOwnerOnlyThread(threadId: string): boolean {
+function cloudOwnerOnlyThread(threadId: string, fresh = false): boolean {
   if (cloudBotOpened(threadId) || cloudThreadStarters(threadId).some((person) => person !== undefined && !cloudProvenOwnerPerson(person))) return false;
   const thread = store.messagesFor(threadId);
   const last = thread.at(-1);
   const cached = ownerOnlyCache.get(threadId);
   // A card answered later changes the answer too: key on its answerer as well.
   const lastKey = last ? `${last.id}:${last.card?.answeredBy ? JSON.stringify(last.card.answeredBy) : ""}` : undefined;
-  if (cached && cached.length === thread.length && cached.last === lastKey) return cached.owner;
+  if (!fresh && cached && cached.length === thread.length && cached.last === lastKey) return cached.owner;
   const owner = ownerOnlyConversation(thread, cloudProvenOwnerPerson, cloudCardAnswerer) && !thread.some(cloudReportFromOthers);
   if (ownerOnlyCache.size > 5_000) ownerOnlyCache.clear();
   ownerOnlyCache.set(threadId, { length: thread.length, last: lastKey, owner });
@@ -1170,7 +1170,7 @@ function recentWorkSources(bot: BotRecord) {
 
 function recallThreads(from: BotRecord, capability: Parameters<typeof cloudLendingView>[0]): { roomByThread: Map<string, GroupRecord>; ownThreads: string[] } {
   const roomByThread = recallRooms(store.groups, from, roomFeedsBot);
-  return { roomByThread, ownThreads: recallThreadIds(from, roomByThread).filter((id) => !proactive.fence.confines(id) && !botApiThread(id)).filter(CLOUD_TEAM ? teamHost.readableFrom(capability.threadId) : cloudLendingView(capability) ? cloudOwnerOnlyThread : () => true) };
+  return { roomByThread, ownThreads: recallThreadIds(from, roomByThread).filter((id) => !proactive.fence.confines(id) && !botApiThread(id)).filter(CLOUD_TEAM ? teamHost.readableFrom(capability.threadId) : cloudLendingView(capability) ? id => cloudOwnerOnlyThread(id) : () => true) };
 }
 
 /** Other conversations only for a 1:1 turn the person started: another bot, a webhook or a room must not pull a private chat into its reply. */
@@ -12105,7 +12105,7 @@ const aiTwin = createAiTwinHost({
   zaloRecipe: id => bundledSkills.find(skill => skill.manifest.id === id)?.instructions,
   preview: { selection: () => bootSelection, jobs: sideJobs }, blocked: () => workspaceMaintenance.active || moveFreeze.frozen(),
   liveSession: liveSignedIn, sessionRecord: (id) => sessions.record(id), visible: (auth) => visibleTo(viewerFor(auth)), mayLearn: () => CLOUD_PERSONAL || !sharedMembership(),
-  ownerThread: (thread) => !CLOUD_PERSONAL || cloudOwnerOnlyThread(thread), ownerLine: (person) => CLOUD_PERSONAL ? cloudProvenOwnerPerson(person) : !person,
+  ownerThread: (thread) => !CLOUD_PERSONAL || cloudOwnerOnlyThread(thread, true), ownerLine: (person) => CLOUD_PERSONAL ? cloudProvenOwnerPerson(person) : !person,
   roomReady: (group) => !group.dm && !roomSetupPending(group), roomSendRefused: cloudGuestSendRefusal, sender: messageSender,
 });
 ROUTES.push(aiTwin.routes);

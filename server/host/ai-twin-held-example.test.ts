@@ -57,7 +57,7 @@ it.each(["held", "outside the current history"])("refuses to save a reviewed rep
   }
   expect((await call(AI_TWIN_LEARNING_PATH)).payload).toMatchObject({ examples: [] });
   const save = await call(AI_TWIN_LESSONS_PATH, { id: current.id, revision: current.revision,
-    question: example.question, answer: example.text, example: { thread: threadId, message: a.id }, saveAsLesson: true, allowProvider: true });
+    question: example.question, answer: example.text, example: { thread: threadId, message: a.id, digest: example.digest }, saveAsLesson: true, allowProvider: true });
   expect(save.status).toBe(409);
   expect(privateStore.get().lessons).toEqual([]);
 });

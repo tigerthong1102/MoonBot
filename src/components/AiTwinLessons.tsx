@@ -13,12 +13,13 @@ type LessonForm = {
   question: string;
   answer: string;
   allowProvider: boolean;
-  example?: Pick<AiTwinLearningExample, "thread" | "message">;
+  example?: Pick<AiTwinLearningExample, "thread" | "message" | "digest">;
 };
 
-export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
+export function AiTwinLessons({ twin, lessons, changed, refresh, example, unavailable = [] }: {
   twin: AiTwinProfile;
   lessons: readonly AiTwinLesson[];
+  unavailable?: readonly string[];
   changed: (view: AiTwinView) => void;
   refresh: () => void;
   example?: AiTwinLearningExample | null;
@@ -30,7 +31,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
   const [pending, setPending] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
-  const [confirmation, setConfirmation] = useState<{ twinId: string; revision: number; lessons: AiTwinLesson[] } | null>(null);
+  const [confirmation, setConfirmation] = useState<{ twinId: string; revision: number; lessons: Pick<AiTwinLesson, "id" | "question">[] } | null>(null);
   const active = useRef(false);
   const addLessonButton = useRef<HTMLButtonElement>(null);
   const questionInput = useRef<HTMLInputElement>(null);
@@ -50,7 +51,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
       question: example.question ?? "",
       answer: example.text,
       allowProvider: false,
-      example: { thread: example.thread, message: example.message },
+      example: { thread: example.thread, message: example.message, digest: example.digest },
     });
   }, [example]);
 
@@ -101,6 +102,13 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
   return (
     <SettingsFoldRow id="ai-twin-lessons" panelId={panelId} title={t("settings.aiTwin.lessons")} open={open} onToggle={() => setOpen(!open)}>
       <div className="mt-3 flex flex-col gap-3">
+        {unavailable.length > 0 && <div className="flex flex-col items-start gap-2">
+          <p>{t("settings.aiTwin.unavailableLessons")}</p>
+          <button type="button" className="ui-button" disabled={pending} onClick={() => {
+            setError(null);
+            setConfirmation({ twinId: twin.id, revision: twin.revision, lessons: unavailable.map(id => ({ id, question: "" })) });
+          }}>{t("settings.aiTwin.forgetUnavailable")}</button>
+        </div>}
         {lessons.length > 0 && (
           <ul className="flex flex-col gap-3">
             {lessons.map((lesson) => (
@@ -177,7 +185,7 @@ export function AiTwinLessons({ twin, lessons, changed, refresh, example }: {
         <ConfirmDialog open={Boolean(confirmation)} title={t("settings.aiTwin.forgetSelected")} body={<>
           <p>{t("settings.aiTwin.forgetSelectedBody")}</p>
           <ul className="mt-2 max-h-48 list-disc overflow-auto ps-5">
-            {confirmation?.lessons.map((lesson) => <li key={lesson.id} dir="auto" className="break-words">{lesson.question}</li>)}
+            {confirmation?.lessons.filter(lesson => lesson.question).map((lesson) => <li key={lesson.id} dir="auto" className="break-words">{lesson.question}</li>)}
           </ul>
           {error && <p role="alert" className="mt-2 text-danger">{t("settings.aiTwin.saveError")}</p>}
         </>} confirmLabel={t("settings.aiTwin.forgetSelected")} pending={pending} returnFocusRef={addLessonButton}

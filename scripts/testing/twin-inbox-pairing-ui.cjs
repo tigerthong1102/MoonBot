@@ -230,15 +230,23 @@ app
       );
     }
     await mobile.webContents.executeJavaScript('document.querySelector("#twin-pairing summary").click()');
-    await until(mobile, 'document.querySelector("#twin-pair-active button")?.textContent');
-    await mobile.webContents.executeJavaScript('document.querySelector("#twin-pair-active button").click()');
-    await delay(500);
-    console.log(
-      "Revoke receipt",
-      await mobile.webContents.executeJavaScript(
-        'JSON.stringify({lang:document.documentElement.lang,status:document.getElementById("twin-pair-status").textContent,remaining:document.querySelectorAll("#twin-pair-active li").length})',
-      ),
-    );
+    if (cfg.renewalCycle) {
+      const permissions = await mobile.webContents.executeJavaScript(`(async () => ({
+        pairings:(await (await fetch("/api/twin-pairing")).json()).pairings,
+        grant:(await (await fetch("/api/twin-generated")).json()).grant
+      }))()`);
+      assert.deepEqual(permissions, {pairings:[], grant:null});
+    } else {
+      await until(mobile, 'document.querySelector("#twin-pair-active button")?.textContent');
+      await mobile.webContents.executeJavaScript('document.querySelector("#twin-pair-active button").click()');
+      await delay(500);
+      console.log(
+        "Revoke receipt",
+        await mobile.webContents.executeJavaScript(
+          'JSON.stringify({lang:document.documentElement.lang,status:document.getElementById("twin-pair-status").textContent,remaining:document.querySelectorAll("#twin-pair-active li").length})',
+        ),
+      );
+    }
     await until(mobile, 'document.querySelector("#twin-pair-active li") === null');
     await b.webContents.executeJavaScript('window.dispatchEvent(new Event("focus"))');
     await until(b, 'document.querySelector("#twin-pair-active li") === null');

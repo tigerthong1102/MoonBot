@@ -32,6 +32,7 @@ it("filters automated messages, provider text, attachments and recognized secret
   const parent = { ...message, id: "question", text: "Who reviews the inventory?" };
   const reply = { ...message, replyToId: parent.id };
   expect(twinLearningText(reply, parent)).toBe(message.text);
+  expect(twinLearningText(reply)).toBeUndefined();
   expect(twinLearningText(reply, { ...parent, workBotReviewHold: true })).toBeUndefined();
   expect(twinLearningText({ ...message, workBotRouting: { state: "held_for_review" } })).toBeUndefined();
   expect(twinLearningText({ ...message, text: "Contact fixture@example.test to see the memo." })).toBeUndefined();

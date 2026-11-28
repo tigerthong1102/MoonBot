@@ -132,7 +132,11 @@ export function createOnlineGenerated({ state, check, checkOnline, profile, gene
         await check(key);
       }
       live(session.deadline);
-      if (renew && (used.size >= grant.dailyLimit || [...used.values()].filter(at => monotonic() - at < 600000).length >= 5)) return;
+      if (renew && (used.size >= grant.dailyLimit || [...used.values()].filter(at => monotonic() - at < 600000).length >= 5)) {
+        const status = await inbox("twin-generated");
+        if (status.owner !== grant.owner || status.grant?.id !== grant.id || !status.grant.enabled) throw unavailable();
+        return;
+      }
       const started = monotonic(), result = await post("claim"), job = result.challenge;
       if (renew && (result.revoked === true || (job && result.enabled !== true))) throw unavailable();
       if (!job) return;

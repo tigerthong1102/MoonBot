@@ -19,6 +19,7 @@ function fixture(t, overrides = {}) {
   const inbox = async (path, data) => {
     if (path === "me") return { id:key.owner, generatedAnswer:true };
     if (path.endsWith("?rooms=1")) return { owner:key.owner, rooms:overrides.rooms ?? [room] };
+    if (path === "twin-generated" && !data) return { owner:key.owner, grant:central && grant ? {id:grant.id,enabled:true} : null };
     calls.push(data);
     switch (data.action) {
       case "offer":
@@ -183,6 +184,16 @@ test("one online signer enforces five attempts per rolling ten minutes and the d
   f.elapsed(86401000);
   await f.service.tick();
   assert.equal(f.generations(),7);
+});
+
+test("central Stop is observed while the local daily cap blocks new claims", async t => {
+  const f = fixture(t);
+  await f.offer(1);
+  await f.service.tick();
+  f.revoke();
+  await f.service.tick();
+  assert.equal(f.generations(), 1);
+  assert.equal(f.service.whileOpen(), false);
 });
 
 test("closing the approving desktop during a renewal prevents signing or dispatch", async t => {

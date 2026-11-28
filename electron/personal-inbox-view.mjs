@@ -328,6 +328,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
         clearTimeout(timer);
         clearInterval(poll);
         win.removeListener("closed", dispose);
+        win.removeListener("close", closeOnline);
         if (!contents.isDestroyed()) {
           contents.removeListener("did-start-navigation", leaving);
           contents.removeListener("render-process-gone", dispose);
@@ -336,6 +337,9 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
           pairing = undefined;
           disposePairing = undefined;
         }
+      };
+      const closeOnline = () => {
+        if (instance.generated.whileOpen()) dispose();
       };
       const leaving = (_event, _url, isInPlace, isMainFrame) => {
         if (isMainFrame && !isInPlace) dispose();
@@ -356,6 +360,7 @@ export function createPersonalInbox({ window, locale, languageKey, isLocal, show
       disposePairing = dispose;
       contents.on("did-start-navigation", leaving);
       contents.once("render-process-gone", dispose);
+      win.on("close", closeOnline);
       win.once("closed", dispose);
       try {
         return await instance.start();

@@ -35,6 +35,10 @@ export const zaloInboxSchema = `
     endpoint TEXT PRIMARY KEY, accountId TEXT NOT NULL UNIQUE, secretHash BLOB NOT NULL UNIQUE,
     grantId TEXT REFERENCES zalo_grants(grantId) ON DELETE SET NULL
   );
+  CREATE TABLE IF NOT EXISTS zalo_webhook_time_gaps (
+    grantId TEXT NOT NULL REFERENCES zalo_grants ON DELETE CASCADE, reason TEXT NOT NULL, observed INTEGER NOT NULL,
+    expires INTEGER NOT NULL, PRIMARY KEY(grantId, reason)
+  );
   CREATE TABLE IF NOT EXISTS zalo_poll_leases (
     accountId TEXT PRIMARY KEY, lease TEXT NOT NULL UNIQUE, grantedTo TEXT NOT NULL, started INTEGER NOT NULL, until INTEGER NOT NULL
   );

@@ -169,3 +169,68 @@ it("rechecks the credential after an in-flight body finishes and the endpoint ha
   });
   expect(await response).toBe(403);
 });
+
+it("allows a paired event 1 ms ahead and requests retry with coverage for excessive provider skew", async () => {
+  const grant = await pair();
+  const ahead = event("still authorized");
+  ahead.message.date = time + 1;
+  expect(await deliver(ahead)).toBe(204);
+  expect(inbox.read(grant).map(row => row.text)).toEqual(["still authorized"]);
+  const later = event("retry me");
+  later.message.date = time + 300_001;
+  const rejected = await fetch(server.baseUrl + bot.path, { method: "POST",
+    headers: { "content-type": "application/json", "x-bot-api-secret-token": bot.secret }, body: JSON.stringify(later) });
+  expect(rejected.status).toBe(503);
+  expect(rejected.headers.get("retry-after")).toBe("30");
+  expect(inbox.coverage(grant)?.webhookTiming).toEqual([{ reason: "provider-clock-ahead", observed: time }]);
+  time += 30_000;
+  expect(await deliver(later)).toBe(204);
+  expect(inbox.read(grant)).toHaveLength(2);
+});
+
+it("never admits a pre-approval message on replay after restart and clock catch-up", async () => {
+  const original = event("unconsented secret content");
+  original.message.date = time + 2000;
+  expect(await deliver(original)).toBe(204);
+  const rows = db.prepare("SELECT fingerprint,epoch FROM zalo_webhook_early").all();
+  expect(rows).toHaveLength(1);
+  expect(rows[0].fingerprint).toBeInstanceOf(Uint8Array);
+  expect(rows[0].epoch).toBeNull();
+  expect(db.prepare("SELECT COUNT(*) AS n FROM zalo_events").get()?.n).toBe(0);
+  const grant = await pair();
+  await new Promise<void>(resolve => server.server.close(() => resolve()));
+  db.close();
+  db = new DatabaseSync(join(directory, "fixture.sqlite"));
+  time += 3000;
+  pilot = createZaloWebhookPilot(db, () => time);
+  server = await listenWebhookIngress(new WebhookManager({ file: join(directory, "hooks.json"), enqueue, botState: () => "ready" }),
+    { host: "127.0.0.1", port: 0, door: pilot.door });
+  expect(await deliver(original)).toBe(204);
+  expect(inbox.read(grant)).toEqual([]);
+  expect(inbox.coverage(grant)?.webhookTiming).toEqual([{ reason: "observed-outside-grant", observed: time }]);
+});
+
+it("keeps a body opened before approval outside the new grant, including a complete later replay", async () => {
+  const invite = pilot.invite(bot.endpoint);
+  expect(await deliver(event("/pair " + invite.code))).toBe(204);
+  const firstChunk = new Promise<void>(resolve => server.server.once("request", incoming => incoming.once("data", () => resolve())));
+  const input = event("pre-approval body");
+  input.message.date = time + 5;
+  const wire = JSON.stringify(input);
+  let grant = "";
+  const response = new Promise<number | undefined>((resolve, reject) => {
+    const out = request(server.baseUrl + bot.path, { method: "POST", headers: {
+      "content-type": "application/json", "x-bot-api-secret-token": bot.secret,
+    } }, incoming => { incoming.resume(); resolve(incoming.statusCode); });
+    out.on("error", reject);
+    out.write(wire.slice(0, 1));
+    void firstChunk.then(() => {
+      grant = pilot.approve(bot.endpoint, pilot.candidate(bot.endpoint)!, 1);
+      time += 10;
+      out.end(wire.slice(1));
+    }).catch(reject);
+  });
+  expect(await response).toBe(204);
+  expect(await deliver(input)).toBe(204);
+  expect(inbox.read(grant)).toEqual([]);
+});

@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypt
 import type { DatabaseSync } from "node:sqlite";
 import { createZaloInbox } from "./zalo-inbox.ts";
 import { normalizedOfficialText, ZaloOfficialError } from "./zalo-official.ts";
+import { webhookClock, ZALO_WEBHOOK_SKEW_MS } from "./zalo-webhook-clock.ts";
 import { zaloWrite } from "./zalo-write.ts";
 import { json, readRawBody, type IngressDoor } from "./webhook-ingress.ts";
 
@@ -27,13 +28,18 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
   )`);
   const endpointById = (id: string) => db.prepare("SELECT accountId,secretHash,grantId FROM zalo_webhook_endpoints WHERE endpoint=?").get(id) as Endpoint | undefined;
   const challenge = (endpoint: string) => db.prepare("SELECT * FROM zalo_pair_challenges WHERE endpoint=?").get(endpoint) as Pair | undefined;
-  const purgeExpired = () => db.prepare("DELETE FROM zalo_pair_challenges WHERE expires<=?").run(now());
+  const clock = webhookClock(db);
+  const purgeExpired = () => {
+    const time = now();
+    clock.prune(time);
+    db.prepare("DELETE FROM zalo_pair_challenges WHERE expires<=?").run(time);
+  };
   purgeExpired();
   const active = () => { if (!currentPilot()) throw new Error("Zalo webhook pilot disabled"); };
   const authorized = (endpoint: Endpoint | undefined, secret: string) =>
     !!endpoint && /^[A-Za-z0-9_-]{43}$/.test(secret) && timingSafeEqual(endpoint.secretHash, digest(secret));
 
-  function receive(endpointId: string, secret: string, payload: unknown) {
+  function receive(endpointId: string, secret: string, receivedEpoch: string | null, payload: unknown) {
     return zaloWrite(db, () => {
       const endpoint = endpointById(endpointId);
       if (!currentPilot() || !endpoint || !authorized(endpoint, secret)) return 403;
@@ -43,7 +49,8 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
       const time = now();
       if (/^\/pair(?:\s|$)/u.test(event.text)) {
         const pair = challenge(endpointId);
-        if (!pair || !pair.codeHash || event.timestamp < pair.started || event.timestamp > time) return 204;
+        if (!pair || !pair.codeHash || event.timestamp < pair.started) return 204;
+        if (event.timestamp > time + ZALO_WEBHOOK_SKEW_MS) return 503;
         const messageHash = digest(JSON.stringify([event.conversationId, event.messageId]));
         if (db.prepare("SELECT 1 FROM zalo_pair_failures WHERE challenge=? AND messageHash=?").get(pair.id, messageHash)) return 204;
         if (pair.failures >= MAX_ATTEMPTS) return 429;
@@ -56,11 +63,11 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
         db.prepare("UPDATE zalo_pair_challenges SET codeHash=NULL,sender=?,chat=? WHERE id=?").run(event.senderId, event.conversationId, pair.id);
         return 204;
       }
-      if (!endpoint.grantId) return 204;
-      const grant = inbox.grant(endpoint.grantId);
-      // An event delivered before the operator confirmed cannot be replayed into a later enrollment.
-      if (!grant || event.timestamp <= grant.since || event.timestamp > time) return 204;
-      const result = inbox.accept(event, endpoint.grantId);
+      const grant = endpoint.grantId ? inbox.grant(endpoint.grantId) : undefined;
+      const decision = clock.assess(endpointId, secret, event, grant, receivedEpoch, time);
+      if (decision !== undefined) return decision;
+      if (!grant) return 204;
+      const result = inbox.accept(event, grant.grantId);
       return result === "conflict" ? 409 : 204;
     });
   }
@@ -69,13 +76,20 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
   const door: IngressDoor = async (req, res, url) => {
     const match = /^\/hooks\/zalo-official\/([A-Za-z0-9_-]{24})$/.exec(url.pathname);
     if (!match) return false;
-    const reply = (status: number) => { json(res, status, {}); return true; };
+    const reply = (status: number) => {
+      if (status === 503) res.setHeader("Retry-After", "30");
+      json(res, status, {});
+      return true;
+    };
     if (!currentPilot()) return reply(404);
     if (req.method !== "POST") return reply(405);
     const secret = req.headers["x-bot-api-secret-token"];
     if (typeof secret !== "string") return reply(403);
+    let receivedEpoch: string | null;
     try {
-      if (!authorized(endpointById(match[1]), secret)) return reply(403);
+      const entry = endpointById(match[1]);
+      if (!entry || !authorized(entry, secret)) return reply(403);
+      receivedEpoch = entry.grantId;
     } catch { return reply(503); }
     if (req.headers["content-type"]?.split(";")[0].trim().toLowerCase() !== "application/json") return reply(415);
     if (inflight >= 8) return reply(429);
@@ -83,7 +97,7 @@ export function createZaloWebhookPilot(db: DatabaseSync, now: () => number = Dat
     try {
       const raw = await readRawBody(req);
       if (!raw) return reply(400);
-      return reply(receive(match[1], secret, JSON.parse(raw)));
+      return reply(receive(match[1], secret, receivedEpoch, JSON.parse(raw)));
     } catch (error) {
       if (error instanceof SyntaxError || (error instanceof ZaloOfficialError && error.code === "protocol")) return reply(400);
       const status = error && typeof error === "object" && "status" in error ? error.status : undefined;

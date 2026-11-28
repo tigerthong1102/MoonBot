@@ -1,3 +1,5 @@
+import { copyText } from "./clipboard-write.js";
+
 let callback = location.pathname === "/mobile/callback" ? new URLSearchParams(location.search) : null;
 if (callback) history.replaceState(null, "", "/mobile");
 const translations = {
@@ -149,7 +151,9 @@ function formatAnswer(element, text) {
   const copy = document.createElement("button");
   copy.type = "button";
   copy.textContent = t.copy;
-  copy.onclick = () => navigator.clipboard.writeText(text).catch(() => status(t.error));
+  copy.onclick = async () => {
+    if (await copyText(text) === "failed") status(t.error);
+  };
   element.parentElement.append(copy);
 }
 async function show(id) {

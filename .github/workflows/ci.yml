@@ -205,7 +205,7 @@ jobs:
     # the box does not start, so they run unboxed or skip, as they always
     # have here. Move to 26.04 once those suites pass with a real box.
     runs-on: ${{ matrix.os == 'ubuntu-latest' && 'ubuntu-24.04' || matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'ubuntu-latest' && 25 || 30 }}
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 40 || matrix.os == 'ubuntu-latest' && 25 || 30 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python for portable Hermes

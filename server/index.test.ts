@@ -9325,6 +9325,11 @@ describe("harness HTTP API", () => {
       const messages = async (): Promise<Msg[]> =>
         (await api("GET", "/api/bots?messages=40")).body.bots.find((candidate: { id: string }) => candidate.id === bot.id).messages;
 
+      await expect.poll(async () => {
+        const { body } = await api("GET", `/api/threads/${bot.threadId}/events`);
+        return (body as InspectorPage).entries.some(entry => entry.kind === "runtime" &&
+          entry.data.type === "session.started" && entry.data.model === "claude-haiku-4-5");
+      }, { timeout: 5_000 }).toBe(true);
       const first = raise("ask-wc", "wc -l notes.md");
       const card = await expect.poll(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")?.card).toBeTruthy()
         .then(async () => (await messages()).find((m) => m.card?.subtitle === "wc -l notes.md")!.card!);

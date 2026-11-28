@@ -25,6 +25,10 @@ it("preserves team identity, rejects stale writes and searches omitted shared no
   };
   try {
     await waitForExit(fixture.child, { signal: "SIGTERM" });
+    writeFileSync(join(fixture.info.dataDir, "team-memory.json"), JSON.stringify({ version: 2, sections: { "": [{
+      id: "seeded-note", kind: "term", name: "Seeded provenance", detail: "Approved shared fact", aliases: [], status: "accepted",
+      source: { botId: "seeded-bot", botName: "Seeded", threadId: "private-seeded-thread", messageId: "unverified-source-id", quote: "private-seeded-quote", at: 1 }, updatedAt: 1,
+    }] } }));
     const log = openSync(fixture.info.logPath, "a", 0o600);
     child = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))], {
       cwd: fileURLToPath(new URL("..", import.meta.url)), stdio: ["ignore", log, log],
@@ -32,6 +36,15 @@ it("preserves team identity, rejects stale writes and searches omitted shared no
     });
     closeSync(log);
     await expect.poll(async () => { try { return (await fetch(fixture.info.url + "/api/health")).ok; } catch { return false; } }, { timeout: 30_000 }).toBe(true);
+    const { bot: general } = await api("/api/bots", "POST", { name: "General fixture" }, undefined, 201);
+    const generalMint = await fetch(fixture.info.url + "/api/testing/internal-capability", { method: "POST",
+      headers: { "content-type": "application/json", "x-openmausbot-test-capability": capabilityKey }, body: JSON.stringify({ botId: general.id, threadId: general.threadId, kind: "agents" }) });
+    expect(generalMint.status).toBe(201);
+    const generalToken = (await generalMint.json() as { token: string }).token;
+    const protectedSearch = await api(`/api/internal/session-search?fromBotId=${general.id}&scope=team&q=Seeded`, "GET", undefined, generalToken);
+    expect(protectedSearch.teamHits).toEqual([expect.objectContaining({ id: "seeded-note", detail: "Approved shared fact" })]);
+    expect(JSON.stringify(protectedSearch)).not.toMatch(/private-seeded-thread|unverified-source-id|private-seeded-quote/);
+    expect((await api("/api/team-memory?section=")).entries[0].source.quote).toBe("private-seeded-quote");
     const folder = join(fixture.info.dataDir, "editing-project");
     mkdirSync(folder);
     writeFileSync(join(folder, "project.aep"), "revision one");

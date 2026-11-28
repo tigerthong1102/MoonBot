@@ -37,8 +37,9 @@ it.each(["held", "outside the current history"])("refuses to save a reviewed rep
   onTestFinished(() => new Promise<void>(resolve => server.close(() => resolve())));
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("Missing fixture port");
+  const origin = `http://127.0.0.1:${address.port}`;
   async function call(path: string, body?: Record<string, unknown>) {
-    const result = await fetch(`http://127.0.0.1:${address.port}${path}`, body ? {
+    const result = await fetch(origin + path, body ? {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
     } : {});
     return { status: result.status, payload: await result.json() };

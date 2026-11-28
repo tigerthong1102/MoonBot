@@ -203,6 +203,8 @@ const bridge = {
     },
     openPersonalInbox: () => ipcRenderer.invoke("personal-inbox:open"),
     personalInbox: {
+      startTwinPairing: () => ipcRenderer.invoke("personal-inbox:twin-pair-start"),
+      confirmTwinPairing: () => ipcRenderer.invoke("personal-inbox:twin-pair-confirm"),
       create: draft => ipcRenderer.invoke("personal-inbox:create", draft),
       close: () => ipcRenderer.invoke("personal-inbox:close"),
       bounds: rect => ipcRenderer.invoke("personal-inbox:bounds", rect),

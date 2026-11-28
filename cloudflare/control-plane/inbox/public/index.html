@@ -70,6 +70,21 @@
           <label class="search"><svg class="icon" aria-hidden="true"><use href="/inbox-icons.svg#i-search"></use></svg><input dir="auto" type="search" id="filter" placeholder="Search conversations" data-i18n-placeholder="personalInbox.search" aria-label="Search conversations" data-i18n-aria-label="personalInbox.search" /></label>
           <nav id="rooms" aria-label="Conversations" data-i18n-aria-label="personalInbox.conversations"></nav>
           <button class="ui-button" id="open-saved" data-i18n="personalInbox.saved">Your skills and tasks</button>
+          <details id="twin-pairing">
+            <summary data-i18n="personalInbox.pairTitle">Pair a desktop Twin</summary>
+            <p data-i18n="personalInbox.pairPurpose"></p>
+            <form id="twin-pair-form">
+              <label><span data-i18n="personalInbox.pairCode">Desktop code</span><input name="ticket" dir="ltr" autocomplete="off" maxlength="36" required /></label>
+              <button class="ui-button" data-i18n="personalInbox.pairInspect">Show fingerprint</button>
+            </form>
+            <div hidden id="twin-pair-review">
+              <p data-i18n="personalInbox.pairCompare"></p>
+              <output dir="ltr" id="twin-pair-fingerprint"></output>
+              <button type="button" class="ui-button" id="twin-pair-confirm" data-i18n="personalInbox.pairMatch"></button>
+            </div>
+            <p role="status" id="twin-pair-status"></p>
+            <ul id="twin-pair-active"></ul>
+          </details>
           <details id="blocked">
             <summary data-i18n="personalInbox.blockedPeople">Blocked people</summary>
             <ul id="blocked-list"></ul>

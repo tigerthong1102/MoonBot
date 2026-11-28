@@ -1124,3 +1124,66 @@ it("keeps explicit email-update choices with the verified account across devices
   expect(await (await call(route, second, { email, enabled: true })).json()).toEqual({ email, enabled: true });
   expect(await (await call(route, peer)).json()).toEqual({ email: "b@example.test", enabled: null });
 });
+
+it("pairs an ephemeral desktop key through two independent OTP sessions and revokes it from another device", async () => {
+  const { createTwinInboxPairing } = await import("../../../electron/twin-inbox-pairing.mjs");
+  const desktop = await login("owner@example.test"), browser = await login(desktop.email), other = await login("peer@example.test");
+  const twin = { id: uuid(), revision: 1, paused: false };
+  let approved = false;
+  const local = createTwinInboxPairing({
+    origin, current: () => true, profile: async () => ({ twin }), approve: async () => approved,
+    inbox: async (path: string, data?: unknown) => {
+      const res = await call(path,desktop.cookie,data);
+      if (!res.ok) throw Error(String(res.status));
+      return res.json();
+    },
+  });
+  const pair = await local.start();
+  const request = (account: typeof desktop, action: string, extra = {}) => call("twin-pairing", account.cookie, { id:pair.id, owner:account.id, action, ...extra });
+  expect((await request(desktop,"inspect")).status).toBe(409);
+  expect((await request(other,"inspect")).status).toBe(409);
+  await expect(local.confirm()).rejects.toThrow("409");
+  const inspected = await request(browser,"inspect");
+  expect(inspected.status).toBe(200);
+  expect(await inspected.json()).toMatchObject({ id:pair.id, fingerprint:pair.fingerprint });
+  expect((await request(browser,"confirm",{ fingerprint:pair.fingerprint })).status).toBe(409);
+  expect(await local.confirm()).toBe(false);
+  approved = true;
+  twin.revision++;
+  await expect(local.confirm()).rejects.toThrow("pairing_unavailable");
+  twin.revision--;
+  expect(await local.confirm()).toBe(true);
+  await expect(local.confirm()).rejects.toThrow("409");
+  expect((await request(browser,"confirm",{ fingerprint:"0".repeat(64) })).status).toBe(409);
+  expect((await request(desktop,"confirm",{ fingerprint:pair.fingerprint })).status).toBe(409);
+  const confirmations = await Promise.all([1,2].map(() => request(browser,"confirm",{ fingerprint:pair.fingerprint })));
+  expect(confirmations.map(x => x.status).sort()).toEqual([200,409]);
+  const third = await login(desktop.email);
+  const status = (account: typeof desktop) => call("twin-pairing",account.cookie).then(r => r.json<{pairings:{id:string}[]}>());
+  expect((await status(third)).pairings.map(r => r.id)).toEqual([pair.id]);
+  expect((await status(other)).pairings).toEqual([]);
+  expect((await request(other,"revoke")).status).toBe(200);
+  expect((await status(third)).pairings).toHaveLength(1);
+  expect((await request(third,"revoke")).status).toBe(200);
+  expect((await request(third,"revoke")).status).toBe(200);
+  expect((await request(browser,"confirm",{ fingerprint:pair.fingerprint })).status).toBe(409);
+  expect((await status(desktop)).pairings).toEqual([]);
+  expect((await call("twin-auto-reply",desktop.cookie)).status).toBe(404);
+});
+
+it("drops pending proofs on expiry and sign-out and bounds fresh key offers", async () => {
+  const desktop = await login("owner@example.test"), browser = await login(desktop.email);
+  const offer = () => call("twin-pairing", desktop.cookie, { action:"start", owner:desktop.id, publicKey:"12".repeat(32), twin:uuid(), revision:1 });
+  const first = await (await offer()).json<{id:string}>();
+  const inspect = (id: string) => call("twin-pairing", browser.cookie, { action:"inspect", owner:browser.id, id });
+  await env.INBOX_DB.prepare("UPDATE inbox_twin_pairings SET expires=0 WHERE id=?").bind(first.id).run();
+  expect((await inspect(first.id)).status).toBe(409);
+  const second = await (await offer()).json<{id:string}>();
+  expect((await inspect(second.id)).status).toBe(200);
+  await call("auth/sign-out",browser.cookie,{});
+  expect(await env.INBOX_DB.prepare("SELECT 1 FROM inbox_twin_pairings WHERE id=?").bind(second.id).first()).toBeNull();
+  for (let n=0; n<4; n++) expect((await offer()).status).toBe(201);
+  expect((await offer()).status).toBe(429);
+  await call("auth/sign-out",desktop.cookie,{});
+  expect(await env.INBOX_DB.prepare("SELECT count(*) AS n FROM inbox_twin_pairings WHERE owner=?").bind(desktop.id).first<number>("n")).toBe(0);
+});

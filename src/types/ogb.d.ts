@@ -138,6 +138,8 @@ const __APP_VERSION__: string;
       };
       openPersonalInbox?: () => Promise<void>;
       personalInbox?: {
+        startTwinPairing?(): Promise<{ id:string; fingerprint:string; origin:string; expires:number }>;
+        confirmTwinPairing?(): Promise<boolean>;
         create(draft: { id: string; title: string; emails: string[] }): Promise<"ok" | "unauthorized" | "rate_limited" | "room_limit_or_conflict" | "invalid_request" | "unavailable">;
         close(): Promise<void>;
         bounds(rect: { x: number; y: number; width: number; height: number } | null): Promise<void>;

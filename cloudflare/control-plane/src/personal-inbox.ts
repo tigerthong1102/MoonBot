@@ -56,6 +56,8 @@ async function limit(db: D1Database, user: string, action: string, max: number, 
   if (!result.meta.changes) throw new HTTPError(429, "rate_limited");
 }
 
+export { limit as limitInboxAction };
+
 const memberAccess = "SELECT 1 FROM inbox_members WHERE room=? AND person=? AND state='active'";
 const ownerAccess = "SELECT 1 FROM inbox_rooms WHERE id=? AND owner=?";
 

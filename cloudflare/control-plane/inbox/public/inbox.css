@@ -166,3 +166,5 @@ header strong { display: none; }
 @media (max-width: 360px) {
   .compose-row > .round, .compose-row > .kind, .draft-field > button { width: 32px; }
 }
+
+#twin-pairing code, #twin-pair-fingerprint { overflow-wrap: anywhere; }

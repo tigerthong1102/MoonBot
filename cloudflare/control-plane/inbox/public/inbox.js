@@ -1,3 +1,4 @@
+import { installTwinPairing } from "./twin-pairing.js";
 import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
 import { groupBots } from "./group-bots.js";
 import { groupControls } from "./group-controls.js";
@@ -54,6 +55,7 @@ let posts = [],
   readingOlder = false;
 let botChoices = [], botInviteLoad = 0;
 
+const resetTwinPairing = installTwinPairing({ api, me: () => me, t, el });
 const voicePlayers = new Map();
 const voice = voiceComposer({
   recordButton: el("record-voice"), dictateButton: el("dictate-voice"),
@@ -168,6 +170,7 @@ function clearRoom() {
 }
 function signedOut() {
   disconnectSignals();
+  resetTwinPairing();
   me = null;
   rooms = [];
   el("filter").value = "";

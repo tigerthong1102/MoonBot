@@ -1542,6 +1542,11 @@ it.each([false, true])(
       .bind(f.room)
       .all();
     expect(rows.results).toEqual([{ body: "Generated fixture reply.", bot_name: "AI Twin" }]);
+    const historical = await (await call("rooms/" + f.room, f.peer.cookie)).json<{ posts: Record<string, unknown>[] }>();
+    const published = historical.posts.find(p => p.body === "Generated fixture reply.");
+    expect(published).toMatchObject({ generatedReply: 1, botName: "AI Twin" });
+    expect(published).not.toHaveProperty("nonce");
+    expect(historical.posts.some(p => "generated_notice" in p)).toBe(false);
     expect(await f.claim()).toBeNull();
   },
   20000,

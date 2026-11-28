@@ -4,6 +4,7 @@ import { api } from "@/state/api";
 import type { Bot } from "@/state/store";
 import { AI_TWIN_PATH, AI_TWIN_QUESTION_MAX, type AiTwinView } from "../../shared/ai-twin";
 import { reviewZaloExcerpt, ZALO_IMPORT_LIMIT, ZALO_RECIPES, type ZaloRecipe, type ZaloSourceLine, type ZaloExcerpt } from "../../shared/zalo-intelligence";
+import { Layer } from "./Layer";
 import { Select } from "./Select";
 import { AiTwinPreview } from "./AiTwinPreview";
 import { SETTINGS_INPUT, SettingsField, SettingsFoldRow } from "./SettingsPrimitives";
@@ -89,10 +90,10 @@ function ExcerptReview({ twinEnabled, bot }: ExcerptOptions) {
         {bot && row.intents[0] !== "other" && <button type="button" className="ui-button self-start" onClick={() => setReminder({ line: row.line, at: Date.now() + 3_600_000 })}>{t("zalo.prepareReminder")}</button>}
         {selected === row.line && <TwinForExcerpt text={row.text} source={{ source, line: row.line }} />}
       </li>)}</ol>
-    {bot && reminder && <Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}
+    {bot && reminder && <Layer modal><Suspense><RoutineEditor routinesOnly lockedBotId={bot.id} bots={[bot]}
       seed={{ kind: "routine", at: reminder.at, durationMinutes: 15, botIds: [bot.id], name: t("zalo.reminderTitle"), description: t("zalo.reminderPrompt", { line: reminder.line }) }}
-      onSavedCall={() => {}} onClose={() => setReminder(null)} /></Suspense>}
-    {bot && brain && <Suspense><BrainDialog threadId={bot.threadId} initialQuery={brain} close={closeBrain} /></Suspense>}
+      onSavedCall={() => {}} onClose={() => setReminder(null)} /></Suspense></Layer>}
+    {bot && brain && <Layer modal><Suspense><BrainDialog threadId={bot.threadId} initialQuery={brain} close={closeBrain} /></Suspense></Layer>}
     <div className="flex flex-wrap gap-2">
       {page > 0 && <button type="button" className="ui-button" onClick={() => move(page - 1)}>{t("zalo.previous")}</button>}
       {(page + 1) * pageSize < rows.length && <button type="button" className="ui-button" onClick={() => move(page + 1)}>{t("zalo.next")}</button>}

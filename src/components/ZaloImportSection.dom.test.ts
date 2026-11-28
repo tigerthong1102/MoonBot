@@ -2,9 +2,13 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
+import type { Bot } from "@/state/store";
 import { api } from "@/state/api";
 import { ZaloImportSection } from "./ZaloImportSection";
 vi.mock("@/state/api", async load => ({ ...await load<object>(), api: vi.fn() }));
+
+vi.mock("./RoutineCalendarPage", () => ({ EventEditor: () => createElement("dialog", { "aria-label": "routine editor" }) }));
+vi.mock("./knowledge/BrainDialog", () => ({ default: () => createElement("dialog", { "aria-label": "knowledge search" }) }));
 
 it("keeps the excerpt local, preserves source lines and clears the review on closing", async () => {
   const panel = document.createElement("div");
@@ -16,7 +20,7 @@ it("keeps the excerpt local, preserves source lines and clears the review on clo
     input.dispatchEvent(new Event("input", { bubbles: true }));
   }
   try {
-    await act(async () => root.render(createElement(ZaloImportSection, { twinEnabled: true })));
+    await act(async () => root.render(createElement(ZaloImportSection, { twinEnabled: true, bot: { id: "bot-fixture", threadId: "thread-fixture" } as Bot })));
     await act(async () => button("Review a Zalo excerpt").click());
     await act(async () => {
       fill(panel.querySelector("input")!, "Nhóm tổng hợp");
@@ -28,6 +32,13 @@ it("keeps the excerpt local, preserves source lines and clears the review on clo
     expect(panel.textContent).toContain("Possible quote request");
     expect(panel.textContent).toContain("<script>run()</script>");
     expect(panel.querySelector("script")).toBeNull();
+    await act(async () => button("Prepare a reminder").click());
+    await act(async () => button("Find related pages").click());
+    for (const label of ["routine editor", "knowledge search"]) {
+      const selector = 'dialog[aria-label="' + label + '"]';
+      expect(document.body.querySelector(selector)).toBeTruthy();
+      expect(panel.querySelector(selector)).toBeNull();
+    }
     expect(api).not.toHaveBeenCalled();
     await act(async () => button("Review a Zalo excerpt").click());
     await act(async () => button("Review a Zalo excerpt").click());

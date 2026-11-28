@@ -57,10 +57,20 @@ it("offers only to the signed-in owner's active receiver and acknowledges only a
   const routing = { id, fingerprint },
     targets = (t = token) => post(path + "/targets", routing, t).then((r) => r.json());
   expect(await targets()).toEqual({ state: "offline" });
-  await poll(other.credential, crypto.randomUUID());
+  const arm = (token: string, installation: string, listener: string) =>
+    post(path + "/arm", { installation, listener, publicKey }, token);
+  expect((await arm(stranger, a.installation.id, listener)).status).toBe(409);
+  expect((await arm(a.credential, a.installation.id, listener)).status).toBe(401);
+  await poll(a.credential, listener);
   expect(await targets()).toEqual({ state: "offline" });
+  const third = crypto.randomUUID();
+  expect((await arm(stranger, other.installation.id, third)).status).toBe(200);
+  await poll(other.credential, third);
+  expect(await targets()).toEqual({ state: "offline" });
+  expect((await arm(token, a.installation.id, listener)).status).toBe(200);
   await poll(a.credential, listener);
   expect(await targets()).toMatchObject({ state: "ready", id: a.installation.id });
+  expect((await arm(token, b.installation.id, second)).status).toBe(200);
   await poll(b.credential, second);
   expect(await targets()).toMatchObject({
     state: "choose",
@@ -82,6 +92,7 @@ it("offers only to the signed-in owner's active receiver and acknowledges only a
   expect((await post(path, { ...offer, fingerprint: "7".repeat(64) }, token)).status).toBe(409);
   expect(await poll(other.credential, listener)).toEqual({ draft: null });
   expect(await poll(b.credential, second)).toEqual({ draft: null });
+  expect(await (await post(device, { action: "poll", listener, publicKey: "B".repeat(87) + "=" }, a.credential)).json()).toEqual({ draft: null });
   expect(await poll(a.credential, listener)).toMatchObject({ draft: { id, envelope } });
   expect(await poll(a.credential, listener)).toEqual({ draft: null });
   const ack = { action: "ack", id, listener };
@@ -100,6 +111,7 @@ it("drops expired or signed-out requests and never delivers them on reconnect", 
     id = crypto.randomUUID();
   const poll = () =>
     post(device, { action: "poll", listener, publicKey }, a.credential).then((r) => r.json());
+  expect((await post(path + "/arm", { installation: a.installation.id, listener, publicKey }, token)).status).toBe(200);
   await poll();
   const offer = {
     id,

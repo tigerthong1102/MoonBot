@@ -10,6 +10,8 @@ function fixture(respond) {
   const document = {
     companionAccountEmail: "pilot@example.test",
     companionAccountUserId: "first",
+    companionAccountToken: "account-token",
+    companionInstallationId: crypto.randomUUID(),
     companionInstallationCredential: "omb_install_" + "a".repeat(22) + "." + "b".repeat(43),
   };
   const sender = new EventEmitter(),
@@ -18,7 +20,12 @@ function fixture(respond) {
     credentials: () => document,
     allowed: () => true,
     client: () => ({
-      mobileDesktopDraft: async (_token, input) => {
+      mobileDesktopDraft: async (token, input, operation) => {
+        if (operation === "arm") {
+          assert.equal(token, document.companionAccountToken);
+          assert.equal(input.installation, document.companionInstallationId);
+          return { ok: true };
+        }
         calls.push(input.action);
         return respond(input);
       },

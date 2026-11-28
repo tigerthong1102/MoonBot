@@ -77,7 +77,7 @@ Phiên ví đăng nhập bằng email xác minh lại với issuer ở mỗi l�
 
 ### Chuyển việc từ điện thoại đến máy tính
 
-Tài khoản email OTP, sổ cái của ví và cổng OpenRouter phục vụ cả pilot mobile. Tác vụ văn bản chạy tại gateway. Khi gặp yêu cầu cần ứng dụng hoặc tệp trên máy, gateway kiểm tra máy nhận trước bước cấp ngân sách AI. Trong pilot nội bộ, áp dụng migration control-plane `0019_mobile_desktop_drafts.sql` rồi đặt `STARTUPBOT_MOBILE_DESKTOP_HANDOFF=1` trên Worker tài khoản, gateway và ứng dụng desktop. Tắt cờ để dừng nhận yêu cầu mới; tác vụ dọn dẹp vẫn xóa các gói hết hạn.
+Tài khoản email OTP, sổ cái của ví và cổng OpenRouter phục vụ cả pilot mobile. Tác vụ văn bản chạy tại gateway. Khi gặp yêu cầu cần ứng dụng hoặc tệp trên máy, gateway kiểm tra máy nhận trước bước cấp ngân sách AI. Trong pilot nội bộ, áp dụng migration control-plane `0019_mobile_desktop_drafts.sql` và `0020_mobile_receiver_grants.sql` rồi đặt `STARTUPBOT_MOBILE_DESKTOP_HANDOFF=1` trên Worker tài khoản, gateway và ứng dụng desktop. Tắt cờ để dừng nhận yêu cầu mới; tác vụ dọn dẹp vẫn xóa các gói hết hạn.
 
 1. Trên máy tính, đăng nhập cùng tài khoản, mở ô soạn **trống** trong chat riêng của bot và bấm **Nhận việc từ điện thoại**. Giữ cửa sổ đó hoạt động.
 2. Trên mobile, gửi yêu cầu như “Đối chiếu sổ sách trong MISA”, hoặc chọn **Làm việc trên máy tính**. Một máy đang nhận sẽ được chọn tự động. Khi nhiều máy cùng nhận, chọn tên và mã đang hiển thị trên máy mong muốn.

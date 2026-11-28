@@ -46,7 +46,7 @@ export function createMobileDraftReceiver({ credentials, client, allowed }) {
     if (action === "open") {
       if (!allowed(sender)) throw Error("unavailable");
       const account = accountNow();
-      if (!account?.installationCredential) throw Error("signed_out");
+      if (!account?.accountToken || !account.installationId || !account.installationCredential) throw Error("signed_out");
       if (active) close(active);
       const entry = {
         sender,
@@ -61,6 +61,18 @@ export function createMobileDraftReceiver({ credentials, client, allowed }) {
       for (const event of ["destroyed", "did-start-navigation", "render-process-gone"])
         sender.once(event, entry.stop);
       refresh(entry);
+      try {
+        const keys = await entry.keys;
+        if (!current(entry)) throw Error("unavailable");
+        entry.request = entry.client.mobileDesktopDraft(account.accountToken, {
+          installation: account.installationId, listener, publicKey: keys.publicKey,
+        }, "arm");
+        await entry.request;
+        if (!current(entry)) throw Error("unavailable");
+      } catch (error) {
+        close(entry);
+        throw error;
+      }
       return null;
     }
     const entry = active;

@@ -29,6 +29,7 @@ const envelope = z
       return false;
     }
   });
+const arm = z.strictObject({ installation: uuid, listener: uuid, publicKey });
 const offer = destination.extend({ installation: uuid, listener: uuid, envelope });
 const receipt = z.strictObject({ id: uuid });
 const device = z.discriminatedUnion("action", [
@@ -39,7 +40,7 @@ const device = z.discriminatedUnion("action", [
 const destinations = `SELECT i.id,i.display_name AS name,r.listener,r.public_key AS publicKey,r.expires AS leaseExpires FROM mobile_draft_receivers r
   JOIN installations i ON i.id=r.installation JOIN installation_credentials c ON c.lookup_id=r.credential
   WHERE i.owner_user_id=?1 AND i.revoked_at IS NULL AND c.installation_id=i.id AND c.revoked_at IS NULL
-  AND c.expires_at>?2 AND r.expires>?2 AND coalesce(i.kind,'desktop')='desktop'`;
+  AND c.expires_at>?2 AND r.expires>?2 AND r.grant_expires>?2 AND r.account_session IS NOT NULL`;
 const publicState = (state: string, expires: number, now: number) =>
   state === "received" ? state : expires <= now ? "expired" : "waiting";
 
@@ -59,6 +60,23 @@ export async function mobileDraftAccount(req: Request, env: Env, auth: ControlPl
   const body = await readBoundedJSON(req),
     owner = session.user.id,
     now = Date.now();
+  if (operation === "arm") {
+    const parsed = arm.safeParse(body);
+    if (!parsed.success) throw new HTTPError(400, "invalid_request");
+    const { installation, listener, publicKey } = parsed.data;
+    const grantExpires = new Date(session.session.expiresAt).getTime();
+    const granted = await env.DB.prepare(
+      `INSERT INTO mobile_draft_receivers(installation,listener,credential,expires,public_key,account_session,grant_expires)
+       SELECT i.id,?2,c.lookup_id,min(?4+6000,?7),?3,?6,?7 FROM installations i JOIN installation_credentials c ON c.installation_id=i.id
+       WHERE i.id=?1 AND i.owner_user_id=?5 AND i.revoked_at IS NULL AND coalesce(i.kind,'desktop')='desktop'
+       AND c.revoked_at IS NULL AND c.expires_at>?4
+       ON CONFLICT(installation) DO UPDATE SET listener=excluded.listener, credential=excluded.credential,
+       expires=excluded.expires, public_key=excluded.public_key, account_session=excluded.account_session, grant_expires=excluded.grant_expires
+       WHERE mobile_draft_receivers.expires<=?4`,
+    ).bind(installation, listener, publicKey, now, owner, session.session.id, grantExpires).run();
+    if (!granted.meta.changes) throw new HTTPError(409, "receiver_unavailable");
+    return json({ ok: true });
+  }
   if (operation === "status") {
     const parsed = receipt.safeParse(body);
     if (!parsed.success) throw new HTTPError(400, "invalid_request");
@@ -159,7 +177,8 @@ export async function mobileDraftDevice(req: Request, env: Env) {
     now = Date.now();
   const valid = `EXISTS(SELECT 1 FROM installation_credentials c JOIN installations i ON i.id=c.installation_id
     WHERE i.id=?1 AND c.lookup_id=?3 AND i.revoked_at IS NULL AND c.revoked_at IS NULL AND c.expires_at>?4
-    AND coalesce(i.kind,'desktop')='desktop')`;
+    AND EXISTS(SELECT 1 FROM mobile_draft_receivers r WHERE r.installation=?1 AND r.listener=?2 AND r.credential=?3
+    AND r.account_session IS NOT NULL AND r.grant_expires>?4 AND r.expires>?4))`;
   if (input.action === "close") {
     await db.batch([
       db
@@ -186,18 +205,17 @@ export async function mobileDraftDevice(req: Request, env: Env) {
   const [, claimed] = await db.batch<Record<string, string | number>>([
     db
       .prepare(
-        `INSERT INTO mobile_draft_receivers(installation,listener,credential,expires,public_key) SELECT ?1,?2,?3,?4+6000,?5 WHERE ${valid}
-      ON CONFLICT(installation) DO UPDATE SET listener=excluded.listener,credential=excluded.credential,expires=excluded.expires,public_key=excluded.public_key
-      WHERE mobile_draft_receivers.listener=excluded.listener OR mobile_draft_receivers.expires<=?4`,
+        `UPDATE mobile_draft_receivers SET expires=min(?4+6000,grant_expires)
+         WHERE installation=?1 AND listener=?2 AND credential=?3 AND public_key=?5 AND ${valid}`,
       )
       .bind(id, input.listener, auth.lookup_id, now, input.publicKey),
     db
       .prepare(
         `UPDATE mobile_desktop_drafts SET state='claimed' WHERE installation=?1 AND listener=?2 AND state='offered'
-      AND expires>?4 AND ${valid} AND EXISTS(SELECT 1 FROM mobile_draft_receivers WHERE installation=?1 AND listener=?2 AND credential=?3 AND expires>?4)
+      AND expires>?4 AND ${valid} AND EXISTS(SELECT 1 FROM mobile_draft_receivers WHERE installation=?1 AND listener=?2 AND credential=?3 AND expires>?4 AND public_key=?5)
       RETURNING id,envelope,expires`,
       )
-      .bind(id, input.listener, auth.lookup_id, now),
+      .bind(id, input.listener, auth.lookup_id, now, input.publicKey),
   ]);
   const row = claimed.results[0];
   return json({

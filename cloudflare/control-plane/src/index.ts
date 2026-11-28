@@ -110,7 +110,7 @@ async function route(
     if ((env as Env & {STARTUPBOT_MOBILE_DESKTOP_HANDOFF?:string}).STARTUPBOT_MOBILE_DESKTOP_HANDOFF !== "1") throw new HTTPError(404,"not_found");
   }
   if (request.method === "POST" && url.pathname === "/v1/installations/self/mobile-drafts") return mobileDraftDevice(request, env);
-  if (request.method === "POST" && ["/v1/mobile-drafts", "/v1/mobile-drafts/targets", "/v1/mobile-drafts/status"].includes(url.pathname))
+  if (request.method === "POST" && ["/v1/mobile-drafts/arm", "/v1/mobile-drafts", "/v1/mobile-drafts/targets", "/v1/mobile-drafts/status"].includes(url.pathname))
     return mobileDraftAccount(request, env, auth, url.pathname.split("/").at(-1) ?? "");
   if (request.method === "GET" && url.pathname === "/v1/me") {
     const session = await accountSession(request, auth);

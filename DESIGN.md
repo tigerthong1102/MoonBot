@@ -76,6 +76,10 @@ where they belong instead of adding new places.
   The same exception applies when the person permanently deletes an AI Twin
   profile. Confirm once in that profile and name the writing preferences that
   will be deleted, along with its lessons and grants. Keeping a copy for Undo would retain that personal data.
+  When a person selects several Twin lessons to forget together, confirm the
+  selected lessons and explain that their group permissions are removed. The
+  original chats, previous replies, copies already sent elsewhere and backups
+  may remain.
   To pair a private Zalo conversation, the desktop owner verifies the sender,
   conversation and retention period before StartupBot keeps messages. A pairing
   code identifies a candidate. The owner grants access to that chat in Settings.

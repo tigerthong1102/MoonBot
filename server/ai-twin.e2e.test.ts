@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { launchVerificationServer } from "../scripts/control-omb.ts";
-import { AI_TWIN_DELEGATION_PATH, AI_TWIN_LEARNING_PATH, AI_TWIN_PHONE_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH, AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, type AiTwinView, type AiTwinLearningView } from "../shared/ai-twin.ts";
+import { AI_TWIN_DELEGATION_PATH, AI_TWIN_FORGET_MANY_PATH, AI_TWIN_LEARNING_PATH, AI_TWIN_PHONE_PATH, AI_TWIN_LESSONS_PATH, AI_TWIN_LOOKUP_PATH, AI_TWIN_PATH, AI_TWIN_PREVIEW_PATH, type AiTwinView, type AiTwinLearningView } from "../shared/ai-twin.ts";
 import { AI_TWIN_PRIVATE_DIR, createAiTwinStore } from "./ai-twin.ts";
 import { createWorkspaceBackupSnapshot, stagedWorkspaceData, stageWorkspaceBackup } from "./workspace-backup.ts";
 
@@ -461,7 +461,49 @@ it("gives an opted-in companion only the private lookup and draft routes, then c
   }
 }, 90_000);
 
-it("drops semantic recall when the lesson is forgotten while the provider is running", async () => {
+it("forgets exactly the selected lessons and their grants only for the owner", async () => {
+  const { fixture, url, owner, phone, call } = await launchTwin();
+  try {
+    const request = (path: string, method: string, data: unknown, headers: Record<string, string> = owner) => fetch(url + path, {
+      method, headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(data),
+    });
+    const { creationEpoch } = await (await call()).json() as AiTwinView;
+    let view = await (await call("POST", { name: "Fixture", creationEpoch, creationId: randomUUID(), createConsent: true })).json() as AiTwinView;
+    const version = () => ({ id: view.twin!.id, revision: view.twin!.revision });
+    for (const question of ["First question?", "Second question?", "Keep question?"]) {
+      const response = await request(AI_TWIN_LESSONS_PATH, "POST", { ...version(), question, answer: question + " answer", saveAsLesson: true });
+      expect(response.status).toBe(200); view = await response.json() as AiTwinView;
+    }
+    const bot = await (await request("/api/bots", "POST", { name: "Fixture member" })).json() as { bot: { id: string } };
+    const created = await request("/api/groups", "POST", { name: "Fixture room", memberIds: [bot.bot.id] });
+    expect(created.status).toBe(201);
+    const { group } = await created.json() as { group: { id: string } };
+    expect((await request(`/api/groups/${group.id}/setup`, "PATCH", { action: "complete", cwd: null, bulletin: "", defaultResponder: { kind: "mentions" } })).status).toBe(200);
+    for (const lesson of view.lessons!) {
+      const response = await request(AI_TWIN_DELEGATION_PATH, "PATCH", { ...version(), room: group.id, lesson: lesson.id, enabled: true });
+      expect(response.status).toBe(200); view = await response.json() as AiTwinView;
+    }
+    const phoneEnabled = await request(AI_TWIN_PHONE_PATH, "PATCH", { ...version(), enabled: true });
+    expect(phoneEnabled.status).toBe(200); view = await phoneEnabled.json() as AiTwinView;
+    const ids = view.lessons!.slice(0, 2).map((lesson) => lesson.id), kept = view.lessons![2]!.id;
+    const body = { ...version(), lessonIds: ids, confirmForget: true };
+    expect([403, 404]).toContain((await request(AI_TWIN_FORGET_MANY_PATH, "DELETE", body, phone)).status);
+    expect((await request(AI_TWIN_FORGET_MANY_PATH, "DELETE", { ...body, confirmForget: false })).status).toBe(400);
+    expect((await request(AI_TWIN_FORGET_MANY_PATH, "DELETE", { ...body, lessonIds: [ids[0], ids[0]] })).status).toBe(400);
+    expect((await request(AI_TWIN_FORGET_MANY_PATH, "DELETE", { ...body, lessonIds: [ids[0], randomUUID()] })).status).toBe(409);
+    expect((await request(AI_TWIN_FORGET_MANY_PATH, "DELETE", { ...body, revision: body.revision - 1 })).status).toBe(409);
+    expect((await (await call()).json() as AiTwinView).lessons).toHaveLength(3);
+    const removed = await request(AI_TWIN_FORGET_MANY_PATH, "DELETE", body);
+    expect(removed.status).toBe(200);
+    const after = await removed.json() as AiTwinView;
+    expect(after.lessons?.map((lesson) => lesson.id)).toEqual([kept]);
+    expect(after.controls?.delegations).toEqual([{ room: group.id, lesson: kept }]);
+    expect((await request(AI_TWIN_FORGET_MANY_PATH, "DELETE", body)).status).toBe(409);
+    expect((await (await call()).json() as AiTwinView).lessons?.map((lesson) => lesson.id)).toEqual([kept]);
+  } finally { await fixture.close(); }
+}, 90_000);
+
+it.each(["one", "selected"])("drops semantic recall when %s lesson is forgotten while the provider is running", async (mode) => {
   const scratch = mkdtempSync(join(tmpdir(), "omb-twin-revoke-"));
   const log = join(scratch, "calls.jsonl");
   const { fixture, url, owner, call } = await launchTwin({ FAKE_CLAUDE_TEXT_LOG: log, FAKE_CLAUDE_TEXT_HANG: "1", FAKE_CLAUDE_VERSION: "2.1.321" });
@@ -478,10 +520,14 @@ it("drops semantic recall when the lesson is forgotten while the provider is run
     const query = "What is the invoice due date?";
     const pending = request(AI_TWIN_LOOKUP_PATH, "POST", { ...version, question: query, key: saved.preview!.key, useProvider: true });
     await expect.poll(() => existsSync(log) && readFileSync(log, "utf8").includes(query), { timeout: 10_000 }).toBe(true);
-    expect((await request(AI_TWIN_LESSONS_PATH, "DELETE", { ...version, lessonId: saved.lessons![0]!.id })).status).toBe(200);
+    const removal = mode === "one"
+      ? request(AI_TWIN_LESSONS_PATH, "DELETE", { ...version, lessonId: saved.lessons![0]!.id })
+      : request(AI_TWIN_FORGET_MANY_PATH, "DELETE", { ...version, lessonIds: [saved.lessons![0]!.id], confirmForget: true });
+    expect((await removal).status).toBe(200);
     const response = await pending;
     expect(response.status).toBe(409);
     expect(await response.text()).not.toContain("Private fixture answer.");
+    expect(readFileSync(log, "utf8").trim().split("\n")).toHaveLength(1);
   } finally {
     await fixture.close();
     rmSync(scratch, { recursive: true, force: true });

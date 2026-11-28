@@ -10871,6 +10871,7 @@
   "mobileChat.managed_budget_exhausted": "共用 AI 預算已達上限。",
   "mobileChat.managed_ai_paused": "AI 已暫停。",
   "mobileChat.signed_out": "請登入以繼續。",
+  "mobileChat.useWallet": "在此對話使用 StartupBot 錢包",
   "mobileChat.computerNeeded": "這項工作需要在電腦上完成。",
   "mobileChat.desktop_required": "此操作需要已連線的電腦。請在 StartupBot 開啟連接電腦的選項。尚未執行任何操作。",
   "mobileChat.thread_full": "請建立新對話以繼續。",

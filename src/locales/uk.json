@@ -4587,6 +4587,7 @@
   "mobileChat.managed_budget_exhausted": "Спільний бюджет ШІ вичерпано.",
   "mobileChat.managed_ai_paused": "ШІ призупинено.",
   "mobileChat.signed_out": "Увійдіть, щоб продовжити.",
+  "mobileChat.useWallet": "Використовувати гаманець StartupBot для цієї розмови",
   "mobileChat.computerNeeded": "Для цього завдання потрібен комп’ютер.",
   "mobileChat.desktop_required": "Потрібен під’єднаний комп’ютер. Відкрийте підключення комп’ютера у StartupBot. Жодних дій не виконано.",
   "mobileChat.thread_full": "Щоб продовжити, почніть новий чат.",

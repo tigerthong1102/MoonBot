@@ -22,6 +22,34 @@ function request(token, path, body) {
     body:body && JSON.stringify(body) });
 }
 
+it("continues a web OpenRouter conversation natively only after its owner selects the wallet", async () => {
+  fixture.settings.openRouterOAuth = true;
+  const web = await fixture.login("alice"), account = "alice", thread = crypto.randomUUID();
+  const post = (path,body) => fixture.call(path,web,{account,...body});
+  const start = new URL((await (await post("/provider/start",{})).json()).url);
+  expect((await post("/provider/complete",{state:start.searchParams.get("state"),code:"fixture-code"})).status).toBe(200);
+  const initial = await post("/send",{thread,id:crypto.randomUUID(),prompt:"Translate a greeting",provider:"openrouter",save:true});
+  expect(initial.status).toBe(200);await initial.text();
+  fixture.grant(account);
+  const token = await signIn(account), other = await signIn(account);
+  const bot = (await (await request(token,"/api/bots")).json()).bots.find(b=>b.threadId===thread);
+  const send = {threadId:thread,sendId:crypto.randomUUID(),text:"And in French?"};
+  const route = "/api/bots/"+bot.id+"/messages", respond="/api/threads/"+thread+"/respond";
+  const currentCard = async () => (await (await request(token,"/api/threads/"+thread+"/messages")).json()).messages.at(-1).card;
+  expect((await request(token,route,send)).status).toBe(200);
+  let card=await currentCard();
+  const choice=label=>({requestId:card.requestId,behavior:"answer",message:label});
+  expect((await request(other,respond,choice(card.options[0]))).status).toBe(409);
+  expect((await request(token,respond,choice(card.options[1]))).status).toBe(200);
+  expect((await (await fixture.call("/threads",web)).json()).threads[0].provider).toBe("openrouter");
+  expect((await request(token,route,send)).status).toBe(200);
+  card=await currentCard();
+  expect((await request(token,respond,choice(card.options[0]))).status).toBe(200);
+  expect((await request(token,route,send)).status).toBe(200);
+  expect((await (await fixture.call("/threads",web)).json()).threads[0].provider).toBe("managed");
+  expect((await (await post("/history",{thread})).json()).turns.map(t=>t.prompt)).toEqual(["Translate a greeting",send.text]);
+});
+
 it("hydrates the original companion roster, sends without a paired computer, and restores the reply on another phone", async () => {
   const token = await signIn("alice");
   fixture.grant("alice");

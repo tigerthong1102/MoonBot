@@ -161,6 +161,14 @@ export function nativeChat(ledger, lists, origin) {
       if (!pending || body.behavior !== "answer") throw new Fault(409,"desktopUnconfirmed");
       const target = JSON.parse(pending.devices).find(d => d.label === body.message)?.id;
       if (!target) throw new Fault(400,"invalid_target");
+      if (target === "cancel-wallet") {
+        clearChoice(session,id,pending.id);
+        changed(owner);
+        json(200,{ok:true,threadId:id});
+        return;
+      }
+      if (target === "use-wallet") return {account:owner,thread:id,id:pending.id,save:true,provider:"managed",switchWallet:true,
+        prompt:session.open("native-choice:"+pending.id,pending.prompt)};
       return {account:owner,thread:id,id:pending.id,save:true,runtime:"desktop",target,prompt:session.open("native-choice:"+pending.id,pending.prompt)};
     }
     const threads = kind === "bots" && roster(owner).get(id);
@@ -214,7 +222,15 @@ export function nativeChat(ledger, lists, origin) {
     return Boolean(db.prepare("SELECT 1 FROM mobile_native_draft_grants WHERE session=?").get(session));
   }
   function choose(session, body, devices, title) {
-    const choices = devices.map(d => ({id:d.id,label:d.name+" · "+d.code}));
+    writeChoice(session,body,devices.map(d => ({id:d.id,label:d.name+" · "+d.code})),title);
+  }
+  function offerWallet(session,body,messages) {
+    writeChoice(session,body,[{id:"use-wallet",label:messages.useWallet},{id:"cancel-wallet",label:messages.cancel}],messages.provider_disconnected);
+  }
+  function clearChoice(session,thread,id) {
+    db.prepare("DELETE FROM mobile_native_choices WHERE session=? AND thread=? AND id=?").run(session.hash,thread,id);
+  }
+  function writeChoice(session,body,choices,title) {
     db.prepare("DELETE FROM mobile_native_choices WHERE expires<=?").run(Date.now());
     const previous = db.prepare("SELECT id,prompt FROM mobile_native_choices WHERE session=? AND thread=?").get(session.hash,body.thread);
     if (previous && (previous.id !== body.id || session.open("native-choice:"+previous.id,previous.prompt) !== body.prompt)) throw new Fault(409,"desktopChoose");
@@ -233,5 +249,5 @@ export function nativeChat(ledger, lists, origin) {
     });
     changed(owner);
   }
-  return { environment, route, changed, allowsDrafts, choose, received };
+  return { environment, route, changed, allowsDrafts, choose, received, offerWallet, clearChoice };
 }

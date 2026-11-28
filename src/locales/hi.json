@@ -4166,6 +4166,7 @@
   "mobileChat.managed_budget_exhausted": "साझा AI बजट की सीमा पूरी हो गई है।",
   "mobileChat.managed_ai_paused": "AI अभी रुका हुआ है।",
   "mobileChat.signed_out": "जारी रखने के लिए साइन इन करें।",
+  "mobileChat.useWallet": "इस बातचीत के लिए StartupBot वॉलेट इस्तेमाल करें",
   "mobileChat.computerNeeded": "इस काम के लिए कंप्यूटर चाहिए।",
   "mobileChat.desktop_required": "इसके लिए कनेक्टेड कंप्यूटर चाहिए। StartupBot में कंप्यूटर कनेक्ट करने का विकल्प खोलें। कोई काम नहीं चलाया गया है।",
   "mobileChat.thread_full": "जारी रखने के लिए नई बातचीत शुरू करें।",

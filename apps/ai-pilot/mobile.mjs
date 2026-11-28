@@ -57,6 +57,10 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     AND (created,id)<(?,?) ORDER BY created DESC,id DESC LIMIT 13`);
   const lookup = db.prepare("SELECT id FROM mobile_threads WHERE owner=? AND id=?");
   const finish = db.prepare("UPDATE mobile_turns SET state=?,answer=? WHERE owner=? AND id=? AND state='running'");
+  function useWallet(owner,thread) {
+    if (db.prepare("SELECT 1 FROM mobile_turns WHERE owner=? AND thread=? AND state='running'").get(owner,thread)) throw new Fault(409,"turn_in_progress");
+    db.prepare("DELETE FROM mobile_byok_threads WHERE owner=? AND thread=?").run(owner,thread);
+  }
   async function desktopDraft(session, body, operation) {
     try {
       if (operation === "status") return await accounts.mobileDesktopDraft(session.token, body, operation);
@@ -220,6 +224,11 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
       return json(200, { ...data, revision, turns, next });
     }
     if (path !== "/mobile/send" && !lookup.get(owner, thread)) throw new Fault(404, "not_found");
+    if (path === "/mobile/provider/use-wallet") {
+      useWallet(owner,thread);
+      native.changed(owner);
+      return json(200,{ok:true});
+    }
     if (path === "/mobile/history") {
       const before = body.before;
       if (before != null && (!Number.isSafeInteger(before.created) || !uuid.test(before.id))) throw new Fault(400, "invalid_cursor");
@@ -312,7 +321,11 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     if (!isNew) {
       const pinned = db.prepare("SELECT keyHash FROM mobile_byok_threads WHERE owner=? AND thread=?").get(owner, thread);
       const current = ownKey && personalAI.keyHash(session);
-      if (Boolean(pinned) !== ownKey || (pinned && current && pinned.keyHash !== current)) throw new Fault(409, "provider_conflict");
+      if (companion && pinned && ownKey && current !== pinned.keyHash) {
+        native.offerWallet(session,body,mobileCatalog(preferredMobileLanguage(req.headers["accept-language"])).messages);
+        return json(200,{ok:true,threadId:thread});
+      }
+      if (!(companion && body.switchWallet) && (Boolean(pinned) !== ownKey || (pinned && current && pinned.keyHash !== current))) throw new Fault(409, "provider_conflict");
     }
     if (ownKey) {
       const connection = personalAI.info(session);
@@ -326,6 +339,10 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     const messages = ledger.tx(() => {
       if (db.prepare("SELECT 1 FROM mobile_turns WHERE owner=? AND id=?").get(owner, body.id))
         throw new Fault(409, "request_exists");
+      if (companion && body.switchWallet) {
+        useWallet(owner,thread);
+        native.clearChoice(session,thread,body.id);
+      }
       if (!lookup.get(owner, thread)) {
         if (lists.all(owner).length >= 50) throw new Fault(409, "history_full");
         db.prepare("INSERT INTO mobile_threads VALUES (?,?,?,?)").run(owner, thread, body.prompt.trim().slice(0, 80), Date.now());

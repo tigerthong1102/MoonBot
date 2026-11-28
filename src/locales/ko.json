@@ -8293,6 +8293,7 @@
   "mobileChat.managed_budget_exhausted": "공유 AI 예산 한도에 도달했습니다.",
   "mobileChat.managed_ai_paused": "AI가 일시 중지되었습니다.",
   "mobileChat.signed_out": "계속하려면 로그인하세요.",
+  "mobileChat.useWallet": "이 대화에 StartupBot 지갑 사용",
   "mobileChat.computerNeeded": "이 작업에는 컴퓨터가 필요합니다.",
   "mobileChat.desktop_required": "이 작업에는 연결된 컴퓨터가 필요합니다. StartupBot에서 컴퓨터 연결을 여세요. 실행된 작업은 없습니다.",
   "mobileChat.thread_full": "계속하려면 새 대화를 시작하세요.",

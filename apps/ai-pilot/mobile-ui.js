@@ -103,6 +103,7 @@ function applyList(data) {
 function payer() {
   const saved = conversations.find(item => item.id === thread);
   el("billing").hidden = !connection?.connected && saved?.provider !== "openrouter" && el("provider").value !== "openrouter";
+  if (el("useWallet")) el("useWallet").hidden = saved?.provider !== "openrouter";
   el("provider").disabled = Boolean(saved);
   if (saved) el("provider").value = saved.provider;
   el("provider").options[1].disabled = !connection?.connected;
@@ -384,6 +385,10 @@ el("devices").ontoggle = async () => {
 el("connectProvider").onclick = () => action(async () => {
   const { url } = await (await api("provider/start", {})).json();
   location.assign(url);
+});
+if (el("useWallet")) el("useWallet").onclick = () => action(async () => {
+  await api("provider/use-wallet", {thread});
+  await list();
 });
 el("disconnectProvider").onclick = () => action(async () => { await api("provider/disconnect", {}); await list(); });
 el("changeEmail").onclick = signedOut;

@@ -88,7 +88,7 @@ export function revokeWalletSessions(ledger, owner, issuerSession) {
   ledger.tx(() => {
     db.prepare(`INSERT INTO wallet_session_generations(owner,generation) SELECT id,1 FROM users WHERE id=?
       ON CONFLICT(owner) DO UPDATE SET generation=generation+1`).run(owner);
-    // Before this mapping existed, there was no reliable way to attribute an old wallet bearer to one issuer session.
+    // Unmapped wallet sessions cannot be attributed to one issuer session and must be revoked for this owner.
     db.prepare(`DELETE FROM wallet_sessions WHERE owner=? AND (? IS NULL OR NOT EXISTS (
       SELECT 1 FROM wallet_issuer_sessions i WHERE i.wallet=wallet_sessions.token AND i.issuerSession<>?
     ))`).run(owner, issuerSession, issuerSession);

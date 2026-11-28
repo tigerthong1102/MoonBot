@@ -18,7 +18,7 @@ Sáu dòng gọi nút là toàn bộ phần chênh ở bốn file màn hình nat
 
 ### Audit trước khi merge
 
-Ở bản tích hợp `0eaab3742`, 58 test gateway, ví, OpenRouter, locale và tương tác giao diện đạt, cùng với lint và typecheck. Các ca ở vòng này có giao với số 2.489 ở vòng trước. Hai trình duyệt đều giữ được nội dung gõ khi đang chờ trả lời, lưu nháp khi mất mạng và theo được tin trả lời cho một câu hỏi nhiều dòng. Các test bổ sung kiểm tra gửi lại sau khi đã ghi nhận cùng yêu cầu, từ chối kết nối OpenRouter, đổi bên chi trả và nối tiếp câu trả lời bị giới hạn đầu ra.
+Ở bản tích hợp `bb28e4311`, 70 test gateway, ví, OpenRouter, locale và tương tác giao diện đạt, cùng với lint và typecheck. Các ca ở vòng này có giao với số 2.489 ở vòng trước. Hai trình duyệt đều giữ được nội dung gõ khi đang chờ trả lời, lưu nháp khi mất mạng và theo được tin trả lời cho một câu hỏi nhiều dòng. Các test bổ sung kiểm tra gửi lại sau khi đã ghi nhận cùng yêu cầu, từ chối kết nối OpenRouter, đổi bên chi trả và nối tiếp câu trả lời bị giới hạn đầu ra.
 
 Với Better Auth và D1 chạy trong workerd, hai mã OTP qua hộp thư cục bộ đã tạo hai phiên độc lập. Sau khi đăng xuất phiên ví trực tiếp ở issuer, cùng bearer từ HTTP 200 chuyển sang 401 ở gateway. Phiên chat ở điện thoại vẫn nhận 200, sau đó trả 401 khi người dùng đăng xuất riêng phiên đó. Provider AI vẫn là fixture. Phiên ví email thiếu thông tin xác minh từ issuer cần đăng nhập lại một lần.
 

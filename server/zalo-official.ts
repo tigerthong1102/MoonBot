@@ -4,8 +4,8 @@ import type { ZaloEvent } from "../shared/zalo-event.ts";
 
 const id = z.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/);
 const envelope = z.discriminatedUnion("ok", [
-  z.object({ ok: z.literal(true), result: z.unknown() }),
-  z.object({ ok: z.literal(false), error_code: z.number().int() }),
+  z.object({ ok: z.literal(true), result: z.unknown(), error_code: z.unknown().optional() }),
+  z.object({ ok: z.literal(false), error_code: z.number().int(), description: z.unknown().optional(), result: z.unknown().optional() }),
 ]);
 const update = z.object({
   event_name: z.literal("message.text.received"),
@@ -18,6 +18,22 @@ const update = z.object({
     message_type: z.literal("CHAT_TEXT").optional(),
   }),
 });
+
+export function normalizedOfficialText(accountId: string, payload: unknown): ZaloEvent | undefined {
+  const parsed = update.safeParse(payload);
+  if (!parsed.success) {
+    const type = z.object({ event_name: z.string() }).safeParse(payload);
+    if (!type.success || type.data.event_name === "message.text.received") throw new ZaloOfficialError("protocol");
+    return undefined;
+  }
+  const { message } = parsed.data;
+  if (message.from.is_bot || message.chat.chat_type !== "PRIVATE") return undefined;
+  return {
+    adapter: "official", accountId, conversationId: message.chat.id, conversationType: "direct",
+    senderId: message.from.id, messageId: message.message_id, timestamp: message.date,
+    direction: "incoming", text: message.text,
+  };
+}
 
 type Method = "getMe" | "getWebhookInfo" | "getUpdates";
 type Failure = "disabled" | "configuration" | "identity-mismatch" | "webhook-not-found" | "unverified-webhook" | "webhook-configured" |
@@ -45,7 +61,7 @@ function requireEnabled() {
   if (process.env.STARTUPBOT_ZALO_OFFICIAL_PILOT !== "1") throw new ZaloOfficialError("disabled");
 }
 
-async function boundedPayload(response: Response, signal: AbortSignal) {
+export async function readZaloOfficialEnvelope(response: Response, signal: AbortSignal) {
   const reader = response.body?.getReader();
   if (!reader) throw new ZaloOfficialError("protocol");
   let bytes = 0;
@@ -75,12 +91,13 @@ function failure(code: number, method: Method): Failure {
   return "protocol";
 }
 
-export function createZaloOfficialReader(accountId: string, token: string, request: typeof fetch = fetch) {
-  if (!id.safeParse(accountId).success || !/^\d{1,32}:[A-Za-z0-9_-]{1,256}$/.test(token)) {
+function officialClient(token: string, request: typeof fetch) {
+  if (!/^\d{1,32}:[A-Za-z0-9_-]{1,256}$/.test(token)) {
     throw new ZaloOfficialError("configuration");
   }
   async function call(method: Method, signal?: AbortSignal) {
     requireEnabled();
+    if (signal?.aborted) throw new ZaloOfficialError("cancelled");
     const deadline = AbortSignal.timeout(method === "getUpdates" ? 35_000 : 5_000);
     const requestSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
     let response: Response;
@@ -99,7 +116,7 @@ export function createZaloOfficialReader(accountId: string, token: string, reque
       await response.body?.cancel().catch(() => {});
       throw new ZaloOfficialError(failure(response.status, method));
     }
-    const payload = await boundedPayload(response, requestSignal);
+    const payload = await readZaloOfficialEnvelope(response, requestSignal);
     if (!payload.ok) {
       if (method === "getUpdates" && payload.error_code === 408 && (response.ok || response.status === 408)) return null;
       throw new ZaloOfficialError(failure(payload.error_code, method));
@@ -108,20 +125,32 @@ export function createZaloOfficialReader(accountId: string, token: string, reque
     return payload.result;
   }
 
-  async function probe(signal?: AbortSignal) {
-    const identity = z.object({ id }).safeParse(await call("getMe", signal));
+  async function probe(expectedId?: string, signal?: AbortSignal) {
+    const identity = z.object({ id, account_name: z.string().min(1).max(128).optional().catch(undefined) }).safeParse(await call("getMe", signal));
     if (!identity.success) throw new ZaloOfficialError("protocol");
-    if (identity.data.id !== accountId) throw new ZaloOfficialError("identity-mismatch");
+    const accountId = identity.data.id;
+    if (expectedId !== undefined && accountId !== expectedId) throw new ZaloOfficialError("identity-mismatch");
+    const info = { accountId, ...(identity.data.account_name ? { accountName: identity.data.account_name } : {}) };
     try {
       const webhook = z.object({ url: z.string() }).safeParse(await call("getWebhookInfo", signal));
       if (!webhook.success) throw new ZaloOfficialError("unverified-webhook");
-      return { accountId, webhookConfigured: webhook.data.url !== "" };
+      return { ...info, webhookConfigured: webhook.data.url !== "" };
     } catch (error) {
       if (!(error instanceof ZaloOfficialError) || error.code === "disabled" || error.code === "cancelled") throw error;
-      return { accountId, webhookConfigured: null, webhookError: error.code };
+      return { ...info, webhookConfigured: null, webhookError: error.code };
     }
   }
 
+  return { probe, call };
+}
+
+export const probeZaloOfficialToken = (token: string, signal?: AbortSignal, request: typeof fetch = fetch) =>
+  officialClient(token, request).probe(undefined, signal);
+
+export function createZaloOfficialReader(accountId: string, token: string, request: typeof fetch = fetch) {
+  if (!id.safeParse(accountId).success) throw new ZaloOfficialError("configuration");
+  const client = officialClient(token, request);
+  const probe = (signal?: AbortSignal) => client.probe(accountId, signal);
   return {
     probe,
     async receiveOnce(options: {
@@ -147,25 +176,14 @@ export function createZaloOfficialReader(accountId: string, token: string, reque
         if (status.webhookConfigured === null) throw new ZaloOfficialError(status.webhookError);
         if (status.webhookConfigured) throw new ZaloOfficialError("webhook-configured");
         if (!isCurrent() || options.signal?.aborted) return "revoked";
-        const payload = await call("getUpdates", options.signal);
+        const payload = await client.call("getUpdates", options.signal);
         requireEnabled();
         if (!isCurrent() || options.signal?.aborted) return "revoked";
         if (payload === null) return "idle";
-        const parsed = update.safeParse(payload);
-        if (!parsed.success) {
-          const type = z.object({ event_name: z.string() }).safeParse(payload);
-          if (!type.success || type.data.event_name === "message.text.received") throw new ZaloOfficialError("protocol");
-          return "ignored";
-        }
-        const { message } = parsed.data;
-        if (message.from.is_bot || message.chat.chat_type !== "PRIVATE") return "ignored";
-        if (message.chat.id !== initial.conversationId || message.from.id !== initial.senderId) return "ignored";
+        const event = normalizedOfficialText(accountId, payload);
+        if (!event || event.conversationId !== initial.conversationId || event.senderId !== initial.senderId) return "ignored";
         try {
-          return options.accept({
-            adapter: "official", accountId, conversationId: message.chat.id, conversationType: "direct",
-            senderId: message.from.id, messageId: message.message_id, timestamp: message.date,
-            direction: "incoming", text: message.text,
-          }, initial.grantId);
+          return options.accept(event, initial.grantId);
         } catch {
           throw new ZaloOfficialError("receipt-unknown");
         }

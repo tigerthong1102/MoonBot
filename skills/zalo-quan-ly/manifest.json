@@ -1,0 +1,11 @@
+{
+  "id": "zalo-quan-ly",
+  "name": "Rà soát công việc quản lý",
+  "version": "1.0.0",
+  "description": "Tách yêu cầu phê duyệt, hạn chót và công việc cần theo dõi từ phần hội thoại được chọn.",
+  "defaultEnabled": false,
+  "triggerTerms": [
+    "$zalo-quan-ly"
+  ],
+  "requiredCapabilities": []
+}

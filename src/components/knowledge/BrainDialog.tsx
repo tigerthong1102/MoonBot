@@ -19,19 +19,20 @@ import {
 import { cloudAsleep } from "@/lib/cloud-power";
 import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { Select } from "../Select";
+import { ZaloKnowledgeDraft, type ZaloKnowledgeExcerpt } from "./ZaloKnowledgeDraft";
 import { SourceCitation } from "./SourceCitation";
 import { useStore } from "@/state/store";
-import { closeConversationDialog as close } from "../conversation-share/conversation-share";
+import { closeConversationDialog } from "../conversation-share/conversation-share";
 
 const field = "my-1 block w-full rounded-lg border border-hairline bg-inset p-2 text-ink";
 
-export default function BrainDialog({ threadId, selection }: { threadId: string; selection?: BrainSelection }) {
+export default function BrainDialog({ threadId, selection, initialQuery = "", zaloExcerpt, close = closeConversationDialog }: { threadId: string; selection?: BrainSelection; initialQuery?: string; zaloExcerpt?: ZaloKnowledgeExcerpt; close?: () => void }) {
   const panel = useRef<HTMLDivElement>(null);
   useModalDialog(panel, close);
   const { state, dispatch } = useStore();
   const [pages, setPages] = useState<VerifiedPage[]>([]);
   const [draft, setDraft] = useState<VerifiedPage | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [error, setError] = useState(false);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -118,7 +119,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
       window.removeEventListener("startupbot-document-sync", documentSync);
       document.removeEventListener("visibilitychange", visibility);
     };
-  }, [threadId, selection, epoch]);
+  }, [threadId, selection, epoch, close]);
 
   async function approve() {
     const signal = view.current?.signal;
@@ -195,6 +196,7 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
               dispatch({ type: "select", id: bot.id });
               if (bot.threadId !== src.threadId)
                 dispatch({ type: "switchTask", botId: bot.id, threadId: src.threadId });
+              dispatch({ type: "revealThread", threadId: src.threadId });
               dispatch({ type: "focusMessage", threadId: src.threadId, messageId: src.messageId });
               close();
             }}
@@ -300,6 +302,8 @@ export default function BrainDialog({ threadId, selection }: { threadId: string;
                 </p>
                 <p className="my-2 whitespace-pre-wrap break-words">{item.page.body}</p>
                 {reference(item.evidence)}
+                {zaloExcerpt && view.current && item.page.approvedAt > 0 && item.page.source.kind === "document" && item.page.source.threadId === threadId &&
+                  <ZaloKnowledgeDraft key={item.page.id + ":" + item.page.version} item={item} excerpt={zaloExcerpt} viewSignal={view.current.signal} />}
                 {pages.some((p) => p.page.id !== item.page.id && sharesSource(p.page.source, item.page.source)) && (
                   <details>
                     <summary>{t("brain.related")}</summary>

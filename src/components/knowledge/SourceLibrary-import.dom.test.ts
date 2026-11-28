@@ -93,6 +93,34 @@ it("requires a new read for a picked folder whose watch could not be saved", asy
   expect(button(t("knowledge.ask", { count: 1 }))).toBeUndefined();
 });
 
+it("drops the warmed top passages when a document disappears during the answer rescan", async () => {
+  const pending = Promise.withResolvers<void>(), started = Promise.withResolvers<void>();
+  let rechecking = false;
+  vi.stubGlobal("showDirectoryPicker", async () => ({
+    name: "Watched", async *values() {
+      const entry = (name: string) => ({ kind: "file", name, getFile: async () =>
+        new File([Array.from({ length: 20 }, (_, i) => "Đối chiếu " + i).join("\n\n")], name) });
+      if (rechecking) {
+        started.resolve();
+        await pending.promise;
+      } else yield entry("a.txt");
+      yield entry("z.txt");
+    },
+  }));
+  await click(t("knowledge.folder")); await indexed(); await search("doi chieu");
+  const displayed = () => [...host.querySelectorAll("dialog button")]
+    .map(b => b.textContent ?? "").filter(label => label.startsWith("Watched/"));
+  expect(displayed()).toHaveLength(15);
+  expect(displayed().every(label => label.startsWith("Watched/a.txt"))).toBe(true);
+  rechecking = true;
+  await click(t("knowledge.ask", { count: 3 })); await started.promise;
+  await act(async () => pending.resolve());
+  await vi.waitFor(() => expect(host.textContent).toContain(t("knowledge.answerChanged")));
+  expect(displayed()).toHaveLength(15);
+  expect(displayed().every(label => label.startsWith("Watched/z.txt"))).toBe(true);
+  expect(api).not.toHaveBeenCalled();
+});
+
 it("unmounts the old library on a same-bot thread switch and discards an unfinished file import when reopening", async () => {
   await selectFile(doc()); await indexed(); await search("ledger");
   const stalled = new File(["private"], "unfinished.txt");

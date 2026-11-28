@@ -1,4 +1,4 @@
-import { generatedComposerNotice } from "./twin-generated-notice.js";
+import { generatedComposerNotice, prepareInboxPost } from "./twin-generated-notice.js";
 import { installExactReview } from "./twin-exact.js";
 import { installTwinPairing } from "./twin-pairing.js";
 import { language, languageNames, setLanguage, t } from "./inbox-i18n.js";
@@ -759,10 +759,8 @@ el("compose").onsubmit = run(async () => {
     kind = form.elements.kind.value,
     body = form.elements.body.value.trim();
   if (activeBatch || voice.active || (!body && !attachments.length)) return;
-  if (!body) pendingPost = null;
-  else if (!pendingPost || pendingPost.room !== current || pendingPost.kind !== kind || pendingPost.body !== body)
-    pendingPost = { room: current, kind, body, nonce: crypto.randomUUID(),
-      generatedNotice: kind === "text" && !attachments.length ? generatedNotice.forDraft() : undefined };
+  pendingPost = prepareInboxPost(pendingPost, { room: current, kind, body,
+    generatedNotice: kind === "text" && !attachments.length ? generatedNotice.forDraft() : undefined });
   await sendDraft();
 });
 const isMarkdown = (name) => /\.(?:md|markdown)$/i.test(name);

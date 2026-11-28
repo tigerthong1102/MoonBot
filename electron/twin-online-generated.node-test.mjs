@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createHash, generateKeyPairSync, randomUUID, verify } from "node:crypto";
 import { createOnlineGenerated } from "./twin-online-generated.mjs";
 import { generatedGrantMessage, generatedPostMessage } from "./twin-generated-message.mjs";
-import { generatedComposerNotice } from "../cloudflare/control-plane/inbox/public/twin-generated-notice.js";
+import { generatedComposerNotice, prepareInboxPost } from "../cloudflare/control-plane/inbox/public/twin-generated-notice.js";
 
 function fixture(t, overrides = {}) {
   const provider = { key: randomUUID(), name: "Fixture", model: "fixture", destination: "http://127.0.0.1:19100" };
@@ -85,4 +85,17 @@ test("an Inbox notice cannot authorize a prior draft, another grant or another r
   input("");input("informed");assert.equal(notice.forDraft(),"grant1");
   next={...next,id:"grant2"};await notice.refresh();assert.equal(notice.forDraft(),undefined);
   input("");input("again");assert.equal(notice.forDraft(),"grant2");room="two";assert.equal(notice.forDraft(),undefined);
+});
+
+test("an uncertain text send preserves its nonce and loses its provider marker if an attachment is added or notice changes", () => {
+  const text = { room: "room", kind: "text", body: "Fixture caption" };
+  const initial = prepareInboxPost(null, { ...text, generatedNotice: "first" });
+  const retry = prepareInboxPost(initial, { ...text, generatedNotice: "first" });
+  assert.deepEqual(retry, initial);
+  for (const generatedNotice of [undefined, "second"]) {
+    const stripped = prepareInboxPost(initial, { ...text, generatedNotice });
+    assert.equal(stripped.nonce, initial.nonce);
+    assert.equal(stripped.generatedNotice, undefined);
+    assert.equal(prepareInboxPost(stripped, { ...text, generatedNotice: "first" }).generatedNotice, undefined);
+  }
 });

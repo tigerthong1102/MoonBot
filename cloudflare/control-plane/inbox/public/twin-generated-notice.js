@@ -1,3 +1,11 @@
+export function prepareInboxPost(previous, { room, kind, body, generatedNotice }) {
+  if (!body) return null;
+  if (previous?.room === room && previous.kind === kind && previous.body === body) {
+    return { ...previous, generatedNotice: previous.generatedNotice === generatedNotice ? generatedNotice : undefined };
+  }
+  return { room, kind, body, generatedNotice, nonce: crypto.randomUUID() };
+}
+
 export function generatedComposerNotice({ api, me, room, el, t }) {
   const box = el("generated-notice"), draft = el("draft");
   let notice, roomId, owner, writing, version = 0;

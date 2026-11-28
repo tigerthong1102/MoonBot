@@ -81,9 +81,9 @@ async function api(path, body, signal) {
   if (!response.ok) {
     const code = (await response.json()).error?.code;
     if (response.status === 401 && path !== "login") signedOut();
-    if (code === "request_exists") { await show(thread); pending = undefined; }
     if (code === "account_changed") location.reload();
-    throw Error(code === "request_exists" ? t.interrupted : t[code] || (code === "account_unavailable" ? t.unavailable : t.error));
+    const message = code === "request_exists" ? t.interrupted : t[code] || (code === "account_unavailable" ? t.unavailable : t.error);
+    throw Object.assign(Error(message), { code });
   }
   return response;
 }
@@ -158,8 +158,11 @@ async function show(id) {
   el("compose").reset();
   el("threads").value = id || "";
   payer();
-  if (!id) return;
+  if (id) await refreshTranscript();
+}
+async function refreshTranscript() {
   const { turns } = await (await api("history", { thread })).json();
+  el("transcript").replaceChildren();
   for (const turn of turns) {
     bubble(t.you, turn.prompt);
     const answer = bubble(t.bot, "");
@@ -268,6 +271,12 @@ el("compose").onsubmit = event => {
       if (answer.textContent) formatAnswer(answer, answer.textContent);
       pending = undefined;
       status(state === "complete" ? "" : t[state] || t.interrupted);
+    } catch (error) {
+      if (error.code !== "request_exists") throw error;
+      await refreshTranscript();
+      if (el("prompt").value === submitted) el("prompt").value = "";
+      pending = undefined;
+      status(t.interrupted);
     } finally {
       el("stop").hidden = true;
       active = undefined;

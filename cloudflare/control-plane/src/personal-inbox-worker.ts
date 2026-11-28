@@ -1,3 +1,4 @@
+import { cleanupGrants, retainOnlinePairings, hasOnlineSchema, canManageOnline } from "./inbox-generated-authority";
 import { inboxGeneratedAnswer } from "./inbox-generated-answer";
 import { inboxExactAnswer } from "./inbox-exact-answer";
 import { inboxTwinPairing } from "./inbox-twin-pairing";
@@ -106,10 +107,14 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   });
   if (!session?.user.emailVerified) return errorResponse(401, "unauthorized");
   if (url.pathname === "/api/twin-generated") {
-    if (env.INBOX_GENERATED_ANSWER !== "1") return errorResponse(404,"not_found");
-    return inboxGeneratedAnswer(req, env.DB, { id:session.session.id, owner:session.user.id }, room => {
+    const manageOnly = env.INBOX_GENERATED_ANSWER !== "1";
+    if (manageOnly) {
+      const available = req.method === "POST" ? await hasOnlineSchema(env.DB) : await canManageOnline(env.DB, session.user.id);
+      if (!available) return errorResponse(404, "not_found");
+    }
+    return inboxGeneratedAnswer(req, env.DB, { id:session.session.id, owner:session.user.id, expires:session.session.expiresAt.getTime() }, room => {
       if (env.SIGNALS) ctx.waitUntil(notifyRoom(env,room));
-    });
+    }, manageOnly);
   }
   if (url.pathname === "/api/twin-exact") {
     if (env.INBOX_EXACT_ANSWER !== "1") return errorResponse(404, "not_found");
@@ -159,7 +164,10 @@ async function handle(request: Request, env: InboxEnv, ctx: ExecutionContext) {
   if (req.method === "GET" && url.pathname === "/api/me") {
     await claimGuestInvites(env.DB, session.user.id, session.user.email.toLowerCase());
     const locale = await env.DB.prepare("SELECT locale FROM inbox_languages WHERE person=?").bind(session.user.id).first<string>("locale");
-    return json({ id: session.user.id, email: session.user.email, ...(env.INBOX_EXACT_ANSWER==="1" && {exactAnswer:true}), ...(env.INBOX_GENERATED_ANSWER==="1" && {generatedAnswer:true}), locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts, voiceFileBytes });
+    const generated = env.INBOX_GENERATED_ANSWER === "1";
+    const manageOnly = !generated && await canManageOnline(env.DB, session.user.id);
+    return json({ id: session.user.id, email: session.user.email, ...(env.INBOX_EXACT_ANSWER==="1" && {exactAnswer:true}),
+      ...(generated && {generatedAnswer:true}), ...(manageOnly && {generatedManageOnly:true}), locale, maxFileBytes, signals: Boolean(env.SIGNALS), fileGzip: true, fileBrotli: true, filePartBytes: partBytes, fileBatchParts: maxBatchParts, fileRawBatchParts: maxRawBatchParts, voiceFileBytes });
   }
   const result = await inboxRoutes(req, env, session.user.id, ctx);
   const silent = result.headers.get("x-inbox-internal-silent") === "1";
@@ -202,10 +210,22 @@ export default {
     return new Response(response.body, { status: response.status, headers, encodeBody: "automatic" });
   },
   async scheduled(_event, env) {
+    const onlineSchema = await hasOnlineSchema(env.DB);
+    const now = Date.now();
+    const cleanGenerated = onlineSchema ? [
+      env.DB.prepare(cleanupGrants),
+      env.DB.prepare("DELETE FROM inbox_generated_cutover WHERE resumes<=?").bind(now),
+      env.DB.prepare("DELETE FROM inbox_generated_limits WHERE enforce_until<=?").bind(now),
+      env.DB.prepare("DELETE FROM inbox_generated_attempts WHERE reserved_at<=?").bind(now-86400000),
+    ] : [];
+    if (env.INBOX_GENERATED_ANSWER === "1" || onlineSchema) {
+      if (!onlineSchema) cleanGenerated.push(env.DB.prepare("DELETE FROM inbox_generated_grants WHERE expires<=?").bind(now));
+      cleanGenerated.push(env.DB.prepare("DELETE FROM inbox_generated_revoked WHERE expires<=?").bind(now));
+    }
     await env.DB.batch([
-      ...(env.INBOX_GENERATED_ANSWER === "1" ? [env.DB.prepare("DELETE FROM inbox_generated_grants WHERE expires<=?").bind(Date.now()), env.DB.prepare("DELETE FROM inbox_generated_revoked WHERE expires<=?").bind(Date.now())] : []),
+      ...cleanGenerated,
       ...(env.INBOX_EXACT_ANSWER === "1" ? [env.DB.prepare("DELETE FROM inbox_exact_revoked WHERE expires<=?").bind(Date.now())] : []),
-      env.DB.prepare("DELETE FROM inbox_twin_pairings WHERE expires<=?").bind(Date.now()),
+      env.DB.prepare("DELETE FROM inbox_twin_pairings WHERE expires<=? "+(onlineSchema ? retainOnlinePairings : "")).bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_bot_rounds WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_bot_claims WHERE expires<=?").bind(Date.now()),
       env.DB.prepare("DELETE FROM inbox_uploads WHERE ready=0 AND created<?").bind(Date.now() - 3600_000),

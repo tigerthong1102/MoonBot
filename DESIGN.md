@@ -64,6 +64,9 @@ where they belong instead of adding new places.
   For generated Inbox replies, the owner can choose named rooms or all current and future
   accepted DMs, groups they own or manage, or both.
   Both approval screens show the provider destination, model, rooms, expiry and paid attempt limit.
+  An owner may separately allow ten-minute renewals while their workspace remains open. Both screens
+  disclose the rolling account limits and the owner chooses a daily attempt limit. Any owner Inbox
+  session can stop the permission, including while sending is disabled.
   Senders see the provider notice before composing. The provider receives the current text only,
   and the shared reply identifies itself as AI-generated.
   Owners can forget older lessons whose source cannot be verified.

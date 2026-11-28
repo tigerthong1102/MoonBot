@@ -1394,7 +1394,7 @@ it.each(["selected", "all", "membership-race", "revoke-race", "expired-lease"] a
   15000,
 );
 
-async function generatedFixture(group = false, admin = false, broad?: string[]) {
+async function generatedFixture(group = false, admin = false, broad?: string[], dailyLimit?:number) {
   const { generatedGrantMessage, generatedPostMessage } = await import("../../../electron/twin-generated-message.mjs");
   const enabled = { INBOX_GENERATED_ANSWER: "1" };
   const db = env.INBOX_DB,
@@ -1450,17 +1450,17 @@ async function generatedFixture(group = false, admin = false, broad?: string[]) 
   const roomRef = choices.rooms.find((r) => r.id === room)!.ref;
   const provider = { key: uuid(), name: "Fixture", model: "fixture-model", destination: "https://model.example.test" };
   const expires = Date.now() + 540000,
-    fields = { origin, owner, id, twin, revision: 1, pairing, provider, expires, rooms: broad ?? [roomRef] };
+    fields = { origin, owner, id, twin, revision: 1, pairing, provider, expires, rooms: broad ?? [roomRef],dailyLimit };
   const grant = await api(desktop.cookie, {
     action: "offer",
     pairing,
     provider,
     expires,
-    rooms: fields.rooms,
+    rooms: fields.rooms,dailyLimit,
     signature: await sign(generatedGrantMessage(fields)),
   });
   expect(grant.status, await grant.clone().text()).toBe(201);
-  const approve = async (purpose = broad ? "generated-current-and-future-inbox-v2" : "generated-inbox-answer-v1") => {
+  const approve = async (purpose = dailyLimit ? "generated-while-online-v3" : broad ? "generated-current-and-future-inbox-v2" : "generated-inbox-answer-v1") => {
     const inspected = await api(reviewer.cookie, { action: "inspect" });
     const { review } = await inspected.json<{ review: string }>();
     return api(reviewer.cookie, { action: "approve", review, purpose });
@@ -1504,7 +1504,7 @@ async function generatedFixture(group = false, admin = false, broad?: string[]) 
     claim,
     dispatch,
     finish,
-    enabled,
+    enabled,sign,fields,
   };
 }
 
@@ -1607,6 +1607,7 @@ it("reserves at most five independent source attempts, including uncertain provi
     expect((await f.dispatch(job)).status).toBe(200);
     expect(await f.claim()).toBeNull();
     await f.db.prepare("UPDATE inbox_generated_jobs SET expires=0 WHERE nonce=?").bind(job.nonce).run();
+    await f.db.prepare("UPDATE inbox_generated_attempts SET occupied_until=0 WHERE nonce=?").bind(job.nonce).run();
     expect((await f.dispatch(job)).status).toBe(409);
   }
   expect((await f.post("One beyond the permitted attempts")).ok).toBe(true);
@@ -1839,9 +1840,174 @@ it("shares the five-attempt ceiling across existing and future rooms", async () 
     expect(job.room).toBe(room);
     expect((await f.dispatch(job)).ok).toBe(true);
     await f.db.prepare("UPDATE inbox_generated_jobs SET expires=0 WHERE nonce=?").bind(job.nonce).run();
+    await f.db.prepare("UPDATE inbox_generated_attempts SET occupied_until=0 WHERE nonce=?").bind(job.nonce).run();
   }
   expect(await generatedNotice(f, second)).toBeUndefined();
   expect(await generatedNotice(f, f.room)).toBeUndefined();
   expect((await scopedPost(f, second, f.peer, b)).ok).toBe(true);
   expect(await f.claim()).toBeNull();
 }, 20000);
+
+async function beginLease(f: GeneratedFixture) {
+  const { generatedRenewalMessage } = await import("../../../electron/twin-generated-message.mjs");
+  const response = await f.api(f.desktop.cookie, { action: "lease" });
+  expect(response.status, await response.clone().text()).toBe(200);
+  const value = await response.json<{ nonce: string; expires: number }>();
+  expect(value.nonce).toBeTruthy();
+  return { action: "renew", ...value, signature: await f.sign(generatedRenewalMessage({ ...f.fields, ...value })) };
+}
+function renewalBody(r: Awaited<ReturnType<typeof beginLease>>) {
+  return { action: "renew", nonce: r.nonce, expires: r.expires, signature: r.signature };
+}
+
+it("requires fresh consent and key possession for each renewable lease, leaving old pairing permissions expired", async () => {
+  const f = await generatedFixture(false, false, ["all-direct"], 4);
+  expect((await f.approve("generated-current-and-future-inbox-v2")).status).toBe(409);
+  expect(await (await f.api(f.desktop.cookie, { action: "lease" })).json()).toMatchObject({ enabled: false });
+  expect((await f.approve()).ok).toBe(true);
+  await f.db.prepare("UPDATE inbox_twin_pairings SET expires=0 WHERE id=?").bind(f.pairing).run();
+  await f.db
+    .prepare("UPDATE inbox_generated_leases SET lease_expires=? WHERE id=?")
+    .bind(Date.now() + 40000, f.id)
+    .run();
+  expect(await (await call("twin-pairing", f.desktop.cookie)).json()).toMatchObject({ pairings: [] });
+  expect((await f.api(f.reviewer.cookie, { action: "lease" })).status).toBe(409);
+  const attempt = renewalBody(await beginLease(f));
+  expect((await f.api(f.desktop.cookie, { ...attempt, expires: attempt.expires + 1 })).status).toBe(409);
+  expect((await f.api(f.desktop.cookie, { ...attempt, signature: "00".repeat(64) })).status).toBe(409);
+  const results = await Promise.all([f.api(f.desktop.cookie, attempt), f.api(f.desktop.cookie, attempt)]);
+  expect(results.map((r) => r.status)).toEqual([200, 200]);
+  const tag = await generatedNotice(f, f.room);
+  expect((await scopedPost(f, f.room, f.peer, tag)).ok).toBe(true);
+  const job = (await f.claim())!,
+    src = await (await f.dispatch(job)).json<{ inputHash: string }>();
+  expect((await f.api(f.desktop.cookie, await f.finish(job, src.inputHash, "A fixture response."))).ok).toBe(true);
+  expect((await f.api(f.reviewer.cookie, { action: "revoke" })).ok).toBe(true);
+  expect((await f.api(f.desktop.cookie, attempt)).status).toBe(409);
+  expect(await generatedNotice(f, f.room)).toBeUndefined();
+});
+
+it("discards the old disclosure, backlog and unfinished jobs across a lease gap", async () => {
+  const f = await generatedFixture(false, false, undefined, 10);
+  expect((await f.approve()).ok).toBe(true);
+  const old = await generatedNotice(f, f.room);
+  expect(old).toBeTruthy();
+  expect(old).not.toBe(f.id);
+  expect((await scopedPost(f, f.room, f.peer, old)).ok).toBe(true);
+  const previous = (await f.claim())!;
+  expect((await f.dispatch(previous)).ok).toBe(true);
+  await f.db.prepare("UPDATE inbox_generated_leases SET lease_expires=0 WHERE id=?").bind(f.id).run();
+  expect((await scopedPost(f, f.room, f.peer, old)).ok).toBe(true);
+  expect(await generatedNotice(f, f.room)).toBeUndefined();
+  const renew = renewalBody(await beginLease(f));
+  expect((await f.api(f.desktop.cookie, renew)).ok).toBe(true);
+  expect((await f.dispatch(previous, "check")).status).toBe(409);
+  expect((await scopedPost(f, f.room, f.peer, old)).ok).toBe(true);
+  expect(await f.claim()).toBeNull();
+  const fresh = await generatedNotice(f, f.room);
+  expect(fresh).toBeTruthy();
+  expect(fresh).not.toBe(old);
+  await f.db.prepare("UPDATE inbox_generated_attempts SET occupied_until=0 WHERE nonce=?").bind(previous.nonce).run();
+  await f.db.prepare("UPDATE inbox_generated_jobs SET expires=0 WHERE nonce=?").bind(previous.nonce).run();
+  expect((await scopedPost(f, f.room, f.peer, fresh)).ok).toBe(true);
+  expect(await f.claim()).toMatchObject({ room: f.room });
+});
+
+it.each(["revoke", "logout", "expiry"])("denies a prepared renewal after %s", async (action) => {
+  const f = await generatedFixture(false, false, ["all-direct"], 20);
+  expect((await f.approve()).ok).toBe(true);
+  await f.db
+    .prepare("UPDATE inbox_generated_leases SET lease_expires=? WHERE id=?")
+    .bind(Date.now() + 45000, f.id)
+    .run();
+  const req = renewalBody(await beginLease(f));
+  if (action === "revoke") await f.api(f.reviewer.cookie, { action: "revoke" });
+  if (action === "logout")
+    await f.db
+      .prepare("DELETE FROM session WHERE id=(SELECT inbox_session FROM inbox_twin_pairings WHERE id=?)")
+      .bind(f.pairing)
+      .run();
+  if (action === "expiry")
+    await f.db
+      .prepare("UPDATE session SET expiresAt=? WHERE id=(SELECT inbox_session FROM inbox_twin_pairings WHERE id=?)")
+      .bind(new Date(0).toISOString(), f.pairing)
+      .run();
+  expect((await f.api(f.desktop.cookie, req)).status).toBe(409);
+  expect(await generatedNotice(f, f.room)).toBeUndefined();
+});
+
+it.each([1, 10])(
+  "charges across revoked v3 and v2 grants after source deletion, rolling daily limit %i",
+  async (limit) => {
+    const f = await generatedFixture(false, false, ["all-direct"], limit);
+    expect((await f.approve()).ok).toBe(true);
+    await f.db.prepare("DELETE FROM inbox_generated_limits WHERE owner=?").bind(f.desktop.id).run();
+    const notice = await generatedNotice(f, f.room);
+    expect((await scopedPost(f, f.room, f.peer, notice)).ok).toBe(true);
+    const job = (await f.claim())!;
+    expect((await f.dispatch(job)).ok).toBe(true);
+    await f.db.prepare("DELETE FROM inbox_posts WHERE seq=?").bind(job.source).run();
+    expect((await f.api(f.reviewer.cookie, { action: "revoke" })).ok).toBe(true);
+    const next = uuid(),
+      { generatedGrantMessage } = await import("../../../electron/twin-generated-message.mjs");
+    const fields = { ...f.fields, id: next, dailyLimit: undefined };
+    expect(
+      (
+        await f.api(f.desktop.cookie, {
+          action: "offer",
+          id: next,
+          provider: f.provider,
+          pairing: f.pairing,
+          rooms: fields.rooms,
+          expires: fields.expires,
+          signature: await f.sign(generatedGrantMessage(fields)),
+        })
+      ).ok,
+    ).toBe(true);
+    const { review } = await (
+      await f.api(f.reviewer.cookie, { action: "inspect", id: next })
+    ).json<{ review: string }>();
+    expect(
+      (
+        await f.api(f.reviewer.cookie, {
+          action: "approve",
+          id: next,
+          review,
+          purpose: "generated-current-and-future-inbox-v2",
+        })
+      ).ok,
+    ).toBe(true);
+    const current = await generatedNotice(f, f.room);
+    if (limit === 1) expect(current).toBeUndefined();
+    else expect(current).toBeTruthy();
+    await scopedPost(f, f.room, f.peer, current);
+    const concurrent = await Promise.all([
+      f.api(f.desktop.cookie, { action: "claim" }),
+      f.api(f.desktop.cookie, { action: "claim", id: next }),
+    ]);
+    for (const res of concurrent) expect(await res.json()).toMatchObject({ challenge: null });
+    await f.db.prepare("UPDATE inbox_generated_attempts SET occupied_until=0 WHERE nonce=?").bind(job.nonce).run();
+    const later = await (await f.api(f.desktop.cookie, { action: "claim", id: next })).json<{ challenge: unknown }>();
+    if (limit === 1) expect(later.challenge).toBeNull();
+    else expect(later.challenge).toBeTruthy();
+  },
+  20000,
+);
+
+it("preserves owner Stop while rollout is disabled and never renews after it is restored", async () => {
+  const f = await generatedFixture(false, false, ["all-direct"], 5);
+  expect((await f.approve()).ok).toBe(true);
+  const remote = await login(f.desktop.email);
+  expect(await (await call("me", remote.cookie)).json()).toMatchObject({ generatedManageOnly: true });
+  const status = await (await call("twin-generated", remote.cookie)).json();
+  expect(status).toMatchObject({ manageOnly: true, grant: { enabled: true, id: f.id } });
+  for (const action of ["lease", "claim"])
+    expect((await call("twin-generated", f.desktop.cookie, { owner: f.desktop.id, id: f.id, action })).status).toBe(
+      404,
+    );
+  expect((await call("twin-generated?notice=" + f.room, f.peer.cookie)).status).toBe(404);
+  const stopped = await call("twin-generated", remote.cookie, { action: "revoke", owner: f.desktop.id, id: f.id });
+  expect(await stopped.json()).toMatchObject({ revoked: true, id: f.id });
+  expect((await f.api(f.desktop.cookie, { action: "lease" })).status).toBe(409);
+  expect(await generatedNotice(f, f.room)).toBeUndefined();
+});

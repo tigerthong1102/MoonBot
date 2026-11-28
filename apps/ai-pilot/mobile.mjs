@@ -174,7 +174,7 @@ export function mobileService(ledger, settings, gateway, http, readObject) {
     }
     recover(owner);
     if (companion) {
-      const input = native.route({ req, res, json, path, body, owner, connected:personalAI.info(session).connected });
+      const input = native.route({ req, res, json, path, body, owner });
       if (!input || input.events) return input?.events;
       body = input;
       path = "/mobile/send";

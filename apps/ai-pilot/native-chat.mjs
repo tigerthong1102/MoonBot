@@ -69,7 +69,7 @@ export function nativeChat(ledger, lists, origin) {
       if (!res.destroyed) res.end();
     }
   }
-  function route({ req,res,json,path,body,owner,connected }) {
+  function route({ req,res,json,path,body,owner }) {
     const query = new URL(req.url,origin).searchParams;
     const limit = Math.min(100, Math.max(1, Number(query.get("limit") || query.get("messages")) || 50));
     const get = req.method === "GET", post = req.method === "POST";

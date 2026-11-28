@@ -538,7 +538,7 @@ struct ChatView: View {
 
     private var plusActions: [PlusAction] {
         let canAddAttachment = (!supportsCouncil || council == .off) && attachments.count < AttachmentPolicy.maximumItems
-            && !preparingAttachments && !sendingMessage
+            && !preparingAttachments && !sendingMessage && !session.isMobileAccount
         var out: [PlusAction] = [
             PlusAction(
                 id: "photos", systemImage: "photo.on.rectangle", title: "Photo Library",

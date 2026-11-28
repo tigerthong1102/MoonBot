@@ -401,7 +401,7 @@ struct ChatListView: View {
             if session.canAdminister {
                 sectionButton
             }
-            if session.canAdminister || isMobileAccount {
+            if session.canAdminister || session.isMobileAccount {
                 newBotButton
             }
         }
@@ -427,7 +427,7 @@ struct ChatListView: View {
                 .buttonStyle(.plain)
                 .glassCapsule()
                 .accessibilityLabel("Create")
-            } else if isMobileAccount {
+            } else if session.isMobileAccount {
                 newBotButton
             }
         }
@@ -449,8 +449,6 @@ struct ChatListView: View {
         }
         .accessibilityLabel("Search")
     }
-
-    private var isMobileAccount: Bool { session.connection?.serverEnvironmentId?.hasPrefix("startupbot-mobile:") == true }
 
     private var sectionButton: some View {
         GlassButton(systemImage: "folder.badge.plus", size: 48, weight: .medium, action: openNewSection)

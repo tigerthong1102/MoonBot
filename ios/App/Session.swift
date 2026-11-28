@@ -42,6 +42,7 @@ final class Session: ObservableObject {
     @Published private(set) var state = CompanionState()
     @Published private(set) var connection: Connection?
     @Published private(set) var connections: [Connection] = []
+    var isMobileAccount: Bool { connection?.serverEnvironmentId?.hasPrefix("startupbot-mobile:") == true }
     var canAdminister: Bool { connection?.canAdminister ?? false }
     @Published private(set) var status: Status = .unpaired
     @Published var actionError: String?

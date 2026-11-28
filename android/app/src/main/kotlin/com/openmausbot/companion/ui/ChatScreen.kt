@@ -408,7 +408,9 @@ private fun LoadedChat(
     }
     val draft = composer.text
     val supportsCouncil = (chat as? Chat.RoomChat)?.room?.let { it.councilAvailable && it.dm != true } == true
-    val canAddAttachment = AttachmentImportRules.canAdd(attachments.size, preparingAttachments, sendingMessage) &&
+    val connection by session.connection.collectAsState()
+    val canAddAttachment = connection?.serverEnvironmentId?.startsWith("startupbot-mobile:") != true &&
+        AttachmentImportRules.canAdd(attachments.size, preparingAttachments, sendingMessage) &&
         (!supportsCouncil || composer.council == RoomCouncilMode.OFF)
     var hudOpen by remember(draftKey, chatDrafts) {
         mutableStateOf(SlashCommands.openOnEntry(composer.text))
@@ -452,7 +454,6 @@ private fun LoadedChat(
     LaunchedEffect(showingProfile) { if (showingProfile) dictation.stop() }
     LaunchedEffect(showingCall) { if (showingCall) dictation.stop() }
 
-    val connection by session.connection.collectAsState()
     LaunchedEffect(chatId, threadId, connection?.id) {
         environment.chatPreferences.rememberThread(chat, connection?.id)
     }

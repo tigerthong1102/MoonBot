@@ -88,6 +88,7 @@ async function list() {
 function bubble(speaker, text) {
   const block = document.createElement("article"), label = document.createElement("strong"), paragraph = document.createElement("p");
   label.textContent = speaker;
+  paragraph.dir = "auto";
   paragraph.textContent = text;
   block.append(label, paragraph);
   el("transcript").append(block);
@@ -98,12 +99,14 @@ function formatAnswer(element, text) {
   for (const [index, part] of text.split(/^```[^\n]*$/gm).entries()) {
     if (index % 2) {
       const code = document.createElement("code"), pre = document.createElement("pre");
+      pre.dir = "ltr";
       code.textContent = part.replace(/^\n/, "");
       pre.append(code);
       fragment.append(pre);
     } else {
       for (const line of part.split("\n")) {
         const node = document.createElement(/^#{1,3} /.test(line) ? "strong" : "span");
+        node.dir = "auto";
         const content = line.replace(/^#{1,3} /, "").replace(/^[-*] /, "• ");
         for (const [n, word] of content.split("**").entries()) {
           if (n % 2) { const bold = document.createElement("strong"); bold.textContent = word; node.append(bold); }
@@ -190,18 +193,19 @@ el("stop").onclick = () => active?.abort();
 el("compose").onsubmit = event => {
   event.preventDefault();
   action(async () => {
-    const prompt = el("prompt").value.trim();
+    const submitted = el("prompt").value;
+    const prompt = submitted.trim();
     if (!prompt) return;
-    if (!pending || pending.thread !== thread || pending.prompt !== prompt) pending = { thread, prompt, id:crypto.randomUUID() };
-    const id = pending.id;
     const skill = el("skill").value;
+    if (!pending || pending.thread !== thread || pending.prompt !== prompt || pending.skill !== skill) pending = { thread, prompt, skill, id:crypto.randomUUID() };
+    const id = pending.id;
     active = new AbortController();
     el("stop").hidden = false;
     status(t.waiting);
     try {
       const response = await api("send", { thread, id, prompt, runtime:skill === "desktop" ? "desktop" : "text", skill, save:el("consent").checked }, active.signal);
       const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
-      el("prompt").value = "";
+      if (el("prompt").value === submitted) el("prompt").value = "";
       bubble(t.you, prompt);
       const answer = bubble(t.bot, "");
       let buffer = "", state;

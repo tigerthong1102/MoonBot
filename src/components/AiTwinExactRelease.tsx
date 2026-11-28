@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useId, useState } from "react";
+import { Select } from "@/components/Select";
 import { t } from "@/lib/i18n";
 
 export function AiTwinExactRelease({ paired }: { paired: boolean }) {
   const bridge = window.ogb?.personalInbox;
+  const lessonSelectId = useId();
   const [choices, setChoices] =
     useState<Awaited<ReturnType<NonNullable<NonNullable<typeof bridge>["exactChoices"]>>>>();
   const [lesson, setLesson] = useState(""),
@@ -68,17 +70,15 @@ export function AiTwinExactRelease({ paired }: { paired: boolean }) {
       </button>
       {choices && (
         <fieldset disabled={busy}>
-          <label>
-            {t("personalInbox.exactLesson")}{" "}
-            <select value={lesson} onChange={(e) => setLesson(e.target.value)}>
-              <option value="">—</option>
-              {choices.lessons.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.question}
-                </option>
-              ))}
-            </select>
-          </label>
+          <label htmlFor={lessonSelectId}>{t("personalInbox.exactLesson")}</label>
+          <Select id={lessonSelectId} value={lesson} onChange={(e) => setLesson(e.target.value)}>
+            <option value="">—</option>
+            {choices.lessons.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.question}
+              </option>
+            ))}
+          </Select>
           <label className="block">
             <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />{" "}
             {t("personalInbox.exactAll")}

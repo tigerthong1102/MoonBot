@@ -9,7 +9,7 @@
 <button class="primary" id="loginButton" data-t="code"></button> <button type="button" id="changeEmail" hidden data-t="change"></button></form>
 <section id="chat" hidden><label for="threads" data-t="history"></label><select id="threads"></select>
 <div class="controls"><button id="new" data-t="new"></button><button id="rename" data-t="rename"></button><button id="remove" data-t="remove"></button></div>
-<section id="transcript" aria-label="Chat"></section>
+<section id="transcript" data-t-label="transcript"></section>
 <form id="compose"><label for="skill" data-t="skill"></label><select id="skill"><option value="chat" data-t="ask"></option><option value="write" data-t="write"></option><option value="translate" data-t="translate"></option><option value="summarize" data-t="summarize"></option><option value="desktop" data-t="desktop"></option></select><label for="prompt" data-t="message"></label><textarea dir="auto" id="prompt" rows="3" required maxlength="8192"></textarea>
 <label><input type="checkbox" id="consent" required> <span data-t="consent"></span></label>
 <button class="primary" id="send" data-t="send"></button> <button type="button" id="stop" hidden data-t="stop"></button>

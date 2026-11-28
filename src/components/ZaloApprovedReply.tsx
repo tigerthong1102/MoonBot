@@ -11,7 +11,7 @@ const statusKeys = {
 } as const;
 
 export function ZaloApprovedReply() {
-  const pending = useRef<AbortController | null>(null);
+  const pending = useRef<{ controller: AbortController; sending: boolean } | null>(null);
   const secret = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState<ZaloReplySource>();
   const [preview, setPreview] = useState<ZaloReplyPreview>();
@@ -19,32 +19,42 @@ export function ZaloApprovedReply() {
   const [notice, setNotice] = useState<keyof typeof statusKeys>();
   const [receipt, setReceipt] = useState<string>();
   const [busy, setBusy] = useState(false);
-  function clear() { setSource(undefined); setPreview(undefined); setText(""); setReceipt(undefined); }
+  function clear() {
+    if (secret.current) secret.current.value = "";
+    setSource(undefined); setPreview(undefined); setText(""); setReceipt(undefined);
+  }
+  function invalidate(notice?: "changed") {
+    const active = pending.current;
+    pending.current = null;
+    active?.controller.abort();
+    clear(); setBusy(false); setNotice(active?.sending ? "unknown" : notice);
+  }
   useEffect(() => {
-    function hide() {
-      if (document.visibilityState === "hidden") {
-        pending.current?.abort(); pending.current = null;
-        clear(); setBusy(false); setNotice(undefined);
-      }
-    }
+    function hide() { if (document.visibilityState === "hidden") invalidate(); }
+    function scopeChanged() { invalidate("changed"); }
+    window.addEventListener("startupbot-zalo-scope-changed", scopeChanged);
     document.addEventListener("visibilitychange", hide);
-    return () => { document.removeEventListener("visibilitychange", hide); pending.current?.abort(); };
+    return () => {
+      window.removeEventListener("startupbot-zalo-scope-changed", scopeChanged);
+      document.removeEventListener("visibilitychange", hide);
+      pending.current?.controller.abort();
+    };
   }, []);
   useEffect(() => {
-    const until = preview?.expires ?? source?.sourceExpires;
-    if (!until) return;
-    const timer = window.setTimeout(() => { clear(); setNotice("changed"); }, Math.max(0, Math.min(300_000, until - Date.now())));
+    if (!source) return;
+    const until = Math.min(source.sourceExpires, preview?.expires ?? Infinity);
+    const timer = window.setTimeout(() => invalidate("changed"), Math.max(0, Math.min(300_000, until - Date.now())));
     return () => window.clearTimeout(timer);
   }, [source, preview]);
 
   async function run(operation: (signal: AbortSignal) => Promise<void>, sending = false) {
     if (pending.current) return;
     const controller = new AbortController();
-    pending.current = controller;
+    pending.current = { controller, sending };
     setBusy(true); setNotice(undefined);
     try { await operation(controller.signal); }
     catch { if (!controller.signal.aborted) { clear(); setNotice(sending ? "unknown" : "unavailable"); } }
-    finally { if (pending.current === controller) pending.current = null; if (!controller.signal.aborted) setBusy(false); }
+    finally { if (pending.current?.controller === controller) pending.current = null; if (!controller.signal.aborted) setBusy(false); }
   }
   function read() {
     void run(async signal => {
@@ -64,7 +74,7 @@ export function ZaloApprovedReply() {
       if (signal.aborted) return;
       if (value.text !== text || value.source?.grantId !== source.grantId || value.source.sourceId !== source.sourceId ||
           value.source.accountId !== source.accountId || value.source.senderId !== source.senderId ||
-          value.source.conversationId !== source.conversationId || !value.digest || value.expires <= Date.now()) throw Error();
+          value.source.conversationId !== source.conversationId || !value.digest || Math.min(value.expires, value.source.sourceExpires) <= Date.now()) throw Error();
       setPreview(value); setSource(value.source);
     });
   }

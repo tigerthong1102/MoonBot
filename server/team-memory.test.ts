@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { TeamMemory, TeamMemoryConflict, TEAM_MEMORY_PROMPT_MAX_BYTES } from "./team-memory.ts";
+import { memorySearchText } from "./drivers/memory-search-text.ts";
 import { ensureSections, changeEmptySection, sectionMemoryKey, SECTION_CONTEXTS_FILE } from "./section-context.ts";
 import { removeTempDir } from "./testing/cleanup.ts";
 
@@ -21,6 +22,21 @@ afterEach(async () => {
 });
 
 describe("propose", () => {
+  it("keeps unverified source metadata out of tool search without changing the saved entry", () => {
+    const proposed = memory.propose("", { kind: "term", name: "Recall fixture", detail: "Shared note" },
+      { ...source, threadId: "private-thread", messageId: "unverified-message", quote: "private-source-text" });
+    memory.resolve("", proposed.entry.id, "accept");
+    const hits = memory.search("", "Recall fixture");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ id: proposed.entry.id, detail: "Shared note" });
+    expect(hits[0]).not.toHaveProperty("source");
+    expect(JSON.stringify(hits)).not.toMatch(/private-thread|unverified-message|private-source-text/);
+    const modelText = memorySearchText([], hits);
+    expect(modelText).toContain("Shared note");
+    expect(modelText).not.toMatch(/private-thread|unverified-message|private-source-text|source thread/);
+    expect(memory.list("")[0].source.quote).toBe("private-source-text");
+    expect(memory.search("Other", "Recall fixture")).toEqual([]);
+  });
   it("refuses an over-long field and says how to send it again, naming the limit", () => {
     expect(() => memory.propose("", { kind: "term", name: "OMB", detail: "x".repeat(601) }, source))
       .toThrow("detail is over its 600-character limit, so nothing was done. Keep the fact, its context and why it matters, then send it again.");

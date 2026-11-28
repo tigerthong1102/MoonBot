@@ -313,7 +313,7 @@ export class TeamMemory {
     return { claimed: false };
   }
 
-  search(section: string | null | undefined, query: string, limit = 12, range?: { since?: number; until?: number }): TeamMemoryEntry[] {
+  search(section: string | null | undefined, query: string, limit = 12, range?: { since?: number; until?: number }): Array<Omit<TeamMemoryEntry, "source" | "history" | "replaces">> {
     const terms = [...new Set(recallTerms(query))];
     const score = (entry: TeamMemoryEntry) => {
       const words = new Set(recallTerms([entry.name, entry.detail, entry.key, ...entry.aliases].join(" ")));
@@ -324,7 +324,7 @@ export class TeamMemory {
       && (range?.since === undefined || entry.updatedAt >= range.since)
       && (range?.until === undefined || entry.updatedAt <= range.until))
       .sort((a, b) => score(b) - score(a) || b.updatedAt - a.updatedAt).slice(0, Math.min(25, Math.max(1, limit)))
-      .map(({ history: _history, replaces: _replaces, ...entry }) => entry);
+      .map(({ source: _source, history: _history, replaces: _replaces, ...entry }) => entry);
   }
 
   promptSelection(section: string | null | undefined): { text: string; loadedIds: string[]; total: number } {

@@ -5,6 +5,8 @@ describe("Vietnamese manual excerpts", () => {
   it.each([
     ["Cho em xin báo giá căn hộ được không?", "quote", false],
     ["Nhờ xuất hóa đơn gấp được không?", "invoice", true],
+    ["Anh cần đối soát công nợ gấp.", "reconciliation", true],
+    ["Không cần đối soát công nợ", "other", false],
     ["Gặp đối tác ngày mai", "other", false],
     ["Không cần xuất hóa đơn, xin báo giá", "quote", false],
     ["Cần thuê mặt bằng nhưng không gấp", "rent", false],
